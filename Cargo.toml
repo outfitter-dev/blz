@@ -1,0 +1,43 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cache-core",
+    "crates/cache-cli",
+    "crates/cache-mcp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Outfitter Dev"]
+license = "MIT"
+repository = "https://github.com/outfitter-dev/cache"
+
+[workspace.dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["gzip", "brotli", "json", "stream"] }
+sha2 = "0.10"
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+directories = "5"
+
+# Parsing & indexing
+tree-sitter = "0.24"
+tree-sitter-md = "0.3"
+tantivy = "0.22"
+similar = "2"
+
+# MCP server
+# rmcp = "0.4"  # Will uncomment when available
+
+# Internal crates
+cache-core = { path = "crates/cache-core" }
+cache-cli = { path = "crates/cache-cli" }
+cache-mcp = { path = "crates/cache-mcp" }

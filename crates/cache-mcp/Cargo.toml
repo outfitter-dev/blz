@@ -1,0 +1,22 @@
+[package]
+name = "cache-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cache-mcp"
+path = "src/main.rs"
+
+[dependencies]
+cache-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# MCP server - using JSON-RPC for now until rmcp is available
+jsonrpc-core = "18"
+jsonrpc-stdio-server = "18"
