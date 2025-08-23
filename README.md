@@ -4,7 +4,7 @@
 >
 > 1. **verb** – Move or proceed at high speed; achieve something rapidly
 > 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey
-> 3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval
+> 3. **abbr.** – `blz` – A local-first search tool that indexes llms.txt documentation for instant, line-accurate retrieval
 
 ---
 
@@ -121,7 +121,7 @@ blz search "test runner" --alias bun --format json
 # Get exact line ranges
 blz get bun --lines 423-445
 
-# List all cached sources
+# List all indexed sources
 blz list --format json
 ```
 
@@ -202,8 +202,8 @@ blz completions bash    # Bash
 blz completions zsh     # Zsh
 
 # Fish users get dynamic alias completion
-blz <TAB>                 # Shows your cached aliases
-blz get <TAB>             # Completes with your cached aliases
+blz <TAB>                 # Shows your indexed aliases
+blz get <TAB>             # Completes with your indexed aliases
 ```
 
 ### Auto-updating Completions

@@ -1,10 +1,10 @@
 # blz MCP Server
 
-Model Context Protocol (MCP) server for `blz`, enabling AI agents to search and retrieve documentation from cached llms.txt sources.
+Model Context Protocol (MCP) server for `blz`, enabling AI agents to search and retrieve documentation from indexed llms.txt sources.
 
 ## Overview
 
-The `blz` MCP server provides AI agents with fast, local access to cached documentation through the Model Context Protocol. This allows agents to search across documentation sources and retrieve exact content without internet requests.
+The `blz` MCP server provides AI agents with fast, local access to indexed documentation through the Model Context Protocol. This allows agents to search across documentation sources and retrieve exact content without internet requests.
 
 ## Installation & Setup
 

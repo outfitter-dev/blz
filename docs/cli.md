@@ -21,11 +21,11 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 |---------|-------|-------------|
 | `add` | | Add a new llms.txt source |
 | `lookup` | | Search registries for documentation to add |
-| `search` | | Search across cached documentation |
+| `search` | | Search across indexed documentation |
 | `get` | | Get exact lines from a source |
-| `list` | `sources` | List all cached sources |
-| `update` | | Update cached sources |
-| `remove` | `rm`, `delete` | Remove a cached source |
+| `list` | `sources` | List all indexed sources |
+| `update` | | Update indexed sources |
+| `remove` | `rm`, `delete` | Remove an indexed source |
 | `diff` | | View changes in sources |
 | `completions` | | Generate shell completions |
 
@@ -82,7 +82,7 @@ blz lookup react
 
 ### `blz search`
 
-Search across all cached documentation sources.
+Search across all indexed documentation sources.
 
 ```bash
 blz search <QUERY> [OPTIONS]
@@ -122,7 +122,7 @@ blz search "database" --top 10
 
 ### `blz get`
 
-Retrieve exact line ranges from a cached source.
+Retrieve exact line ranges from an indexed source.
 
 ```bash
 blz get <ALIAS> --lines <RANGE> [OPTIONS]
@@ -159,7 +159,7 @@ blz get deno --lines 100-110 --context 3
 
 ### `blz list` / `blz sources`
 
-List all cached documentation sources.
+List all indexed documentation sources.
 
 ```bash
 blz list [OPTIONS]
@@ -181,7 +181,7 @@ blz list --output json
 
 ### `blz update`
 
-Update cached sources with latest content.
+Update indexed sources with latest content.
 
 ```bash
 blz update [ALIAS] [OPTIONS]
@@ -207,7 +207,7 @@ blz update --all
 
 ### `blz remove` / `blz rm` / `blz delete`
 
-Remove a cached source.
+Remove an indexed source.
 
 ```bash
 blz remove <ALIAS>
@@ -230,7 +230,7 @@ blz delete bun
 
 ### `blz diff`
 
-View changes in cached sources.
+View changes in indexed sources.
 
 ```bash
 blz diff <ALIAS> [OPTIONS]

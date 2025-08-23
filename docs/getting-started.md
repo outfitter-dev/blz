@@ -34,7 +34,7 @@ cargo install --git https://github.com/outfitter-dev/blz blz-cli
 
 ### 1. Add Your First Source
 
-Let's start by caching Bun's documentation:
+Let's start by adding Bun's documentation:
 
 ```bash
 blz add bun https://bun.sh/llms.txt
@@ -53,7 +53,7 @@ Expected output:
 ✓ Added bun (26 headings, 364 lines)
 ```
 
-### 2. Search Your Cached Docs
+### 2. Search Your Indexed Docs
 
 Now search for something:
 
@@ -84,7 +84,7 @@ This shows the exact content from those lines with line numbers.
 
 ### 4. List Your Sources
 
-See all cached documentation:
+See all indexed documentation:
 
 ```bash
 blz list
@@ -93,7 +93,7 @@ blz list
 Output:
 
 ```
-Cached sources:
+Indexed sources:
 
   bun https://bun.sh/llms.txt
     Fetched: 2025-08-23 00:55:33
