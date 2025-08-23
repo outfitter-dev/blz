@@ -1,6 +1,6 @@
 # Important Rules
 
-Core rules for the Cache project (Rust-based search cache system).
+Core rules for blz (Rust-based local search for llms.txt documentation).
 
 ## Priority Order
 
@@ -11,6 +11,7 @@ Core rules for the Cache project (Rust-based search cache system).
 - @ERRORS.md - Error handling patterns
 - @SECURITY.md - Security practices
 - @PERFORMANCE.md - Performance optimization
+- @STYLEGUIDE.md - Writing tone, voice, and documentation standards
 - @conventions/rust.md - Rust language conventions
 - @conventions/cargo.md - Cargo and build system
 - @conventions/commits.md - Git commit standards
