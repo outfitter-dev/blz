@@ -5,7 +5,7 @@
 
 set -e
 
-BINARY="${1:-cache}"
+BINARY="${1:-blz}"
 BINARY_PATH="$(which $BINARY 2>/dev/null || echo "$HOME/.cargo/bin/$BINARY")"
 
 if [ ! -f "$BINARY_PATH" ]; then

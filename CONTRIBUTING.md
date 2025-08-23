@@ -1,6 +1,6 @@
-# Contributing to @outfitter/cache
+# Contributing to @outfitter/blzr
 
-Thank you for your interest in contributing to @outfitter/cache! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to @outfitter/blzr! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing to @outfitter/cache! This document p
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/cache
-cd cache
+git clone https://github.com/outfitter-dev/blzr
+cd blzr
 
 # Build all crates
 cargo build --release
@@ -57,7 +57,7 @@ cargo test
 cargo test -p cache-core
 
 # Run benchmarks
-hyperfine './target/release/cache search "test" --alias bun'
+hyperfine './target/release/blz search "test" --alias bun'
 ```
 
 ### Performance Requirements
@@ -117,11 +117,11 @@ When modifying search or indexing code:
 
 ```bash
 # Add test document
-./target/release/cache add bun https://bun.sh/llms.txt
+./target/release/blz add bun https://bun.sh/llms.txt
 
 # Benchmark search
 hyperfine --warmup 10 --min-runs 50 \
-  './target/release/cache search "test" --alias bun'
+  './target/release/blz search "test" --alias bun'
 
 # Expected: Mean < 10ms
 ```

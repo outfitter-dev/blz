@@ -104,18 +104,18 @@ mod tests {
     use super::*;
     
     #[test]
-    fn should_cache_search_results() {
+    fn should_blz_search_results() {
         // Test that doesn't pass yet
         let cache = SearchCache::new();
         let query = "rust programming";
         
         // First search should hit the index
         let result1 = cache.search(query).unwrap();
-        assert!(!result1.from_cache);
+        assert!(!result1.from_blz);
         
         // Second search should hit the cache
         let result2 = cache.search(query).unwrap();
-        assert!(result2.from_cache);
+        assert!(result2.from_blz);
     }
 }
 ```
@@ -130,7 +130,7 @@ pub struct SearchCache {
 impl SearchCache {
     pub fn search(&mut self, query: &str) -> Result<SearchResults, CacheError> {
         if let Some(cached) = self.cache.get(query) {
-            return Ok(cached.clone_with_cache_flag(true));
+            return Ok(cached.clone_with_blz_flag(true));
         }
         
         let results = self.index.search(query)?;
@@ -299,7 +299,7 @@ use super::query::ParsedQuery;
 //! # Examples
 //!
 //! ```rust
-//! use cache_core::cache::{CacheConfig, SearchCache};
+//! use blzr_core::cache::{CacheConfig, SearchCache};
 //!
 //! let config = CacheConfig::default();
 //! let cache = SearchCache::new(config)?;
@@ -494,7 +494,7 @@ jobs:
 ```rust
 // benches/search_performance.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use cache_core::{SearchIndex, CacheConfig};
+use blzr_core::{SearchIndex, CacheConfig};
 
 fn search_benchmarks(c: &mut Criterion) {
     let index = SearchIndex::new("test_index").unwrap();
@@ -527,7 +527,7 @@ fn search_benchmarks(c: &mut Criterion) {
             &query,
             |b, query| {
                 b.iter(|| {
-                    index.clear_cache();
+                    index.clear_blz();
                     black_box(index.search(query))
                 })
             }

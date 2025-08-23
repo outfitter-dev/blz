@@ -1,10 +1,10 @@
-# @outfitter/cache
+# @outfitter/blzr
 
-## Why "Cache"?
+## Why "Blazer"?
 
-Like explorers leaving supply caches along wilderness trails, `@outfitter/cache` creates reliable stashes of documentation for your coding journey. The name captures both meanings: the technical act of caching data locally for speed, and the expedition practice of strategically placing provisions where they'll be needed most.
+Like wilderness explorers who blaze trails by marking paths through uncharted territory, `@outfitter/blzr` ("Blazer") creates clear, marked routes through your documentation landscape. The name captures the dual meaning: blazing trails by establishing clear paths to knowledge, and blazing speed in finding exactly what you need. Just as trail blazers mark trees and rocks to guide future travelers, blzr marks and indexes documentation to guide your coding journey.
 
-A local-first, line-accurate docs cache and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
+A local-first, line-accurate docs blz and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
 
 ## Features
 
@@ -21,12 +21,12 @@ A local-first, line-accurate docs cache and MCP server for fast lookups of `llms
 ### From Source
 ```bash
 # Clone and install
-git clone https://github.com/outfitter-dev/cache
-cd cache
-cargo install --path crates/cache-cli
+git clone https://github.com/outfitter-dev/blzr
+cd blzr
+cargo install --path crates/blzr-cli
 
 # Or install directly from GitHub
-cargo install --git https://github.com/outfitter-dev/cache --branch main cache-cli
+cargo install --git https://github.com/outfitter-dev/blzr --branch main blzr-cli
 ```
 
 ### Shell Setup
@@ -37,7 +37,7 @@ cargo install --git https://github.com/outfitter-dev/cache --branch main cache-c
 set -gx PATH $HOME/.cargo/bin $PATH
 
 # Install completions
-cache completions fish > ~/.config/fish/completions/cache.fish
+blz completions fish > ~/.config/fish/completions/blz.fish
 ```
 
 #### Bash/Zsh
@@ -46,34 +46,34 @@ cache completions fish > ~/.config/fish/completions/cache.fish
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # Install completions (Bash)
-cache completions bash > ~/.local/share/bash-completion/completions/cache
+blz completions bash > ~/.local/share/bash-completion/completions/blz
 
 # Install completions (Zsh)
-cache completions zsh > ~/.zsh/completions/_cache
+blz completions zsh > ~/.zsh/completions/_blz
 ```
 
 ## Quick Start
 
 ```bash
 # Add a source
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 
 # Search across docs
-cache "test concurrency" bun
-# Or: cache bun "test concurrency"
+blz "test concurrency" bun
+# Or: blz bun "test concurrency"
 
 # Get exact lines
-cache get bun --lines 120-142
-# Or with context: cache get bun -l 120+20
+blz get bun --lines 120-142
+# Or with context: blz get bun -l 120+20
 
 # List all sources
-cache sources
+blz sources
 
 # Update all sources (not yet implemented)
-cache update --all
+blz update --all
 
 # View changes (not yet implemented)
-cache diff bun --since "2025-08-20T00:00:00Z"
+blz diff bun --since "2025-08-20T00:00:00Z"
 ```
 
 ## Architecture
@@ -93,7 +93,7 @@ cache diff bun --since "2025-08-20T00:00:00Z"
            │
 ┌──────────▼──────────┐
 │ Storage             │
-│ ~/.outfitter/cache/ │
+│ ~/.outfitter/blzr/ │
 │ - llms.txt/json     │
 │ - .index/           │
 │ - .archive/         │
@@ -102,13 +102,13 @@ cache diff bun --since "2025-08-20T00:00:00Z"
 
 ## MCP Server Usage
 
-The cache includes an MCP server for integration with AI agents and IDEs:
+The blz includes an MCP server for integration with AI agents and IDEs:
 
 ```json
 {
   "mcpServers": {
-    "outfitter-cache": {
-      "command": "cache",
+    "outfitter-blzr": {
+      "command": "blz",
       "args": ["mcp"]
     }
   }
@@ -141,7 +141,7 @@ The cache includes an MCP server for integration with AI agents and IDEs:
 ## Storage Layout
 
 ```
-~/.outfitter/cache/
+~/.outfitter/blzr/
   global.toml                 # Global configuration
   bun/
     llms.txt                  # Latest upstream text
@@ -156,7 +156,7 @@ The cache includes an MCP server for integration with AI agents and IDEs:
 
 ## Configuration
 
-### Global Settings (`~/.outfitter/cache/global.toml`)
+### Global Settings (`~/.outfitter/blzr/global.toml`)
 
 ```toml
 [defaults]
@@ -166,7 +166,7 @@ fetch_enabled = true
 follow_links = "first_party"  # none|first_party|allowlist
 
 [paths]
-root = "~/.outfitter/cache"
+root = "~/.outfitter/blzr"
 ```
 
 ### Per-Tool Settings (`<alias>/settings.toml`)
@@ -187,17 +187,17 @@ max_heading_block_lines = 400
 
 ## Shell Completions
 
-The `cache` command includes built-in shell completion support with dynamic alias completion:
+The `blz` command includes built-in shell completion support with dynamic alias completion:
 
 ```bash
 # Generate completions for your shell
-cache completions fish    # Fish shell
-cache completions bash    # Bash
-cache completions zsh     # Zsh
+blz completions fish    # Fish shell
+blz completions bash    # Bash
+blz completions zsh     # Zsh
 
 # Fish users get dynamic alias completion
-cache <TAB>                 # Shows your cached aliases
-cache get <TAB>             # Completes with your cached aliases
+blz <TAB>                 # Shows your cached aliases
+blz get <TAB>             # Completes with your cached aliases
 ```
 
 ### Auto-updating Completions
@@ -220,8 +220,8 @@ See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/cache
-cd cache
+git clone https://github.com/outfitter-dev/blzr
+cd blzr
 
 # Build with Cargo
 cargo build --release

@@ -1,5 +1,5 @@
 [package]
-name = "cache-cli"
+name = "blzr-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,14 +7,14 @@ license.workspace = true
 build = "build.rs"
 
 [features]
-flamegraph = ["cache-core/flamegraph"]
+flamegraph = ["blzr-core/flamegraph"]
 
 [[bin]]
-name = "cache"
+name = "blz"
 path = "src/main.rs"
 
 [dependencies]
-cache-core.workspace = true
+blzr-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true

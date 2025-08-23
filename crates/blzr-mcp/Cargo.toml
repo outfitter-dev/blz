@@ -1,16 +1,16 @@
 [package]
-name = "cache-mcp"
+name = "blzr-mcp"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "cache-mcp"
+name = "blz-mcp"
 path = "src/main.rs"
 
 [dependencies]
-cache-core.workspace = true
+blzr-core.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

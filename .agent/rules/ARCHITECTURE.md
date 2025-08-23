@@ -92,7 +92,7 @@ pub enum CacheError {
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("Cache operation failed: {0}")]
-    Cache(#[from] cache_core::CacheError),
+    Cache(#[from] blzr_core::CacheError),
     #[error("Configuration error: {0}")]
     Config(String),
     #[error("Shell integration error: {0}")]

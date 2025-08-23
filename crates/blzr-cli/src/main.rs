@@ -1,11 +1,11 @@
 use anyhow::Result;
-use cache_core::{
+use blzr_core::{
     Fetcher, FlavorInfo, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
     PerformanceMetrics, ResourceMonitor, Registry,
 };
 
 #[cfg(feature = "flamegraph")]
-use cache_core::profiling::{start_profiling, stop_profiling_and_report};
+use blzr_core::profiling::{start_profiling, stop_profiling_and_report};
 use chrono::Utc;
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
@@ -17,9 +17,9 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
-#[command(name = "cache")]
-#[command(about = "Local-first llms.txt cache and MCP server", long_about = None)]
-#[command(override_usage = "cache [OPTIONS] [QUERY]... [COMMAND]")]
+#[command(name = "blz")]
+#[command(about = "Local-first llms.txt cache and MCP server for blazing trails", long_about = None)]
+#[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -298,7 +298,7 @@ async fn handle_default_search(
     resource_monitor: Option<&mut ResourceMonitor>
 ) -> Result<()> {
     if args.is_empty() {
-        println!("Usage: cache [QUERY] [SOURCE] or cache [SOURCE] [QUERY]");
+        println!("Usage: blz [QUERY] [SOURCE] or cache [SOURCE] [QUERY]");
         println!("       cache search [OPTIONS] QUERY");
         return Ok(());
     }
@@ -307,7 +307,7 @@ async fn handle_default_search(
     let sources = storage.list_sources()?;
     
     if sources.is_empty() {
-        println!("No sources found. Use 'cache add ALIAS URL' to add sources.");
+        println!("No sources found. Use 'blz add ALIAS URL' to add sources.");
         return Ok(());
     }
 
@@ -492,7 +492,7 @@ async fn search(
     };
     
     if sources.is_empty() {
-        println!("No sources found. Use 'cache add' to add sources.");
+        println!("No sources found. Use 'blz add' to add sources.");
         return Ok(());
     }
     
@@ -794,7 +794,7 @@ async fn list_sources(output: OutputFormat) -> Result<()> {
     let sources = storage.list_sources()?;
     
     if sources.is_empty() {
-        println!("No sources found. Use 'cache add' to add sources.");
+        println!("No sources found. Use 'blz add' to add sources.");
         return Ok(());
     }
     
@@ -903,7 +903,7 @@ async fn lookup_registry(
             // Not interactive, show instructions
             println!("To add any of these sources, use:");
             for (i, result) in results.iter().enumerate() {
-                println!("  {} cache add {} {}", 
+                println!("  {} blz add {} {}", 
                         format!("{}.", i + 1).bright_black(),
                         result.entry.slug.green(),
                         result.entry.llms_url.bright_black());
@@ -942,7 +942,7 @@ async fn lookup_registry(
     Ok(())
 }
 
-fn try_interactive_selection(results: &[cache_core::registry::RegistrySearchResult]) -> Result<&cache_core::registry::RegistryEntry> {
+fn try_interactive_selection(results: &[blzr_core::registry::RegistrySearchResult]) -> Result<&blzr_core::registry::RegistryEntry> {
     if !std::io::stderr().is_terminal() {
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
@@ -1192,7 +1192,7 @@ mod tests {
     // Test helper functions (kept for potential future use in integration tests)
     #[allow(dead_code)]
     mod test_helpers {
-        use cache_core::Storage;
+        use blzr_core::Storage;
         use tempfile::TempDir;
 
         pub fn create_test_storage_with_sources(sources: &[&str]) -> (Storage, TempDir) {
@@ -1285,7 +1285,7 @@ mod tests {
 
     #[test]
     fn test_search_result_deduplication_logic() {
-        use cache_core::SearchHit;
+        use blzr_core::SearchHit;
         
         // Create test hits with duplicates
         let mut hits = vec![
@@ -1497,7 +1497,7 @@ mod tests {
 
     #[test]
     fn test_flavor_sorting_preference() {
-        use cache_core::FlavorInfo;
+        use blzr_core::FlavorInfo;
 
         let mut flavors = vec![
             FlavorInfo {

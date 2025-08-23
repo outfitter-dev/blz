@@ -208,11 +208,11 @@ Version pinning follows MCP date-string spec (e.g., `2025-06-18`). ([Model Conte
 Binary name: `cache` (fallback `of-cache` if collision).
 
 ```
-cache add bun https://bun.sh/llms.txt          # fetch + index
-cache search "test concurrency" --alias bun    # JSON hits
-cache get bun --lines 120-142                  # span text
-cache update --all                             
-cache diff bun --since "2025-08-20T00:00:00Z"
+blz add bun https://bun.sh/llms.txt          # fetch + index
+blz search "test concurrency" --alias bun    # JSON hits
+blz get bun --lines 120-142                  # span text
+blz update --all                             
+blz diff bun --since "2025-08-20T00:00:00Z"
 cache sources
 ```
 
@@ -353,7 +353,7 @@ rmcp = "0.4"  # official Rust MCP SDK
 **ETag fetch (cond. GET)**
 
 ```rust
-async fn fetch_with_cache(url: &str, etag: Option<&str>, last_mod: Option<&str>) -> anyhow::Result<reqwest::Response> {
+async fn fetch_with_blz(url: &str, etag: Option<&str>, last_mod: Option<&str>) -> anyhow::Result<reqwest::Response> {
     let client = reqwest::Client::new();
     let mut req = client.get(url);
     if let Some(tag) = etag { req = req.header("If-None-Match", tag); }

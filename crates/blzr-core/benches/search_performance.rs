@@ -1,4 +1,4 @@
-use cache_core::{MarkdownParser, SearchIndex, HeadingBlock, PerformanceMetrics};
+use blzr_core::{MarkdownParser, SearchIndex, HeadingBlock, PerformanceMetrics};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::time::Duration;
 use tempfile::TempDir;

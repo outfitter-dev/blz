@@ -1,6 +1,6 @@
-# Getting Started with @outfitter/cache
+# Getting Started with @outfitter/blzr
 
-This guide will walk you through installing and using @outfitter/cache for the first time.
+This guide will walk you through installing and using @outfitter/blzr for the first time.
 
 ## Installation
 
@@ -12,21 +12,21 @@ This guide will walk you through installing and using @outfitter/cache for the f
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/cache
-cd cache
+git clone https://github.com/outfitter-dev/blzr
+cd blzr
 
 # Install the binary
-cargo install --path crates/cache-cli
+cargo install --path crates/blzr-cli
 
 # Verify installation
-cache --help
+blz --help
 ```
 
 ### Install from GitHub
 
 ```bash
 # Direct install from GitHub
-cargo install --git https://github.com/outfitter-dev/cache cache-cli
+cargo install --git https://github.com/outfitter-dev/blz blzr-cli
 ```
 
 ## First Steps
@@ -36,7 +36,7 @@ cargo install --git https://github.com/outfitter-dev/cache cache-cli
 Let's start by caching Bun's documentation:
 
 ```bash
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 ```
 
 This command:
@@ -55,7 +55,7 @@ Expected output:
 Now search for something:
 
 ```bash
-cache search "test" --alias bun
+blz search "test" --alias bun
 ```
 
 You'll see results in ~6ms:
@@ -73,7 +73,7 @@ Search results for 'test':
 Retrieve specific line ranges:
 
 ```bash
-cache get bun --lines 304-324
+blz get bun --lines 304-324
 ```
 
 This shows the exact content from those lines with line numbers.
@@ -83,7 +83,7 @@ This shows the exact content from those lines with line numbers.
 See all cached documentation:
 
 ```bash
-cache sources
+blz sources
 ```
 
 Output:
@@ -101,26 +101,26 @@ Cached sources:
 
 ```bash
 # Add Node.js docs (if available)
-cache add node https://nodejs.org/llms.txt
+blz add node https://nodejs.org/llms.txt
 
 # Add Deno docs
-cache add deno https://deno.land/llms.txt
+blz add deno https://deno.land/llms.txt
 
 # Search across all sources
-cache search "http server"
+blz search "http server"
 ```
 
 ### Searching with Filters
 
 ```bash
 # Search only in Bun docs
-cache search "test" --alias bun --limit 5
+blz search "test" --alias bun --limit 5
 
 # Get more results
-cache search "performance" --limit 20
+blz search "performance" --limit 20
 
 # JSON output for scripts
-cache search "bundler" --format json
+blz search "bundler" --format json
 ```
 
 ### Integration with Scripts
@@ -129,12 +129,12 @@ cache search "bundler" --format json
 #!/bin/bash
 # Find and display TypeScript information
 
-result=$(cache search "typescript" --format json | jq -r '.hits[0]')
+result=$(blz search "typescript" --format json | jq -r '.hits[0]')
 alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 
 echo "Found in $alias at lines $lines"
-cache get "$alias" --lines "$lines"
+blz get "$alias" --lines "$lines"
 ```
 
 ## Shell Completion
@@ -143,24 +143,24 @@ Enable tab completion for your shell:
 
 ### Fish
 ```fish
-cache completions fish > ~/.config/fish/completions/cache.fish
+blz completions fish > ~/.config/fish/completions/blz.fish
 ```
 
 ### Bash
 ```bash
-cache completions bash > ~/.local/share/bash-completion/completions/cache
+blz completions bash > ~/.local/share/bash-completion/completions/blz
 ```
 
 ### Zsh
 ```zsh
-cache completions zsh > ~/.zsh/completions/_cache
+blz completions zsh > ~/.zsh/completions/_blz
 ```
 
 After installation, you can use TAB to complete commands and options:
 ```bash
-cache sea<TAB>        # Completes to: cache search
-cache search --al<TAB> # Completes to: cache search --alias
-cache get <TAB>        # Shows available aliases
+blz sea<TAB>        # Completes to: blz search
+blz search --al<TAB> # Completes to: blz search --alias
+blz get <TAB>        # Shows available aliases
 ```
 
 ## Performance Tips
@@ -180,7 +180,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 ### No sources found
 Make sure you've added at least one source:
 ```bash
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 ```
 
 ### Slow first search
@@ -195,6 +195,6 @@ The first search after adding a source may take longer as the OS caches the inde
 
 ## Getting Help
 
-- Run `cache --help` for command reference
-- Run `cache <command> --help` for specific command help
+- Run `blz --help` for command reference
+- Run `blz <command> --help` for specific command help
 - File issues at [GitHub](https://github.com/outfitter-dev/cache/issues)

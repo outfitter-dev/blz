@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/cache-core",
-    "crates/cache-cli",
-    "crates/cache-mcp",
+    "crates/blzr-core",
+    "crates/blzr-cli",
+    "crates/blzr-mcp",
 ]
 
 [workspace.package]
@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Outfitter Dev"]
 license = "MIT"
-repository = "https://github.com/outfitter-dev/cache"
+repository = "https://github.com/outfitter-dev/blzr"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -45,7 +45,7 @@ sysinfo = "0.32"
 tempfile = "3"
 
 # Internal crates
-cache-core = { path = "crates/cache-core" }
-cache-cli = { path = "crates/cache-cli" }
-cache-mcp = { path = "crates/cache-mcp" }
+blzr-core = { path = "crates/blzr-core" }
+blzr-cli = { path = "crates/blzr-cli" }
+blzr-mcp = { path = "crates/blzr-mcp" }
 

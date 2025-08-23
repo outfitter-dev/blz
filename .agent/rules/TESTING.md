@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_storage_contract() {
+    async fn test_blz_storage_contract() {
         let storage = MockStorage::default();
         
         // Test empty cache
@@ -104,7 +104,7 @@ mod tests {
 **Separate Test Directory**
 ```rust
 // tests/integration/search_pipeline.rs
-use cache_core::{SearchIndex, CacheConfig, SearchCache};
+use blzr_core::{SearchIndex, CacheConfig, SearchCache};
 use tempfile::TempDir;
 use tokio_test;
 
@@ -163,12 +163,12 @@ async fn test_full_search_pipeline() {
     // Test basic search
     let results = ctx.cache.search("rust").await.unwrap();
     assert_eq!(results.hits.len(), 2);
-    assert!(!results.from_cache);
+    assert!(!results.from_blz);
 
     // Test cache hit
     let cached_results = ctx.cache.search("rust").await.unwrap();
     assert_eq!(cached_results.hits.len(), 2);
-    assert!(cached_results.from_cache);
+    assert!(cached_results.from_blz);
     assert!(cached_results.execution_time < results.execution_time);
 
     // Test field-specific search
@@ -289,15 +289,15 @@ proptest! {
     ) {
         prop_assume!(!query.trim().is_empty());
         
-        let mut cache = create_test_cache();
+        let mut cache = create_test_blz();
         
         // First search (miss)
         let uncached = cache.search(&query, limit).unwrap();
-        prop_assert!(!uncached.from_cache);
+        prop_assert!(!uncached.from_blz);
         
         // Second search (hit)
         let cached = cache.search(&query, limit).unwrap();
-        prop_assert!(cached.from_cache);
+        prop_assert!(cached.from_blz);
         
         // Results should be identical except for cache flag
         prop_assert_eq!(uncached.hits, cached.hits);
@@ -312,7 +312,7 @@ proptest! {
 ```rust
 // benches/search_benchmarks.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use cache_core::*;
+use blzr_core::*;
 
 fn search_performance_benchmarks(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -342,7 +342,7 @@ fn search_performance_benchmarks(c: &mut Criterion) {
             &query,
             |b, &query| {
                 b.to_async(&rt).iter(|| async {
-                    index.clear_cache().await;
+                    index.clear_blz().await;
                     black_box(index.search(query, 10).await.unwrap())
                 })
             },
@@ -412,7 +412,7 @@ use tokio::time::{timeout, Duration};
 
 #[tokio::test]
 async fn test_memory_usage_under_load() {
-    let cache = create_test_cache_with_limits();
+    let cache = create_test_blz_with_limits();
     let memory_tracker = MemoryTracker::new();
     
     // Generate load
@@ -540,7 +540,7 @@ static INIT: Once = Once::new();
 pub fn init_test_logging() {
     INIT.call_once(|| {
         tracing_subscriber::fmt()
-            .with_env_filter("cache_core=debug")
+            .with_env_filter("blzr_core=debug")
             .with_test_writer()
             .init();
     });
@@ -661,9 +661,9 @@ open coverage/tarpaulin-report.html
 **Test Descriptions**
 ```rust
 #[test]
-fn should_cache_repeated_queries() {
+fn should_blz_repeated_queries() {
     // Given: A search cache with a populated index
-    let mut cache = create_test_cache();
+    let mut cache = create_test_blz();
     let query = "rust programming";
     
     // When: The same query is executed twice
@@ -671,8 +671,8 @@ fn should_cache_repeated_queries() {
     let second_result = cache.search(query, 10).unwrap();
     
     // Then: The second result should come from cache
-    assert!(!first_result.from_cache, "First search should miss cache");
-    assert!(second_result.from_cache, "Second search should hit cache");
+    assert!(!first_result.from_blz, "First search should miss cache");
+    assert!(second_result.from_blz, "Second search should hit cache");
     assert_eq!(first_result.hits, second_result.hits, "Results should be identical");
     assert!(second_result.execution_time < first_result.execution_time, 
              "Cached result should be faster");

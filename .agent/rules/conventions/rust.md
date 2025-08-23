@@ -151,7 +151,7 @@ impl SearchIndex {
     /// # Examples
     /// 
     /// ```rust
-    /// use cache_core::search::SearchIndex;
+    /// use blzr_core::search::SearchIndex;
     /// 
     /// let index = SearchIndex::new("./index_path")?;
     /// ```
@@ -535,7 +535,7 @@ pub fn process_query(query: &str, config: &Config) -> SearchResults {
 }
 
 // When ownership is needed, be explicit about it
-pub fn process_and_cache_query(query: String, config: &Config) -> (SearchResults, String) {
+pub fn process_and_blz_query(query: String, config: &Config) -> (SearchResults, String) {
     let normalized = normalize_query(&query);
     let parsed = parse_query(&normalized, config);
     let results = execute_search(parsed);
@@ -706,7 +706,7 @@ impl<T> Cacheable for std::collections::HashMap<String, T> {
 
 // Compound traits for related functionality
 pub trait SearchCache: Searchable + Cacheable {
-    fn search_or_cache(&mut self, query: Self::Query) -> Result<Self::Result, Self::Error>
+    fn search_or_blz(&mut self, query: Self::Query) -> Result<Self::Result, Self::Error>
     where
         Self::Key: From<Self::Query>,
         Self::Value: From<Self::Result>,
@@ -845,7 +845,7 @@ impl QueryProcessor for TantivyQueryProcessor {
 //! # Quick Start
 //!
 //! ```rust
-//! use cache_core::{SearchIndex, SearchCache};
+//! use blzr_core::{SearchIndex, SearchCache};
 //!
 //! # tokio_test::block_on(async {
 //! // Create an index
@@ -857,7 +857,7 @@ impl QueryProcessor for TantivyQueryProcessor {
 //! // Search with caching
 //! let results = cache.search("rust programming", 10).await?;
 //! println!("Found {} results", results.hits.len());
-//! # Ok::<(), cache_core::CacheError>(())
+//! # Ok::<(), blzr_core::CacheError>(())
 //! # });
 //! ```
 
@@ -890,7 +890,7 @@ use crate::error::{CacheError, CacheResult};
 /// Basic search operation:
 ///
 /// ```rust
-/// use cache_core::SearchIndex;
+/// use blzr_core::SearchIndex;
 ///
 /// # tokio_test::block_on(async {
 /// let index = SearchIndex::new("./search_index").await?;
@@ -903,23 +903,23 @@ use crate::error::{CacheError, CacheResult};
 ///
 /// // Boolean query
 /// let results = index.search("rust AND (programming OR tutorial)", 20).await?;
-/// # Ok::<(), cache_core::CacheError>(())
+/// # Ok::<(), blzr_core::CacheError>(())
 /// # });
 /// ```
 ///
 /// Advanced usage with configuration:
 ///
 /// ```rust
-/// use cache_core::{SearchIndex, IndexConfig};
+/// use blzr_core::{SearchIndex, IndexConfig};
 ///
 /// # tokio_test::block_on(async {
 /// let config = IndexConfig::new()
-///     .with_cache_size(1000)
+///     .with_blz_size(1000)
 ///     .with_max_query_length(500);
 ///
 /// let index = SearchIndex::with_config("./search_index", config).await?;
 /// let results = index.search("complex query here", 50).await?;
-/// # Ok::<(), cache_core::CacheError>(())
+/// # Ok::<(), blzr_core::CacheError>(())
 /// # });
 /// ```
 pub struct SearchIndex {
@@ -954,7 +954,7 @@ impl SearchIndex {
     /// # Examples
     ///
     /// ```rust
-    /// use cache_core::SearchIndex;
+    /// use blzr_core::SearchIndex;
     ///
     /// # tokio_test::block_on(async {
     /// // Create index in current directory
@@ -962,7 +962,7 @@ impl SearchIndex {
     ///
     /// // Create index with absolute path
     /// let index = SearchIndex::new("/tmp/search_index").await?;
-    /// # Ok::<(), cache_core::CacheError>(())
+    /// # Ok::<(), blzr_core::CacheError>(())
     /// # });
     /// ```
     ///
@@ -975,7 +975,7 @@ impl SearchIndex {
     /// // Good
     /// let index = SearchIndex::new("C:/indexes/my_index").await?;
     /// let index = SearchIndex::new("C:\\\\indexes\\\\my_index").await?;
-    /// # Ok::<(), cache_core::CacheError>(())
+    /// # Ok::<(), blzr_core::CacheError>(())
     /// # });
     /// ```
     pub async fn new<P: AsRef<Path>>(path: P) -> CacheResult<Self> {
@@ -1026,7 +1026,7 @@ impl SearchIndex {
     /// Simple searches:
     ///
     /// ```rust
-    /// # use cache_core::SearchIndex;
+    /// # use blzr_core::SearchIndex;
     /// # tokio_test::block_on(async {
     /// # let index = SearchIndex::new("./test_index").await?;
     /// // Find documents about Rust
@@ -1038,14 +1038,14 @@ impl SearchIndex {
     ///
     /// // Case insensitive search
     /// let results = index.search("RUST", 10).await?; // Same as "rust"
-    /// # Ok::<(), cache_core::CacheError>(())
+    /// # Ok::<(), blzr_core::CacheError>(())
     /// # });
     /// ```
     ///
     /// Complex queries:
     ///
     /// ```rust
-    /// # use cache_core::SearchIndex;
+    /// # use blzr_core::SearchIndex;
     /// # tokio_test::block_on(async {
     /// # let index = SearchIndex::new("./test_index").await?;
     /// // Boolean combination
@@ -1056,7 +1056,7 @@ impl SearchIndex {
     ///
     /// // Phrase search with negation
     /// let results = index.search("\"web development\" NOT deprecated", 10).await?;
-    /// # Ok::<(), cache_core::CacheError>(())
+    /// # Ok::<(), blzr_core::CacheError>(())
     /// # });
     /// ```
     ///

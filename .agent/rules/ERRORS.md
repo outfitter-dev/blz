@@ -300,7 +300,7 @@ fn run() -> Result<()> {
     let config = load_config()
         .context("Failed to load configuration")?;
         
-    let cache = create_cache(&config)
+    let cache = create_blz(&config)
         .context("Failed to initialize cache")?;
         
     let args = parse_args()
@@ -415,7 +415,7 @@ async fn handle_search_request(params: Value) -> Result<Value> {
     );
 
     // Execute search with context
-    let cache = get_global_cache()
+    let cache = get_global_blz()
         .context("Cache not initialized")?;
 
     let results = cache
@@ -695,7 +695,7 @@ pub async fn search(&self, query: &str, limit: u16) -> CacheResult<SearchResults
             info!(
                 result_count = results.hits.len(),
                 execution_time = ?results.execution_time,
-                from_cache = results.from_cache,
+                from_blz = results.from_blz,
                 "Search completed successfully"
             );
             Ok(results)
@@ -803,7 +803,7 @@ mod error_tests {
         #[case] query: &str,
         #[case] expected_error: CacheError,
     ) {
-        let cache = create_test_cache().await;
+        let cache = create_test_blz().await;
         
         let result = cache.search(query, 10).await;
         
@@ -813,7 +813,7 @@ mod error_tests {
 
     #[tokio::test]
     async fn test_index_corruption_handling() {
-        let cache = create_test_cache().await;
+        let cache = create_test_blz().await;
         
         // Simulate index corruption
         corrupt_index_files(&cache.index_path()).await;
@@ -831,7 +831,7 @@ mod error_tests {
 
     #[tokio::test]
     async fn test_concurrent_error_handling() {
-        let cache = Arc::new(create_test_cache().await);
+        let cache = Arc::new(create_test_blz().await);
         
         // Launch concurrent operations that will fail
         let handles: Vec<_> = (0..10)

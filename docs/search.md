@@ -1,20 +1,20 @@
 # Search Guide
 
-Master the art of searching your cached documentation with @outfitter/cache's blazing-fast search.
+Master the art of searching your cached documentation with @outfitter/blzr's blazing-fast search.
 
 ## Basic Search
 
 ### Simple Query
 
 ```bash
-cache search "your query"
+blz search "your query"
 ```
 
 Searches across all cached sources:
 ```bash
-cache search "test"
-cache search "http server"
-cache search "typescript"
+blz search "test"
+blz search "http server"
+blz search "typescript"
 ```
 
 ### Search Specific Source
@@ -22,7 +22,7 @@ cache search "typescript"
 Use `--alias` to search within one source:
 
 ```bash
-cache search "test" --alias bun
+blz search "test" --alias bun
 ```
 
 This is faster and more focused than searching all sources.
@@ -33,23 +33,23 @@ This is faster and more focused than searching all sources.
 
 Simple word searches:
 ```bash
-cache search "bundler"      # Finds: bundler, bundlers, bundling
-cache search "test"         # Finds: test, testing, tests
+blz search "bundler"      # Finds: bundler, bundlers, bundling
+blz search "test"         # Finds: test, testing, tests
 ```
 
 ### Multiple Terms
 
 Space-separated terms create an AND query:
 ```bash
-cache search "test runner"   # Must contain both "test" AND "runner"
-cache search "http server"   # Must contain both "http" AND "server"
+blz search "test runner"   # Must contain both "test" AND "runner"
+blz search "http server"   # Must contain both "http" AND "server"
 ```
 
 ### Phrase Search (Coming Soon)
 
 Future support for exact phrases:
 ```bash
-cache search '"test runner"'  # Exact phrase (not yet implemented)
+blz search '"test runner"'  # Exact phrase (not yet implemented)
 ```
 
 ## Search Options
@@ -58,9 +58,9 @@ cache search '"test runner"'  # Exact phrase (not yet implemented)
 
 Control how many results you get:
 ```bash
-cache search "test" --limit 5    # Default: 10
-cache search "test" --limit 20   # Get more results
-cache search "test" --limit 1    # Just the best match
+blz search "test" --limit 5    # Default: 10
+blz search "test" --limit 20   # Get more results
+blz search "test" --limit 1    # Just the best match
 ```
 
 ### Output Format
@@ -68,7 +68,7 @@ cache search "test" --limit 1    # Just the best match
 #### Pretty (Default)
 Human-readable output with colors:
 ```bash
-cache search "test"
+blz search "test"
 ```
 
 Output:
@@ -84,7 +84,7 @@ Search results for 'test':
 #### JSON
 Machine-readable for scripting:
 ```bash
-cache search "test" --format json
+blz search "test" --format json
 ```
 
 Output:
@@ -138,27 +138,27 @@ Path: Bun Documentation > Guides > Test runner
 
 Search for CLI commands:
 ```bash
-cache search "bun test"
-cache search "npm install"
-cache search "--watch flag"
+blz search "bun test"
+blz search "npm install"
+blz search "--watch flag"
 ```
 
 ### Find Configuration
 
 Search for config options:
 ```bash
-cache search "tsconfig"
-cache search "package.json"
-cache search "bundler config"
+blz search "tsconfig"
+blz search "package.json"
+blz search "bundler config"
 ```
 
 ### Find APIs
 
 Search for specific APIs:
 ```bash
-cache search "fetch API"
-cache search "file system"
-cache search "process.env"
+blz search "fetch API"
+blz search "file system"
+blz search "process.env"
 ```
 
 ## Search Performance
@@ -176,13 +176,13 @@ cache search "process.env"
 
 1. **Use aliases** - Searching one source is faster
    ```bash
-   cache search "test" --alias bun  # Faster
-   cache search "test"              # Searches all
+   blz search "test" --alias bun  # Faster
+   blz search "test"              # Searches all
    ```
 
 2. **Limit results** - Get results faster
    ```bash
-   cache search "test" --limit 3
+   blz search "test" --limit 3
    ```
 
 3. **Cache warmup** - First search may be slower as OS caches the index
@@ -195,12 +195,12 @@ cache search "process.env"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(cache search "test runner" --limit 1 --format json)
+result=$(blz search "test runner" --limit 1 --format json)
 alias=$(echo "$result" | jq -r '.hits[0].alias')
 lines=$(echo "$result" | jq -r '.hits[0].lines')
 
 echo "Best match in $alias at lines $lines"
-cache get "$alias" --lines "$lines"
+blz get "$alias" --lines "$lines"
 ```
 
 ### Search and Open
@@ -210,14 +210,14 @@ cache get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(cache search "$query" --limit 1 --format json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
   lines=$(echo "$result" | jq -r '.lines')
   
   echo "Opening $alias at lines $lines..."
-  cache get "$alias" --lines "$lines"
+  blz get "$alias" --lines "$lines"
 else
   echo "No results found for: $query"
 fi
@@ -230,7 +230,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(cache search "$query" --limit 5 --format json)
+results=$(blz search "$query" --limit 5 --format json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.hits[] | 
@@ -243,43 +243,43 @@ echo "$results" | jq -r '.hits[] |
 
 ```bash
 # Testing
-cache search "test"
-cache search "test runner"
-cache search "unit test"
+blz search "test"
+blz search "test runner"
+blz search "unit test"
 
 # Performance
-cache search "performance"
-cache search "benchmark"
-cache search "optimization"
+blz search "performance"
+blz search "benchmark"
+blz search "optimization"
 
 # Configuration
-cache search "config"
-cache search "settings"
-cache search "options"
+blz search "config"
+blz search "settings"
+blz search "options"
 
 # APIs
-cache search "API"
-cache search "http"
-cache search "fetch"
+blz search "API"
+blz search "http"
+blz search "fetch"
 ```
 
 ### By Technology
 
 ```bash
 # Languages
-cache search "typescript"
-cache search "javascript"
-cache search "jsx"
+blz search "typescript"
+blz search "javascript"
+blz search "jsx"
 
 # Tools
-cache search "bundler"
-cache search "transpiler"
-cache search "compiler"
+blz search "bundler"
+blz search "transpiler"
+blz search "compiler"
 
 # Frameworks
-cache search "react"
-cache search "vue"
-cache search "express"
+blz search "react"
+blz search "vue"
+blz search "express"
 ```
 
 ## Troubleshooting
@@ -287,7 +287,7 @@ cache search "express"
 ### No Results
 
 If search returns nothing:
-1. Check you have sources: `cache sources`
+1. Check you have sources: `blz sources`
 2. Try simpler terms: `"test"` instead of `"testing framework"`
 3. Check spelling
 

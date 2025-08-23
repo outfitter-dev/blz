@@ -1,18 +1,18 @@
 # Registry Lookup Feature
 
-The `cache lookup` command allows users to search a built-in registry of popular documentation sources and easily add them to their cache.
+The `blz lookup` command allows users to search a built-in registry of popular documentation sources and easily add them to their cache.
 
 ## Usage
 
 ```bash
-cache lookup <query>
+blz lookup <query>
 ```
 
 ## Examples
 
 ### Basic Search
 ```bash
-$ cache lookup "claude"
+$ blz lookup "claude"
 Searching registries...
 Found 3 matches:
 
@@ -29,14 +29,14 @@ Found 3 matches:
    https://react.dev/llms.txt
 
 To add any of these sources, use:
-  1. cache add claude-code https://docs.anthropic.com/claude-code/llms.txt
-  2. cache add anthropic https://docs.anthropic.com/llms.txt
-  3. cache add react https://react.dev/llms.txt
+  1. blz add claude-code https://docs.anthropic.com/claude-code/llms.txt
+  2. blz add anthropic https://docs.anthropic.com/llms.txt
+  3. blz add react https://react.dev/llms.txt
 ```
 
 ### JavaScript Ecosystem Search
 ```bash
-$ cache lookup "javascript"
+$ blz lookup "javascript"
 Searching registries...
 Found 5 matches:
 
@@ -65,7 +65,7 @@ Found 5 matches:
 When run in an interactive terminal, the command provides arrow key navigation and interactive prompts:
 
 ```bash
-$ cache lookup "claude"
+$ blz lookup "claude"
 Searching registries...
 Found 2 matches:
 
@@ -108,11 +108,11 @@ Results are ranked by relevance score and duplicate entries are filtered out.
 
 ## Non-Interactive Mode
 
-When run in non-interactive environments (like CI/CD or when stdout is redirected), the command displays the search results and provides copy-pasteable `cache add` commands rather than prompting for user input.
+When run in non-interactive environments (like CI/CD or when stdout is redirected), the command displays the search results and provides copy-pasteable `blz add` commands rather than prompting for user input.
 
 ## Adding New Registry Entries
 
-The registry is currently hardcoded in `crates/cache-core/src/registry.rs`. To add new entries:
+The registry is currently hardcoded in `crates/blzr-core/src/registry.rs`. To add new entries:
 
 1. Add a new `RegistryEntry::new()` call to the `Registry::new()` method
 2. Specify the name, slug (kebab-case), description, and llms.txt URL
@@ -127,13 +127,13 @@ Future versions may support remote registries and user-defined registry entries.
 - **Smart Defaults**: Suggests kebab-case slug as default alias
 - **Validation**: Prevents reserved keywords from being used as aliases
 - **Fallback Mode**: Works in both interactive and non-interactive environments
-- **Integration**: Seamlessly integrates with existing `cache add` workflow
+- **Integration**: Seamlessly integrates with existing `blz add` workflow
 
 ## Examples of Good Queries
 
-- `cache lookup "react"` - Exact match
-- `cache lookup "js"` - Alias match  
-- `cache lookup "javascript runtime"` - Description match
-- `cache lookup "anthropic"` - Company/organization match
-- `cache lookup "api"` - Partial match across multiple entries
-- `cache lookup "claude code"` - Multi-word match
+- `blz lookup "react"` - Exact match
+- `blz lookup "js"` - Alias match  
+- `blz lookup "javascript runtime"` - Description match
+- `blz lookup "anthropic"` - Company/organization match
+- `blz lookup "api"` - Partial match across multiple entries
+- `blz lookup "claude code"` - Multi-word match

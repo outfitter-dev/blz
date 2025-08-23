@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cache_core::{SearchIndex, Storage};
+use blzr_core::{SearchIndex, Storage};
 use jsonrpc_core::{IoHandler, Params, Value};
 use jsonrpc_stdio_server::ServerBuilder;
 use serde_json::json;
@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     
     tracing::subscriber::set_global_default(subscriber)?;
     
-    info!("Starting cache MCP server");
+    info!("Starting blzr MCP server");
     
     let mut io = IoHandler::new();
     

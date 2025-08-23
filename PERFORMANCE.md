@@ -26,7 +26,7 @@ Using `hyperfine` with 100+ runs, no shell overhead:
 
 ```bash
 $ hyperfine --warmup 20 --min-runs 100 --shell=none \
-    './target/release/cache search "test concurrency" --alias bun --limit 5'
+    './target/release/blz search "test concurrency" --alias bun --limit 5'
 
 Time (mean ± σ):       5.9 ms ±   0.4 ms
 Range (min … max):     4.8 ms …   8.8 ms    518 runs
@@ -53,12 +53,12 @@ Range (min … max):     4.8 ms …   8.8 ms    518 runs
 ```bash
 # Setup
 cargo build --release
-./target/release/cache add bun https://bun.sh/llms.txt
+./target/release/blz add bun https://bun.sh/llms.txt
 
 # Benchmark
 hyperfine --warmup 10 --min-runs 50 \
-  './target/release/cache search "test" --alias bun --limit 5' \
-  './target/release/cache search "http server" --alias bun --limit 5'
+  './target/release/blz search "test" --alias bun --limit 5' \
+  './target/release/blz search "http server" --alias bun --limit 5'
 ```
 
 ## System Specs
@@ -78,13 +78,13 @@ The cache includes comprehensive profiling and performance analysis tools:
 #### Basic Performance Metrics
 ```bash
 # Show detailed timing breakdowns
-./target/release/cache search "react hooks" --debug
+./target/release/blz search "react hooks" --debug
 
 # Show memory and CPU usage
-./target/release/cache search "typescript" --profile
+./target/release/blz search "typescript" --profile
 
 # Combine both for full analysis
-./target/release/cache search "performance" --debug --profile
+./target/release/blz search "performance" --debug --profile
 ```
 
 #### CPU Profiling (Flamegraph)
@@ -93,7 +93,7 @@ The cache includes comprehensive profiling and performance analysis tools:
 cargo build --release --features flamegraph
 
 # Generate CPU flamegraph
-./target/release/cache search "complex query" --flamegraph
+./target/release/blz search "complex query" --flamegraph
 # Outputs: flamegraph.svg and cache_profile.pb
 ```
 

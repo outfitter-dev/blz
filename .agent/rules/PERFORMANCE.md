@@ -43,14 +43,14 @@ ms_print massif.out.* | head -30
 ```rust
 // benches/performance.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use cache_core::*;
+use blzr_core::*;
 
 fn search_performance(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     
     // Create test data once
     let (cache, test_queries) = rt.block_on(async {
-        let mut cache = create_large_test_cache().await.unwrap();
+        let mut cache = create_large_test_blz().await.unwrap();
         populate_test_data(&mut cache, 100_000).await.unwrap();
         
         let queries = vec![
@@ -71,11 +71,11 @@ fn search_performance(c: &mut Criterion) {
     for (name, query) in test_queries {
         // Cold cache performance
         group.bench_with_input(
-            BenchmarkId::new("cold_cache", name),
+            BenchmarkId::new("cold_blz", name),
             &query,
             |b, &query| {
                 b.to_async(&rt).iter(|| async {
-                    cache.clear_cache().await;
+                    cache.clear_blz().await;
                     black_box(cache.search(query, 10).await.unwrap())
                 })
             },
@@ -83,7 +83,7 @@ fn search_performance(c: &mut Criterion) {
         
         // Warm cache performance  
         group.bench_with_input(
-            BenchmarkId::new("warm_cache", name),
+            BenchmarkId::new("warm_blz", name),
             &query,
             |b, &query| {
                 // Warm up cache
@@ -116,7 +116,7 @@ fn indexing_performance(c: &mut Criterion) {
             |b, &size| {
                 b.to_async(&rt).iter_with_setup(
                     || {
-                        let cache = rt.block_on(create_test_cache()).unwrap();
+                        let cache = rt.block_on(create_test_blz()).unwrap();
                         let doc = generate_document(size);
                         (cache, doc)
                     },
@@ -644,7 +644,7 @@ fn search_result_size(result: &SearchResults) -> usize {
 pub type SearchCache = LruCache<String, SearchResults>;
 
 impl SearchIndex {
-    pub fn create_search_cache() -> SearchCache {
+    pub fn create_search_blz() -> SearchCache {
         LruCache::new(
             1000,                    // Max 1000 cached queries
             100 * 1024 * 1024,      // Max 100MB cache
@@ -758,7 +758,7 @@ impl CacheWarmer {
     }
     
     /// Warm cache with popular queries during off-peak hours
-    pub async fn warm_cache(&self) -> Result<usize, CacheError> {
+    pub async fn warm_blz(&self) -> Result<usize, CacheError> {
         let popular_queries = self.analytics.get_popular_queries(50);
         let mut warmed_count = 0;
         
@@ -802,7 +802,7 @@ impl CacheWarmer {
                 let hour = now.hour();
                 
                 if (2..6).contains(&hour) { // 2 AM - 6 AM
-                    match self.warm_cache().await {
+                    match self.warm_blz().await {
                         Ok(count) => {
                             info!("Warmed cache with {} popular queries", count);
                         }
@@ -881,7 +881,7 @@ impl MultiIndexSearch {
             hits: all_hits,
             total_count,
             execution_time: max_execution_time,
-            from_cache: false,
+            from_blz: false,
         }
     }
 }

@@ -8,7 +8,7 @@ fn main() {
     // Set up post-install hook notification
     if let Ok(profile) = env::var("PROFILE") {
         if profile == "release" {
-            println!("cargo:warning=After installing, run: cache completions fish > ~/.config/fish/completions/cache.fish");
+            println!("cargo:warning=After installing, run: blz completions fish > ~/.config/fish/completions/blz.fish");
         }
     }
     

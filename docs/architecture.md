@@ -1,6 +1,6 @@
 # Architecture
 
-Deep dive into how @outfitter/cache achieves 6ms search latency.
+Deep dive into how @outfitter/blzr achieves 6ms search latency.
 
 ## System Overview
 
@@ -24,7 +24,7 @@ Deep dive into how @outfitter/cache achieves 6ms search latency.
            │
 ┌──────────▼──────────┐
 │   File System       │ <- Storage Layer
-│  ~/.../cache/       │
+│  ~/.../blzr/       │
 │   ├── bun/          │
 │   │   ├── llms.txt  │
 │   │   ├── llms.json │
@@ -35,7 +35,7 @@ Deep dive into how @outfitter/cache achieves 6ms search latency.
 
 ## Core Components
 
-### 1. Fetcher (`cache-core/src/fetcher.rs`)
+### 1. Fetcher (`blzr-core/src/fetcher.rs`)
 
 Handles network operations with smart caching:
 
@@ -60,7 +60,7 @@ impl Fetcher {
 - 304 Not Modified handling
 - SHA256 content hashing
 
-### 2. Parser (`cache-core/src/parser.rs`)
+### 2. Parser (`blzr-core/src/parser.rs`)
 
 Uses tree-sitter for robust Markdown parsing:
 
@@ -90,7 +90,7 @@ pub struct ParseResult {
 - Exact byte/line positions
 - Language-agnostic design
 
-### 3. Indexer (`cache-core/src/index.rs`)
+### 3. Indexer (`blzr-core/src/index.rs`)
 
 Tantivy-powered full-text search:
 
@@ -121,7 +121,7 @@ Document {
 - Memory-mapped indexes
 - No external dependencies
 
-### 4. Storage (`cache-core/src/storage.rs`)
+### 4. Storage (`blzr-core/src/storage.rs`)
 
 Platform-aware file management:
 
@@ -153,7 +153,7 @@ pub struct Storage {
 
 ```mermaid
 sequenceDiagram
-    User->>CLI: cache add bun URL
+    User->>CLI: blz add bun URL
     CLI->>Fetcher: fetch(URL)
     Fetcher->>Web: GET URL
     Web-->>Fetcher: 200 OK + Content
@@ -170,7 +170,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    User->>CLI: cache search "test"
+    User->>CLI: blz search "test"
     CLI->>SearchIndex: search(query)
     SearchIndex->>Tantivy: QueryParser
     Tantivy->>Tantivy: BM25 scoring
@@ -360,7 +360,7 @@ Currently using JSON-RPC, will migrate to official `rmcp` SDK when available.
 
 ```bash
 hyperfine --warmup 20 --min-runs 100 \
-  './target/release/cache search "test" --alias bun'
+  './target/release/blz search "test" --alias bun'
 ```
 
 ### Performance Targets
@@ -377,7 +377,7 @@ hyperfine --warmup 20 --min-runs 100 \
 ### Verbose Mode
 
 ```bash
-cache --verbose search "test"
+blz --verbose search "test"
 ```
 
 Enables debug logging via `tracing`.
@@ -386,20 +386,20 @@ Enables debug logging via `tracing`.
 
 ```bash
 # Check index size
-du -sh ~/.../outfitter.cache/bun/.index/
+du -sh ~/.../outfitter/blzr/bun/.index/
 
 # View metadata
-cat ~/.../outfitter.cache/bun/llms.json | jq .
+cat ~/.../outfitter/blzr/bun/llms.json | jq .
 ```
 
 ### Performance Profiling
 
 ```bash
 # CPU profiling (macOS)
-cargo instruments -t "Time Profiler" --bin cache -- search "test"
+cargo instruments -t "Time Profiler" --bin blz -- search "test"
 
 # Memory profiling
-cargo instruments -t "Allocations" --bin cache -- add bun URL
+cargo instruments -t "Allocations" --bin blz -- add bun URL
 ```
 
 ## Contributing
