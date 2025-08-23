@@ -1,6 +1,6 @@
 use anyhow::Result;
 use cache_core::{
-    Fetcher, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
+    Fetcher, FlavorInfo, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
     PerformanceMetrics, ResourceMonitor,
 };
 
@@ -10,6 +10,7 @@ use chrono::Utc;
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+use dialoguer::Select;
 use std::time::Instant;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -58,6 +59,9 @@ enum Commands {
         alias: String,
         /// URL to fetch llms.txt from
         url: String,
+        /// Auto-select the best flavor without prompts (default: false)
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
     
     /// Search across cached docs
@@ -212,9 +216,9 @@ async fn main() -> Result<()> {
             generate_completions(shell);
             return Ok(());
         }
-        Some(Commands::Add { alias, url }) => {
+        Some(Commands::Add { alias, url, yes }) => {
             validate_alias(&alias)?;
-            add_source(&alias, &url, metrics.clone(), resource_monitor.as_mut()).await?;
+            add_source(&alias, &url, yes, metrics.clone(), resource_monitor.as_mut()).await?;
         }
         Some(Commands::Search { query, alias, limit, all, page, top, output }) => {
             let actual_limit = if all { 10000 } else { limit };
@@ -316,19 +320,96 @@ async fn handle_default_search(
 async fn add_source(
     alias: &str, 
     url: &str, 
+    auto_yes: bool,
     metrics: PerformanceMetrics, 
     resource_monitor: Option<&mut ResourceMonitor>
 ) -> Result<()> {
+    let fetcher = Fetcher::new()?;
+    
+    // Check if the user specified an exact llms.txt variant
+    let is_exact_file = url.split('/').last()
+        .map(|filename| filename.starts_with("llms") && filename.ends_with(".txt"))
+        .unwrap_or(false);
+    
+    let final_url = if is_exact_file {
+        // User specified exact file, use it directly
+        url.to_string()
+    } else {
+        // Smart detection: check for flavors
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message("Checking for available documentation flavors...");
+        
+        let flavors = match fetcher.check_flavors(url).await {
+            Ok(flavors) if !flavors.is_empty() => flavors,
+            Ok(_) => {
+                // No flavors found, use original URL
+                pb.finish_with_message("No llms.txt variants found, using provided URL");
+                vec![FlavorInfo {
+                    name: "llms.txt".to_string(),
+                    size: None,
+                    url: url.to_string(),
+                }]
+            }
+            Err(e) => {
+                pb.finish_with_message(format!("Failed to check flavors: {}", e));
+                // Fall back to original URL
+                vec![FlavorInfo {
+                    name: "llms.txt".to_string(),
+                    size: None,
+                    url: url.to_string(),
+                }]
+            }
+        };
+        
+        pb.finish();
+        
+        if flavors.len() == 1 {
+            // Only one flavor available, use it
+            flavors[0].url.clone()
+        } else if auto_yes {
+            // Auto-select the first (best) option
+            println!("Auto-selecting: {}", flavors[0]);
+            flavors[0].url.clone()
+        } else {
+            // Interactive selection
+            println!("Found {} versions:", flavors.len());
+            
+            let flavor_displays: Vec<String> = flavors.iter()
+                .enumerate()
+                .map(|(i, flavor)| {
+                    if i == 0 {
+                        format!("→ {} [default]", flavor)
+                    } else {
+                        format!("  {}", flavor)
+                    }
+                })
+                .collect();
+            
+            let selection = Select::new()
+                .with_prompt("Select version")
+                .items(&flavor_displays)
+                .default(0)
+                .interact()?;
+            
+            flavors[selection].url.clone()
+        }
+    };
+    
+    // Now fetch the selected flavor
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
             .template("{spinner:.green} {msg}")
             .unwrap(),
     );
-    pb.set_message(format!("Fetching {}", url));
+    pb.set_message(format!("Fetching {}", final_url));
     
-    let fetcher = Fetcher::new()?;
-    let (content, sha256) = fetcher.fetch(url).await?;
+    let (content, sha256) = fetcher.fetch(&final_url).await?;
     pb.set_message("Parsing markdown");
     
     let mut parser = MarkdownParser::new()?;
@@ -342,7 +423,7 @@ async fn add_source(
     let llms_json = LlmsJson {
         alias: alias.to_string(),
         source: Source {
-            url: url.to_string(),
+            url: final_url,
             etag: None,
             last_modified: None,
             fetched_at: Utc::now(),
@@ -1016,7 +1097,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_default_search_no_args() {
-        let result = handle_default_search(&[]).await;
+        let metrics = PerformanceMetrics::default();
+        let result = handle_default_search(&[], metrics, None).await;
         // Should succeed and show usage message
         assert!(result.is_ok());
     }
@@ -1032,7 +1114,8 @@ mod tests {
         // This should be detected as source + query format
         // The actual test implementation needs storage mocking
         // For now, we just ensure the function can be called
-        let _result = handle_default_search(&args).await;
+        let metrics = PerformanceMetrics::default();
+        let _result = handle_default_search(&args, metrics, None).await;
         // Will likely fail due to no sources, but that's expected in this phase
     }
 
@@ -1042,7 +1125,8 @@ mod tests {
         let args = vec!["useState hook".to_string(), "react".to_string()];
         
         // This should be detected as query + source format
-        let _result = handle_default_search(&args).await;
+        let metrics = PerformanceMetrics::default();
+        let _result = handle_default_search(&args, metrics, None).await;
         // Will likely fail due to no sources, but that's expected in this phase
     }
 
@@ -1052,7 +1136,8 @@ mod tests {
         let args = vec!["useState hook".to_string()];
         
         // This should be detected as query only
-        let _result = handle_default_search(&args).await;
+        let metrics = PerformanceMetrics::default();
+        let _result = handle_default_search(&args, metrics, None).await;
         // Will likely fail due to no sources, but that's expected in this phase
     }
 
@@ -1258,5 +1343,90 @@ mod tests {
         let error = result.unwrap_err().to_string();
         assert!(error.contains("10") || error.contains("5"), 
                "Error should mention the invalid range values");
+    }
+
+    #[test]
+    fn test_exact_file_detection() {
+        // Test detection of exact llms.txt variant URLs
+        let exact_urls = [
+            "https://example.com/llms.txt",
+            "https://example.com/docs/llms-full.txt",
+            "https://api.example.com/v1/llms-mini.txt",
+            "https://example.com/llms-base.txt",
+        ];
+
+        for url in &exact_urls {
+            let is_exact = url.split('/').last()
+                .map(|filename| filename.starts_with("llms") && filename.ends_with(".txt"))
+                .unwrap_or(false);
+            assert!(is_exact, "URL {} should be detected as exact file", url);
+        }
+
+        let non_exact_urls = [
+            "https://example.com/",
+            "https://example.com/docs",
+            "https://example.com/api/v1/documentation.txt",
+            "https://example.com/llms.html",
+        ];
+
+        for url in &non_exact_urls {
+            let is_exact = url.split('/').last()
+                .map(|filename| filename.starts_with("llms") && filename.ends_with(".txt"))
+                .unwrap_or(false);
+            assert!(!is_exact, "URL {} should NOT be detected as exact file", url);
+        }
+    }
+
+    #[test]
+    fn test_flavor_sorting_preference() {
+        use cache_core::FlavorInfo;
+
+        let mut flavors = vec![
+            FlavorInfo {
+                name: "llms-base.txt".to_string(),
+                size: Some(1000),
+                url: "https://example.com/llms-base.txt".to_string(),
+            },
+            FlavorInfo {
+                name: "llms.txt".to_string(),
+                size: Some(5000),
+                url: "https://example.com/llms.txt".to_string(),
+            },
+            FlavorInfo {
+                name: "llms-full.txt".to_string(),
+                size: Some(10000),
+                url: "https://example.com/llms-full.txt".to_string(),
+            },
+            FlavorInfo {
+                name: "llms-mini.txt".to_string(),
+                size: Some(500),
+                url: "https://example.com/llms-mini.txt".to_string(),
+            },
+        ];
+
+        // Apply same sorting logic as in check_flavors()
+        flavors.sort_by(|a, b| {
+            let order_a = match a.name.as_str() {
+                "llms-full.txt" => 0,
+                "llms.txt" => 1,
+                "llms-mini.txt" => 2,
+                "llms-base.txt" => 3,
+                _ => 4,
+            };
+            let order_b = match b.name.as_str() {
+                "llms-full.txt" => 0,
+                "llms.txt" => 1,
+                "llms-mini.txt" => 2,
+                "llms-base.txt" => 3,
+                _ => 4,
+            };
+            order_a.cmp(&order_b)
+        });
+
+        // Verify sorting order: llms-full.txt > llms.txt > llms-mini.txt > llms-base.txt
+        assert_eq!(flavors[0].name, "llms-full.txt");
+        assert_eq!(flavors[1].name, "llms.txt");
+        assert_eq!(flavors[2].name, "llms-mini.txt");
+        assert_eq!(flavors[3].name, "llms-base.txt");
     }
 }

@@ -9,7 +9,7 @@ pub mod profiling;
 
 pub use config::{Config, FollowLinks, ToolConfig};
 pub use error::{Error, Result};
-pub use fetcher::{Fetcher, FetchResult};
+pub use fetcher::{Fetcher, FetchResult, FlavorInfo};
 pub use index::SearchIndex;
 pub use parser::{MarkdownParser, ParseResult};
 pub use storage::Storage;

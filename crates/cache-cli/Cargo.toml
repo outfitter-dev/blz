@@ -29,6 +29,7 @@ chrono.workspace = true
 colored = "2"
 indicatif = "0.17"
 clap_complete = "4"
+dialoguer = "0.11"
 
 # Performance & profiling
 pprof.workspace = true
