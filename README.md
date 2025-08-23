@@ -12,25 +12,61 @@ A local-first, line-accurate docs cache and MCP server for lightning-fast lookup
 - 📝 **Change Tracking**: Built-in diff journal with unified diffs and changed sections
 - 🤖 **MCP Integration**: Official Rust SDK for IDE/agent consumption
 
+## Installation
+
+### From Source
+```bash
+# Clone and install
+git clone https://github.com/outfitter-dev/cache
+cd cache
+cargo install --path crates/cache-cli
+
+# Or install directly from GitHub
+cargo install --git https://github.com/outfitter-dev/cache --branch main cache-cli
+```
+
+### Shell Setup
+
+#### Fish
+```fish
+# Add to PATH
+set -gx PATH $HOME/.cargo/bin $PATH
+
+# Install completions
+cache completions fish > ~/.config/fish/completions/cache.fish
+```
+
+#### Bash/Zsh
+```bash
+# Add to PATH
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Install completions (Bash)
+cache completions bash > ~/.local/share/bash-completion/completions/cache
+
+# Install completions (Zsh)
+cache completions zsh > ~/.zsh/completions/_cache
+```
+
 ## Quick Start
 
 ```bash
-# Install
-cargo install outfitter-cache
-
 # Add a source
 cache add bun https://bun.sh/llms.txt
 
-# Search across docs
+# Search across docs (6ms latency!)
 cache search "test concurrency" --alias bun
 
 # Get exact lines
 cache get bun --lines 120-142
 
-# Update all sources
+# List all sources
+cache sources
+
+# Update all sources (not yet implemented)
 cache update --all
 
-# View changes
+# View changes (not yet implemented)
 cache diff bun --since "2025-08-20T00:00:00Z"
 ```
 
@@ -143,11 +179,36 @@ allowlist = ["bun.sh", "github.com/oven-sh"]
 max_heading_block_lines = 400
 ```
 
+## Shell Completions
+
+The `cache` command includes built-in shell completion support with dynamic alias completion:
+
+```bash
+# Generate completions for your shell
+cache completions fish    # Fish shell
+cache completions bash    # Bash
+cache completions zsh     # Zsh
+
+# Fish users get dynamic alias completion!
+cache search --alias <TAB>  # Shows: bun, node, test, etc.
+cache get <TAB>             # Completes with your cached aliases
+```
+
+### Auto-updating Completions
+
+For Fish users, completions can auto-regenerate when the binary updates:
+```bash
+# Run the install script after updates
+./scripts/install-completions.sh
+```
+
 ## Performance
 
 - **Index Build**: ~50-150ms per 1MB markdown
-- **Search**: P50 < 80ms, P95 < 150ms (10-50MB corpus)
+- **Search**: **P50: 6ms** (exceeds target by 13x!)
 - **Update**: Conditional fetch + no-op reindex < 30ms
+
+See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks showing 6ms search latency on real documentation.
 
 ## Building from Source
 
