@@ -93,7 +93,7 @@ Fish completions are enhanced with runtime data:
 ```fish
 # This function queries your actual cached sources
 function __fish_blz_complete_aliases
-    blz sources --format json 2>/dev/null | python3 -c "
+    blz list --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     sources = json.load(sys.stdin)
@@ -188,7 +188,7 @@ Speed up common commands:
 abbr -a cs 'blz search'
 abbr -a cg 'blz get'
 abbr -a ca 'blz add'
-abbr -a cl 'blz sources'
+abbr -a cl 'blz list'
 
 # Usage
 cs test         # Expands to: blz search test
@@ -317,11 +317,11 @@ The dynamic completions query live data:
 
 ```fish
 # Test the query function
-blz sources --format json
+blz list --format json
 
 # If this works, completions should work
 # If not, check that you have sources:
-blz sources
+blz list
 ```
 
 ## Platform-Specific Notes

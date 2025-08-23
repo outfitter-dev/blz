@@ -287,7 +287,7 @@ blz search "express"
 ### No Results
 
 If search returns nothing:
-1. Check you have sources: `blz sources`
+1. Check you have sources: `blz list`
 2. Try simpler terms: `"test"` instead of `"testing framework"`
 3. Check spelling
 

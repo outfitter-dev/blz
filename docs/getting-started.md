@@ -83,7 +83,7 @@ This shows the exact content from those lines with line numbers.
 See all cached documentation:
 
 ```bash
-blz sources
+blz list
 ```
 
 Output:

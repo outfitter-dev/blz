@@ -50,7 +50,7 @@ blz add ts https://typescriptlang.org/llms.txt
 ### View All Sources
 
 ```bash
-blz sources
+blz list
 ```
 
 Output:
@@ -71,7 +71,7 @@ Cached sources:
 For scripting and automation:
 
 ```bash
-blz sources --format json
+blz list --format json
 ```
 
 Output:
@@ -247,7 +247,7 @@ blz update --all
 ### 4. Monitor Storage
 The blz is efficient, but check occasionally:
 ```bash
-blz sources  # Shows line counts
+blz list  # Shows line counts
 ```
 
 ## Troubleshooting
