@@ -18,7 +18,8 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
 - **Change Tracking**: Built-in diff journal with unified diffs and changed sections
-- **MCP Integration**: Official Rust SDK for IDE/agent consumption
+- **Direct CLI Integration**: IDE agents run commands directly for instant results
+- **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
 ## Installation
 
@@ -84,7 +85,7 @@ blz diff bun --since "2025-08-20T00:00:00Z"
 
 ```
 ┌─────────────────────┐
-│ CLI / MCP Server    │
+│ CLI (MCP soon)      │
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐      ┌─────────────────┐
@@ -104,30 +105,24 @@ blz diff bun --since "2025-08-20T00:00:00Z"
 └─────────────────────┘
 ```
 
-## MCP Server Usage
+## IDE Agent Integration
 
-The blz includes an MCP server for integration with AI agents and IDEs:
+### Direct CLI Usage (Recommended)
 
-```json
-{
-  "mcpServers": {
-    "outfitter-blz": {
-      "command": "blz",
-      "args": ["mcp"]
-    }
-  }
-}
+IDE agents can run `blz` commands directly for millisecond responses:
+
+```bash
+# Search for documentation
+blz search "test runner" --alias bun --format json
+
+# Get exact line ranges  
+blz get bun --lines 423-445
+
+# List all cached sources
+blz list --format json
 ```
 
-### Available Tools
-
-- `list_sources()` - List all cached sources with metadata
-- `search({query, alias?, limit?})` - Search across docs with BM25 ranking
-- `get_lines({alias, file, start, end})` - Get exact line spans
-- `update({alias?})` - Update sources with conditional fetching
-- `diff({alias, since?})` - View changes with unified diffs
-
-### Response Format
+The JSON output is designed for easy parsing by agents:
 
 ```json
 {
@@ -141,6 +136,10 @@ The blz includes an MCP server for integration with AI agents and IDEs:
   "checksum": "sha256:..."
 }
 ```
+
+### MCP Server (Coming Soon)
+
+For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
 ## Storage Layout
 
@@ -243,7 +242,7 @@ cargo install --path .
 - [tree-sitter-md](https://github.com/tree-sitter-grammars/tree-sitter-markdown) - Markdown parsing
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - Line-level search (optional)
 - [similar](https://github.com/mitsuhiko/similar) - Unified diffs
-- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK
+- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK (coming soon)
 
 ## Security & Privacy
 
