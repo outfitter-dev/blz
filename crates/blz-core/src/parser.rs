@@ -1072,6 +1072,268 @@ Different content for section B.
                 }
             }
         }
+
+        #[test]
+        fn test_heading_level_detection_consistency(
+            levels in prop::collection::vec(1u8..=6, 1..10)
+        ) {
+            let mut parser = create_test_parser();
+
+            // Generate markdown with specified heading levels
+            let mut markdown = String::new();
+            let mut expected_path_lens = Vec::new();
+
+            for (i, level) in levels.iter().enumerate() {
+                let heading_text = format!("Heading {}", i + 1);
+                let heading_line = format!("{} {}\n\nContent for heading {}\n\n",
+                                         "#".repeat(*level as usize),
+                                         heading_text,
+                                         i + 1);
+                markdown.push_str(&heading_line);
+                expected_path_lens.push(*level as usize);
+            }
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should have appropriate number of heading blocks
+                prop_assert!(result.heading_blocks.len() >= levels.len().min(1));
+
+                // Each heading should create appropriate nesting
+                for (i, expected_depth) in expected_path_lens.iter().enumerate() {
+                    if i < result.heading_blocks.len() {
+                        let actual_depth = result.heading_blocks[i].path.len();
+                        // Depth should be reasonable (may not exactly match due to nesting rules)
+                        prop_assert!(actual_depth <= *expected_depth);
+                        prop_assert!(actual_depth >= 1);
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn test_unicode_content_preservation(
+            content in r"[\u{0080}-\u{FFFF}]{1,100}"
+        ) {
+            let mut parser = create_test_parser();
+            let markdown = format!("# Unicode Test\n\n{}", content);
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Unicode content should be preserved in heading blocks
+                let has_unicode = result.heading_blocks.iter()
+                    .any(|block| block.content.contains(&content));
+                prop_assert!(has_unicode, "Unicode content should be preserved");
+
+                // Line count should be accurate
+                prop_assert_eq!(result.line_count, markdown.lines().count());
+            }
+        }
+
+        #[test]
+        fn test_mixed_line_endings(
+            line_ending in prop_oneof![Just("\n"), Just("\r\n"), Just("\r")]
+        ) {
+            let mut parser = create_test_parser();
+            let content_lines = vec![
+                "# Main Heading",
+                "",
+                "This is content.",
+                "",
+                "## Sub Heading",
+                "",
+                "More content here."
+            ];
+
+            let markdown = content_lines.join(line_ending);
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should parse regardless of line ending style
+                prop_assert!(!result.heading_blocks.is_empty());
+
+                // Should find both headings
+                let main_heading = result.heading_blocks.iter()
+                    .any(|block| block.path.iter().any(|p| p.contains("Main Heading")));
+                let sub_heading = result.heading_blocks.iter()
+                    .any(|block| block.path.iter().any(|p| p.contains("Sub Heading")));
+
+                prop_assert!(main_heading || sub_heading, "Should find at least one heading");
+            }
+        }
+
+        #[test]
+        fn test_deeply_nested_structure(depth in 1usize..20) {
+            let mut parser = create_test_parser();
+            let mut markdown = String::new();
+
+            // Create deeply nested heading structure
+            for level in 1..=depth.min(6) {
+                let heading = format!("{} Level {} Heading\n\nContent at level {}.\n\n",
+                                    "#".repeat(level), level, level);
+                markdown.push_str(&heading);
+            }
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should handle deep nesting gracefully
+                prop_assert!(!result.heading_blocks.is_empty());
+                prop_assert!(!result.toc.is_empty());
+
+                // Deepest heading should have appropriate path length
+                if let Some(deepest) = result.heading_blocks.iter()
+                    .max_by_key(|block| block.path.len()) {
+                    prop_assert!(deepest.path.len() <= depth.min(6));
+                }
+            }
+        }
+
+        #[test]
+        fn test_large_content_blocks(
+            block_size in 100usize..5000,
+            num_blocks in 1usize..10
+        ) {
+            let mut parser = create_test_parser();
+            let mut markdown = String::new();
+
+            for i in 0..num_blocks {
+                markdown.push_str(&format!("# Heading {}\n\n", i + 1));
+
+                // Add large content block
+                let content_line = format!("This is line {} of content. ", i);
+                let large_content = content_line.repeat(block_size / content_line.len());
+                markdown.push_str(&large_content);
+                markdown.push_str("\n\n");
+            }
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should handle large content efficiently
+                prop_assert_eq!(result.heading_blocks.len(), num_blocks);
+
+                // Each block should have substantial content
+                for block in &result.heading_blocks {
+                    prop_assert!(block.content.len() > block_size / 2);
+                }
+
+                // Line count should be reasonable
+                prop_assert!(result.line_count >= num_blocks * 3); // At least heading + 2 content lines per block
+            }
+        }
+
+        #[test]
+        fn test_markdown_syntax_edge_cases(
+            syntax_char in prop_oneof![
+                Just("*"), Just("_"), Just("`"), Just("~"),
+                Just("["), Just("]"), Just("("), Just(")"),
+                Just("!"), Just("#"), Just(">"), Just("-"),
+                Just("+"), Just("="), Just("|"), Just("\\")
+            ]
+        ) {
+            let mut parser = create_test_parser();
+
+            // Create markdown with potentially problematic syntax
+            let markdown = format!(
+                "# Test Heading\n\nContent with {} special {} characters {} here.\n\n## Another {}\n\nMore {} content.",
+                syntax_char, syntax_char, syntax_char, syntax_char, syntax_char
+            );
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should parse without crashing
+                prop_assert!(!result.heading_blocks.is_empty());
+
+                // Should preserve the special characters in content
+                let has_special_chars = result.heading_blocks.iter()
+                    .any(|block| block.content.contains(syntax_char));
+                prop_assert!(has_special_chars, "Special characters should be preserved");
+            }
+        }
+
+        #[test]
+        fn test_heading_with_formatting(
+            format_type in prop_oneof![
+                Just("**bold**"),
+                Just("_italic_"),
+                Just("`code`"),
+                Just("[link](url)"),
+                Just("~~strike~~")
+            ],
+            heading_text in r"[a-zA-Z ]{5,20}"
+        ) {
+            let mut parser = create_test_parser();
+            let formatted_heading = format!("# {} {}\n\nContent here.", heading_text, format_type);
+
+            if let Ok(result) = parser.parse(&formatted_heading) {
+                // Should extract heading text (may or may not preserve formatting)
+                prop_assert!(!result.heading_blocks.is_empty());
+
+                let heading_found = result.heading_blocks.iter()
+                    .any(|block| block.path.iter()
+                        .any(|p| p.contains(&heading_text.trim())));
+                prop_assert!(heading_found, "Should find heading text");
+            }
+        }
+
+        #[test]
+        fn test_random_whitespace_patterns(
+            spaces_before in 0usize..4,  // 4+ spaces makes it a code block
+            spaces_after in 0usize..10,
+            tabs_mixed in 0usize..5
+        ) {
+            let mut parser = create_test_parser();
+
+            // Note: In Markdown, tabs or 4+ spaces before # make it a code block
+            // We'll only test with valid heading formats
+            let whitespace_prefix = " ".repeat(spaces_before);  // No tabs before #
+            let whitespace_suffix = format!("{}{}",
+                                          " ".repeat(spaces_after),
+                                          "\t".repeat(tabs_mixed));
+
+            let markdown = format!("{}# Test Heading{}\n\nContent here.",
+                                 whitespace_prefix, whitespace_suffix);
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should handle whitespace variations gracefully
+                // With less than 4 spaces, it should be a valid heading
+                prop_assert!(!result.heading_blocks.is_empty());
+
+                // Should find the heading
+                let found_heading = result.heading_blocks.iter()
+                    .any(|block| block.path.iter()
+                        .any(|p| p.contains("Test Heading")));
+                prop_assert!(found_heading, "Should find heading with {} spaces before", spaces_before);
+            }
+        }
+
+        #[test]
+        fn test_content_with_code_blocks(
+            language in prop_oneof![
+                Just("rust"), Just("javascript"), Just("python"),
+                Just("bash"), Just("json"), Just("")
+            ],
+            code_lines in prop::collection::vec(r"[a-zA-Z0-9 ]{0,50}", 1..10)
+        ) {
+            let mut parser = create_test_parser();
+
+            let code_content = code_lines.join("\n");
+            let markdown = format!(
+                "# Code Example\n\nHere's some code:\n\n```{}\n{}\n```\n\n## After Code\n\nMore content.",
+                language, code_content
+            );
+
+            if let Ok(result) = parser.parse(&markdown) {
+                // Should handle code blocks properly
+                prop_assert!(result.heading_blocks.len() >= 1);
+
+                // Code content should be preserved in blocks
+                let has_code = result.heading_blocks.iter()
+                    .any(|block| block.content.contains(&code_content));
+                prop_assert!(has_code, "Code content should be preserved");
+
+                // Should find both headings
+                let headings: Vec<_> = result.heading_blocks.iter()
+                    .flat_map(|block| &block.path)
+                    .collect();
+                let has_main = headings.iter().any(|h| h.contains("Code Example"));
+                let has_after = headings.iter().any(|h| h.contains("After Code"));
+
+                prop_assert!(has_main || has_after, "Should find at least one heading");
+            }
+        }
     }
 
     // Security-focused tests

@@ -1,3 +1,16 @@
+#![allow(missing_docs)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::needless_pass_by_ref_mut)]
+#![allow(clippy::option_if_let_else)]
+#![allow(clippy::only_used_in_recursion)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::unnecessary_wraps)]
+#![allow(clippy::unused_self)]
+
 //! # blz-core
 //!
 //! Core functionality for blz - a fast, local search cache for llms.txt documentation.

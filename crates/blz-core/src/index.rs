@@ -22,6 +22,7 @@ pub struct SearchIndex {
 
 impl SearchIndex {
     /// Enable performance metrics collection
+    #[must_use]
     pub fn with_metrics(mut self, metrics: PerformanceMetrics) -> Self {
         self.metrics = Some(metrics);
         self
@@ -114,11 +115,10 @@ impl SearchIndex {
         file_path: &str,
         blocks: &[HeadingBlock],
     ) -> Result<()> {
-        let timer = if let Some(metrics) = &self.metrics {
-            OperationTimer::with_metrics(&format!("index_{alias}"), metrics.clone())
-        } else {
-            OperationTimer::new(&format!("index_{alias}"))
-        };
+        let timer = self.metrics.as_ref().map_or_else(
+            || OperationTimer::new(&format!("index_{alias}")),
+            |metrics| OperationTimer::with_metrics(&format!("index_{alias}"), metrics.clone()),
+        );
 
         let mut timings = ComponentTimings::new();
 
