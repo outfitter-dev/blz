@@ -121,7 +121,7 @@ Sources are stored in platform-specific directories:
 
 ### macOS
 
-```
+```text
 ~/Library/Application Support/outfitter.cache/
   bun/
     llms.txt        # Raw content
@@ -131,7 +131,7 @@ Sources are stored in platform-specific directories:
 
 ### Linux
 
-```
+```text
 ~/.local/share/outfitter.cache/
   bun/
     llms.txt
@@ -141,7 +141,7 @@ Sources are stored in platform-specific directories:
 
 ### Windows
 
-```
+```text
 %APPDATA%\outfitter\cache\
   bun\
     llms.txt
@@ -337,4 +337,5 @@ done
 
 - Learn about [Searching](search.md) your cached sources
 - Understand [Storage Format](storage.md) for advanced usage
+<!-- TODO ::: @agents add storage format -->
 - Read about [Architecture](architecture.md) for technical details

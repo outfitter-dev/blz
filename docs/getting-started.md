@@ -1,4 +1,5 @@
-# Getting Started with
+<!-- TODO ::: @agents double check accuracy here -->
+# Getting Started with `blz`
 
 This guide will walk you through installing and using `blz` for the first time.
 

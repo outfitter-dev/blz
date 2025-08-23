@@ -11,6 +11,7 @@ blz search "your query"
 ```
 
 Searches across all cached sources:
+
 ```bash
 blz search "test"
 blz search "http server"
@@ -32,6 +33,7 @@ This is faster and more focused than searching all sources.
 ### Single Terms
 
 Simple word searches:
+
 ```bash
 blz search "bundler"      # Finds: bundler, bundlers, bundling
 blz search "test"         # Finds: test, testing, tests
@@ -40,6 +42,7 @@ blz search "test"         # Finds: test, testing, tests
 ### Multiple Terms
 
 Space-separated terms create an AND query:
+
 ```bash
 blz search "test runner"   # Must contain both "test" AND "runner"
 blz search "http server"   # Must contain both "http" AND "server"
@@ -48,6 +51,7 @@ blz search "http server"   # Must contain both "http" AND "server"
 ### Phrase Search (Coming Soon)
 
 Future support for exact phrases:
+
 ```bash
 blz search '"test runner"'  # Exact phrase (not yet implemented)
 ```
@@ -57,6 +61,7 @@ blz search '"test runner"'  # Exact phrase (not yet implemented)
 ### Limit Results
 
 Control how many results you get:
+
 ```bash
 blz search "test" --limit 5    # Default: 10
 blz search "test" --limit 20   # Get more results
@@ -67,11 +72,13 @@ blz search "test" --limit 1    # Just the best match
 
 #### Pretty (Default)
 Human-readable output with colors:
+
 ```bash
 blz search "test"
 ```
 
 Output:
+
 ```
 Search results for 'test':
 
@@ -83,11 +90,13 @@ Search results for 'test':
 
 #### JSON
 Machine-readable for scripting:
+
 ```bash
 blz search "test" --format json
 ```
 
 Output:
+
 ```json
 {
   "hits": [
@@ -110,6 +119,7 @@ Output:
 ### Result Structure
 
 Each result contains:
+
 - **Alias** - Which source it's from
 - **Score** - Relevance score (higher is better)
 - **Path** - Heading hierarchy to the content
@@ -119,6 +129,7 @@ Each result contains:
 ### Relevance Scoring
 
 Results are ranked by BM25 score:
+
 - Higher scores = better matches
 - Scores > 4.0 = excellent match
 - Scores 2.0-4.0 = good match
@@ -127,6 +138,7 @@ Results are ranked by BM25 score:
 ### Heading Paths
 
 Shows the document structure:
+
 ```
 Path: Bun Documentation > Guides > Test runner
       ^-- Top level     ^-- Section  ^-- Subsection
@@ -137,6 +149,7 @@ Path: Bun Documentation > Guides > Test runner
 ### Find Commands
 
 Search for CLI commands:
+
 ```bash
 blz search "bun test"
 blz search "npm install"
@@ -146,6 +159,7 @@ blz search "--watch flag"
 ### Find Configuration
 
 Search for config options:
+
 ```bash
 blz search "tsconfig"
 blz search "package.json"
@@ -155,6 +169,7 @@ blz search "bundler config"
 ### Find APIs
 
 Search for specific APIs:
+
 ```bash
 blz search "fetch API"
 blz search "file system"
@@ -215,7 +230,7 @@ result=$(blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
   lines=$(echo "$result" | jq -r '.lines')
-  
+
   echo "Opening $alias at lines $lines..."
   blz get "$alias" --lines "$lines"
 else
@@ -233,7 +248,7 @@ query="typescript config"
 results=$(blz search "$query" --limit 5 --format json)
 
 echo "Context for query: $query"
-echo "$results" | jq -r '.hits[] | 
+echo "$results" | jq -r '.hits[] |
   "Source: \(.alias)\nSection: \(.heading_path | join(" > "))\n\(.snippet)\n"'
 ```
 
@@ -287,6 +302,7 @@ blz search "express"
 ### No Results
 
 If search returns nothing:
+
 1. Check you have sources: `blz list`
 2. Try simpler terms: `"test"` instead of `"testing framework"`
 3. Check spelling
@@ -294,6 +310,7 @@ If search returns nothing:
 ### Too Many Results
 
 If overwhelmed with results:
+
 1. Use `--alias` to focus on one source
 2. Use more specific terms
 3. Reduce `--limit`
@@ -301,6 +318,7 @@ If overwhelmed with results:
 ### Unexpected Results
 
 BM25 scoring considers:
+
 - Term frequency in document
 - Inverse document frequency
 - Document length normalization
@@ -320,6 +338,7 @@ Short documents with many occurrences score higher.
 ### Index Structure
 
 Each source has its own Tantivy index with:
+
 - Heading-based document chunks
 - Full-text searchable content
 - Stored heading paths and line ranges
@@ -328,5 +347,6 @@ Each source has its own Tantivy index with:
 ## Next Steps
 
 - Learn about [Line Retrieval](retrieval.md) to get exact content
-- Set up [Shell Integration](shell-integration.md) for better productivity  
+<!-- TODO ::: @agents this doc doesn't exist yet -->
+- Set up [Shell Integration](shell-integration.md) for better productivity
 - Understand the [Architecture](architecture.md) for deeper knowledge

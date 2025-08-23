@@ -1,10 +1,28 @@
+<!-- TODO ::: @agents this doc will need to be updated as we improve zsh support -->
 # Shell Integration
 
-Complete guide to shell completions and integration for @outfitter/blz.
+Complete guide to shell completions and integration for `blz`.
 
 ## Quick Setup
 
-### Fish Shell 🐟
+### Zsh
+
+```zsh
+# Ensure completions directory exists
+mkdir -p ~/.zsh/completions
+
+# Generate and install completions
+blz completions zsh > ~/.zsh/completions/_blz
+
+# Add to .zshrc if not already present
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+
+# Reload
+source ~/.zshrc
+```
+
+### Fish Shell
 
 ```fish
 # Generate and install completions
@@ -24,26 +42,9 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 source ~/.bashrc
 ```
 
-### Zsh
-
-```zsh
-# Ensure completions directory exists
-mkdir -p ~/.zsh/completions
-
-# Generate and install completions
-blz completions zsh > ~/.zsh/completions/_blz
-
-# Add to .zshrc if not already present
-echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
-echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
-
-# Reload
-source ~/.zshrc
-```
-
 ## Features by Shell
 
-### Fish (Most Complete) 🌟
+### Fish (Most Complete)
 
 Fish users get the best experience with dynamic completions:
 
@@ -119,7 +120,7 @@ end
 Use the provided script to update all shells at once:
 
 ```bash
-# After installing/updating cache
+# After installing/updating blz
 ./scripts/install-completions.sh
 ```
 
@@ -132,7 +133,7 @@ This script:
 
 ### Manual Update
 
-When you update the `cache` binary:
+When you update the `blz` binary:
 
 ```bash
 # Regenerate for your shell
@@ -148,15 +149,15 @@ Add to your `config.fish` for automatic updates:
 ```fish
 # Auto-update blz completions when binary changes
 function __update_blz_completions --on-event fish_prompt
-    set -l cache_bin (which blz 2>/dev/null)
-    if test -z "$cache_bin"
+    set -l blz_bin (which blz 2>/dev/null)
+    if test -z "$blz_bin"
         return
     end
 
     set -l completion_file "$HOME/.config/fish/completions/blz.fish"
 
     # Update if binary is newer than completions
-    if not test -f "$completion_file"; or test "$cache_bin" -nt "$completion_file"
+    if not test -f "$completion_file"; or test "$blz_bin" -nt "$completion_file"
         blz completions fish > "$completion_file" 2>/dev/null
     end
 end
@@ -202,7 +203,7 @@ Create helpful functions:
 
 ```fish
 # Search and display best result
-function cache-best
+function blz-best
     set -l query $argv
     set -l result (blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
 
@@ -216,7 +217,7 @@ function cache-best
 end
 
 # Add with shorthand
-function cache-add-quick
+function blz-add-quick
     switch $argv[1]
         case bun
             blz add bun https://bun.sh/llms.txt
@@ -236,7 +237,7 @@ end
 
 ```bash
 # Fish/Bash/Zsh
-function cache-fzf
+function blz-fzf
     blz search "$1" --format json | \
     jq -r '.hits[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
@@ -265,11 +266,11 @@ echo "$results" | jq -r '.hits[] | {
 
 ```vim
 " Search blz from Vim
-command! -nargs=1 CacheSearch
+command! -nargs=1 BlzSearch
     \ :r!blz search "<args>" --limit 3
 
 " Get specific lines
-command! -nargs=+ CacheGet
+command! -nargs=+ BlzGet
     \ :r!blz get <args>
 ```
 

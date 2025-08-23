@@ -1,3 +1,4 @@
+<!-- TODO ::: @agents double check that all docs exist, stub out what we need, and write issues for that -->
 # blz Documentation
 
 Welcome to the comprehensive documentation for blz, a fast local-first search cache for `llms.txt` ecosystems.
@@ -18,7 +19,8 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 ### Technical Details
 
 - [**Architecture**](architecture.md) - How it works under the hood
-- [**Performance**](../PERFORMANCE.md) - Benchmarks and optimization details
+<!-- - [**Performance**](performance.md) - Benchmarks and optimization details -->
+<!-- TODO ::: @agents let's find a systematic way to do benchmarking, and then write this doc -->
 - [**Storage Format**](storage.md) - Understanding the blz structure
 
 ### Development
@@ -26,6 +28,7 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 - [**API Reference**](api.md) - Rust API documentation
 - [**MCP Integration**](mcp.md) - Using the Model Context Protocol server
 - [**Contributing**](../CONTRIBUTING.md) - Development guidelines
+<!-- TODO ::: @agents we need `api.md` and `mcp.md` -->
 
 ## Key Concepts
 
