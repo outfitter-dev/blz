@@ -1,7 +1,7 @@
 use anyhow::Result;
 use cache_core::{
     Fetcher, FlavorInfo, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
-    PerformanceMetrics, ResourceMonitor, Registry,
+    PerformanceMetrics, ResourceMonitor, Registry, is_flavor_detection_enabled, is_registry_lookup_enabled,
 };
 
 #[cfg(feature = "flamegraph")]
@@ -139,6 +139,12 @@ enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+    
+    /// Lookup sources from registry (requires registry feature to be enabled)
+    Lookup {
+        /// Search query for registry lookup
+        query: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -175,6 +181,16 @@ const ALIAS_COLORS: &[fn(&str) -> colored::ColoredString] = &[
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    
+    // Log feature status at startup if verbose
+    if cli.verbose || cli.debug {
+        if !is_flavor_detection_enabled() {
+            eprintln!("🚫 Flavor detection disabled (CACHE_DISABLE_FLAVOR_CHECK is set)");
+        }
+        if !is_registry_lookup_enabled() {
+            eprintln!("🚫 Registry lookup disabled (CACHE_DISABLE_REGISTRY is set)");
+        }
+    }
     
     let level = if cli.verbose || cli.debug {
         Level::DEBUG
@@ -248,6 +264,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Remove { alias }) => remove_source(&alias).await?,
         Some(Commands::Diff { alias, since }) => show_diff(&alias, since.as_deref()).await?,
+        Some(Commands::Lookup { query }) => {
+            lookup_registry(&query, metrics.clone(), resource_monitor.as_mut()).await?
+        },
         None => {
             // Default search command - parse arguments intelligently
             handle_default_search(&cli.args, metrics.clone(), resource_monitor.as_mut()).await?;
@@ -336,13 +355,24 @@ async fn add_source(
 ) -> Result<()> {
     let fetcher = Fetcher::new()?;
     
+    // Check if flavor detection is enabled
+    let flavor_detection_enabled = is_flavor_detection_enabled();
+    
+    if !flavor_detection_enabled {
+        tracing::info!("Flavor detection disabled by CACHE_DISABLE_FLAVOR_CHECK environment variable");
+    }
+    
     // Check if the user specified an exact llms.txt variant
     let is_exact_file = url.split('/').last()
         .map(|filename| filename.starts_with("llms") && filename.ends_with(".txt"))
         .unwrap_or(false);
     
-    let final_url = if is_exact_file {
-        // User specified exact file, use it directly
+    let final_url = if is_exact_file || !flavor_detection_enabled {
+        // User specified exact file or flavor detection is disabled, use URL directly
+        if !flavor_detection_enabled {
+            println!("🚫 Flavor detection disabled - using URL directly");
+            println!("💡 To enable flavor detection: unset CACHE_DISABLE_FLAVOR_CHECK or set it to 0/false/no");
+        }
         url.to_string()
     } else {
         // Smart detection: check for flavors
@@ -878,6 +908,15 @@ async fn lookup_registry(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>
 ) -> Result<()> {
+    // Check if registry lookup is enabled
+    if !is_registry_lookup_enabled() {
+        eprintln!("❌ Registry lookup is disabled");
+        eprintln!("💡 To enable: unset CACHE_DISABLE_REGISTRY or set it to 0/false/no");
+        return Err(anyhow::anyhow!(
+            "Registry lookup feature is disabled by environment variable"
+        ));
+    }
+    
     let registry = Registry::new();
     
     println!("Searching registries...");
@@ -980,7 +1019,6 @@ fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
     
     Ok(alias)
 }
-
 fn generate_completions(shell: clap_complete::Shell) {
     let mut cmd = Cli::command();
     let name = cmd.get_name().to_string();
@@ -1547,4 +1585,76 @@ mod tests {
         assert_eq!(flavors[2].name, "llms-mini.txt");
         assert_eq!(flavors[3].name, "llms-base.txt");
     }
+    
+    #[test]
+    fn test_feature_flags_default_enabled() {
+        use cache_core::{is_flavor_detection_enabled, is_registry_lookup_enabled};
+        
+        // Test the underlying logic directly to avoid environment variable interference
+        // When vars are not set or set to falsy values, features should be enabled
+        let test_cases = vec![
+            ("0", true),
+            ("false", true),  
+            ("no", true),
+            ("False", true),
+            ("NO", true),
+            ("anything_else", true),
+        ];
+        
+        for (value, should_be_enabled) in test_cases {
+            std::env::set_var("CACHE_DISABLE_FLAVOR_CHECK", value);
+            assert_eq!(is_flavor_detection_enabled(), should_be_enabled, 
+                      "Flavor detection should be {} when env var is '{}'", 
+                      if should_be_enabled { "enabled" } else { "disabled" }, value);
+                      
+            std::env::set_var("CACHE_DISABLE_REGISTRY", value);
+            assert_eq!(is_registry_lookup_enabled(), should_be_enabled,
+                      "Registry lookup should be {} when env var is '{}'", 
+                      if should_be_enabled { "enabled" } else { "disabled" }, value);
+        }
+        
+        // Test when vars are completely unset
+        std::env::remove_var("CACHE_DISABLE_FLAVOR_CHECK");
+        std::env::remove_var("CACHE_DISABLE_REGISTRY");
+        
+        // The functions should still work and return true (enabled) when vars are unset
+        assert!(is_flavor_detection_enabled(), "Flavor detection should be enabled when env var is unset");
+        assert!(is_registry_lookup_enabled(), "Registry lookup should be enabled when env var is unset");
+    }
+    
+    #[test]
+    fn test_feature_flags_disabled_by_env_vars() {
+        use cache_core::{is_flavor_detection_enabled, is_registry_lookup_enabled};
+        
+        // Test values that should disable features  
+        let disabling_values = vec!["1", "true", "yes", "TRUE", "Yes", "YeS"];
+        
+        for value in &disabling_values {
+            std::env::set_var("CACHE_DISABLE_FLAVOR_CHECK", value);
+            assert!(!is_flavor_detection_enabled(), 
+                   "Flavor detection should be disabled when env var is '{}'", value);
+            
+            std::env::set_var("CACHE_DISABLE_REGISTRY", value);
+            assert!(!is_registry_lookup_enabled(), 
+                   "Registry lookup should be disabled when env var is '{}'", value);
+        }
+        
+        // Test values that should NOT disable features
+        let enabling_values = vec!["0", "false", "no", "False", "NO", "other"];
+        
+        for value in &enabling_values {
+            std::env::set_var("CACHE_DISABLE_FLAVOR_CHECK", value);
+            assert!(is_flavor_detection_enabled(), 
+                   "Flavor detection should be enabled when env var is '{}'", value);
+            
+            std::env::set_var("CACHE_DISABLE_REGISTRY", value);
+            assert!(is_registry_lookup_enabled(), 
+                   "Registry lookup should be enabled when env var is '{}'", value);
+        }
+        
+        // Clean up
+        std::env::remove_var("CACHE_DISABLE_FLAVOR_CHECK");
+        std::env::remove_var("CACHE_DISABLE_REGISTRY");
+    }
+    
 }
