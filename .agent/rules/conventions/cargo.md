@@ -18,12 +18,31 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Outfitter Team <team@outfitter.dev>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/outfitter-dev/cache"
-homepage = "https://github.com/outfitter-dev/cache"
-documentation = "https://docs.rs/cache"
+repository = "https://github.com/outfitter-dev/blz"
+homepage = "https://github.com/outfitter-dev/blz"
+documentation = "https://docs.rs/blz"
 readme = "README.md"
-rust-version = "1.70.0"
-keywords = ["search", "cache", "tantivy", "full-text", "index"]
+rust-version = "1.75.0"
+keywords = [
+    "search",
+    "cache",
+    "tantivy",
+    "full-text",
+    "index",
+    "rust",
+    "llms",
+    "llms.txt",
+    "database",
+    "text",
+    "engine",
+    "blz",
+    "outfitter",
+    "async",
+    "tokio",
+    "serde",
+    "performance",
+    "open-source"
+]
 categories = ["text-processing", "database-implementations", "caching"]
 
 [workspace.dependencies]
@@ -37,7 +56,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.0", features = ["derive"] }
 
 # Search engine
-tantivy = "0.21"
+tantivy = "0.22"
 
 # Async utilities
 futures = "0.3"
@@ -127,12 +146,12 @@ strip = false
 
 ### Crate-Level Configuration
 
-**cache-core/Cargo.toml**
+**blz-core/Cargo.toml**
 
 ```toml
 [package]
-name = "cache-core"
-description = "Core search cache functionality using Tantivy"
+name = "blz-core"
+description = "Core local-first search cache functionality using Tantivy"
 workspace = true
 
 [dependencies]
@@ -188,20 +207,20 @@ name = "basic_search"
 required-features = ["search"]
 ```
 
-**cache-cli/Cargo.toml**
+**blz-cli/Cargo.toml**
 
 ```toml
 [package]
-name = "cache-cli"
-description = "Command-line interface for search cache"
+name = "blz-cli"
+description = "Command-line interface for the blz search cache"
 workspace = true
 
 [[bin]]
-name = "cache"
+name = "blz"
 path = "src/main.rs"
 
 [dependencies]
-cache-core = { path = "../cache-core" }
+blz-core = { path = "../blz-core" }
 
 # CLI-specific dependencies
 clap = { workspace = true }
@@ -419,7 +438,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 **Semantic Versioning Guidelines**
 
 ```toml
-# Version bumping rules for cache project:
+# Version bumping rules for the blz project:
 # MAJOR: Breaking API changes, Rust edition changes
 # MINOR: New features, non-breaking API additions
 # PATCH: Bug fixes, performance improvements, documentation
@@ -572,7 +591,7 @@ minimum-coverage = 80.0
 opt-level = 2
 debug = false
 
-[profile.dev.package.cache-core]
+[profile.dev.package.blz-core]
 # Keep our code unoptimized for debugging
 opt-level = 0
 debug = true

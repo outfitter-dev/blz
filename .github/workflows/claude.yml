@@ -5,26 +5,19 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  issues:
+    types: [opened, assigned]
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
-    # Allow specific bots (@copilot[bot], @devin[bot], @coderabbitai[bot]) and all humans to trigger Claude
+    # Only start the job if @claude is mentioned in the relevant payload
     if: |
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@claude') &&
-       (github.event.comment.user.type != 'Bot' ||
-        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login))) ||
-      (github.event_name == 'pull_request_review_comment' &&
-       contains(github.event.comment.body, '@claude') &&
-       (github.event.comment.user.type != 'Bot' ||
-        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login))) ||
-      (github.event_name == 'pull_request_review' &&
-       contains(github.event.review.body, '@claude') &&
-       (github.event.review.user.type != 'Bot' ||
-        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.review.user.login)))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     concurrency:
       group: claude-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
@@ -34,35 +27,65 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read # Allows reading CI results on PRs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      - name: 'Guard: allow only @galligan and CODEOWNERS'
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          actor="${{ github.actor }}"
+
+          allowed="false"
+          if [[ "$actor" == "galligan" ]]; then
+            allowed="true"
+          else
+            co=""
+            if [[ -f ".github/CODEOWNERS" ]]; then
+              co=".github/CODEOWNERS"
+            elif [[ -f "CODEOWNERS" ]]; then
+              co="CODEOWNERS"
+            fi
+
+            if [[ -n "$co" ]]; then
+              # Extract individual @usernames (exclude teams containing '/')
+              mapfile -t users < <(grep -o '@[A-Za-z0-9][A-Za-z0-9-]*' "$co" | sed 's/^@//' | grep -v '/' | sort -u || true)
+              for u in "${users[@]:-}"; do
+                if [[ "$actor" == "$u" ]]; then
+                  allowed="true"
+                  break
+                fi
+              done
+            fi
+          fi
+
+          echo "allowed=${allowed}" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code
+        if: steps.guard.outputs.allowed == 'true'
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # This is an optional setting that allows Claude to read CI results on PRs
+          # Optional: Allow Claude to read CI results on PRs
           additional_permissions: |
             actions: read
-          
-          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4.1)
+
+          # Optional: Specify model (defaults to Claude Sonnet 4)
           # model: "claude-opus-4-1-20250805"
-          
+
           # Optional: Customize the trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
-          
+
           # Optional: Trigger when specific user is assigned to an issue
           # assignee_trigger: "claude-bot"
-          
-          # Allow Claude to run Rust/Cargo commands for this repository
-          allowed_tools: "Bash(cargo build*),Bash(cargo test*),Bash(cargo clippy*),Bash(cargo fmt*),Bash(cargo deny*),Bash(cargo shear*),Bash(make *),Bash(just *)"
-          
+
           # Custom instructions for the blz Rust project
           custom_instructions: |
             This is a Rust project using Tantivy for search indexing.
@@ -71,18 +94,12 @@ jobs:
             Ensure all code passes clippy with no warnings
             Write tests for any new functionality
             Update AGENTS.md if making architectural changes
-          
+
           # Environment variables for Rust development
           claude_env: |
             RUST_BACKTRACE: 1
 
-# This workflow responds to explicit @claude mentions in pull requests only
-# Allowed triggers:
-# - PR comments with @claude (not regular issues)
-# - PR review comments with @claude
-# - PR review submissions with @claude
-#
-# Allowed comment sources:
-# - All human users
-# - Specific bots: @copilot[bot], @devin[bot], @coderabbitai[bot]
-# All other bots are ignored to prevent unwanted automation loops
+## Notes
+# - Triggers on PR comments, PR review comments, PR reviews, and issues.
+# - Only runs when @claude is mentioned and the actor is @galligan or listed as an individual in CODEOWNERS.
+# - If CODEOWNERS contains only teams, those are not expanded here; add individual usernames to CODEOWNERS to grant access.

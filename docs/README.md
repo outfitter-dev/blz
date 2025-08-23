@@ -63,4 +63,4 @@ blz get bun --lines 304-324
 
 - Check the [Getting Started Guide](getting-started.md)
 - Read about [common patterns](search.md#common-patterns)
-- File an issue on [GitHub](https://github.com/outfitter-dev/cache)
+- File an issue on [GitHub](https://github.com/outfitter-dev/blz)

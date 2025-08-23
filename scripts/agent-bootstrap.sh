@@ -17,7 +17,7 @@ NC='\033[0m'
 # Project information
 PROJECT_NAME="blz"
 PROJECT_DESC="Local-first search cache for llms.txt documentation"
-REPO_URL="https://github.com/outfitter-dev/cache"
+REPO_URL="https://github.com/outfitter-dev/blz"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

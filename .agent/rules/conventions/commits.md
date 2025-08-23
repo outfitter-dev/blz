@@ -22,9 +22,9 @@
 - **test**: Adding missing tests or correcting existing tests
 - **chore**: Changes to the build process or auxiliary tools and libraries such as documentation generation
 
-## Scope Examples for Cache Project
+## Scope Examples for blz
 
-- **core**: Core cache functionality
+- **core**: Core blz functionality
 - **cli**: CLI interface changes
 - **mcp**: MCP server implementation
 - **index**: Search index related changes

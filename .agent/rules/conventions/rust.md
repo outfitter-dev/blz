@@ -51,7 +51,7 @@ trailing_semicolon = true
 
 ```rust
 // Crate names: lowercase with dashes
-// cache-core, cache-cli, cache-mcp
+// blz-core, blz-cli, blz-mcp
 
 // Module names: snake_case
 mod search_engine;
