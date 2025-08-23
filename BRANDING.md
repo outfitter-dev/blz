@@ -1,14 +1,14 @@
-# Blaze Branding & Distribution
+# blz Branding & Distribution
 
 ## Name
-- **Product Name**: Blaze
-- **Binary/CLI**: `blz` (pronounced "blaze")
-- **Tagline**: "Blazingly fast documentation cache"
+- **Product Name**: blz (pronounced "blaze")
+- **Binary/CLI**: `blz`
+- **Tagline**: "Fast local search for llms.txt documentation"
 
 ## Meaning
-The name "Blaze" carries a powerful double meaning:
-1. **Trail Blazing**: Marking clear paths through documentation landscapes, like wilderness explorers who blaze trails
-2. **Blazing Speed**: Lightning-fast 6ms search performance
+The name "blz" (pronounced "blaze") carries a double meaning:
+1. **Speed**: Fast 6ms search performance
+2. **Trail Blazing**: Marking clear paths through documentation, like wilderness trail markers
 
 ## Distribution Channels
 
@@ -43,15 +43,15 @@ The name "Blaze" carries a powerful double meaning:
 - **Colors**: 
   - Primary: Fire orange/red gradients
   - Secondary: Trail brown/earth tones
-- **Logo Concept**: Stylized flame that also resembles a trail marker
+- **Logo Concept**: Simple trail blaze mark (slash on tree) that subtly suggests speed
 - **Typography**: Modern, clean, fast-looking
 
 ## Marketing Messages
-- "Blaze through your docs in milliseconds"
 - "Mark your trail through documentation"
 - "6ms to any answer"
-- "Local-first, blazingly fast"
-- "Your documentation, instantly searchable"
+- "Local-first search that works offline"
+- "Your agent's guide through the docs wilderness"
+- "Fast, deterministic, offline-ready"
 
 ## Technical Branding
 - Emphasize speed (6ms latency)

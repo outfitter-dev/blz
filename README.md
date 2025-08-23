@@ -1,10 +1,19 @@
-# Blaze
+# blz
 
-## Why "Blaze"?
+**blaze** */bleɪz/* • verb & noun
 
-Like wilderness explorers who blaze trails by marking paths through uncharted territory, **Blaze** (`blz`) creates clear, marked routes through your documentation landscape. The name captures the dual meaning: blazing trails by establishing clear paths to knowledge, and blazing speed in finding exactly what you need. Just as trail blazers mark trees and rocks to guide future travelers, Blaze marks and indexes documentation to guide your coding journey.
+1. **verb** – Move or proceed at high speed; achieve something rapidly  
+   *"Search your docs in 6ms flat"*
 
-A local-first, line-accurate docs blz and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
+2. **noun** – A trail marker made by cutting bark from trees; a mark to guide travelers through wilderness  
+   *"Mark clear paths through your documentation landscape"*
+
+3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval  
+   *"Your agent's guide through the docs wilderness"*
+
+---
+
+Local-first search for `llms.txt` ecosystems. Returns exact line citations in milliseconds. Built with Rust + Tantivy for deterministic, fast searches that work offline.
 
 ## Features
 

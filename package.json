@@ -1,7 +1,7 @@
 {
   "name": "outfitter-blaze",
   "version": "0.1.0",
-  "description": "Blazingly fast documentation cache for llms.txt ecosystems",
+  "description": "Fast local search for llms.txt documentation",
   "keywords": [
     "documentation",
     "cache",

@@ -1,6 +1,6 @@
 # Search Guide
 
-Master the art of searching your cached documentation with @outfitter/blzr's blazing-fast search.
+Master the art of searching your cached documentation with blz's fast local search.
 
 ## Basic Search
 

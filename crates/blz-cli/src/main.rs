@@ -18,7 +18,7 @@ use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
 #[command(name = "blz")]
-#[command(about = "Blaze - Blazingly fast documentation cache for llms.txt ecosystems", long_about = None)]
+#[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
 #[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
 struct Cli {
     #[command(subcommand)]

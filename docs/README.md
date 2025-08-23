@@ -1,6 +1,6 @@
-# @outfitter/blz Documentation
+# blz Documentation
 
-Welcome to the comprehensive documentation for @outfitter/blzr, a blazing-fast local-first docs blz for `llms.txt` ecosystems.
+Welcome to the comprehensive documentation for blz, a fast local-first search cache for `llms.txt` ecosystems.
 
 ## 📚 Documentation Index
 
