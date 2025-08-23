@@ -1,15 +1,10 @@
 # blz
 
-**blaze** */bleɪz/* • verb & noun
-
-1. **verb** – Move or proceed at high speed; achieve something rapidly  
-   *"Search your docs in 6ms flat"*
-
-2. **noun** – A trail marker made by cutting bark from trees; a mark to guide travelers through wilderness  
-   *"Mark clear paths through your documentation landscape"*
-
-3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval  
-   *"Your agent's guide through the docs wilderness"*
+> **blaze** */bleɪz/* (verb, noun)
+> 
+> 1. **verb** – Move or proceed at high speed; achieve something rapidly  
+> 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey  
+> 3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval  
 
 ---
 
@@ -76,7 +71,7 @@ blz get bun --lines 120-142
 # Or with context: blz get bun -l 120+20
 
 # List all sources
-blz sources
+blz list
 
 # Update all sources (not yet implemented)
 blz update --all
