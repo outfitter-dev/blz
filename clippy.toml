@@ -1,0 +1,44 @@
+# Clippy configuration for blz
+
+# Set MSRV (Minimum Supported Rust Version)
+msrv = "1.75.0"
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30
+
+# Maximum number of single char bindings  
+single-char-binding-names-threshold = 4
+
+# Type complexity threshold
+type-complexity-threshold = 250
+
+# Maximum number of lines for functions
+too-many-lines-threshold = 100
+
+# Maximum number of arguments
+too-many-arguments-threshold = 7
+
+# Allow certain macros
+allowed-duplicate-crates = ["windows-sys", "windows-targets", "windows_x86_64_gnu", "windows_x86_64_msvc"]
+
+# Disallow certain macros that can panic
+disallowed-macros = [
+    { path = "std::panic", reason = "use proper error handling instead" },
+    { path = "std::unimplemented", reason = "should not be in production code" },
+    { path = "std::todo", reason = "should not be in production code" }
+]
+
+# Avoid common footguns
+avoid-breaking-exported-api = false
+
+# Allow dbg! in tests
+allow-dbg-in-tests = true
+
+# Allow print macros in tests  
+allow-print-in-tests = true
+
+# Allow expect in tests
+allow-expect-in-tests = true
+
+# Enforce docs
+missing-docs-in-crate-items = true

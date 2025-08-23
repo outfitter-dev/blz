@@ -1,43 +1,37 @@
-# 1. @outfitter/cache — Product Requirements Doc (PRD)
+# blz — Product Requirements Doc (PRD)
 
 A local-first, line-accurate docs cache and MCP server for lightning-fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism; vectors are optional and **off by default**.
 
----
-
-# 2. Goals, Non-Goals, Success
+## Goals, Non-Goals, Success
 
 **Goals**
 
-* Local mirror of `llms.txt` sources arranged by tool (`bun/llms.txt`, etc.), plus any referenced markdown you elect to ingest.
-* Blazing-fast **lexical** search across normalized docs, returning **precise line spans** with heading context.
-* Deterministic JSON interfaces (CLI + MCP) designed for IDE/agent consumption.
-* Durable parsing of imperfect `llms.txt`; always produce useful structure (headings, links, lines) even when inputs are sloppy.
-* Built-in diff journal + optional archives per tool; track changes, timestamps, and changed sections.
-* Fetch/sync from **registries you trust** and **Firecrawl’s llms.txt endpoint**; no arbitrary crawl by default. ([Firecrawl][1])
+- Local mirror of `llms.txt` sources arranged by tool (`bun/llms.txt`, etc.), plus any referenced markdown you elect to ingest.
+- Blazing-fast **lexical** search across normalized docs, returning **precise line spans** with heading context.
+- Deterministic JSON interfaces (CLI + MCP) designed for IDE/agent consumption.
+- Durable parsing of imperfect `llms.txt`; always produce useful structure (headings, links, lines) even when inputs are sloppy.
+- Built-in diff journal + optional archives per tool; track changes, timestamps, and changed sections.
+- Fetch/sync from **registries you trust** and **Firecrawl’s llms.txt endpoint**; no arbitrary crawl by default. ([Firecrawl][1])
 
 **Non-Goals (v1)**
 
-* No default vector RAG or reranking (feature-flag later).
-* No write-back to upstream docs.
-* No remote HTTP API (MCP stdio first).
+- No default vector RAG or reranking (feature-flag later).
+- No write-back to upstream docs.
+- No remote HTTP API (MCP stdio first).
 
 **Success criteria**
 
-* P50 `search` end-to-end < 80 ms on a 10–50 MB corpus; P95 < 150 ms.
-* `get_lines` returns exact `file#Lstart-Lend` slices with heading path + snippet.
-* `update` uses conditional requests (ETag/If-None-Match) and produces a compact unified diff + “changed sections.” ([MDN Web Docs][2])
+- P50 `search` end-to-end < 80 ms on a 10–50 MB corpus; P95 < 150 ms.
+- `get_lines` returns exact `file#Lstart-Lend` slices with heading path + snippet.
+- `update` uses conditional requests (ETag/If-None-Match) and produces a compact unified diff + “changed sections.” ([MDN Web Docs][2])
 
----
+## User Stories
 
-# 3. User Stories
+- **Agent author**: “Given ‘bun test concurrency’, return the three most relevant spans across `bun/llms.txt` and linked pages, with line ranges and headings, in <100 ms.”
+- **Operator**: “Update all sources and tell me which sections changed since yesterday; show unified diffs and summarized change notes.”
+- **IDE assistant**: “When a suggestion references a flag, paste only the exact lines and cite `file#Lstart-Lend`.”
 
-* **Agent author**: “Given ‘bun test concurrency’, return the three most relevant spans across `bun/llms.txt` and linked pages, with line ranges and headings, in <100 ms.”
-* **Operator**: “Update all sources and tell me which sections changed since yesterday; show unified diffs and summarized change notes.”
-* **IDE assistant**: “When a suggestion references a flag, paste only the exact lines and cite `file#Lstart-Lend`.”
-
----
-
-# 4. High-Level Requirements
+## High-Level Requirements
 
 **Functional**
 
@@ -50,18 +44,16 @@ A local-first, line-accurate docs cache and MCP server for lightning-fast lookup
 
 **Non-functional**
 
-* Durable parsing; fallbacks for malformed Markdown/spec.
-* Deterministic JSON; zero nondeterministic fields.
-* Fast: in-process everything; minimal syscalls; parallelized IO.
-* Safe defaults: whitelist-only fetch; bounded size/time.
+- Durable parsing; fallbacks for malformed Markdown/spec.
+- Deterministic JSON; zero nondeterministic fields.
+- Fast: in-process everything; minimal syscalls; parallelized IO.
+- Safe defaults: whitelist-only fetch; bounded size/time.
 
----
-
-# 5. System Architecture
+## System Architecture
 
 ```
 +---------------------------+
-| CLI (cache)               |
+| CLI (blz)               |
 |  - add / search / ...     |
 +------------+--------------+
              | stdio
@@ -92,20 +84,18 @@ A local-first, line-accurate docs cache and MCP server for lightning-fast lookup
 +---------------------------+
 ```
 
-* **Tantivy** is the embedded search engine (Lucene-style) for sub-10ms doc hits. ([Docs.rs][3], [GitHub][4])
-* **tree-sitter-markdown** for robust parsing and byte/line positions. ([GitHub][5], [Docs.rs][6])
-* **ripgrep** as the exact line-finder for final spans/snippets (subprocess, optional). ([GitHub][7])
-* **similar** for unified diffs and changed-section mapping. ([Docs.rs][8], [GitHub][9])
-* **MCP** uses the **official Rust SDK (`rmcp`)** for maximum ecosystem support. ([GitHub][10], [Docs.rs][11])
-* Fetch/sync favors conditional requests (ETag/If-None-Match) to save bandwidth and time. ([MDN Web Docs][2])
-* Optional discovery via **Firecrawl’s `/llmstxt`** generator (off unless requested). ([Firecrawl][1])
+- **Tantivy** is the embedded search engine (Lucene-style) for sub-10ms doc hits. ([Docs.rs][3], [GitHub][4])
+- **tree-sitter-markdown** for robust parsing and byte/line positions. ([GitHub][5], [Docs.rs][6])
+- **ripgrep** as the exact line-finder for final spans/snippets (subprocess, optional). ([GitHub][7])
+- **similar** for unified diffs and changed-section mapping. ([Docs.rs][8], [GitHub][9])
+- **MCP** uses the **official Rust SDK (`rmcp`)** for maximum ecosystem support. ([GitHub][10], [Docs.rs][11])
+- Fetch/sync favors conditional requests (ETag/If-None-Match) to save bandwidth and time. ([MDN Web Docs][2])
+- Optional discovery via **Firecrawl’s `/llmstxt`** generator (off unless requested). ([Firecrawl][1])
 
----
-
-# 6. On-Disk Layout
+## On-Disk Layout
 
 ```
-~/.outfitter/cache/
+~/.outfitter/blz/
   global.toml
   bun/
     llms.txt                 # latest upstream text
@@ -143,9 +133,7 @@ A local-first, line-accurate docs cache and MCP server for lightning-fast lookup
 
 Retention governed by `global.toml` and per-tool `settings.toml` (`max_archives`, `refresh_hours`, `fetch_enabled`, etc.).
 
----
-
-# 7. Parsing & Durability Strategy
+## Parsing & Durability Strategy
 
 1. **Raw load** (UTF-8), store metadata.
 2. **tree-sitter-markdown** block parse → build TOC + heading ranges (line/byte). If parsing fails or input is sloppy, fall back to tolerant heuristics (`^#{1,6} ` headings, link lines, fenced code). ([Docs.rs][6])
@@ -153,9 +141,7 @@ Retention governed by `global.toml` and per-tool `settings.toml` (`max_archives`
 4. **Inline `<script type="text/llms.txt">`** scraping supported when encountered.
 5. Always emit `llms.json` with `diagnostics[]` rather than failing hard.
 
----
-
-# 8. Search Pipeline (no vectors)
+## Search Pipeline (no vectors)
 
 **Algorithm**
 
@@ -181,31 +167,27 @@ Retention governed by `global.toml` and per-tool `settings.toml` (`max_archives`
 
 Rationale: Tantivy for quick narrowing + BM25 relevance; ripgrep for precision at the line level. ([Docs.rs][3], [GitHub][7])
 
----
-
-# 9. MCP Surface (stdio)
+## MCP Surface (stdio)
 
 We’ll use **`rmcp` (official Rust SDK)**. Server provides:
 
 **Tools**
 
-* `list_sources()` → array `{alias, path, fetchedAt, etag, size}`.
-* `search({query, alias?, limit?})` → `hits[]` (JSON as above).
-* `get_lines({alias, file, start, end})` → exact slice + MIME (`text/plain`).
-* `update({alias?})` → `{updated:[], skipped:[], errors:[]}`.
-* `diff({alias, since?})` → `{entries:[…], diffs:[{path, text}…]}`.
+- `list_sources()` → array `{alias, path, fetchedAt, etag, size}`.
+- `search({query, alias?, limit?})` → `hits[]` (JSON as above).
+- `get_lines({alias, file, start, end})` → exact slice + MIME (`text/plain`).
+- `update({alias?})` → `{updated:[], skipped:[], errors:[]}`.
+- `diff({alias, since?})` → `{entries:[…], diffs:[{path, text}…]}`.
 
 **Resources**
 
-* `doc://<alias>/<file>#Lstart-Lend` resolves to cached content blob with position info (ideal for IDEs).
+- `doc://<alias>/<file>#Lstart-Lend` resolves to cached content blob with position info (ideal for IDEs).
 
 Version pinning follows MCP date-string spec (e.g., `2025-06-18`). ([Model Context Protocol][12], [spec.modelcontextprotocol.io][13])
 
----
+## CLI (DX)
 
-# 10. CLI (DX)
-
-Binary name: `cache` (fallback `of-cache` if collision).
+Binary name: `blz` .
 
 ```
 blz add bun https://bun.sh/llms.txt          # fetch + index
@@ -213,27 +195,23 @@ blz search "test concurrency" --alias bun    # JSON hits
 blz get bun --lines 120-142                  # span text
 blz update --all                             
 blz diff bun --since "2025-08-20T00:00:00Z"
-cache sources
+blz sources
 ```
 
 **Flags**
 
-* `--format json|pretty` (default json)
-* `--limit N` for search
-* `--max-archive N`, `--refresh-hours H` (override per-tool)
-* `--no-follow` / `--allow list=domain1,domain2`
+- `--format json|pretty` (default json)
+- `--limit N` for search
+- `--max-archive N`, `--refresh-hours H` (override per-tool)
+- `--no-follow` / `--allow list=domain1,domain2`
 
----
+## Update & Sync
 
-# 11. Update & Sync
+- Conditional GET with `If-None-Match`/ETag and `If-Modified-Since`. `304` → skip reindex; `200` → snapshot + reindex + diff entry. ([MDN Web Docs][2])
+- **Diffing** with `similar::TextDiff` (patience/Myers). Also compute `changedSections` by intersecting diff hunks with heading ranges. ([Docs.rs][8])
+- **Discovery**: default resolvers = trusted registries you set + **Firecrawl `/llmstxt`** (opt-in). ([Firecrawl][1])
 
-* Conditional GET with `If-None-Match`/ETag and `If-Modified-Since`. `304` → skip reindex; `200` → snapshot + reindex + diff entry. ([MDN Web Docs][2])
-* **Diffing** with `similar::TextDiff` (patience/Myers). Also compute `changedSections` by intersecting diff hunks with heading ranges. ([Docs.rs][8])
-* **Discovery**: default resolvers = trusted registries you set + **Firecrawl `/llmstxt`** (opt-in). ([Firecrawl][1])
-
----
-
-# 12. Config (TOML)
+## Config (TOML)
 
 **`global.toml`**
 
@@ -246,7 +224,7 @@ follow_links = "first_party" # none|first_party|allowlist
 allowlist = []
 
 [paths]
-root = "~/.outfitter/cache"
+root = "~/.outfitter/blz"
 ```
 
 **`<alias>/settings.toml`**
@@ -267,52 +245,40 @@ allowlist = ["bun.sh","github.com/oven-sh"]
 max_heading_block_lines = 400
 ```
 
----
+## Security & Privacy
 
-# 13. Security & Privacy
+- **Default-deny** remote fetch of non-listed domains.
+- MCP tools are **read-only**; no shell escape; no arbitrary command execution.
+- Snapshots and diffs are local; no telemetry unless explicitly enabled.
 
-* **Default-deny** remote fetch of non-listed domains.
-* MCP tools are **read-only**; no shell escape; no arbitrary command execution.
-* Snapshots and diffs are local; no telemetry unless explicitly enabled.
+## Observability
 
----
+- Structured logs (JSON) with timings for fetch, parse, index, search.
+- `blz diag` dumps latest diagnostics and index stats.
+- Optional OpenTelemetry traces behind a feature flag.
 
-# 14. Observability
+## Performance Targets & Benchmarks
 
-* Structured logs (JSON) with timings for fetch, parse, index, search.
-* `cache diag` dumps latest diagnostics and index stats.
-* Optional OpenTelemetry traces behind a feature flag.
-
----
-
-# 15. Performance Targets & Benchmarks
-
-* Index build: \~50–150 ms per 1 MB markdown (CPU-bound).
-* Query: P50 < 80 ms end-to-end on laptop for 10–50 MB corpora.
-* Update: conditional fetch round-trip + no-op reindex in < 30 ms.
+- Index build: \~50–150 ms per 1 MB markdown (CPU-bound).
+- Query: P50 < 80 ms end-to-end on laptop for 10–50 MB corpora.
+- Update: conditional fetch round-trip + no-op reindex in < 30 ms.
 
 (We’ll publish a `bench/` suite and capture results in CI.)
 
----
+## Failure Modes & Recovery
 
-# 16. Failure Modes & Recovery
+- **Malformed `llms.txt`** → warnings in `diagnostics[]`, still produce `llms.json`; search remains operational on parsed regions.
+- **Network failures** → keep last good snapshot; `update` surfaces errors but cache continues to serve.
+- **Index corruption** → auto-rebuild from `llms.txt` snapshot.
 
-* **Malformed `llms.txt`** → warnings in `diagnostics[]`, still produce `llms.json`; search remains operational on parsed regions.
-* **Network failures** → keep last good snapshot; `update` surfaces errors but cache continues to serve.
-* **Index corruption** → auto-rebuild from `llms.txt` snapshot.
+## Agent Guide (guardrails)
 
----
+- Prefer MCP tools `search` → `get_lines` over scraping files.
+- Always cite exact `file#Lstart-Lend` spans.
+- Only trigger `update` when freshness matters; otherwise use existing cache.
+- To seed new tools: check known registries; if missing, try **Firecrawl `/llmstxt`** once and cache results. ([Firecrawl][1])
 
-# 17. Agent Guide (guardrails)
-
-* Prefer MCP tools `search` → `get_lines` over scraping files.
-* Always cite exact `file#Lstart-Lend` spans.
-* Only trigger `update` when freshness matters; otherwise use existing cache.
-* To seed new tools: check known registries; if missing, try **Firecrawl `/llmstxt`** once and cache results. ([Firecrawl][1])
-
----
-
-# 18. Code Scaffolds (Rust)
+## Code Scaffolds (Rust)
 
 > Intentionally compact to prime agents; not a full build.
 
@@ -320,7 +286,7 @@ max_heading_block_lines = 400
 
 ```toml
 [package]
-name = "outfitter-cache"
+name = "outfitter-blz"
 version = "0.1.0"
 edition = "2024"
 
@@ -426,7 +392,7 @@ use rmcp::{Server, Result as McpResult};
 struct SearchArgs { query: String, alias: Option<String>, limit: Option<usize> }
 
 fn main() -> anyhow::Result<()> {
-    let mut server = Server::stdio("outfitter.cache");
+    let mut server = Server::stdio("outfitter.blz");
     server.tool("search", |args: SearchArgs| async move {
         // call core::search(args.query, args.alias, args.limit)
         // return serde_json::json!({ "hits": hits })
@@ -438,16 +404,14 @@ fn main() -> anyhow::Result<()> {
 
 (Official SDK; stdio transport keeps everything local and fast.) ([Docs.rs][11])
 
----
-
-# 19. JSON Schemas (Draft-07)
+## JSON Schemas (Draft-07)
 
 **Search response**
 
 ```json
 {
   "$schema":"http://json-schema.org/draft-07/schema#",
-  "title":"CacheSearchResponse",
+  "title":"BlzSearchResponse",
   "type":"object",
   "properties":{
     "query":{"type":"string"},
@@ -478,7 +442,7 @@ fn main() -> anyhow::Result<()> {
 ```json
 {
   "$schema":"http://json-schema.org/draft-07/schema#",
-  "title":"CacheDiffEntry",
+  "title":"BlzDiffEntry",
   "type":"object",
   "required":["ts","alias","unifiedDiffPath","changedSections"],
   "properties":{
@@ -498,59 +462,50 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
----
+## Risks & Mitigations
 
-# 20. Risks & Mitigations
+- **Upstream format drift** → resilient parser + diagnostics + raw archive.
+- **Index bloat** → heading-block docs keep postings compact; rotate archives.
+- **Ecosystem drift in MCP** → target spec `2025-06-18`, pin `rmcp` minor; integration tests. ([Model Context Protocol][12])
 
-* **Upstream format drift** → resilient parser + diagnostics + raw archive.
-* **Index bloat** → heading-block docs keep postings compact; rotate archives.
-* **Tool naming collision** → ship `of-cache` alias.
-* **Ecosystem drift in MCP** → target spec `2025-06-18`, pin `rmcp` minor; integration tests. ([Model Context Protocol][12])
-
----
-
-# 21. Roadmap & Milestones
+## Roadmap & Milestones
 
 **MVP (Week 1)**
 
-* CLI: `add`, `search`, `get`, `sources`.
-* Parser + line maps + Tantivy index.
-* Ripgrep-powered span extraction (optional dep).
-* `llms.json` and basic diagnostics.
+- CLI: `add`, `search`, `get`, `sources`.
+- Parser + line maps + Tantivy index.
+- Ripgrep-powered span extraction (optional dep).
+- `llms.json` and basic diagnostics.
 
 **v0.2 (Week 2)**
 
-* `update` (ETag/If-Modified-Since) + `diff` (similar) + `.archive/` + `diffs.log.jsonl`.
-* Per-tool `settings.toml`; global config.
+- `update` (ETag/If-Modified-Since) + `diff` (similar) + `.archive/` + `diffs.log.jsonl`.
+- Per-tool `settings.toml`; global config.
 
 **v0.3 (Week 3)**
 
-* MCP server (`rmcp`): `list_sources`, `search`, `get_lines`, `update`, `diff`.
-* Benchmarks + `cache diag`.
+- MCP server (`rmcp`): `list_sources`, `search`, `get_lines`, `update`, `diff`.
+- Benchmarks + `blz diag`.
 
 **v0.4+**
 
-* Optional fuzzy prefilter feature flag.
-* Optional vector extension (SQLite-vec/LanceDB) + Vercel AI SDK retriever (off by default). ([AI SDK][14])
+- Optional fuzzy prefilter feature flag.
+- Optional vector extension (SQLite-vec/LanceDB) + Vercel AI SDK retriever (off by default). ([AI SDK][14])
 
----
+## Reference Links
 
-# 22. Reference Links
+- **Tantivy** (docs & repo). Fast, embedded search in Rust. ([Docs.rs][3], [GitHub][4])
+- **tree-sitter-markdown** grammar & crate. Line-accurate Markdown parsing. ([GitHub][5], [Docs.rs][6])
+- **ripgrep**. Ridiculously fast line searches. ([GitHub][7])
+- **similar** diff crate. Unified diffs, patience/Myers. ([Docs.rs][8])
+- **HTTP ETag / If-None-Match** (MDN). Conditional requests. ([MDN Web Docs][15])
+- **Model Context Protocol**: spec & official Rust SDK (`rmcp`). ([Model Context Protocol][12], [GitHub][16], [Docs.rs][11])
+- **Firecrawl `/llmstxt`** generator (opt-in discovery). ([Firecrawl][1])
+- **Vercel AI SDK: embeddings** (for later vector feature). ([AI SDK][14])
 
-* **Tantivy** (docs & repo). Fast, embedded search in Rust. ([Docs.rs][3], [GitHub][4])
-* **tree-sitter-markdown** grammar & crate. Line-accurate Markdown parsing. ([GitHub][5], [Docs.rs][6])
-* **ripgrep**. Ridiculously fast line searches. ([GitHub][7])
-* **similar** diff crate. Unified diffs, patience/Myers. ([Docs.rs][8])
-* **HTTP ETag / If-None-Match** (MDN). Conditional requests. ([MDN Web Docs][15])
-* **Model Context Protocol**: spec & official Rust SDK (`rmcp`). ([Model Context Protocol][12], [GitHub][16], [Docs.rs][11])
-* **Firecrawl `/llmstxt`** generator (opt-in discovery). ([Firecrawl][1])
-* **Vercel AI SDK: embeddings** (for later vector feature). ([AI SDK][14])
+## Next Steps
 
----
-
-# 23. Next Steps
-
-1. Create repo `outfitter/cache` with crates: `cache-cli`, `cache-core`, `cache-mcp`.
+1. Create repo `outfitter-dev/blz` with crates: `blz-cli`, `blz-core`, `blz-mcp`.
 2. Implement MVP path: fetch → parse → index → search → get.
 3. Wire conditional updates + diff journal and archives.
 4. Stand up MCP tools on `stdio` using `rmcp` and add integration tests against a couple of real sources.

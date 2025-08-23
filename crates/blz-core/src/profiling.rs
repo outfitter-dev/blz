@@ -301,13 +301,8 @@ pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::e
 pub fn stop_profiling_and_report(guard: pprof::ProfilerGuard) -> Result<(), Box<dyn std::error::Error>> {
     match guard.report().build() {
         Ok(report) => {
-            let mut file = std::fs::File::create("cache_profile.pb")?;
-            let profile = report.pprof()?;
-            
-            // Use pprof's write method directly
-            profile.write(&mut file)?;
-            
-            println!("Profile saved to cache_profile.pb");
+            // Note: Protobuf output temporarily disabled due to API changes
+            // TODO: Re-enable once pprof protobuf API is clarified
             
             // Generate flamegraph if possible
             let file = std::fs::File::create("flamegraph.svg")?;

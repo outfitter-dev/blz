@@ -265,17 +265,17 @@ mod tests {
         assert_eq!(format_size(512), "512 B");
         assert_eq!(format_size(1024), "1.0 KB");
         assert_eq!(format_size(1536), "1.5 KB");
-        assert_eq!(format_size(1048576), "1.0 MB");
-        assert_eq!(format_size(1572864), "1.5 MB");
-        assert_eq!(format_size(1073741824), "1.0 GB");
-        assert_eq!(format_size(2147483648), "2.0 GB");
+        assert_eq!(format_size(1_048_576), "1.0 MB");
+        assert_eq!(format_size(1_572_864), "1.5 MB");
+        assert_eq!(format_size(1_073_741_824), "1.0 GB");
+        assert_eq!(format_size(2_147_483_648), "2.0 GB");
     }
 
     #[test]
     fn test_flavor_info_display() {
         let flavor_with_size = FlavorInfo {
             name: "llms-full.txt".to_string(),
-            size: Some(892000),
+            size: Some(892_000),
             url: "https://example.com/llms-full.txt".to_string(),
         };
         assert_eq!(format!("{}", flavor_with_size), "llms-full.txt (871.1 KB)");

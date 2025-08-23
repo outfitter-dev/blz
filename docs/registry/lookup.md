@@ -11,7 +11,8 @@ blz lookup <query>
 ## Examples
 
 ### Basic Search
-```bash
+
+```text
 $ blz lookup "claude"
 Searching registries...
 Found 3 matches:
@@ -35,7 +36,8 @@ To add any of these sources, use:
 ```
 
 ### JavaScript Ecosystem Search
-```bash
+
+```text
 $ blz lookup "javascript"
 Searching registries...
 Found 5 matches:
@@ -64,7 +66,7 @@ Found 5 matches:
 ### Interactive Mode (in a real terminal)
 When run in an interactive terminal, the command provides arrow key navigation and interactive prompts:
 
-```bash
+```text
 $ blz lookup "claude"
 Searching registries...
 Found 2 matches:
@@ -84,16 +86,16 @@ The following documentation sources are currently available:
 
 | Name | Slug | Aliases | Description |
 |------|------|---------|-------------|
-| Bun | bun | bun, bunjs | Fast all-in-one JavaScript runtime and package manager |
-| Node.js | node | node, nodejs, js | JavaScript runtime built on Chrome's V8 JavaScript engine |
-| Deno | deno | deno | Modern runtime for JavaScript and TypeScript |
-| React | react | react, reactjs | JavaScript library for building user interfaces |
-| Vue.js | vue | vue, vuejs | Progressive JavaScript framework for building UIs |
-| Next.js | nextjs | nextjs, next | React framework for production with hybrid static & server rendering |
-| Claude Code | claude-code | claude-code, claude | Anthropic's AI coding assistant documentation |
-| Pydantic | pydantic | pydantic | Data validation library using Python type hints |
-| Anthropic Claude API | anthropic | anthropic, claude-api | Claude API documentation and guides |
-| OpenAI API | openai | openai, gpt | OpenAI API documentation and guides |
+| Bun | `bun` | `bun`, `bunjs` | Fast all-in-one JavaScript runtime and package manager |
+| Node.js | `node` | `node`, `nodejs`, `js` | JavaScript runtime built on Chrome's V8 JavaScript engine |
+| Deno | `deno` | `deno` | Modern runtime for JavaScript and TypeScript |
+| React | `react` | `react`, `reactjs` | JavaScript library for building user interfaces |
+| Vue.js | `vue` | `vue`, `vuejs` | Progressive JavaScript framework for building UIs |
+| Next.js | `nextjs` | `nextjs`, `next` | React framework for production with hybrid static & server rendering |
+| Claude Code | `claude-code` | `claude-code`, `claude` | Anthropic's AI coding assistant documentation |
+| Pydantic | `pydantic` | `pydantic` | Data validation library using Python type hints |
+| Anthropic Claude API | `anthropic` | anthropic, claude-api | Claude API documentation and guides |
+| OpenAI API | `openai` | `openai`, `gpt` | OpenAI API documentation and guides |
 
 ## Search Algorithm
 
