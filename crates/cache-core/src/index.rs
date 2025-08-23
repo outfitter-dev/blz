@@ -3,11 +3,12 @@ use std::path::Path;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, Value, STORED, TEXT, STRING};
-use tantivy::{doc, Document, Index, IndexReader, IndexWriter, TantivyDocument};
+use tantivy::{doc, Index, IndexReader};
 use tracing::{debug, info};
 
 pub struct SearchIndex {
     index: Index,
+    #[allow(dead_code)]
     schema: Schema,
     content_field: Field,
     path_field: Field,

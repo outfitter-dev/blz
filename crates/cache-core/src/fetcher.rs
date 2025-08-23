@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Client, StatusCode};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tracing::{debug, info};

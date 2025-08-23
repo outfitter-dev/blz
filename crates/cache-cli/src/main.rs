@@ -1,13 +1,12 @@
 use anyhow::Result;
 use cache_core::{
-    Config, Fetcher, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
+    Fetcher, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
 };
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::path::PathBuf;
-use tracing::{info, Level};
+use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
@@ -302,7 +301,7 @@ async fn list_sources(format: OutputFormat) -> Result<()> {
     Ok(())
 }
 
-async fn update_source(alias: &str) -> Result<()> {
+async fn update_source(_alias: &str) -> Result<()> {
     println!("Update functionality not yet implemented");
     Ok(())
 }
@@ -312,7 +311,7 @@ async fn update_all() -> Result<()> {
     Ok(())
 }
 
-async fn show_diff(alias: &str, since: Option<&str>) -> Result<()> {
+async fn show_diff(_alias: &str, _since: Option<&str>) -> Result<()> {
     println!("Diff functionality not yet implemented");
     Ok(())
 }

@@ -1,7 +1,6 @@
 use crate::{Diagnostic, DiagnosticSeverity, Error, HeadingBlock, Result, TocEntry};
 use std::collections::VecDeque;
-use tree_sitter::{Node, Parser, Point, TreeCursor};
-use tracing::{debug, warn};
+use tree_sitter::{Node, Parser, TreeCursor};
 
 pub struct MarkdownParser {
     parser: Parser,
