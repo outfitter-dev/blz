@@ -26,6 +26,7 @@ tree-sitter.workspace = true
 tree-sitter-md.workspace = true
 tantivy.workspace = true
 similar.workspace = true
+fuzzy-matcher.workspace = true
 
 # Additional core dependencies
 async-trait = "0.1"
