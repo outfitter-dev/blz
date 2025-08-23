@@ -24,7 +24,7 @@ impl RegistryEntry {
     }
 
     pub fn with_aliases(mut self, aliases: Vec<&str>) -> Self {
-        self.aliases = aliases.iter().map(|s| s.to_string()).collect();
+        self.aliases = aliases.iter().map(|s| (*s).to_string()).collect();
         self
     }
 }
@@ -352,7 +352,7 @@ mod tests {
             assert!(entry.llms_url.ends_with(".txt"));
             // Check that slug is kebab-case (no spaces, lowercase)
             assert!(!entry.slug.contains(' '));
-            assert!(!entry.slug.chars().any(|c| c.is_uppercase()));
+            assert!(!entry.slug.chars().any(char::is_uppercase));
         }
     }
 

@@ -1,4 +1,4 @@
-use blz_core::{HeadingBlock, MarkdownParser, PerformanceMetrics, SearchIndex};
+use blz_core::{HeadingBlock, PerformanceMetrics, SearchIndex};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::time::Duration;
 use tempfile::TempDir;
@@ -17,7 +17,7 @@ fn create_test_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
 
     for i in 0..count {
         let section_name = format!("Section_{}", i % 10); // Simulate sections
-        let subsection = format!("Subsection_{}", i);
+        let subsection = format!("Subsection_{i}");
 
         // Create content of desired size
         let mut content = String::new();

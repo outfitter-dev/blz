@@ -1,3 +1,8 @@
+//! Build script for blz-cli
+//!
+//! This script handles build-time configuration and setup,
+//! including shell completion generation preparation.
+
 use std::env;
 use std::path::Path;
 

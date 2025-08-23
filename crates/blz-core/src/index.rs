@@ -28,7 +28,7 @@ impl SearchIndex {
     }
 
     /// Get the performance metrics instance
-    pub fn metrics(&self) -> Option<&PerformanceMetrics> {
+    pub const fn metrics(&self) -> Option<&PerformanceMetrics> {
         self.metrics.as_ref()
     }
     pub fn create(index_path: &Path) -> Result<Self> {
@@ -43,16 +43,16 @@ impl SearchIndex {
         let schema = schema_builder.build();
 
         std::fs::create_dir_all(index_path)
-            .map_err(|e| Error::Index(format!("Failed to create index directory: {}", e)))?;
+            .map_err(|e| Error::Index(format!("Failed to create index directory: {e}")))?;
 
         let index = Index::create_in_dir(index_path, schema.clone())
-            .map_err(|e| Error::Index(format!("Failed to create index: {}", e)))?;
+            .map_err(|e| Error::Index(format!("Failed to create index: {e}")))?;
 
         let reader = index
             .reader_builder()
             .reload_policy(tantivy::ReloadPolicy::OnCommitWithDelay)
             .try_into()
-            .map_err(|e| Error::Index(format!("Failed to create reader: {}", e)))?;
+            .map_err(|e| Error::Index(format!("Failed to create reader: {e}")))?;
 
         Ok(Self {
             index,
@@ -69,7 +69,7 @@ impl SearchIndex {
 
     pub fn open(index_path: &Path) -> Result<Self> {
         let index = Index::open_in_dir(index_path)
-            .map_err(|e| Error::Index(format!("Failed to open index: {}", e)))?;
+            .map_err(|e| Error::Index(format!("Failed to open index: {e}")))?;
 
         let schema = index.schema();
 
@@ -93,7 +93,7 @@ impl SearchIndex {
             .reader_builder()
             .reload_policy(tantivy::ReloadPolicy::OnCommitWithDelay)
             .try_into()
-            .map_err(|e| Error::Index(format!("Failed to create reader: {}", e)))?;
+            .map_err(|e| Error::Index(format!("Failed to create reader: {e}")))?;
 
         Ok(Self {
             index,
@@ -115,9 +115,9 @@ impl SearchIndex {
         blocks: &[HeadingBlock],
     ) -> Result<()> {
         let timer = if let Some(metrics) = &self.metrics {
-            OperationTimer::with_metrics(&format!("index_{}", alias), metrics.clone())
+            OperationTimer::with_metrics(&format!("index_{alias}"), metrics.clone())
         } else {
-            OperationTimer::new(&format!("index_{}", alias))
+            OperationTimer::new(&format!("index_{alias}"))
         };
 
         let mut timings = ComponentTimings::new();
@@ -125,7 +125,7 @@ impl SearchIndex {
         let mut writer = timings.time("writer_creation", || {
             self.index
                 .writer(50_000_000)
-                .map_err(|e| Error::Index(format!("Failed to create writer: {}", e)))
+                .map_err(|e| Error::Index(format!("Failed to create writer: {e}")))
         })?;
 
         let _deleted = timings.time("delete_existing", || {
@@ -141,7 +141,7 @@ impl SearchIndex {
                 let lines_str = format!("{}-{}", block.start_line, block.end_line);
 
                 let doc = doc!(
-                    self.content_field => block.content.clone(),
+                    self.content_field => block.content.as_str(),  // Use &str instead of clone
                     self.path_field => file_path,
                     self.heading_path_field => heading_path_str,
                     self.lines_field => lines_str,
@@ -150,7 +150,7 @@ impl SearchIndex {
 
                 writer
                     .add_document(doc)
-                    .map_err(|e| Error::Index(format!("Failed to add document: {}", e)))?;
+                    .map_err(|e| Error::Index(format!("Failed to add document: {e}")))?;
             }
             Ok::<(), Error>(())
         })?;
@@ -158,13 +158,13 @@ impl SearchIndex {
         timings.time("commit", || {
             writer
                 .commit()
-                .map_err(|e| Error::Index(format!("Failed to commit: {}", e)))
+                .map_err(|e| Error::Index(format!("Failed to commit: {e}")))
         })?;
 
         timings.time("reader_reload", || {
             self.reader
                 .reload()
-                .map_err(|e| Error::Index(format!("Failed to reload reader: {}", e)))
+                .map_err(|e| Error::Index(format!("Failed to reload reader: {e}")))
         })?;
 
         let duration = timer.finish_index(total_content_bytes);
@@ -192,9 +192,9 @@ impl SearchIndex {
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let timer = if let Some(metrics) = &self.metrics {
-            OperationTimer::with_metrics(&format!("search_{}", query_str), metrics.clone())
+            OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone())
         } else {
-            OperationTimer::new(&format!("search_{}", query_str))
+            OperationTimer::new(&format!("search_{query_str}"))
         };
 
         let mut timings = ComponentTimings::new();
@@ -209,36 +209,59 @@ impl SearchIndex {
             )
         });
 
-        // Sanitize query to prevent injection attacks
-        // Escape special characters that could be exploited in Tantivy queries
-        let sanitized_query = query_str
-            .replace('\\', "\\\\")  // Escape backslash first
-            .replace('"', "\\\"")    // Escape quotes
-            .replace('(', "\\(")     // Escape parentheses
-            .replace(')', "\\)")
-            .replace('[', "\\[")     // Escape brackets
-            .replace(']', "\\]")
-            .replace('{', "\\{")     // Escape braces
-            .replace('}', "\\}")
-            .replace('^', "\\^")     // Escape caret
-            .replace('~', "\\~"); // Escape tilde
+        // Sanitize query more efficiently with a single allocation
+        let needs_escaping = query_str.chars().any(|c| {
+            matches!(
+                c,
+                '\\' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~'
+            )
+        });
 
-        let mut full_query_str = sanitized_query.clone();
-        if let Some(alias) = alias {
-            // Alias is internally controlled, no need to sanitize
-            full_query_str = format!("alias:{} AND ({})", alias, sanitized_query);
-        }
+        let full_query_str = if needs_escaping {
+            // Only allocate if we need to escape characters
+            let mut sanitized = String::with_capacity(query_str.len() * 2);
+
+            for ch in query_str.chars() {
+                match ch {
+                    '\\' => sanitized.push_str("\\\\"),
+                    '"' => sanitized.push_str("\\\""),
+                    '(' => sanitized.push_str("\\("),
+                    ')' => sanitized.push_str("\\)"),
+                    '[' => sanitized.push_str("\\["),
+                    ']' => sanitized.push_str("\\]"),
+                    '{' => sanitized.push_str("\\{"),
+                    '}' => sanitized.push_str("\\}"),
+                    '^' => sanitized.push_str("\\^"),
+                    '~' => sanitized.push_str("\\~"),
+                    _ => sanitized.push(ch),
+                }
+            }
+
+            if let Some(alias) = alias {
+                // Alias is internally controlled, no need to sanitize
+                format!("alias:{alias} AND ({sanitized})")
+            } else {
+                sanitized
+            }
+        } else {
+            // No escaping needed, minimize allocations
+            if let Some(alias) = alias {
+                format!("alias:{alias} AND ({query_str})")
+            } else {
+                query_str.to_string()
+            }
+        };
 
         let query = timings.time("query_parsing", || {
             query_parser
                 .parse_query(&full_query_str)
-                .map_err(|e| Error::Index(format!("Failed to parse query: {}", e)))
+                .map_err(|e| Error::Index(format!("Failed to parse query: {e}")))
         })?;
 
         let top_docs = timings.time("tantivy_search", || {
             searcher
                 .search(&query, &TopDocs::with_limit(limit))
-                .map_err(|e| Error::Index(format!("Search failed: {}", e)))
+                .map_err(|e| Error::Index(format!("Search failed: {e}")))
         })?;
 
         let mut hits = Vec::new();
@@ -247,7 +270,7 @@ impl SearchIndex {
             for (score, doc_address) in top_docs {
                 let doc = searcher
                     .doc(doc_address)
-                    .map_err(|e| Error::Index(format!("Failed to retrieve doc: {}", e)))?;
+                    .map_err(|e| Error::Index(format!("Failed to retrieve doc: {e}")))?;
 
                 let alias = self.get_field_text(&doc, self.alias_field)?;
                 let file = self.get_field_text(&doc, self.path_field)?;
@@ -260,7 +283,7 @@ impl SearchIndex {
 
                 let heading_path: Vec<String> = heading_path_str
                     .split(" > ")
-                    .map(|s| s.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect();
 
                 let snippet = self.extract_snippet(&content, query_str, 100);
@@ -300,7 +323,7 @@ impl SearchIndex {
     fn get_field_text(&self, doc: &tantivy::TantivyDocument, field: Field) -> Result<String> {
         doc.get_first(field)
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .ok_or_else(|| Error::Index("Field not found in document".into()))
     }
 
@@ -309,10 +332,33 @@ impl SearchIndex {
         let content_lower = content.to_lowercase();
 
         if let Some(pos) = content_lower.find(&query_lower) {
-            let start = pos.saturating_sub(50);
-            let end = (pos + query.len() + 50).min(content.len());
+            // Find safe UTF-8 boundaries around the match
+            let context_before = 50;
+            let context_after = 50;
 
-            let mut snippet = String::new();
+            // Calculate byte positions
+            let byte_start = pos.saturating_sub(context_before);
+            let byte_end = (pos + query.len() + context_after).min(content.len());
+
+            // Find the nearest character boundary for start
+            let start = if byte_start == 0 {
+                0
+            } else {
+                // Find the start of the character at or before byte_start
+                content
+                    .char_indices()
+                    .take_while(|(i, _)| *i <= byte_start)
+                    .last()
+                    .map_or(0, |(i, _)| i)
+            };
+
+            // Find the nearest character boundary for end
+            let end = content
+                .char_indices()
+                .find(|(i, _)| *i >= byte_end)
+                .map_or(content.len(), |(i, _)| i);
+
+            let mut snippet = String::with_capacity(end - start + 6);
             if start > 0 {
                 snippet.push_str("...");
             }
@@ -324,10 +370,23 @@ impl SearchIndex {
             return snippet;
         }
 
+        // No match found - return truncated content
         if content.len() <= max_len {
             content.to_string()
         } else {
-            format!("{}...", &content[..max_len])
+            // Find safe UTF-8 boundary for truncation
+            let boundary = content
+                .char_indices()
+                .take_while(|(i, _)| *i < max_len)
+                .last()
+                .map_or(0, |(i, c)| i + c.len_utf8());
+
+            if boundary == 0 {
+                // Edge case: first character is longer than max_len
+                String::from("...")
+            } else {
+                format!("{}...", &content[..boundary])
+            }
         }
     }
 }
@@ -466,7 +525,7 @@ mod tests {
         for i in 0..100 {
             blocks.push(HeadingBlock {
                 path: vec![format!("Section{}", i)],
-                content: format!("This is content block {} with various keywords like React, hooks, components, and performance testing.", i),
+                content: format!("This is content block {i} with various keywords like React, hooks, components, and performance testing."),
                 start_line: i * 10,
                 end_line: i * 10 + 5,
             });
@@ -574,5 +633,102 @@ mod tests {
         assert_eq!(hits[0].heading_path, vec!["API", "Reference", "Hooks"]);
         assert_eq!(hits[0].file, "api.md");
         assert_eq!(hits[0].lines, "100-120");
+    }
+
+    #[test]
+    fn test_unicode_snippet_extraction() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+
+        // Test with various Unicode content
+        let unicode_blocks = vec![
+            HeadingBlock {
+                path: vec!["Unicode".to_string(), "Emoji".to_string()],
+                content: "This is a test with emojis: 👋 Hello 🌍 World! 🚀 Let's go! 🎉"
+                    .to_string(),
+                start_line: 1,
+                end_line: 10,
+            },
+            HeadingBlock {
+                path: vec!["Unicode".to_string(), "Chinese".to_string()],
+                content: "这是中文测试。Hello 世界！Programming 编程 is 很有趣。".to_string(),
+                start_line: 20,
+                end_line: 30,
+            },
+            HeadingBlock {
+                path: vec!["Unicode".to_string(), "Mixed".to_string()],
+                content: "日本語 テスト 🇯🇵 with mixed content".to_string(),
+                start_line: 40,
+                end_line: 50,
+            },
+        ];
+
+        index
+            .index_blocks("unicode_test", "test.md", &unicode_blocks)
+            .expect("Should index blocks");
+
+        // Test searching for various Unicode content
+        let test_cases = vec![("emoji", "👋"), ("中文", "测试"), ("programming", "编程")];
+
+        for (query, _expected_content) in test_cases {
+            let results = index
+                .search(query, Some("unicode_test"), 10)
+                .unwrap_or_else(|_| panic!("Should search for '{query}'"));
+
+            if !results.is_empty() {
+                let hit = &results[0];
+                // Verify snippet doesn't panic on Unicode boundaries
+                assert!(hit.snippet.is_char_boundary(0));
+                assert!(hit.snippet.is_char_boundary(hit.snippet.len()));
+
+                // Verify we can iterate over chars without panic
+                let _char_count = hit.snippet.chars().count();
+            }
+        }
+    }
+
+    #[test]
+    fn test_edge_case_unicode_truncation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+
+        // Create content where truncation would happen in middle of multi-byte chars
+        let mut long_content = String::new();
+        for _ in 0..20 {
+            long_content.push_str("👨‍👩‍👧‍👦"); // Family emoji (complex grapheme cluster)
+        }
+        long_content.push_str(" MARKER ");
+        for _ in 0..20 {
+            long_content.push_str("🏳️‍🌈"); // Rainbow flag (another complex emoji)
+        }
+
+        let blocks = vec![HeadingBlock {
+            path: vec!["Test".to_string()],
+            content: long_content.clone(),
+            start_line: 1,
+            end_line: 10,
+        }];
+
+        index
+            .index_blocks("edge_test", "test.md", &blocks)
+            .expect("Should index blocks");
+
+        let results = index
+            .search("MARKER", Some("edge_test"), 10)
+            .expect("Should search");
+
+        assert!(!results.is_empty());
+        let snippet = &results[0].snippet;
+
+        // Verify the snippet is valid UTF-8 and doesn't panic
+        assert!(snippet.is_char_boundary(0));
+        assert!(snippet.is_char_boundary(snippet.len()));
+        assert!(snippet.contains("MARKER"));
+
+        // Verify we can iterate over chars without panic
+        let char_count = snippet.chars().count();
+        assert!(char_count > 0);
     }
 }

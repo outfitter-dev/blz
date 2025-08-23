@@ -18,14 +18,20 @@ cargo clippy --all-targets --all-features -- -D warnings 2>&1 | {
     grep -v "lint group" |
     grep -v "missing documentation" || true
 } | {
-    # Count warnings
-    WARNING_COUNT=$(grep -c "warning:" || echo "0")
+    # Store output
+    OUTPUT=$(cat)
+    # Count warnings - ensure we get a valid number
+    if echo "$OUTPUT" | grep -q "warning:"; then
+        WARNING_COUNT=$(echo "$OUTPUT" | grep -c "warning:")
+    else
+        WARNING_COUNT=0
+    fi
     
-    if [ "$WARNING_COUNT" -gt 0 ]; then
+    if [ $WARNING_COUNT -gt 0 ]; then
         echo "⚠️  Found $WARNING_COUNT warnings"
         echo ""
         # Show the warnings
-        cat
+        echo "$OUTPUT"
         echo ""
         echo "Run 'cargo clippy --fix' to auto-fix some issues"
         exit 1
@@ -33,7 +39,6 @@ cargo clippy --all-targets --all-features -- -D warnings 2>&1 | {
         echo "✅ No critical warnings found!"
         echo ""
         echo "Note: Documentation warnings are suppressed. Run 'cargo doc' to check docs."
+        exit 0
     fi
 }
-
-echo "🎯 Clippy check complete!"

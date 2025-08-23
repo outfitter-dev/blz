@@ -17,8 +17,10 @@ all-features = true
 yanked = "deny"
 # Security advisories are fetched from https://github.com/RustSec/advisory-db
 ignore = [
-    # Add specific advisories to ignore with justification
-    # Example: "RUSTSEC-2024-0001", # Waiting for upstream fix
+    # instant is unmaintained but required by tantivy via measure_time
+    # The maintainer recommends web-time but tantivy hasn't migrated yet
+    # This is not a security vulnerability, just unmaintained
+    "RUSTSEC-2024-0384",
 ]
 
 [bans]

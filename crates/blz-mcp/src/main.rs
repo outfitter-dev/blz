@@ -26,7 +26,7 @@ fn main() -> Result<()> {
             if let Ok(llms_json) = storage.load_llms_json(&source) {
                 result.push(json!({
                     "alias": source,
-                    "path": storage.llms_txt_path(&source),
+                    "path": storage.llms_txt_path(&source).unwrap().to_string_lossy(),
                     "fetchedAt": llms_json.source.fetched_at,
                     "etag": llms_json.source.etag,
                     "size": llms_json.line_index.total_lines,
@@ -41,7 +41,10 @@ fn main() -> Result<()> {
         let params = params.parse::<serde_json::Value>().unwrap();
         let query = params["query"].as_str().unwrap();
         let alias = params.get("alias").and_then(|v| v.as_str());
-        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+        let limit = params
+            .get("limit")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(10) as usize;
 
         let storage = Storage::new().unwrap();
         let sources = if let Some(alias) = alias {
@@ -53,7 +56,7 @@ fn main() -> Result<()> {
         let mut all_hits = Vec::new();
 
         for source in sources {
-            let index_path = storage.index_dir(&source);
+            let index_path = storage.index_dir(&source).unwrap();
             if index_path.exists() {
                 let index = SearchIndex::open(&index_path).unwrap();
                 let hits = index.search(query, Some(&source), limit).unwrap();

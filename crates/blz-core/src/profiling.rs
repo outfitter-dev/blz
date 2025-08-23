@@ -102,7 +102,7 @@ impl PerformanceMetrics {
 
         if searches > 0 {
             println!("Search Operations:");
-            println!("  Total searches: {}", searches);
+            println!("  Total searches: {searches}");
             println!(
                 "  Average time: {:.2}ms",
                 self.avg_search_time_micros() / 1000.0
@@ -119,7 +119,7 @@ impl PerformanceMetrics {
 
         if indexes > 0 {
             println!("Index Operations:");
-            println!("  Total builds: {}", indexes);
+            println!("  Total builds: {indexes}");
             println!("  Average time: {:.2}ms", self.avg_index_time_millis());
             println!(
                 "  Total bytes processed: {}",
@@ -275,6 +275,12 @@ pub struct ResourceMonitor {
     initial_memory: u64,
 }
 
+impl Default for ResourceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResourceMonitor {
     pub fn new() -> Self {
         let mut system = System::new_all();
@@ -283,8 +289,7 @@ impl ResourceMonitor {
 
         let initial_memory = system
             .process(sysinfo::Pid::from(pid as usize))
-            .map(|p| p.memory())
-            .unwrap_or(0);
+            .map_or(0, sysinfo::Process::memory);
 
         Self {
             system,

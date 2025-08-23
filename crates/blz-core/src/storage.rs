@@ -20,74 +20,137 @@ impl Storage {
 
     pub fn with_root(root_dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root_dir)
-            .map_err(|e| Error::Storage(format!("Failed to create root directory: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to create root directory: {e}")))?;
 
         Ok(Self { root_dir })
     }
 
-    pub fn tool_dir(&self, alias: &str) -> PathBuf {
-        self.root_dir.join(alias)
+    pub fn tool_dir(&self, alias: &str) -> Result<PathBuf> {
+        // Validate alias to prevent directory traversal attacks
+        self.validate_alias(alias)?;
+        Ok(self.root_dir.join(alias))
     }
 
     pub fn ensure_tool_dir(&self, alias: &str) -> Result<PathBuf> {
-        let dir = self.tool_dir(alias);
+        let dir = self.tool_dir(alias)?;
         fs::create_dir_all(&dir)
-            .map_err(|e| Error::Storage(format!("Failed to create tool directory: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to create tool directory: {e}")))?;
         Ok(dir)
     }
 
-    pub fn llms_txt_path(&self, alias: &str) -> PathBuf {
-        self.tool_dir(alias).join("llms.txt")
+    /// Validate that an alias is safe to use as a directory name
+    fn validate_alias(&self, alias: &str) -> Result<()> {
+        // Check for empty alias
+        if alias.is_empty() {
+            return Err(Error::Storage("Alias cannot be empty".into()));
+        }
+
+        // Check for path traversal attempts
+        if alias.contains("..") || alias.contains('/') || alias.contains('\\') {
+            return Err(Error::Storage(format!(
+                "Invalid alias '{alias}': contains path traversal characters"
+            )));
+        }
+
+        // Check for special filesystem characters
+        if alias.starts_with('.') || alias.contains('\0') {
+            return Err(Error::Storage(format!(
+                "Invalid alias '{alias}': contains invalid filesystem characters"
+            )));
+        }
+
+        // Check for reserved names on Windows
+        #[cfg(target_os = "windows")]
+        {
+            const RESERVED_NAMES: &[&str] = &[
+                "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+                "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8",
+                "LPT9",
+            ];
+
+            let upper_alias = alias.to_uppercase();
+            if RESERVED_NAMES.contains(&upper_alias.as_str()) {
+                return Err(Error::Storage(format!(
+                    "Invalid alias '{}': reserved name on Windows",
+                    alias
+                )));
+            }
+        }
+
+        // Check length (reasonable limit for filesystem compatibility)
+        if alias.len() > 255 {
+            return Err(Error::Storage(format!(
+                "Invalid alias '{alias}': exceeds maximum length of 255 characters"
+            )));
+        }
+
+        // Only allow alphanumeric, dash, underscore for safety
+        if !alias
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(Error::Storage(format!(
+                "Invalid alias '{alias}': only alphanumeric characters, dashes, and underscores are allowed"
+            )));
+        }
+
+        Ok(())
     }
 
-    pub fn llms_json_path(&self, alias: &str) -> PathBuf {
-        self.tool_dir(alias).join("llms.json")
+    pub fn llms_txt_path(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join("llms.txt"))
     }
 
-    pub fn index_dir(&self, alias: &str) -> PathBuf {
-        self.tool_dir(alias).join(".index")
+    pub fn llms_json_path(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join("llms.json"))
     }
 
-    pub fn archive_dir(&self, alias: &str) -> PathBuf {
-        self.tool_dir(alias).join(".archive")
+    pub fn index_dir(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join(".index"))
+    }
+
+    pub fn archive_dir(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join(".archive"))
     }
 
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
-        let path = self.llms_txt_path(alias);
+        let path = self.llms_txt_path(alias)?;
         fs::write(&path, content)
-            .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {e}")))?;
         debug!("Saved llms.txt for {}", alias);
         Ok(())
     }
 
     pub fn load_llms_txt(&self, alias: &str) -> Result<String> {
-        let path = self.llms_txt_path(alias);
+        let path = self.llms_txt_path(alias)?;
         fs::read_to_string(&path)
-            .map_err(|e| Error::Storage(format!("Failed to read llms.txt: {}", e)))
+            .map_err(|e| Error::Storage(format!("Failed to read llms.txt: {e}")))
     }
 
     pub fn save_llms_json(&self, alias: &str, data: &LlmsJson) -> Result<()> {
         self.ensure_tool_dir(alias)?;
-        let path = self.llms_json_path(alias);
+        let path = self.llms_json_path(alias)?;
         let json = serde_json::to_string_pretty(data)
-            .map_err(|e| Error::Storage(format!("Failed to serialize JSON: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to serialize JSON: {e}")))?;
         fs::write(&path, json)
-            .map_err(|e| Error::Storage(format!("Failed to write llms.json: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to write llms.json: {e}")))?;
         debug!("Saved llms.json for {}", alias);
         Ok(())
     }
 
     pub fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
-        let path = self.llms_json_path(alias);
+        let path = self.llms_json_path(alias)?;
         let json = fs::read_to_string(&path)
-            .map_err(|e| Error::Storage(format!("Failed to read llms.json: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to read llms.json: {e}")))?;
         serde_json::from_str(&json)
-            .map_err(|e| Error::Storage(format!("Failed to parse JSON: {}", e)))
+            .map_err(|e| Error::Storage(format!("Failed to parse JSON: {e}")))
     }
 
     pub fn exists(&self, alias: &str) -> bool {
-        self.llms_json_path(alias).exists()
+        self.llms_json_path(alias)
+            .map(|path| path.exists())
+            .unwrap_or(false)
     }
 
     pub fn list_sources(&self) -> Result<Vec<String>> {
@@ -97,7 +160,7 @@ impl Storage {
             for entry in entries.flatten() {
                 if entry.path().is_dir() {
                     if let Some(name) = entry.file_name().to_str() {
-                        if !name.starts_with('.') && self.llms_json_path(name).exists() {
+                        if !name.starts_with('.') && self.exists(name) {
                             sources.push(name.to_string());
                         }
                     }
@@ -110,24 +173,24 @@ impl Storage {
     }
 
     pub fn archive(&self, alias: &str) -> Result<()> {
-        let archive_dir = self.archive_dir(alias);
+        let archive_dir = self.archive_dir(alias)?;
         fs::create_dir_all(&archive_dir)
-            .map_err(|e| Error::Storage(format!("Failed to create archive directory: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to create archive directory: {e}")))?;
 
         let timestamp = Utc::now().format("%Y-%m-%dT%H-%MZ");
 
-        let llms_txt = self.llms_txt_path(alias);
+        let llms_txt = self.llms_txt_path(alias)?;
         if llms_txt.exists() {
-            let archive_path = archive_dir.join(format!("{}-llms.txt", timestamp));
+            let archive_path = archive_dir.join(format!("{timestamp}-llms.txt"));
             fs::copy(&llms_txt, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.txt: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to archive llms.txt: {e}")))?;
         }
 
-        let llms_json = self.llms_json_path(alias);
+        let llms_json = self.llms_json_path(alias)?;
         if llms_json.exists() {
-            let archive_path = archive_dir.join(format!("{}-llms.json", timestamp));
+            let archive_path = archive_dir.join(format!("{timestamp}-llms.json"));
             fs::copy(&llms_json, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.json: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to archive llms.json: {e}")))?;
         }
 
         info!("Archived {} at {}", alias, timestamp);
@@ -135,11 +198,8 @@ impl Storage {
     }
 }
 
-impl Default for Storage {
-    fn default() -> Self {
-        Self::new().expect("Failed to create storage")
-    }
-}
+// Note: Default is not implemented as Storage::new() can fail.
+// Use Storage::new() directly and handle the Result.
 
 #[cfg(test)]
 mod tests {
@@ -159,7 +219,7 @@ mod tests {
         LlmsJson {
             alias: alias.to_string(),
             source: Source {
-                url: format!("https://example.com/{}/llms.txt", alias),
+                url: format!("https://example.com/{alias}/llms.txt"),
                 etag: Some("abc123".to_string()),
                 last_modified: None,
                 fetched_at: Utc::now(),
@@ -198,17 +258,47 @@ mod tests {
     fn test_tool_directory_paths() {
         let (storage, _temp_dir) = create_test_storage();
 
-        let tool_dir = storage.tool_dir("react");
-        let llms_txt_path = storage.llms_txt_path("react");
-        let llms_json_path = storage.llms_json_path("react");
-        let index_dir = storage.index_dir("react");
-        let archive_dir = storage.archive_dir("react");
+        let tool_dir = storage.tool_dir("react").expect("Should get tool dir");
+        let llms_txt_path = storage
+            .llms_txt_path("react")
+            .expect("Should get llms.txt path");
+        let llms_json_path = storage
+            .llms_json_path("react")
+            .expect("Should get llms.json path");
+        let index_dir = storage.index_dir("react").expect("Should get index dir");
+        let archive_dir = storage
+            .archive_dir("react")
+            .expect("Should get archive dir");
 
         assert!(tool_dir.ends_with("react"));
         assert!(llms_txt_path.ends_with("react/llms.txt"));
         assert!(llms_json_path.ends_with("react/llms.json"));
         assert!(index_dir.ends_with("react/.index"));
         assert!(archive_dir.ends_with("react/.archive"));
+    }
+
+    #[test]
+    fn test_invalid_alias_validation() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Test path traversal attempts
+        assert!(storage.tool_dir("../etc").is_err());
+        assert!(storage.tool_dir("../../passwd").is_err());
+        assert!(storage.tool_dir("test/../../../etc").is_err());
+
+        // Test invalid characters
+        assert!(storage.tool_dir(".hidden").is_err());
+        assert!(storage.tool_dir("test\0null").is_err());
+        assert!(storage.tool_dir("test/slash").is_err());
+        assert!(storage.tool_dir("test\\backslash").is_err());
+
+        // Test empty alias
+        assert!(storage.tool_dir("").is_err());
+
+        // Test valid aliases
+        assert!(storage.tool_dir("react").is_ok());
+        assert!(storage.tool_dir("my-tool").is_ok());
+        assert!(storage.tool_dir("tool_123").is_ok());
     }
 
     #[test]
@@ -239,7 +329,10 @@ mod tests {
             .expect("Should save llms.txt");
 
         // Verify file exists
-        assert!(storage.llms_txt_path("react").exists());
+        assert!(storage
+            .llms_txt_path("react")
+            .expect("Should get path")
+            .exists());
 
         // Load content
         let loaded_content = storage
@@ -260,7 +353,10 @@ mod tests {
             .expect("Should save llms.json");
 
         // Verify file exists
-        assert!(storage.llms_json_path("react").exists());
+        assert!(storage
+            .llms_json_path("react")
+            .expect("Should get path")
+            .exists());
 
         // Load JSON
         let loaded_json = storage
@@ -381,7 +477,7 @@ mod tests {
         storage.archive("test").expect("Should archive");
 
         // Verify archive directory exists
-        let archive_dir = storage.archive_dir("test");
+        let archive_dir = storage.archive_dir("test").expect("Should get archive dir");
         assert!(archive_dir.exists());
 
         // Verify archived files exist (names contain timestamp)
@@ -418,7 +514,9 @@ mod tests {
         assert!(result.is_ok());
 
         // Archive directory should still be created
-        let archive_dir = storage.archive_dir("nonexistent");
+        let archive_dir = storage
+            .archive_dir("nonexistent")
+            .expect("Should get archive dir");
         assert!(archive_dir.exists());
     }
 
