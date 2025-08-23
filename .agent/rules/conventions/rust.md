@@ -5,6 +5,7 @@
 ### Rustfmt Configuration
 
 **Project .rustfmt.toml**
+
 ```toml
 # Stable rustfmt options
 edition = "2021"
@@ -47,6 +48,7 @@ trailing_semicolon = true
 ### Naming Conventions
 
 **Consistent Naming Patterns**
+
 ```rust
 // Crate names: lowercase with dashes
 // cache-core, cache-cli, cache-mcp
@@ -58,7 +60,7 @@ mod result_formatter;
 
 // Type names: PascalCase
 pub struct SearchIndex;
-pub struct QueryValidator; 
+pub struct QueryValidator;
 pub struct DocumentProcessor;
 
 // Trait names: PascalCase, often adjectives
@@ -97,6 +99,7 @@ pub fn create_searcher<'index>(index: &'index Index) -> Searcher<'index>;
 ### Module Organization
 
 **Clear Module Structure**
+
 ```rust
 // lib.rs - Public API exports
 pub use crate::search::{SearchIndex, SearchResults, SearchHit};
@@ -137,7 +140,7 @@ use engine::IndexEngine;
 use query::ParsedQuery;
 
 /// Main search functionality
-/// 
+///
 /// This module provides high-level search operations built on top of Tantivy.
 /// For low-level index operations, see the `index` module.
 pub struct SearchIndex {
@@ -147,18 +150,18 @@ pub struct SearchIndex {
 
 impl SearchIndex {
     /// Create a new search index
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
-    /// use blzr_core::search::SearchIndex;
-    /// 
+    /// use blz_core::search::SearchIndex;
+    ///
     /// let index = SearchIndex::new("./index_path")?;
     /// ```
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> CacheResult<Self> {
         let engine = IndexEngine::open(path.as_ref())?;
         let config = SearchConfig::default();
-        
+
         Ok(Self { engine, config })
     }
 }
@@ -169,6 +172,7 @@ impl SearchIndex {
 ### Rich Type Definitions
 
 **Expressive Types**
+
 ```rust
 use std::num::NonZeroU16;
 use std::time::Duration;
@@ -210,12 +214,12 @@ pub struct DocumentId(NonZeroU64);
 
 impl DocumentId {
     /// Create a new document ID
-    /// 
+    ///
     /// Returns `None` if id is zero
     pub fn new(id: u64) -> Option<Self> {
         NonZeroU64::new(id).map(Self)
     }
-    
+
     /// Get the numeric value of the ID
     pub fn get(self) -> u64 {
         self.0.get()
@@ -234,15 +238,15 @@ impl SearchScore {
             Ok(Self(score))
         }
     }
-    
+
     pub fn get(self) -> f32 {
         self.0
     }
-    
+
     /// Maximum possible score
     pub const MAX: Self = Self(1.0);
-    
-    /// Minimum possible score  
+
+    /// Minimum possible score
     pub const MIN: Self = Self(0.0);
 }
 
@@ -256,6 +260,7 @@ pub struct InvalidScoreError {
 ### Smart Constructors
 
 **Prevent Invalid States**
+
 ```rust
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
@@ -270,7 +275,7 @@ pub struct IndexConfig {
 
 impl IndexConfig {
     /// Create a new index configuration
-    /// 
+    ///
     /// Validates that:
     /// - Path is accessible
     /// - At least one field is configured
@@ -282,7 +287,7 @@ impl IndexConfig {
         settings: IndexSettings,
     ) -> Result<Self, ConfigError> {
         let path = path.as_ref().to_path_buf();
-        
+
         // Validate path
         if let Some(parent) = path.parent() {
             if !parent.exists() {
@@ -292,14 +297,14 @@ impl IndexConfig {
                 });
             }
         }
-        
+
         // Validate fields
         if schema_fields.is_empty() {
             return Err(ConfigError::InvalidSchema {
                 reason: "At least one field must be configured".to_string(),
             });
         }
-        
+
         // Check for duplicate field names
         let mut field_names = HashSet::new();
         for field in &schema_fields {
@@ -309,27 +314,27 @@ impl IndexConfig {
                 });
             }
         }
-        
+
         // Validate settings
         settings.validate()?;
-        
+
         Ok(Self {
             path,
             schema_fields,
             settings,
         })
     }
-    
+
     /// Get the index path
     pub fn path(&self) -> &Path {
         &self.path
     }
-    
+
     /// Get schema fields
     pub fn schema_fields(&self) -> &[FieldConfig] {
         &self.schema_fields
     }
-    
+
     /// Get index settings
     pub fn settings(&self) -> &IndexSettings {
         &self.settings
@@ -356,7 +361,7 @@ impl FieldConfig {
             options,
         }
     }
-    
+
     /// Create a text field with standard options
     pub fn text<S: Into<String>>(name: S) -> Self {
         Self::new(
@@ -365,7 +370,7 @@ impl FieldConfig {
             FieldOptions::text_default(),
         )
     }
-    
+
     /// Create a keyword field (exact matching)
     pub fn keyword<S: Into<String>>(name: S) -> Self {
         Self::new(
@@ -379,7 +384,7 @@ impl FieldConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldType {
     Text,
-    Keyword, 
+    Keyword,
     Integer,
     Float,
     Date,
@@ -401,7 +406,7 @@ impl FieldOptions {
             tokenized: true,
         }
     }
-    
+
     pub fn keyword_default() -> Self {
         Self {
             indexed: true,
@@ -415,6 +420,7 @@ impl FieldOptions {
 ### Error Handling Patterns
 
 **Structured Error Types**
+
 ```rust
 use thiserror::Error;
 use std::path::PathBuf;
@@ -430,14 +436,14 @@ pub enum CacheError {
         #[source]
         source: std::io::Error,
     },
-    
+
     // Parsing and validation errors
     #[error("Validation error in {field}: {message}")]
     Validation {
         field: String,
         message: String,
     },
-    
+
     // External dependency errors
     #[error("Tantivy error during {operation}")]
     Tantivy {
@@ -445,7 +451,7 @@ pub enum CacheError {
         #[source]
         source: tantivy::TantivyError,
     },
-    
+
     // Resource limit errors
     #[error("Resource limit exceeded: {resource}")]
     ResourceLimit {
@@ -453,7 +459,7 @@ pub enum CacheError {
         current: u64,
         maximum: u64,
     },
-    
+
     // Configuration errors
     #[error("Configuration error: {message}")]
     Configuration {
@@ -476,14 +482,14 @@ impl CacheError {
             source,
         }
     }
-    
+
     pub fn validation<S: Into<String>>(field: S, message: S) -> Self {
         Self::Validation {
             field: field.into(),
             message: message.into(),
         }
     }
-    
+
     pub fn resource_limit<S: Into<String>>(resource: S, current: u64, maximum: u64) -> Self {
         Self::ResourceLimit {
             resource: resource.into(),
@@ -519,6 +525,7 @@ impl From<tantivy::TantivyError> for CacheError {
 ### Borrowing Best Practices
 
 **Prefer Borrowing Over Cloning**
+
 ```rust
 // ❌ Unnecessary clones
 pub fn process_query(query: String, config: Config) -> SearchResults {
@@ -539,7 +546,7 @@ pub fn process_and_blz_query(query: String, config: &Config) -> (SearchResults, 
     let normalized = normalize_query(&query);
     let parsed = parse_query(&normalized, config);
     let results = execute_search(parsed);
-    
+
     // Return both results and owned query for caching
     (results, query)
 }
@@ -548,6 +555,7 @@ pub fn process_and_blz_query(query: String, config: &Config) -> (SearchResults, 
 ### Lifetime Management
 
 **Clear Lifetime Annotations**
+
 ```rust
 /// Document parser that borrows from input string
 pub struct DocumentParser<'input> {
@@ -562,24 +570,24 @@ impl<'input> DocumentParser<'input> {
             current_position: 0,
         }
     }
-    
+
     /// Extract title section, returning borrowed string slice
     pub fn extract_title(&mut self) -> Option<&'input str> {
         // Find title markers and return slice
         let start = self.find_title_start()?;
         let end = self.find_title_end(start)?;
-        
+
         Some(&self.content[start..end])
     }
-    
+
     /// Extract multiple sections, all borrowing from original input
     pub fn extract_sections(&mut self) -> Vec<DocumentSection<'input>> {
         let mut sections = Vec::new();
-        
+
         while let Some(section) = self.next_section() {
             sections.push(section);
         }
-        
+
         sections
     }
 }
@@ -613,6 +621,7 @@ pub struct MergedDocument<'a, 'b> {
 ### Smart Pointer Usage
 
 **When to Use Arc, Rc, Box**
+
 ```rust
 use std::sync::Arc;
 use std::rc::Rc;
@@ -658,13 +667,14 @@ pub struct SearchEngine<'a> {
 ### Effective Trait Patterns
 
 **Small, Focused Traits**
+
 ```rust
 /// Core search functionality
 pub trait Searchable {
     type Query;
     type Result;
     type Error;
-    
+
     fn search(&self, query: Self::Query) -> Result<Self::Result, Self::Error>;
 }
 
@@ -672,7 +682,7 @@ pub trait Searchable {
 pub trait Cacheable {
     type Key;
     type Value;
-    
+
     fn get(&self, key: &Self::Key) -> Option<&Self::Value>;
     fn put(&mut self, key: Self::Key, value: Self::Value);
     fn clear(&mut self);
@@ -681,7 +691,7 @@ pub trait Cacheable {
 /// Configurable components
 pub trait Configurable {
     type Config;
-    
+
     fn configure(&mut self, config: Self::Config) -> Result<(), ConfigError>;
     fn get_config(&self) -> &Self::Config;
 }
@@ -690,15 +700,15 @@ pub trait Configurable {
 impl<T> Cacheable for std::collections::HashMap<String, T> {
     type Key = String;
     type Value = T;
-    
+
     fn get(&self, key: &Self::Key) -> Option<&Self::Value> {
         self.get(key)
     }
-    
+
     fn put(&mut self, key: Self::Key, value: Self::Value) {
         self.insert(key, value);
     }
-    
+
     fn clear(&mut self) {
         self.clear();
     }
@@ -713,11 +723,11 @@ pub trait SearchCache: Searchable + Cacheable {
         Self::Result: Clone,
     {
         let cache_key = Self::Key::from(query.clone());
-        
+
         if let Some(cached) = self.get(&cache_key) {
             return Ok(Self::Result::from(cached.clone()));
         }
-        
+
         let result = self.search(query)?;
         self.put(cache_key, Self::Value::from(result.clone()));
         Ok(result)
@@ -728,12 +738,13 @@ pub trait SearchCache: Searchable + Cacheable {
 ### Generic Programming
 
 **Effective Use of Generics**
+
 ```rust
 use std::marker::PhantomData;
 use std::hash::Hash;
 
 /// Generic cache with configurable storage backend
-pub struct Cache<K, V, S> 
+pub struct Cache<K, V, S>
 where
     K: Hash + Eq + Clone,
     V: Clone,
@@ -757,16 +768,16 @@ where
             _phantom: PhantomData,
         }
     }
-    
+
     pub fn get(&self, key: &K) -> Option<V> {
         self.storage.get(key)
     }
-    
+
     pub fn put(&mut self, key: K, value: V) -> Result<(), CacheError> {
         if self.storage.len() >= self.max_size {
             self.storage.evict_oldest()?;
         }
-        
+
         self.storage.insert(key, value)
     }
 }
@@ -799,7 +810,7 @@ pub trait QueryProcessor {
     type Output;
     type Config;
     type Error;
-    
+
     fn process(
         &self,
         input: Self::Input,
@@ -814,7 +825,7 @@ impl QueryProcessor for TantivyQueryProcessor {
     type Output = ParsedQuery;
     type Config = QueryParserConfig;
     type Error = QueryParseError;
-    
+
     fn process(
         &self,
         input: Self::Input,
@@ -831,6 +842,7 @@ impl QueryProcessor for TantivyQueryProcessor {
 ### Comprehensive Documentation
 
 **Doc Comments and Examples**
+
 ```rust
 //! Search cache implementation using Tantivy
 //!
@@ -845,7 +857,7 @@ impl QueryProcessor for TantivyQueryProcessor {
 //! # Quick Start
 //!
 //! ```rust
-//! use blzr_core::{SearchIndex, SearchCache};
+//! use blz_core::{SearchIndex, SearchCache};
 //!
 //! # tokio_test::block_on(async {
 //! // Create an index
@@ -857,7 +869,7 @@ impl QueryProcessor for TantivyQueryProcessor {
 //! // Search with caching
 //! let results = cache.search("rust programming", 10).await?;
 //! println!("Found {} results", results.hits.len());
-//! # Ok::<(), blzr_core::CacheError>(())
+//! # Ok::<(), blz_core::CacheError>(())
 //! # });
 //! ```
 
@@ -890,27 +902,27 @@ use crate::error::{CacheError, CacheResult};
 /// Basic search operation:
 ///
 /// ```rust
-/// use blzr_core::SearchIndex;
+/// use blz_core::SearchIndex;
 ///
 /// # tokio_test::block_on(async {
 /// let index = SearchIndex::new("./search_index").await?;
 ///
 /// // Simple term search
 /// let results = index.search("rust", 10).await?;
-/// 
+///
 /// // Field-specific search
 /// let results = index.search("title:programming", 5).await?;
 ///
 /// // Boolean query
 /// let results = index.search("rust AND (programming OR tutorial)", 20).await?;
-/// # Ok::<(), blzr_core::CacheError>(())
+/// # Ok::<(), blz_core::CacheError>(())
 /// # });
 /// ```
 ///
 /// Advanced usage with configuration:
 ///
 /// ```rust
-/// use blzr_core::{SearchIndex, IndexConfig};
+/// use blz_core::{SearchIndex, IndexConfig};
 ///
 /// # tokio_test::block_on(async {
 /// let config = IndexConfig::new()
@@ -919,7 +931,7 @@ use crate::error::{CacheError, CacheResult};
 ///
 /// let index = SearchIndex::with_config("./search_index", config).await?;
 /// let results = index.search("complex query here", 50).await?;
-/// # Ok::<(), blzr_core::CacheError>(())
+/// # Ok::<(), blz_core::CacheError>(())
 /// # });
 /// ```
 pub struct SearchIndex {
@@ -954,7 +966,7 @@ impl SearchIndex {
     /// # Examples
     ///
     /// ```rust
-    /// use blzr_core::SearchIndex;
+    /// use blz_core::SearchIndex;
     ///
     /// # tokio_test::block_on(async {
     /// // Create index in current directory
@@ -962,7 +974,7 @@ impl SearchIndex {
     ///
     /// // Create index with absolute path
     /// let index = SearchIndex::new("/tmp/search_index").await?;
-    /// # Ok::<(), blzr_core::CacheError>(())
+    /// # Ok::<(), blz_core::CacheError>(())
     /// # });
     /// ```
     ///
@@ -975,14 +987,14 @@ impl SearchIndex {
     /// // Good
     /// let index = SearchIndex::new("C:/indexes/my_index").await?;
     /// let index = SearchIndex::new("C:\\\\indexes\\\\my_index").await?;
-    /// # Ok::<(), blzr_core::CacheError>(())
+    /// # Ok::<(), blz_core::CacheError>(())
     /// # });
     /// ```
     pub async fn new<P: AsRef<Path>>(path: P) -> CacheResult<Self> {
         // Implementation details...
         todo!()
     }
-    
+
     /// Search the index for documents matching the query
     ///
     /// Executes a search query against the index and returns matching documents
@@ -1026,7 +1038,7 @@ impl SearchIndex {
     /// Simple searches:
     ///
     /// ```rust
-    /// # use blzr_core::SearchIndex;
+    /// # use blz_core::SearchIndex;
     /// # tokio_test::block_on(async {
     /// # let index = SearchIndex::new("./test_index").await?;
     /// // Find documents about Rust
@@ -1038,14 +1050,14 @@ impl SearchIndex {
     ///
     /// // Case insensitive search
     /// let results = index.search("RUST", 10).await?; // Same as "rust"
-    /// # Ok::<(), blzr_core::CacheError>(())
+    /// # Ok::<(), blz_core::CacheError>(())
     /// # });
     /// ```
     ///
     /// Complex queries:
     ///
     /// ```rust
-    /// # use blzr_core::SearchIndex;
+    /// # use blz_core::SearchIndex;
     /// # tokio_test::block_on(async {
     /// # let index = SearchIndex::new("./test_index").await?;
     /// // Boolean combination
@@ -1056,7 +1068,7 @@ impl SearchIndex {
     ///
     /// // Phrase search with negation
     /// let results = index.search("\"web development\" NOT deprecated", 10).await?;
-    /// # Ok::<(), blzr_core::CacheError>(())
+    /// # Ok::<(), blz_core::CacheError>(())
     /// # });
     /// ```
     ///

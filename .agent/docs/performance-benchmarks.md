@@ -1,4 +1,4 @@
-<!-- note::: @agents this is a work in progress. Do not use this guidance verbatim. -->
+<!-- note ::: @agents this is a work in progress. Do not use this guidance verbatim. -->
 # Performance Benchmarks
 
 ## TL;DR

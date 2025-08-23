@@ -1,3 +1,4 @@
+<!-- note ::: @agents this was the original PRD and may no longer be accurate -->
 # blz — Product Requirements Doc (PRD)
 
 A local-first, line-accurate docs cache and MCP server for lightning-fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism; vectors are optional and **off by default**.
@@ -193,7 +194,7 @@ Binary name: `blz` .
 blz add bun https://bun.sh/llms.txt          # fetch + index
 blz search "test concurrency" --alias bun    # JSON hits
 blz get bun --lines 120-142                  # span text
-blz update --all                             
+blz update --all
 blz diff bun --since "2025-08-20T00:00:00Z"
 blz sources
 ```

@@ -1,10 +1,11 @@
 # Managing Sources
 
-This guide covers everything about managing documentation sources in @outfitter/blzr.
+This guide covers everything about managing documentation sources in `blz`.
 
 ## Understanding Sources
 
 A **source** is a cached copy of documentation from a URL, typically in `llms.txt` format. Each source has:
+
 - An **alias** - Short name for referencing (e.g., `bun`, `node`)
 - A **URL** - Where the documentation comes from
 - **Metadata** - Fetch time, ETag, size, checksum
@@ -18,6 +19,7 @@ blz add <alias> <url>
 ```
 
 Example:
+
 ```bash
 blz add bun https://bun.sh/llms.txt
 ```
@@ -32,6 +34,7 @@ blz add bun https://bun.sh/llms.txt
 ### Naming Conventions
 
 Choose short, memorable aliases:
+
 - ✅ Good: `bun`, `node`, `react`, `vue`
 - ❌ Avoid: `my-bun-docs`, `bunjs-latest-documentation`
 
@@ -40,7 +43,7 @@ Choose short, memorable aliases:
 ```bash
 # Add several documentation sources
 blz add bun https://bun.sh/llms.txt
-blz add node https://nodejs.org/llms.txt  
+blz add node https://nodejs.org/llms.txt
 blz add deno https://deno.land/llms.txt
 blz add ts https://typescriptlang.org/llms.txt
 ```
@@ -54,7 +57,8 @@ blz list
 ```
 
 Output:
-```
+
+```text
 Cached sources:
 
   bun https://bun.sh/llms.txt
@@ -75,6 +79,7 @@ blz list --format json
 ```
 
 Output:
+
 ```json
 [
   {
@@ -97,6 +102,7 @@ blz update bun
 ```
 
 This will:
+
 - Check ETag/Last-Modified headers
 - Skip if unchanged (304 Not Modified)
 - Re-index only if content changed
@@ -114,6 +120,7 @@ Updates all sources efficiently using conditional requests.
 Sources are stored in platform-specific directories:
 
 ### macOS
+
 ```
 ~/Library/Application Support/outfitter.cache/
   bun/
@@ -123,6 +130,7 @@ Sources are stored in platform-specific directories:
 ```
 
 ### Linux
+
 ```
 ~/.local/share/outfitter.cache/
   bun/
@@ -132,6 +140,7 @@ Sources are stored in platform-specific directories:
 ```
 
 ### Windows
+
 ```
 %APPDATA%\outfitter\cache\
   bun\
@@ -185,7 +194,7 @@ Currently manual - delete the directory:
 # macOS
 rm -rf ~/Library/Application\ Support/outfitter.cache/bun
 
-# Linux  
+# Linux
 rm -rf ~/.local/share/outfitter.cache/bun
 ```
 
@@ -194,6 +203,7 @@ rm -rf ~/.local/share/outfitter.cache/bun
 ### Standard llms.txt
 
 Most sources follow the llms.txt format:
+
 ```markdown
 # Project Documentation
 
@@ -207,6 +217,7 @@ Content...
 ### JSON Documents
 
 The blz can handle JSON documents (like Node.js API):
+
 ```bash
 blz add node https://nodejs.org/api/all.json
 ```
@@ -214,6 +225,7 @@ blz add node https://nodejs.org/api/all.json
 ### Markdown Files
 
 Any valid Markdown works:
+
 ```bash
 blz add readme https://raw.githubusercontent.com/user/repo/main/README.md
 ```
@@ -221,11 +233,13 @@ blz add readme https://raw.githubusercontent.com/user/repo/main/README.md
 ## Best Practices
 
 ### 1. Use Descriptive Aliases
+
 - `bun` not `b`
 - `react` not `r`
 - `typescript` not `ts-docs-latest`
 
 ### 2. Group Related Sources
+
 ```bash
 # Frontend frameworks
 blz add react https://react.dev/llms.txt
@@ -239,6 +253,7 @@ blz add webpack https://webpack.js.org/llms.txt
 
 ### 3. Regular Updates
 Once implemented, update regularly:
+
 ```bash
 # Future: Daily update
 blz update --all
@@ -246,6 +261,7 @@ blz update --all
 
 ### 4. Monitor Storage
 The blz is efficient, but check occasionally:
+
 ```bash
 blz list  # Shows line counts
 ```
@@ -254,6 +270,7 @@ blz list  # Shows line counts
 
 ### 404 Not Found
 The URL might be incorrect:
+
 ```bash
 # Wrong
 blz add bun https://bun.sh/docs/llms.txt
@@ -267,6 +284,7 @@ Check your internet connection and try again.
 
 ### Parse Errors
 The blz handles malformed documents gracefully, but check diagnostics in the JSON:
+
 ```bash
 cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnostics
 ```
@@ -276,6 +294,7 @@ cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnosti
 ### Custom Sources
 
 Create your own llms.txt:
+
 ```bash
 # Create a custom documentation file
 cat > my-docs.txt << EOF

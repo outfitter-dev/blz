@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     
     tracing::subscriber::set_global_default(subscriber)?;
     
-    info!("Starting blzr MCP server");
+    info!("Starting blz MCP server");
     
     let mut io = IoHandler::new();
     

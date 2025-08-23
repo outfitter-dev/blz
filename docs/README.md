@@ -5,20 +5,24 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 ## 📚 Documentation Index
 
 ### Getting Started
+
 - [**Quick Start Guide**](getting-started.md) - Installation, first steps, and basic usage
 - [**Shell Integration**](shell-integration.md) - Setting up completions for Fish, Bash, and Zsh
 
 ### Core Features
+
 - [**Managing Sources**](sources.md) - Adding, updating, and organizing documentation sources
 - [**Search Guide**](search.md) - Search syntax, performance tips, and advanced queries
 - [**Line-Accurate Retrieval**](retrieval.md) - Getting exact content with line ranges
 
 ### Technical Details
+
 - [**Architecture**](architecture.md) - How it works under the hood
 - [**Performance**](../PERFORMANCE.md) - Benchmarks and optimization details
 - [**Storage Format**](storage.md) - Understanding the blz structure
 
 ### Development
+
 - [**API Reference**](api.md) - Rust API documentation
 - [**MCP Integration**](mcp.md) - Using the Model Context Protocol server
 - [**Contributing**](../CONTRIBUTING.md) - Development guidelines
@@ -28,7 +32,8 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 ### What is llms.txt?
 `llms.txt` is a standardized format for making documentation accessible to AI agents. Sites like Bun.sh provide their docs in this format at URLs like `https://bun.sh/llms.txt`.
 
-### Why @outfitter/blzr?
+### Why @outfitter/blz?
+
 - **6ms search latency** - Orders of magnitude faster than network requests
 - **Line-accurate citations** - Reference exact `file#L120-L142` spans
 - **Offline-first** - Works without internet after initial fetch

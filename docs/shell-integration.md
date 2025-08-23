@@ -1,6 +1,6 @@
 # Shell Integration
 
-Complete guide to shell completions and integration for @outfitter/blzr.
+Complete guide to shell completions and integration for @outfitter/blz.
 
 ## Quick Setup
 
@@ -124,6 +124,7 @@ Use the provided script to update all shells at once:
 ```
 
 This script:
+
 - Detects installed shells
 - Generates completions for each
 - Installs in the right location
@@ -151,9 +152,9 @@ function __update_blz_completions --on-event fish_prompt
     if test -z "$cache_bin"
         return
     end
-    
+
     set -l completion_file "$HOME/.config/fish/completions/blz.fish"
-    
+
     # Update if binary is newer than completions
     if not test -f "$completion_file"; or test "$cache_bin" -nt "$completion_file"
         blz completions fish > "$completion_file" 2>/dev/null
@@ -204,7 +205,7 @@ Create helpful functions:
 function cache-best
     set -l query $argv
     set -l result (blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
-    
+
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')
         set -l lines (echo $result | jq -r '.lines')
@@ -264,7 +265,7 @@ echo "$results" | jq -r '.hits[] | {
 
 ```vim
 " Search blz from Vim
-command! -nargs=1 CacheSearch 
+command! -nargs=1 CacheSearch
     \ :r!blz search "<args>" --limit 3
 
 " Get specific lines
@@ -277,6 +278,7 @@ command! -nargs=+ CacheGet
 ### Completions Not Working
 
 #### Fish
+
 ```fish
 # Check if file exists
 ls ~/.config/fish/completions/blz.fish
@@ -289,6 +291,7 @@ source ~/.config/fish/config.fish
 ```
 
 #### Bash
+
 ```bash
 # Check bash-completion is installed
 type _init_completion
@@ -302,6 +305,7 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 ```
 
 #### Zsh
+
 ```zsh
 # Check fpath includes completions dir
 echo $fpath
@@ -378,6 +382,7 @@ alias ca 'blz add'
 ### Search History
 
 Fish automatically provides history:
+
 ```fish
 blz search <UP>  # Shows previous searches
 ```
@@ -397,6 +402,7 @@ done
 ## Future Enhancements
 
 Planned improvements:
+
 - PowerShell completions
 - Nushell support
 - More dynamic completions for Bash/Zsh
@@ -407,7 +413,7 @@ Planned improvements:
 
 To improve completions:
 
-1. Edit `crates/blzr-cli/src/main.rs`
+1. Edit `crates/blz-cli/src/main.rs`
 2. Update the `Commands` enum with better descriptions
 3. Rebuild: `cargo build --release`
 4. Test: `blz completions <shell>`

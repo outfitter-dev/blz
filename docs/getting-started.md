@@ -1,10 +1,11 @@
-# Getting Started with @outfitter/blzr
+# Getting Started with
 
-This guide will walk you through installing and using @outfitter/blzr for the first time.
+This guide will walk you through installing and using `blz` for the first time.
 
 ## Installation
 
 ### Prerequisites
+
 - Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
 - Git
 
@@ -12,11 +13,11 @@ This guide will walk you through installing and using @outfitter/blzr for the fi
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/blzr
-cd blzr
+git clone https://github.com/outfitter-dev/blz
+cd blz
 
 # Install the binary
-cargo install --path crates/blzr-cli
+cargo install --path crates/blz-cli
 
 # Verify installation
 blz --help
@@ -26,7 +27,7 @@ blz --help
 
 ```bash
 # Direct install from GitHub
-cargo install --git https://github.com/outfitter-dev/blz blzr-cli
+cargo install --git https://github.com/outfitter-dev/blz blz-cli
 ```
 
 ## First Steps
@@ -40,12 +41,14 @@ blz add bun https://bun.sh/llms.txt
 ```
 
 This command:
+
 - Fetches the llms.txt file from Bun's website
 - Parses it into structured heading blocks
 - Builds a search index
 - Stores everything locally
 
 Expected output:
+
 ```
 ✓ Added bun (26 headings, 364 lines)
 ```
@@ -59,6 +62,7 @@ blz search "test" --alias bun
 ```
 
 You'll see results in ~6ms:
+
 ```
 Search results for 'test':
 
@@ -87,6 +91,7 @@ blz list
 ```
 
 Output:
+
 ```
 Cached sources:
 
@@ -142,21 +147,25 @@ blz get "$alias" --lines "$lines"
 Enable tab completion for your shell:
 
 ### Fish
+
 ```fish
 blz completions fish > ~/.config/fish/completions/blz.fish
 ```
 
 ### Bash
+
 ```bash
 blz completions bash > ~/.local/share/bash-completion/completions/blz
 ```
 
 ### Zsh
+
 ```zsh
 blz completions zsh > ~/.zsh/completions/_blz
 ```
 
 After installation, you can use TAB to complete commands and options:
+
 ```bash
 blz sea<TAB>        # Completes to: blz search
 blz search --al<TAB> # Completes to: blz search --alias
@@ -167,18 +176,21 @@ blz get <TAB>        # Shows available aliases
 
 1. **Use aliases** - Searching within a specific source is faster
 2. **Limit results** - Use `--limit` to get results quicker
-3. **Cache locally** - Sources are stored in `~/.local/share/outfitter.cache/`
+3. **Cache locally** - Sources are stored in `~/.local/share/outfitter.blz/`
+<!-- TODO ::: @agents see if the above is correct -->
 
 ## Troubleshooting
 
 ### Command not found
 Add `~/.cargo/bin` to your PATH:
+
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
 ### No sources found
 Make sure you've added at least one source:
+
 ```bash
 blz add bun https://bun.sh/llms.txt
 ```
@@ -197,4 +209,4 @@ The first search after adding a source may take longer as the OS caches the inde
 
 - Run `blz --help` for command reference
 - Run `blz <command> --help` for specific command help
-- File issues at [GitHub](https://github.com/outfitter-dev/cache/issues)
+- File issues at [GitHub](https://github.com/outfitter-dev/blz/issues)

@@ -5,6 +5,7 @@
 ### Required Tools
 
 **Core Toolchain**
+
 ```bash
 # Install Rust via rustup
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -21,6 +22,7 @@ cargo install flamegraph      # Performance profiling
 ```
 
 **Editor Setup**
+
 - **rust-analyzer**: Language server for IDE support
 - **CodeLLDB** or **GDB**: Debugging support
 - **Rust syntax highlighting**: For your preferred editor
@@ -28,6 +30,7 @@ cargo install flamegraph      # Performance profiling
 ### Workspace Configuration
 
 **Root Cargo.toml**
+
 ```toml
 [workspace]
 members = ["crates/*"]
@@ -74,6 +77,7 @@ missing_errors_doc = "allow"
 ### Daily Development
 
 **Start of Day Setup**
+
 ```bash
 # Update dependencies and tools
 rustup update
@@ -93,26 +97,28 @@ cargo fmt --check
 **Feature Development Process**
 
 1. **Branch Creation**
+
 ```bash
 git checkout -b feature/improve-search-performance
 ```
 
 2. **Write Failing Tests First**
+
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn should_blz_search_results() {
         // Test that doesn't pass yet
         let cache = SearchCache::new();
         let query = "rust programming";
-        
+
         // First search should hit the index
         let result1 = cache.search(query).unwrap();
         assert!(!result1.from_blz);
-        
+
         // Second search should hit the cache
         let result2 = cache.search(query).unwrap();
         assert!(result2.from_blz);
@@ -121,6 +127,7 @@ mod tests {
 ```
 
 3. **Implement Minimal Solution**
+
 ```rust
 pub struct SearchCache {
     cache: HashMap<String, SearchResults>,
@@ -132,7 +139,7 @@ impl SearchCache {
         if let Some(cached) = self.cache.get(query) {
             return Ok(cached.clone_with_blz_flag(true));
         }
-        
+
         let results = self.index.search(query)?;
         self.cache.insert(query.to_string(), results.clone());
         Ok(results)
@@ -141,6 +148,7 @@ impl SearchCache {
 ```
 
 4. **Iterative Improvement**
+
 ```rust
 // Add proper error handling
 // Add thread safety
@@ -150,10 +158,11 @@ impl SearchCache {
 ```
 
 5. **Quality Gates**
+
 ```bash
 # Before committing
 cargo test --workspace
-cargo clippy --workspace -- -D warnings  
+cargo clippy --workspace -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps
 
@@ -165,6 +174,7 @@ cargo bench
 ### Code Review Process
 
 **Self-Review Checklist**
+
 - [ ] All tests pass locally
 - [ ] Clippy passes with zero warnings
 - [ ] Code is formatted with rustfmt
@@ -174,6 +184,7 @@ cargo bench
 - [ ] Performance implications considered
 
 **Review Guidelines**
+
 - Focus on correctness and maintainability over cleverness
 - Check error handling paths thoroughly
 - Verify thread safety for concurrent code
@@ -183,6 +194,7 @@ cargo bench
 ### Debugging Practices
 
 **Logging Strategy**
+
 ```rust
 use tracing::{debug, info, warn, error, instrument, span, Level};
 
@@ -190,9 +202,9 @@ use tracing::{debug, info, warn, error, instrument, span, Level};
 pub async fn search(&self, query: &str) -> CacheResult<SearchResults> {
     let span = span!(Level::INFO, "search_operation", query = %query);
     let _enter = span.enter();
-    
+
     debug!("Starting search operation");
-    
+
     match self.execute_search(query).await {
         Ok(results) => {
             info!(result_count = results.len(), "Search completed successfully");
@@ -207,6 +219,7 @@ pub async fn search(&self, query: &str) -> CacheResult<SearchResults> {
 ```
 
 **Debug Builds**
+
 ```rust
 // Use debug assertions in development
 debug_assert!(query.len() > 0, "Query cannot be empty");
@@ -221,6 +234,7 @@ fn debug_query_info(query: &ParsedQuery) {
 ```
 
 **Performance Debugging**
+
 ```bash
 # Profile with perf
 cargo build --release
@@ -241,13 +255,14 @@ valgrind --tool=massif --stacks=yes ./target/x86_64-unknown-linux-gnu/debug/cach
 ### Module Structure
 
 **Library Crate Layout**
+
 ```
 cache-core/src/
 ├── lib.rs              # Public API exports
 ├── config.rs           # Configuration management
 ├── error.rs            # Error types and conversions
 ├── index/              # Index management
-│   ├── mod.rs          
+│   ├── mod.rs
 │   ├── builder.rs      # Index creation
 │   ├── reader.rs       # Search operations
 │   └── writer.rs       # Index updates
@@ -265,6 +280,7 @@ cache-core/src/
 ```
 
 **Import Organization**
+
 ```rust
 // Standard library imports first
 use std::collections::HashMap;
@@ -290,6 +306,7 @@ use super::query::ParsedQuery;
 ### Documentation Standards
 
 **Module Documentation**
+
 ```rust
 //! Cache management module
 //!
@@ -299,7 +316,7 @@ use super::query::ParsedQuery;
 //! # Examples
 //!
 //! ```rust
-//! use blzr_core::cache::{CacheConfig, SearchCache};
+//! use blz_core::cache::{CacheConfig, SearchCache};
 //!
 //! let config = CacheConfig::default();
 //! let cache = SearchCache::new(config)?;
@@ -310,6 +327,7 @@ use std::collections::HashMap;
 ```
 
 **Function Documentation**
+
 ```rust
 /// Searches the index for documents matching the query
 ///
@@ -350,6 +368,7 @@ pub async fn search(&self, query: &str, limit: u16) -> CacheResult<SearchResults
 ### Error Handling Patterns
 
 **Comprehensive Error Context**
+
 ```rust
 use thiserror::Error;
 
@@ -361,17 +380,17 @@ pub enum CacheError {
         #[source]
         source: tantivy::query::QueryParserError,
     },
-    
+
     #[error("Index operation failed: {operation}")]
     IndexOperation {
         operation: String,
         #[source]
         source: tantivy::TantivyError,
     },
-    
+
     #[error("Configuration error: {message}")]
     Configuration { message: String },
-    
+
     #[error("Resource limit exceeded: {resource} = {current}, max = {limit}")]
     ResourceLimit {
         resource: String,
@@ -388,7 +407,7 @@ impl SearchIndex {
                 query: query.to_string(),
                 source: e,
             })?;
-            
+
         // Execute search with context
         self.execute_query(parsed)
             .map_err(|e| CacheError::IndexOperation {
@@ -404,6 +423,7 @@ impl SearchIndex {
 ### Code Quality Gates
 
 **Pre-commit Checks**
+
 ```bash
 #!/bin/bash
 # .git/hooks/pre-commit
@@ -438,6 +458,7 @@ echo "Pre-commit checks passed!"
 ```
 
 **Continuous Integration**
+
 ```yaml
 # .github/workflows/ci.yml
 name: CI
@@ -452,12 +473,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
-        
+
     - name: Cache cargo
       uses: actions/cache@v3
       with:
@@ -466,22 +487,22 @@ jobs:
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        
+
     - name: Check formatting
       run: cargo fmt --check
-      
+
     - name: Lint with Clippy
       run: cargo clippy --workspace --all-targets -- -D warnings
-      
+
     - name: Run tests
       run: cargo test --workspace --verbose
-      
+
     - name: Run doc tests
       run: cargo test --workspace --doc
-      
+
     - name: Check documentation
       run: cargo doc --workspace --no-deps --document-private-items
-      
+
     - name: Security audit
       run: |
         cargo install --force cargo-audit
@@ -491,23 +512,24 @@ jobs:
 ### Performance Monitoring
 
 **Benchmark Integration**
+
 ```rust
 // benches/search_performance.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use blzr_core::{SearchIndex, CacheConfig};
+use blz_core::{SearchIndex, CacheConfig};
 
 fn search_benchmarks(c: &mut Criterion) {
     let index = SearchIndex::new("test_index").unwrap();
-    
+
     let queries = vec![
         "rust",
         "rust programming",
         "rust programming language tutorial",
         "title:rust AND body:programming",
     ];
-    
+
     let mut group = c.benchmark_group("search");
-    
+
     for query in queries {
         group.bench_with_input(
             BenchmarkId::new("cached", query),
@@ -521,7 +543,7 @@ fn search_benchmarks(c: &mut Criterion) {
                 })
             }
         );
-        
+
         group.bench_with_input(
             BenchmarkId::new("uncached", query),
             &query,
@@ -533,7 +555,7 @@ fn search_benchmarks(c: &mut Criterion) {
             }
         );
     }
-    
+
     group.finish();
 }
 
@@ -546,15 +568,16 @@ criterion_main!(benches);
 ### Common Mistakes
 
 **Avoid These Patterns**
+
 ```rust
 // ❌ Using unwrap in production code
 let results = search_index.search(query).unwrap();
 
 // ✅ Proper error handling
 let results = search_index.search(query)
-    .map_err(|e| CacheError::SearchFailed { 
-        query: query.to_string(), 
-        source: e 
+    .map_err(|e| CacheError::SearchFailed {
+        query: query.to_string(),
+        source: e
     })?;
 
 // ❌ Blocking in async code
@@ -583,6 +606,7 @@ process_data(results1, results2);
 ### Performance Anti-Patterns
 
 **Avoid These Patterns**
+
 ```rust
 // ❌ Unnecessary allocations in hot paths
 pub fn format_query(query: &str) -> String {
@@ -621,6 +645,7 @@ async fn load_config(&self) -> Result<Config, Error> {
 ### Dependency Management
 
 **Regular Updates**
+
 ```bash
 # Check for outdated dependencies
 cargo outdated
@@ -636,6 +661,7 @@ cargo deny check
 ```
 
 **Version Pinning Strategy**
+
 ```toml
 [dependencies]
 # Pin exact versions for security-critical deps
@@ -651,12 +677,14 @@ tantivy = ">=0.21.0, <0.22.0"
 ### Technical Debt Management
 
 **Code Health Metrics**
+
 - Monitor cyclomatic complexity with `cargo clippy`
 - Track test coverage with `cargo tarpaulin`
 - Measure documentation coverage with `cargo doc`
 - Profile performance with `cargo bench`
 
 **Refactoring Guidelines**
+
 - Refactor when adding third use case (rule of three)
 - Extract functions when complexity > 10
 - Split modules when file > 500 lines
