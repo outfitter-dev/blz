@@ -84,7 +84,7 @@ use super::{json::JsonFormatter, text::TextFormatter};
 /// # NDJSON for streaming
 /// blz search "useEffect" --output ndjson | head -5
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
     /// Pretty text output (default)
     Text,

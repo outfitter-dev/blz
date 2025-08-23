@@ -1,4 +1,5 @@
-// Comprehensive benchmarks for performance optimizations
+//! Comprehensive benchmarks for performance optimizations
+
 use blz_core::{
     cache::{CacheConfig, MultiLevelCache, SearchCache},
     memory_pool::MemoryPool,

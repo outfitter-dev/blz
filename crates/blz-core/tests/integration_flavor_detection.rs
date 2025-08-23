@@ -1,4 +1,6 @@
-use blz_core::registry::{Registry, RegistryEntry};
+//! Integration tests for flavor detection and edge cases
+
+use blz_core::registry::Registry;
 
 #[cfg(test)]
 mod flavor_detection_tests {

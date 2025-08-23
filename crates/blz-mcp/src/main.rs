@@ -1,3 +1,7 @@
+//! MCP (Model Context Protocol) server for blz
+//!
+//! Provides a JSON-RPC interface for AI assistants to search cached llms.txt documentation.
+
 use anyhow::Result;
 use blz_core::{SearchIndex, Storage};
 use jsonrpc_core::{IoHandler, Params, Value};

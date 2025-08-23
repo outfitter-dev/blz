@@ -537,17 +537,14 @@ mod tests {
 
             assert!(
                 !results.is_empty(),
-                "Query '{}' should find results for '{}'",
-                query,
-                expected_slug
+                "Query '{query}' should find results for '{expected_slug}'"
             );
 
             // Should find the expected entry for exact or close matches
             let found_expected = results.iter().any(|r| r.entry.slug == expected_slug);
             assert!(
                 found_expected,
-                "Query '{}' should find entry '{}'",
-                query, expected_slug
+                "Query '{query}' should find entry '{expected_slug}'"
             );
         }
 
@@ -605,14 +602,12 @@ mod tests {
         for (query, expected_slug) in alias_tests {
             let results = registry.search(query);
 
-            assert!(!results.is_empty(), "Query '{}' should find results", query);
+            assert!(!results.is_empty(), "Query '{query}' should find results");
 
             let found_entry = results.iter().find(|r| r.entry.slug == expected_slug);
             assert!(
                 found_entry.is_some(),
-                "Query '{}' should find entry '{}'",
-                query,
-                expected_slug
+                "Query '{query}' should find entry '{expected_slug}'"
             );
 
             // Should be marked as alias match
@@ -639,7 +634,7 @@ mod tests {
 
         for query in &test_cases {
             let results = registry.search(query);
-            assert!(!results.is_empty(), "Query '{}' should find results", query);
+            assert!(!results.is_empty(), "Query '{query}' should find results");
             assert_eq!(results[0].entry.slug, "react");
             all_scores.push(results[0].score);
         }
@@ -692,8 +687,7 @@ mod tests {
         // Should complete reasonably quickly (adjust threshold as needed)
         assert!(
             elapsed < std::time::Duration::from_millis(100),
-            "Registry search should be fast, took {:?}",
-            elapsed
+            "Registry search should be fast, took {elapsed:?}"
         );
     }
 
