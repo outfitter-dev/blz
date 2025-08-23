@@ -246,6 +246,16 @@ cargo install --path .
 
 MIT
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- [Getting Started](docs/getting-started.md) - Installation and first steps
+- [Managing Sources](docs/sources.md) - Adding and organizing documentation
+- [Search Guide](docs/search.md) - Search syntax and advanced patterns
+- [Shell Integration](docs/shell-integration.md) - Completions for Fish, Bash, Zsh
+- [Architecture](docs/architecture.md) - Technical deep dive
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
