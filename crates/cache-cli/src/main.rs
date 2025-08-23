@@ -3,7 +3,7 @@ use cache_core::{
     Fetcher, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
 };
 use chrono::Utc;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::Level;
@@ -22,6 +22,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+    
     /// Add a new source
     Add {
         /// Alias for the source
@@ -106,6 +113,10 @@ async fn main() -> Result<()> {
     tracing::subscriber::set_global_default(subscriber)?;
     
     match cli.command {
+        Commands::Completions { shell } => {
+            generate_completions(shell);
+            return Ok(());
+        }
         Commands::Add { alias, url } => add_source(&alias, &url).await?,
         Commands::Search { query, alias, limit, format } => {
             search(&query, alias.as_deref(), limit, format).await?
@@ -314,4 +325,10 @@ async fn update_all() -> Result<()> {
 async fn show_diff(_alias: &str, _since: Option<&str>) -> Result<()> {
     println!("Diff functionality not yet implemented");
     Ok(())
+}
+
+fn generate_completions(shell: clap_complete::Shell) {
+    let mut cmd = Cli::command();
+    let name = cmd.get_name().to_string();
+    clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
 }

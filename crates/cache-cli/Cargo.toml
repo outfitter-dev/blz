@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+build = "build.rs"
 
 [[bin]]
 name = "cache"
@@ -24,3 +25,4 @@ chrono.workspace = true
 # CLI-specific
 colored = "2"
 indicatif = "0.17"
+clap_complete = "4"
