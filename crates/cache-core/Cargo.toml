@@ -5,6 +5,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[features]
+flamegraph = ["pprof/flamegraph"]
+
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
@@ -30,6 +33,16 @@ thiserror = "2"
 url = "2"
 tempfile = "3"
 
+# Performance & profiling
+pprof.workspace = true
+sysinfo.workspace = true
+
 [dev-dependencies]
 mockito = "1"
 pretty_assertions = "1"
+criterion.workspace = true
+tempfile.workspace = true
+
+[[bench]]
+name = "search_performance"
+harness = false

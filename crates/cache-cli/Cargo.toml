@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 build = "build.rs"
 
+[features]
+flamegraph = ["cache-core/flamegraph"]
+
 [[bin]]
 name = "cache"
 path = "src/main.rs"
@@ -26,3 +29,11 @@ chrono.workspace = true
 colored = "2"
 indicatif = "0.17"
 clap_complete = "4"
+
+# Performance & profiling
+pprof.workspace = true
+sysinfo.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"

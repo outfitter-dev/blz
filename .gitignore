@@ -1,0 +1,43 @@
+# Build artifacts
+target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Profiling
+*.pb
+*.svg
+perf.data
+perf.data.old
+flamegraph.svg
+cache_profile.pb
+
+# Cache data files
+*.llms.txt
+*.llms-full.txt
+llms.txt
+llms-full.txt
+llms.json
+
+# User cache directory (if testing locally)
+~/.outfitter/cache/
+
+# Benchmark results
+criterion/
+
+# Test coverage
+*.profraw
+*.profdata
+coverage/
+
+# Logs
+*.log

@@ -1,16 +1,20 @@
 # @outfitter/cache
 
-A local-first, line-accurate docs cache and MCP server for lightning-fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
+## Why "Cache"?
+
+Like explorers leaving supply caches along wilderness trails, `@outfitter/cache` creates reliable stashes of documentation for your coding journey. The name captures both meanings: the technical act of caching data locally for speed, and the expedition practice of strategically placing provisions where they'll be needed most.
+
+A local-first, line-accurate docs cache and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
 
 ## Features
 
-- 🚀 **Blazing Fast**: P50 search < 80ms on 10-50 MB corpus
-- 📍 **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
-- 🔄 **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
-- 📚 **Durable Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
-- 🔍 **Lexical Search**: Deterministic BM25 ranking with Tantivy (vectors optional, off by default)
-- 📝 **Change Tracking**: Built-in diff journal with unified diffs and changed sections
-- 🤖 **MCP Integration**: Official Rust SDK for IDE/agent consumption
+- **Fast Search**: 6ms typical search latency (yes, milliseconds)
+- **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
+- **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
+- **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
+- **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
+- **Change Tracking**: Built-in diff journal with unified diffs and changed sections
+- **MCP Integration**: Official Rust SDK for IDE/agent consumption
 
 ## Installation
 
@@ -54,11 +58,13 @@ cache completions zsh > ~/.zsh/completions/_cache
 # Add a source
 cache add bun https://bun.sh/llms.txt
 
-# Search across docs (6ms latency!)
-cache search "test concurrency" --alias bun
+# Search across docs
+cache "test concurrency" bun
+# Or: cache bun "test concurrency"
 
 # Get exact lines
 cache get bun --lines 120-142
+# Or with context: cache get bun -l 120+20
 
 # List all sources
 cache sources
@@ -189,8 +195,8 @@ cache completions fish    # Fish shell
 cache completions bash    # Bash
 cache completions zsh     # Zsh
 
-# Fish users get dynamic alias completion!
-cache search --alias <TAB>  # Shows: bun, node, test, etc.
+# Fish users get dynamic alias completion
+cache <TAB>                 # Shows your cached aliases
 cache get <TAB>             # Completes with your cached aliases
 ```
 
@@ -205,10 +211,10 @@ For Fish users, completions can auto-regenerate when the binary updates:
 ## Performance
 
 - **Index Build**: ~50-150ms per 1MB markdown
-- **Search**: **P50: 6ms** (exceeds target by 13x!)
+- **Search**: P50 6ms on typical queries
 - **Update**: Conditional fetch + no-op reindex < 30ms
 
-See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks showing 6ms search latency on real documentation.
+See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ## Building from Source
 

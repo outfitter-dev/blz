@@ -1,10 +1,11 @@
 use crate::{Error, HeadingBlock, Result, SearchHit};
+use crate::profiling::{OperationTimer, ComponentTimings, PerformanceMetrics};
 use std::path::Path;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, Value, STORED, TEXT, STRING};
 use tantivy::{doc, Index, IndexReader};
-use tracing::{debug, info};
+use tracing::{debug, info, Level};
 
 pub struct SearchIndex {
     index: Index,
@@ -16,9 +17,20 @@ pub struct SearchIndex {
     lines_field: Field,
     alias_field: Field,
     reader: IndexReader,
+    metrics: Option<PerformanceMetrics>,
 }
 
 impl SearchIndex {
+    /// Enable performance metrics collection
+    pub fn with_metrics(mut self, metrics: PerformanceMetrics) -> Self {
+        self.metrics = Some(metrics);
+        self
+    }
+    
+    /// Get the performance metrics instance
+    pub fn metrics(&self) -> Option<&PerformanceMetrics> {
+        self.metrics.as_ref()
+    }
     pub fn create(index_path: &Path) -> Result<Self> {
         let mut schema_builder = Schema::builder();
         
@@ -51,6 +63,7 @@ impl SearchIndex {
             lines_field,
             alias_field,
             reader,
+            metrics: None,
         })
     }
     
@@ -91,6 +104,7 @@ impl SearchIndex {
             lines_field,
             alias_field,
             reader,
+            metrics: None,
         })
     }
     
@@ -100,36 +114,66 @@ impl SearchIndex {
         file_path: &str,
         blocks: &[HeadingBlock],
     ) -> Result<()> {
-        let mut writer = self.index
-            .writer(50_000_000)
-            .map_err(|e| Error::Index(format!("Failed to create writer: {}", e)))?;
+        let timer = if let Some(metrics) = &self.metrics {
+            OperationTimer::with_metrics(&format!("index_{}", alias), metrics.clone())
+        } else {
+            OperationTimer::new(&format!("index_{}", alias))
+        };
         
-        let _deleted = writer
-            .delete_term(tantivy::Term::from_field_text(self.alias_field, alias));
+        let mut timings = ComponentTimings::new();
         
-        for block in blocks {
-            let heading_path_str = block.path.join(" > ");
-            let lines_str = format!("{}-{}", block.start_line, block.end_line);
-            
-            let doc = doc!(
-                self.content_field => block.content.clone(),
-                self.path_field => file_path,
-                self.heading_path_field => heading_path_str,
-                self.lines_field => lines_str,
-                self.alias_field => alias
-            );
-            
-            writer.add_document(doc)
-                .map_err(|e| Error::Index(format!("Failed to add document: {}", e)))?;
+        let mut writer = timings.time("writer_creation", || {
+            self.index
+                .writer(50_000_000)
+                .map_err(|e| Error::Index(format!("Failed to create writer: {}", e)))
+        })?;
+        
+        let _deleted = timings.time("delete_existing", || {
+            writer.delete_term(tantivy::Term::from_field_text(self.alias_field, alias))
+        });
+        
+        let mut total_content_bytes = 0usize;
+        
+        timings.time("document_creation", || {
+            for block in blocks {
+                total_content_bytes += block.content.len();
+                let heading_path_str = block.path.join(" > ");
+                let lines_str = format!("{}-{}", block.start_line, block.end_line);
+                
+                let doc = doc!(
+                    self.content_field => block.content.clone(),
+                    self.path_field => file_path,
+                    self.heading_path_field => heading_path_str,
+                    self.lines_field => lines_str,
+                    self.alias_field => alias
+                );
+                
+                writer.add_document(doc)
+                    .map_err(|e| Error::Index(format!("Failed to add document: {}", e)))?;
+            }
+            Ok::<(), Error>(())
+        })?;
+        
+        timings.time("commit", || {
+            writer.commit()
+                .map_err(|e| Error::Index(format!("Failed to commit: {}", e)))
+        })?;
+        
+        timings.time("reader_reload", || {
+            self.reader.reload()
+                .map_err(|e| Error::Index(format!("Failed to reload reader: {}", e)))
+        })?;
+        
+        let duration = timer.finish_index(total_content_bytes);
+        
+        // Print detailed breakdown if debug logging is enabled
+        if tracing::enabled!(Level::DEBUG) {
+            timings.print_breakdown();
         }
         
-        writer.commit()
-            .map_err(|e| Error::Index(format!("Failed to commit: {}", e)))?;
+        info!("Indexed {} blocks ({} bytes) for {} in {:.2}ms", 
+              blocks.len(), total_content_bytes, alias, duration.as_millis());
         
-        self.reader.reload()
-            .map_err(|e| Error::Index(format!("Failed to reload reader: {}", e)))?;
-        
-        info!("Indexed {} blocks for {}", blocks.len(), alias);
         Ok(())
     }
     
@@ -139,59 +183,104 @@ impl SearchIndex {
         alias: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
-        let searcher = self.reader.searcher();
+        let timer = if let Some(metrics) = &self.metrics {
+            OperationTimer::with_metrics(&format!("search_{}", query_str), metrics.clone())
+        } else {
+            OperationTimer::new(&format!("search_{}", query_str))
+        };
         
-        let query_parser = QueryParser::for_index(
-            &self.index,
-            vec![self.content_field, self.heading_path_field],
-        );
+        let mut timings = ComponentTimings::new();
+        let mut lines_searched = 0usize;
         
-        let mut full_query_str = query_str.to_string();
+        let searcher = timings.time("searcher_creation", || self.reader.searcher());
+        
+        let query_parser = timings.time("query_parser_creation", || {
+            QueryParser::for_index(
+                &self.index,
+                vec![self.content_field, self.heading_path_field],
+            )
+        });
+        
+        // Sanitize query to prevent injection attacks
+        // Escape special characters that could be exploited in Tantivy queries
+        let sanitized_query = query_str
+            .replace('\\', "\\\\")  // Escape backslash first
+            .replace('"', "\\\"")    // Escape quotes
+            .replace('(', "\\(")     // Escape parentheses
+            .replace(')', "\\)")
+            .replace('[', "\\[")     // Escape brackets
+            .replace(']', "\\]")
+            .replace('{', "\\{")     // Escape braces
+            .replace('}', "\\}")
+            .replace('^', "\\^")     // Escape caret
+            .replace('~', "\\~");    // Escape tilde
+        
+        let mut full_query_str = sanitized_query.clone();
         if let Some(alias) = alias {
-            full_query_str = format!("alias:{} AND ({})", alias, query_str);
+            // Alias is internally controlled, no need to sanitize
+            full_query_str = format!("alias:{} AND ({})", alias, sanitized_query);
         }
         
-        let query = query_parser
-            .parse_query(&full_query_str)
-            .map_err(|e| Error::Index(format!("Failed to parse query: {}", e)))?;
+        let query = timings.time("query_parsing", || {
+            query_parser
+                .parse_query(&full_query_str)
+                .map_err(|e| Error::Index(format!("Failed to parse query: {}", e)))
+        })?;
         
-        let top_docs = searcher
-            .search(&query, &TopDocs::with_limit(limit))
-            .map_err(|e| Error::Index(format!("Search failed: {}", e)))?;
+        let top_docs = timings.time("tantivy_search", || {
+            searcher
+                .search(&query, &TopDocs::with_limit(limit))
+                .map_err(|e| Error::Index(format!("Search failed: {}", e)))
+        })?;
         
         let mut hits = Vec::new();
         
-        for (score, doc_address) in top_docs {
-            let doc = searcher
-                .doc(doc_address)
-                .map_err(|e| Error::Index(format!("Failed to retrieve doc: {}", e)))?;
-            
-            let alias = self.get_field_text(&doc, self.alias_field)?;
-            let file = self.get_field_text(&doc, self.path_field)?;
-            let heading_path_str = self.get_field_text(&doc, self.heading_path_field)?;
-            let lines = self.get_field_text(&doc, self.lines_field)?;
-            let content = self.get_field_text(&doc, self.content_field)?;
-            
-            let heading_path: Vec<String> = heading_path_str
-                .split(" > ")
-                .map(|s| s.to_string())
-                .collect();
-            
-            let snippet = self.extract_snippet(&content, query_str, 100);
-            
-            hits.push(SearchHit {
-                alias,
-                file,
-                heading_path,
-                lines,
-                snippet,
-                score,
-                source_url: None,
-                checksum: String::new(),
-            });
+        timings.time("result_processing", || {
+            for (score, doc_address) in top_docs {
+                let doc = searcher
+                    .doc(doc_address)
+                    .map_err(|e| Error::Index(format!("Failed to retrieve doc: {}", e)))?;
+                
+                let alias = self.get_field_text(&doc, self.alias_field)?;
+                let file = self.get_field_text(&doc, self.path_field)?;
+                let heading_path_str = self.get_field_text(&doc, self.heading_path_field)?;
+                let lines = self.get_field_text(&doc, self.lines_field)?;
+                let content = self.get_field_text(&doc, self.content_field)?;
+                
+                // Count lines for metrics
+                lines_searched += content.lines().count();
+                
+                let heading_path: Vec<String> = heading_path_str
+                    .split(" > ")
+                    .map(|s| s.to_string())
+                    .collect();
+                
+                let snippet = self.extract_snippet(&content, query_str, 100);
+                
+                hits.push(SearchHit {
+                    alias,
+                    file,
+                    heading_path,
+                    lines,
+                    snippet,
+                    score,
+                    source_url: None,
+                    checksum: String::new(),
+                });
+            }
+            Ok::<(), Error>(())
+        })?;
+        
+        let duration = timer.finish_search(lines_searched);
+        
+        // Print detailed breakdown if debug logging is enabled
+        if tracing::enabled!(Level::DEBUG) {
+            timings.print_breakdown();
         }
         
-        debug!("Found {} hits for query: {}", hits.len(), query_str);
+        debug!("Found {} hits for query '{}' in {:.2}ms (searched {} lines)", 
+               hits.len(), query_str, duration.as_millis(), lines_searched);
+        
         Ok(hits)
     }
     
@@ -227,5 +316,211 @@ impl SearchIndex {
         } else {
             format!("{}...", &content[..max_len])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::HeadingBlock;
+    use tempfile::TempDir;
+    use std::time::Instant;
+
+    fn create_test_blocks() -> Vec<HeadingBlock> {
+        vec![
+            HeadingBlock {
+                path: vec!["React".to_string(), "Hooks".to_string()],
+                content: "useState is a React hook that lets you add state to functional components. It returns an array with the current state value and a function to update it.".to_string(),
+                start_line: 100,
+                end_line: 120,
+            },
+            HeadingBlock {
+                path: vec!["React".to_string(), "Components".to_string()],
+                content: "Components are the building blocks of React applications. They can be function components or class components.".to_string(),
+                start_line: 50,
+                end_line: 75,
+            },
+            HeadingBlock {
+                path: vec!["Next.js".to_string(), "Routing".to_string()],
+                content: "App Router is the new routing system in Next.js 13+. It provides better performance and developer experience.".to_string(),
+                start_line: 200,
+                end_line: 250,
+            },
+        ]
+    }
+
+    #[test]
+    fn test_index_creation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let result = SearchIndex::create(&index_path);
+        assert!(result.is_ok(), "Should create index successfully");
+        
+        // Verify index directory was created
+        assert!(index_path.exists());
+    }
+
+    #[test]
+    fn test_index_open_nonexistent() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("nonexistent");
+        
+        let result = SearchIndex::open(&index_path);
+        assert!(result.is_err(), "Should fail to open non-existent index");
+    }
+
+    #[test]
+    fn test_index_and_search_basic() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        // Create index and add blocks
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        let blocks = create_test_blocks();
+        
+        index.index_blocks("test", "test.md", &blocks).expect("Should index blocks");
+        
+        // Search for content
+        let hits = index.search("useState", Some("test"), 10).expect("Should search");
+        
+        assert!(!hits.is_empty(), "Should find results for useState");
+        assert!(hits[0].snippet.contains("useState"), "Result should contain useState");
+        assert_eq!(hits[0].alias, "test");
+        assert_eq!(hits[0].file, "test.md");
+    }
+
+    #[test]
+    fn test_search_limit() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        let blocks = create_test_blocks();
+        
+        index.index_blocks("test", "test.md", &blocks).expect("Should index blocks");
+        
+        // Search with limit
+        let hits = index.search("React", Some("test"), 1).expect("Should search");
+        
+        assert!(!hits.is_empty(), "Should find results");
+        assert!(hits.len() <= 1, "Should respect limit");
+    }
+
+    #[test]
+    fn test_search_no_results() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        let blocks = create_test_blocks();
+        
+        index.index_blocks("test", "test.md", &blocks).expect("Should index blocks");
+        
+        // Search for non-existent term
+        let hits = index.search("nonexistentterm12345", Some("test"), 10).expect("Should search");
+        
+        assert!(hits.is_empty(), "Should find no results for non-existent term");
+    }
+
+    #[test]
+    fn test_search_performance() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        
+        // Create many blocks for performance testing
+        let mut blocks = Vec::new();
+        for i in 0..100 {
+            blocks.push(HeadingBlock {
+                path: vec![format!("Section{}", i)],
+                content: format!("This is content block {} with various keywords like React, hooks, components, and performance testing.", i),
+                start_line: i * 10,
+                end_line: i * 10 + 5,
+            });
+        }
+        
+        index.index_blocks("perftest", "large.md", &blocks).expect("Should index many blocks");
+        
+        // Test search performance
+        let start = Instant::now();
+        let hits = index.search("React", Some("perftest"), 50).expect("Should search");
+        let duration = start.elapsed();
+        
+        assert!(!hits.is_empty(), "Should find results");
+        assert!(duration.as_millis() < 100, 
+               "Search should be fast (<100ms), took {}ms", duration.as_millis());
+    }
+
+    #[test]
+    fn test_search_scoring() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        
+        let blocks = vec![
+            HeadingBlock {
+                path: vec!["Exact Match".to_string()],
+                content: "React hooks".to_string(),
+                start_line: 1,
+                end_line: 5,
+            },
+            HeadingBlock {
+                path: vec!["Partial Match".to_string()],
+                content: "React components and hooks are useful features".to_string(),
+                start_line: 10,
+                end_line: 15,
+            },
+            HeadingBlock {
+                path: vec!["Distant Match".to_string()],
+                content: "In React, you can use various hooks for different purposes".to_string(),
+                start_line: 20,
+                end_line: 25,
+            },
+        ];
+        
+        index.index_blocks("test", "test.md", &blocks).expect("Should index blocks");
+        
+        let hits = index.search("React hooks", Some("test"), 10).expect("Should search");
+        
+        assert!(!hits.is_empty(), "Should find results");
+        
+        // Results should be ordered by relevance (score)
+        for i in 1..hits.len() {
+            assert!(hits[i-1].score >= hits[i].score, 
+                   "Results should be ordered by descending score");
+        }
+        
+        // The exact match should have the highest score
+        assert!(hits[0].snippet.contains("React hooks"), 
+               "Highest scored result should contain exact match");
+    }
+
+    #[test]
+    fn test_heading_path_in_results() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+        
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
+        
+        let blocks = vec![
+            HeadingBlock {
+                path: vec!["API".to_string(), "Reference".to_string(), "Hooks".to_string()],
+                content: "useState hook documentation".to_string(),
+                start_line: 100,
+                end_line: 120,
+            },
+        ];
+        
+        index.index_blocks("test", "api.md", &blocks).expect("Should index blocks");
+        
+        let hits = index.search("useState", Some("test"), 10).expect("Should search");
+        
+        assert!(!hits.is_empty(), "Should find results");
+        assert_eq!(hits[0].heading_path, vec!["API", "Reference", "Hooks"]);
+        assert_eq!(hits[0].file, "api.md");
+        assert_eq!(hits[0].lines, "100-120");
     }
 }

@@ -37,7 +37,14 @@ similar = "2"
 # MCP server
 # rmcp = "0.4"  # Will uncomment when available
 
+# Performance & profiling
+criterion = "0.5"
+pprof = { version = "0.13", features = ["flamegraph", "protobuf-codec"] }
+sysinfo = "0.32"
+tempfile = "3"
+
 # Internal crates
 cache-core = { path = "crates/cache-core" }
 cache-cli = { path = "crates/cache-cli" }
 cache-mcp = { path = "crates/cache-mcp" }
+
