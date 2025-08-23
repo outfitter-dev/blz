@@ -336,6 +336,5 @@ done
 ## Next Steps
 
 - Learn about [Searching](search.md) your cached sources
-- Understand [Storage Format](storage.md) for advanced usage
-<!-- TODO ::: @agents add storage format -->
+- Understand the storage layout details in [AGENTS.md](../AGENTS.md#storage-layout)
 - Read about [Architecture](architecture.md) for technical details

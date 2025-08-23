@@ -1,11 +1,16 @@
 {
   "name": "outfitter-blaze",
   "version": "0.1.0",
-  "description": "Fast local search for llms.txt documentation",
+  "description": "Fast local llms.txt search for agents",
   "keywords": [
     "documentation",
-    "cache",
     "llms",
+    "llms.txt",
+    "llms-txt",
+    "claude-code",
+    "codex",
+    "cursor",
+    "agents",
     "search",
     "tantivy",
     "rust",
@@ -23,7 +28,7 @@
     "url": "git+https://github.com/outfitter-dev/blz.git"
   },
   "license": "MIT",
-  "author": "Outfitter Dev",
+  "author": "Outfitter",
   "type": "module",
   "bin": {
     "blz": "./npm/blz"

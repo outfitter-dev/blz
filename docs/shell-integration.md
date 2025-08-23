@@ -1,4 +1,4 @@
-<!-- TODO ::: @agents this doc will need to be updated as we improve zsh support -->
+<!-- TODO #5: Update this doc as we improve Zsh support (track improvements in issue #5) -->
 # Shell Integration
 
 Complete guide to shell completions and integration for `blz`.

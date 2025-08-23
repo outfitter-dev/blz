@@ -4,29 +4,48 @@ Master the art of searching your cached documentation with blz's fast local sear
 
 ## Basic Search
 
-### Simple Query
+### Quick Search Patterns
+
+The fastest way to search - just type `blz` followed by your query:
+
+```bash
+# Search all sources
+blz "test"
+blz "http server"
+blz "typescript"
+
+# Search specific source (source first)
+blz bun "test"
+blz node "http server"
+blz deno "typescript"
+
+# Search specific source (source last)
+blz "test" bun
+blz "http server" node
+blz "typescript" deno
+```
+
+### Full Search Command
+
+For more control, use the explicit `search` command:
 
 ```bash
 blz search "your query"
-```
-
-Searches across all cached sources:
-
-```bash
-blz search "test"
-blz search "http server"
-blz search "typescript"
-```
-
-### Search Specific Source
-
-Use `--alias` to search within one source:
-
-```bash
 blz search "test" --alias bun
 ```
 
-This is faster and more focused than searching all sources.
+### Pattern Summary
+
+```bash
+# Quick patterns (most common)
+blz QUERY                    # Search all sources
+blz SOURCE QUERY            # Source-specific (source first)
+blz QUERY SOURCE            # Source-specific (source last)
+
+# Explicit command (more options)
+blz search QUERY
+blz search QUERY --alias SOURCE
+```
 
 ## Search Syntax
 
@@ -151,9 +170,14 @@ Path: Bun Documentation > Guides > Test runner
 Search for CLI commands:
 
 ```bash
-blz search "bun test"
-blz search "npm install"
-blz search "--watch flag"
+# Quick patterns
+blz "bun test"
+blz "npm install"
+blz "--watch flag"
+
+# Or target specific sources
+blz bun "test command"
+blz node "npm install"
 ```
 
 ### Find Configuration
@@ -161,9 +185,14 @@ blz search "--watch flag"
 Search for config options:
 
 ```bash
-blz search "tsconfig"
-blz search "package.json"
-blz search "bundler config"
+# Quick patterns
+blz "tsconfig"
+blz "package.json"
+blz "bundler config"
+
+# Or target specific sources
+blz typescript "tsconfig"
+blz bun "package.json fields"
 ```
 
 ### Find APIs
@@ -171,9 +200,14 @@ blz search "bundler config"
 Search for specific APIs:
 
 ```bash
-blz search "fetch API"
-blz search "file system"
-blz search "process.env"
+# Quick patterns
+blz "fetch API"
+blz "file system"
+blz "process.env"
+
+# Or target specific sources
+blz deno "fetch API"
+blz node "file system"
 ```
 
 ## Search Performance
@@ -191,8 +225,9 @@ blz search "process.env"
 
 1. **Use aliases** - Searching one source is faster
    ```bash
-   blz search "test" --alias bun  # Faster
-   blz search "test"              # Searches all
+   blz bun "test"                 # Fastest - quick pattern
+   blz search "test" --alias bun  # Fast - explicit command
+   blz "test"                     # Slower - searches all
    ```
 
 2. **Limit results** - Get results faster
@@ -346,7 +381,6 @@ Each source has its own Tantivy index with:
 
 ## Next Steps
 
-- Learn about [Line Retrieval](retrieval.md) to get exact content
-<!-- TODO ::: @agents this doc doesn't exist yet -->
+- Learn about the "get" command in [CLI documentation](cli.md) for retrieving exact content
 - Set up [Shell Integration](shell-integration.md) for better productivity
 - Understand the [Architecture](architecture.md) for deeper knowledge

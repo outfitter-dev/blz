@@ -1,0 +1,115 @@
+{
+	"explorer.fileNesting.enabled": true,
+	"explorer.fileNesting.expand": false,
+	"explorer.fileNesting.patterns": {
+		"Cargo.toml": "Cargo.lock,rust-toolchain.toml,rustfmt.toml,clippy.toml,.cargo, justfile, deny.toml, Makefile",
+		"README.md": "LICENSE*,CONTRIBUTING.md,CODE_OF_CONDUCT.md,SECURITY.md",
+		".editorconfig": "pnpm-*.yaml,*config.json,*.config.js,*.config.ts,.prettierrc.json,.prettierignore,turbo.json, .markdownlint-cli2.json*, commitlint.toml,lefthook.yml"
+	},
+
+	// Global editor defaults
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": false,
+	"editor.rulers": [100],
+	"files.trimTrailingWhitespace": true,
+	"files.insertFinalNewline": true,
+
+	// Rust configuration
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true,
+		"editor.rulers": [100]
+	},
+	"rust-analyzer.cargo.features": "all",
+	"rust-analyzer.checkOnSave.command": "clippy",
+	"rust-analyzer.checkOnSave.allTargets": true,
+	"rust-analyzer.inlayHints.bindingModeHints.enable": true,
+	"rust-analyzer.inlayHints.lifetimeElisionHints.enable": "skip_trivial",
+
+	// TOML configuration
+	"[toml]": {
+		"editor.defaultFormatter": "tamasfe.even-better-toml",
+		"editor.formatOnSave": true
+	},
+
+	// Prettier: JavaScript, TypeScript, JSON, CSS, YAML (when present)
+	"[javascript][typescript][javascriptreact][typescriptreact][json][jsonc][css][scss][less][yaml][yml]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"prettier.requireConfig": true,
+	"prettier.ignorePath": ".prettierignore",
+
+	// MarkdownLint: Markdown files
+	"[markdown]": {
+		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+		"editor.wordWrap": "on",
+		"editor.quickSuggestions": {
+			"comments": "on",
+			"strings": "on",
+			"other": "on"
+		}
+	},
+
+	// Code actions on save
+	"editor.codeActionsOnSave": {
+		"source.fixAll.markdownlint": "explicit",
+		"source.organizeImports": "explicit"
+	},
+
+	// File associations
+	"files.associations": {
+		"*.mdc": "markdown",
+		".env*": "dotenv"
+	},
+
+	// Files to exclude from explorer
+	"files.exclude": {
+		"**/target": true,
+		"**/.git": false,
+		"**/.DS_Store": true,
+		"**/Thumbs.db": true
+	},
+
+	// Search exclusions
+	"search.exclude": {
+		"**/target": true,
+		"**/Cargo.lock": true,
+		"**/node_modules": true,
+		"**/*.svg": true
+	},
+
+	// Terminal configuration
+	"terminal.integrated.env.osx": {
+		"RUST_BACKTRACE": "1"
+	},
+	"terminal.integrated.env.linux": {
+		"RUST_BACKTRACE": "1"
+	},
+
+	// Spell check words
+	"cSpell.words": [
+		"blz",
+		"tantivy",
+		"llms",
+		"clippy",
+		"rustfmt",
+		"serde",
+		"tokio",
+		"reqwest",
+		"anyhow",
+		"tracing",
+		"chrono",
+		"indicatif",
+		"dialoguer",
+		"jsonrpc",
+		"pprof",
+		"flamegraph",
+		"protobuf",
+		"brotli",
+		"etag",
+		"msrv",
+		"codegen",
+		"lto",
+		"stdlib"
+	]
+}

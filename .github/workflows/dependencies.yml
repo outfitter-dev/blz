@@ -1,0 +1,103 @@
+name: Dependency Security & Management
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - 'deny.toml'
+      - '.github/workflows/dependencies.yml'
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - 'deny.toml'
+      - '.github/workflows/dependencies.yml'
+  schedule:
+    # Run weekly to catch new advisories
+    - cron: '0 0 * * MON'
+  workflow_dispatch:
+
+jobs:
+  unused-deps:
+    name: Check for unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Install cargo-shear
+        run: |
+          if ! command -v cargo-shear &> /dev/null; then
+            cargo install cargo-shear
+          fi
+      
+      - name: Check for unused dependencies
+        run: cargo shear
+        
+  cargo-deny:
+    name: Dependency validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check ${{ matrix.checks }}
+          arguments: --all-features
+          
+  security-audit:
+    name: Security advisories (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true # Don't fail CI on new advisories
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run advisory check
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
+          arguments: --all-features
+          
+      - name: Upload advisory report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: advisory-report
+          path: |
+            cargo-deny.log
+            
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+          # Check for known vulnerabilities
+          vulnerability-check: true

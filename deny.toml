@@ -1,0 +1,87 @@
+# deny.toml - Comprehensive dependency validation for blz
+# Based on best practices from EmbarkStudios and major Rust projects
+
+[graph]
+# Target platforms we support
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+# Deny yanked crates
+yanked = "deny"
+# Security advisories are fetched from https://github.com/RustSec/advisory-db
+ignore = [
+    # Add specific advisories to ignore with justification
+    # Example: "RUSTSEC-2024-0001", # Waiting for upstream fix
+]
+
+[bans]
+# Warn on multiple versions of the same crate
+multiple-versions = "warn"
+# Allow wildcard dependencies (we control our own versions)
+wildcards = "allow"
+
+# Skip duplicate version checks for these crates
+skip = [
+    # Common ecosystem duplicates
+    { name = "syn" },           # Often multiple versions due to macro ecosystem
+    { name = "bitflags" },      # v1 and v2 in transition
+    { name = "windows-sys" },   # Windows API bindings often have multiple versions
+    { name = "windows-targets" }, # Windows targets often have multiple versions
+]
+
+# Explicitly deny certain crates
+deny = [
+    # Add crates to ban with reasons
+    # { name = "openssl", reason = "Use rustls instead" },
+]
+
+[licenses]
+# Permissive licenses we allow
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "BSD-2-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",      # ICU libraries
+    "CC0-1.0",
+    "MPL-2.0",          # Firefox origin, allows static linking
+    "Zlib",             # zlib license (permissive)
+    "0BSD",             # Zero-clause BSD
+    "CDDL-1.0",         # Common Development and Distribution License (inferno profiling)
+]
+
+# Copyleft licenses need explicit inclusion in allow list
+# We handle them case-by-case
+
+# Confidence threshold for license detection
+confidence-threshold = 0.8
+
+# Clarify licenses for crates with complex licensing
+[[licenses.clarify]]
+name = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[sources]
+# Deny crates from unknown registries
+unknown-registry = "deny"
+# Deny git dependencies from unknown sources
+unknown-git = "deny"
+# Only allow crates.io registry
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Allow git dependencies from our own org (if needed)
+allow-git = [
+    # "https://github.com/outfitter-dev/",
+]

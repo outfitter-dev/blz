@@ -1,0 +1,28 @@
+{
+	"recommendations": [
+		// Rust development
+		"rust-lang.rust-analyzer",
+		"vadimcn.vscode-lldb",
+		"serayuzgur.crates",
+		"tamasfe.even-better-toml",
+		
+		// Markdown
+		"davidanson.vscode-markdownlint",
+		"yzhang.markdown-all-in-one",
+		
+		// General development
+		"editorconfig.editorconfig",
+		"streetsidesoftware.code-spell-checker",
+		"usernamehw.errorlens",
+		"eamodio.gitlens",
+		
+		// Optional: Web development (when needed)
+		"esbenp.prettier-vscode",
+		"dbaeumer.vscode-eslint"
+	],
+	
+	"unwantedRecommendations": [
+		"ms-vscode.cpptools",
+		"matklad.rust"  // Old rust extension, replaced by rust-analyzer
+	]
+}

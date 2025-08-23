@@ -1,4 +1,3 @@
-<!-- TODO ::: @agents double check accuracy here -->
 # Getting Started with `blz`
 
 This guide will walk you through installing and using `blz` for the first time.
@@ -177,8 +176,7 @@ blz get <TAB>        # Shows available aliases
 
 1. **Use aliases** - Searching within a specific source is faster
 2. **Limit results** - Use `--limit` to get results quicker
-3. **Cache locally** - Sources are stored in `~/.local/share/outfitter.blz/`
-<!-- TODO ::: @agents see if the above is correct -->
+3. **Cache locally** - Sources are stored in `~/.outfitter/blz/`
 
 ## Troubleshooting
 

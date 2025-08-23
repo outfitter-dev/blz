@@ -6,14 +6,14 @@
 
 function __blz_check_completions --on-variable PATH --on-event fish_prompt
     # Only check occasionally to avoid overhead
-    if test -z "$CACHE_COMPLETION_CHECK"
-        set -g CACHE_COMPLETION_CHECK 0
+    if test -z "$BLZ_COMPLETION_CHECK"
+        set -g BLZ_COMPLETION_CHECK 0
     end
     
-    set -g CACHE_COMPLETION_CHECK (math "$CACHE_COMPLETION_CHECK + 1")
+    set -g BLZ_COMPLETION_CHECK (math "$BLZ_COMPLETION_CHECK + 1")
     
     # Check every 50 prompts
-    if test (math "$CACHE_COMPLETION_CHECK % 50") -ne 0
+    if test (math "$BLZ_COMPLETION_CHECK % 50") -ne 0
         return
     end
     

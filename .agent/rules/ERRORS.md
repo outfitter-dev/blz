@@ -7,6 +7,7 @@ Rust's type system enables explicit, comprehensive error handling. Use the Resul
 ## Error Strategy: Hybrid thiserror + anyhow
 
 Based on research findings, use a hybrid approach:
+
 - **Libraries** (`cache-core`): Use `thiserror` for structured error types
 - **Applications** (`cache-cli`, `cache-mcp`): Use `anyhow` for error handling
 
@@ -15,6 +16,7 @@ Based on research findings, use a hybrid approach:
 ### Core Domain Errors
 
 **Structured Error Types**
+
 ```rust
 use thiserror::Error;
 
@@ -99,6 +101,7 @@ pub type CacheResult<T> = Result<T, CacheError>;
 ### Error Construction Helpers
 
 **Builder Pattern for Rich Errors**
+
 ```rust
 impl CacheError {
     /// Create a query parsing error with context
@@ -151,6 +154,7 @@ impl CacheError {
 ### Specialized Error Types
 
 **Query Processing Errors**
+
 ```rust
 /// Specific errors for query processing
 #[derive(Error, Debug)]
@@ -202,6 +206,7 @@ impl From<QueryError> for CacheError {
 ```
 
 **Index Management Errors**
+
 ```rust
 /// Index-specific errors with detailed context
 #[derive(Error, Debug)]
@@ -210,7 +215,7 @@ pub enum IndexError {
     NotFound { path: std::path::PathBuf },
 
     #[error("Index corrupted: {details}")]
-    Corrupted { 
+    Corrupted {
         details: String,
         #[source]
         source: Option<tantivy::TantivyError>,
@@ -267,6 +272,7 @@ impl From<IndexError> for CacheError {
 ### CLI Application Errors
 
 **Simple Error Handling with Context**
+
 ```rust
 use anyhow::{Context, Result, bail, ensure};
 
@@ -280,17 +286,17 @@ fn main() -> Result<()> {
         Err(e) => {
             // Log the full error chain
             error!("Application failed: {:#}", e);
-            
+
             // Print user-friendly error
             eprintln!("Error: {}", e);
-            
+
             // Print error chain for debugging
             let mut source = e.source();
             while let Some(err) = source {
                 eprintln!("  Caused by: {}", err);
                 source = err.source();
             }
-            
+
             std::process::exit(1);
         }
     }
@@ -299,13 +305,13 @@ fn main() -> Result<()> {
 fn run() -> Result<()> {
     let config = load_config()
         .context("Failed to load configuration")?;
-        
+
     let cache = create_blz(&config)
         .context("Failed to initialize cache")?;
-        
+
     let args = parse_args()
         .context("Failed to parse command line arguments")?;
-        
+
     match args.command {
         Command::Search { query, limit } => {
             search_command(&cache, &query, limit)
@@ -320,12 +326,13 @@ fn run() -> Result<()> {
                 .context("Clear command failed")?;
         }
     }
-    
+
     Ok(())
 }
 ```
 
 **Rich Error Context in Operations**
+
 ```rust
 async fn search_command(cache: &SearchCache, query: &str, limit: u16) -> Result<()> {
     // Input validation with clear error messages
@@ -385,6 +392,7 @@ async fn index_command(cache: &SearchCache, path: &std::path::Path) -> Result<()
 ### MCP Server Error Handling
 
 **JSON-RPC Error Responses**
+
 ```rust
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -438,7 +446,7 @@ fn convert_error_to_json_rpc(error: anyhow::Error) -> jsonrpc_core::Error {
     } else if error.to_string().contains("timeout") {
         -32000 // Server error
     } else if error.to_string().contains("limit") {
-        -32602 // Invalid params  
+        -32602 // Invalid params
     } else {
         -32603 // Internal error
     };
@@ -458,6 +466,7 @@ fn convert_error_to_json_rpc(error: anyhow::Error) -> jsonrpc_core::Error {
 ### Retry with Backoff
 
 **Exponential Backoff for Transient Errors**
+
 ```rust
 use std::time::Duration;
 use tokio::time::sleep;
@@ -493,7 +502,7 @@ where
     E: std::fmt::Display,
 {
     let mut delay = config.initial_delay;
-    
+
     for attempt in 1..=config.max_attempts {
         match operation().await {
             Ok(result) => return Ok(result),
@@ -501,7 +510,7 @@ where
                 if attempt == config.max_attempts {
                     return Err(error);
                 }
-                
+
                 // Log retry attempt
                 debug!(
                     attempt = attempt,
@@ -509,9 +518,9 @@ where
                     error = %error,
                     "Operation failed, retrying"
                 );
-                
+
                 sleep(delay).await;
-                
+
                 // Calculate next delay with exponential backoff
                 delay = std::cmp::min(
                     Duration::from_millis(
@@ -522,7 +531,7 @@ where
             }
         }
     }
-    
+
     unreachable!("Loop should have returned or broken");
 }
 
@@ -538,6 +547,7 @@ async fn search_with_retry(cache: &SearchCache, query: &str) -> CacheResult<Sear
 ### Circuit Breaker Pattern
 
 **Fail Fast for Cascading Failures**
+
 ```rust
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -621,12 +631,12 @@ impl CircuitBreaker {
 
     async fn check_state(&self) -> CircuitState {
         let current_state = *self.state.read().await;
-        
+
         match current_state {
             CircuitState::Open => {
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let last_failure = self.last_failure_time.load(Ordering::Relaxed);
-                
+
                 if now - last_failure >= self.recovery_timeout.as_secs() {
                     // Try to recover
                     *self.state.write().await = CircuitState::HalfOpen;
@@ -675,6 +685,7 @@ impl ResilientSearchCache {
 ### Structured Error Logging
 
 **Consistent Error Logging**
+
 ```rust
 use tracing::{error, warn, info, debug, instrument};
 
@@ -715,6 +726,7 @@ pub async fn search(&self, query: &str, limit: u16) -> CacheResult<SearchResults
 ### Error Metrics
 
 **Prometheus-Style Metrics**
+
 ```rust
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -736,10 +748,10 @@ impl ErrorMetrics {
 
     pub fn record_error(&self, error: &CacheError) {
         self.total_errors.fetch_add(1, Ordering::Relaxed);
-        
+
         let error_type = match error {
             CacheError::QueryParsing { .. } => "query_parsing",
-            CacheError::IndexOperation { .. } => "index_operation", 
+            CacheError::IndexOperation { .. } => "index_operation",
             CacheError::SearchExecution { .. } => "search_execution",
             CacheError::CacheStorage { .. } => "cache_storage",
             CacheError::Configuration { .. } => "configuration",
@@ -768,8 +780,8 @@ impl ErrorMetrics {
 // Integration with cache operations
 impl SearchCache {
     pub async fn search_with_metrics(
-        &self, 
-        query: &str, 
+        &self,
+        query: &str,
         limit: u16,
         metrics: &ErrorMetrics,
     ) -> CacheResult<SearchResults> {
@@ -789,6 +801,7 @@ impl SearchCache {
 ### Error Path Testing
 
 **Comprehensive Error Testing**
+
 ```rust
 #[cfg(test)]
 mod error_tests {
@@ -804,9 +817,9 @@ mod error_tests {
         #[case] expected_error: CacheError,
     ) {
         let cache = create_test_blz().await;
-        
+
         let result = cache.search(query, 10).await;
-        
+
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), expected_error));
     }
@@ -814,12 +827,12 @@ mod error_tests {
     #[tokio::test]
     async fn test_index_corruption_handling() {
         let cache = create_test_blz().await;
-        
+
         // Simulate index corruption
         corrupt_index_files(&cache.index_path()).await;
-        
+
         let result = cache.search("test", 10).await;
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             CacheError::IndexOperation { operation, .. } => {
@@ -832,7 +845,7 @@ mod error_tests {
     #[tokio::test]
     async fn test_concurrent_error_handling() {
         let cache = Arc::new(create_test_blz().await);
-        
+
         // Launch concurrent operations that will fail
         let handles: Vec<_> = (0..10)
             .map(|_| {
@@ -842,9 +855,9 @@ mod error_tests {
                 })
             })
             .collect();
-        
+
         let results = futures::future::join_all(handles).await;
-        
+
         // All operations should fail gracefully
         for result in results {
             let search_result = result.unwrap();
@@ -859,6 +872,7 @@ mod error_tests {
 ### Avoid These Patterns
 
 **Common Error Handling Mistakes**
+
 ```rust
 // ❌ Swallowing errors silently
 pub async fn search(&self, query: &str) -> Option<SearchResults> {

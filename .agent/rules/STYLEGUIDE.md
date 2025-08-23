@@ -7,6 +7,7 @@ We write with clarity and honesty. We're building tools for developers who value
 ## Voice & Tone
 
 ### What We Are
+
 - **Honest**: State capabilities accurately. "6ms search" not "BLAZINGLY ULTRA-FAST!!!"
 - **Humble**: Let the tool speak for itself. Results over rhetoric.
 - **Professional**: Clear, concise, technical when needed
@@ -14,6 +15,7 @@ We write with clarity and honesty. We're building tools for developers who value
 - **Clever** (sparingly): Occasional wordplay is fine, but utility comes first
 
 ### What We're Not
+
 - **Braggadocious**: No "revolutionary", "game-changing", "world's best"
 - **Hyperbolic**: Avoid superlatives unless factually accurate
 - **Loud**: No ALL CAPS for emphasis, no excessive exclamation points
@@ -22,36 +24,39 @@ We write with clarity and honesty. We're building tools for developers who value
 ## Writing Guidelines
 
 ### Product References
+
 - Use `blz` (lowercase) when referring to the tool
 - Pronounced "blaze" but don't overexplain this
 - Don't overuse the blazing/fire metaphors
 
 ### Performance Claims
-✅ **Good**: "6ms typical search latency"  
+✅ **Good**: "6ms typical search latency"
 ❌ **Bad**: "INSANELY FAST searches that will BLOW YOUR MIND"
 
-✅ **Good**: "Returns results in milliseconds"  
+✅ **Good**: "Returns results in milliseconds"
 ❌ **Bad**: "Lightning-fast, blazingly quick, supersonic speed!!!"
 
 ### Feature Descriptions
-✅ **Good**: "Local-first search that works offline"  
+✅ **Good**: "Local-first search that works offline"
 ❌ **Bad**: "Revolutionary offline-first architecture"
 
-✅ **Good**: "Indexes llms.txt documentation for fast retrieval"  
+✅ **Good**: "Indexes llms.txt documentation for fast retrieval"
 ❌ **Bad**: "The ULTIMATE documentation indexing solution"
 
 ### Error Messages
-✅ **Good**: "Source not found. Run `blz add <alias> <url>` to add it."  
+✅ **Good**: "Source not found. Run `blz add <alias> <url>` to add it."
 ❌ **Bad**: "Oops! 😱 We couldn't find that source! 🚨"
 
 ## Emoji Usage
 
 ### When to Use
+
 - **Sparingly**: One per paragraph maximum
 - **Functionally**: To aid scanning or categorization
 - **Consistently**: Same emoji for same meaning
 
 ### Approved Emojis
+
 - 🔥 **Speed/Performance** - Use rarely, only when emphasizing actual speed metrics
 - 🔹 **Trail marker/waypoint** - For navigation, guidance, shortcuts (blue blazing)
 - 🔷 **Alternative trail marker** - Same usage as 🔹
@@ -60,6 +65,7 @@ We write with clarity and honesty. We're building tools for developers who value
 - 💡 **Tip/Hint** - For helpful suggestions
 
 ### Emoji Guidelines
+
 - Never use more than one emoji in a row
 - Don't use emojis in error messages that users will see frequently
 - Prefer text over emoji when clarity matters
@@ -68,16 +74,19 @@ We write with clarity and honesty. We're building tools for developers who value
 
 ### Trail Blazing
 Use the trail blazing metaphor to explain navigation and discovery:
+
 - "Mark your path through documentation"
 - "Guide through the docs wilderness"
 - "Find shortcuts to answers" (blue blazing)
 
 Don't overdo it:
+
 - ❌ "Blaze an epic trail through the documentation forest!"
 - ❌ "Become a master trail blazer!"
 
 ### Speed
 Reference speed with specific metrics:
+
 - ✅ "Search in 6ms"
 - ✅ "Millisecond response times"
 - ❌ "Blazingly fast"
@@ -86,6 +95,7 @@ Reference speed with specific metrics:
 ## Documentation Standards
 
 ### README Structure
+
 1. **Definition**: Dictionary-style, three-part definition
 2. **One-liner**: Simple, factual description
 3. **Features**: Bullet points with specific capabilities
@@ -93,6 +103,7 @@ Reference speed with specific metrics:
 5. **Details**: Technical information for those who need it
 
 ### Command Examples
+
 ```bash
 # Good: Clear, practical examples
 blz add react https://react.dev/llms.txt
@@ -103,6 +114,7 @@ blz add react https://react.dev/llms.txt --awesome --fire 🔥
 ```
 
 ### Headings
+
 - Use sentence case: "Quick start guide" not "Quick Start Guide"
 - Be descriptive: "Search syntax" not "Advanced Features"
 - No emoji in headings
@@ -111,22 +123,26 @@ blz add react https://react.dev/llms.txt --awesome --fire 🔥
 
 ### Taglines
 ✅ **Good**:
+
 - "Fast local search for llms.txt documentation"
 - "Your agent's guide through the docs wilderness"
 - "6ms to any answer"
 
 ❌ **Bad**:
+
 - "The FASTEST documentation tool EVER CREATED!"
 - "🔥🔥🔥 BLAZING FAST SEARCH 🔥🔥🔥"
 - "Revolutionary game-changing documentation paradigm"
 
 ### Feature Highlights
 Focus on measurable benefits:
+
 - "6ms search latency"
 - "Works offline"
 - "Exact line citations"
 
 Not vague superlatives:
+
 - "Ultra-fast"
 - "Best-in-class"
 - "Unparalleled performance"
@@ -134,6 +150,7 @@ Not vague superlatives:
 ## Code Comments
 
 ### In-Code Documentation
+
 ```rust
 // Good: Explains the why
 // Use BM25 for deterministic ranking without requiring vectors
@@ -145,12 +162,13 @@ Not vague superlatives:
 ## Community Communications
 
 ### Issues & PRs
+
 - Thank contributors genuinely
 - Explain technical decisions clearly
 - Avoid excessive enthusiasm ("AMAZING PR!!!" → "Thanks for the contribution")
 
 ### Release Notes
-✅ **Good**: "Fixed memory leak in search indexer, reducing memory usage by 40%"  
+✅ **Good**: "Fixed memory leak in search indexer, reducing memory usage by 40%"
 ❌ **Bad**: "MASSIVE performance improvements that make blz even MORE BLAZING FAST!"
 
 ## Examples
@@ -164,6 +182,7 @@ Not vague superlatives:
 ## Final Note
 
 When in doubt, choose:
+
 - Clarity over cleverness
 - Accuracy over impact
 - Utility over excitement

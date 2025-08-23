@@ -5,6 +5,7 @@
 ### Root Workspace Setup
 
 **Cargo.toml (Workspace Root)**
+
 ```toml
 [workspace]
 members = [
@@ -50,7 +51,7 @@ serde_json = "1.0"
 log = "0.4"
 env_logger = "0.10"
 
-# Testing dependencies  
+# Testing dependencies
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.0"
 rstest = "0.18"
@@ -71,7 +72,7 @@ trivial_numeric_casts = "deny"
 
 [workspace.lints.clippy]
 all = "deny"
-pedantic = "deny" 
+pedantic = "deny"
 cargo = "deny"
 nursery = "deny"
 
@@ -127,6 +128,7 @@ strip = false
 ### Crate-Level Configuration
 
 **cache-core/Cargo.toml**
+
 ```toml
 [package]
 name = "cache-core"
@@ -187,6 +189,7 @@ required-features = ["search"]
 ```
 
 **cache-cli/Cargo.toml**
+
 ```toml
 [package]
 name = "cache-cli"
@@ -228,6 +231,7 @@ shell-integration = ["rustyline"]
 ### Build Script Best Practices
 
 **build.rs**
+
 ```rust
 use std::env;
 use std::fs;
@@ -236,16 +240,16 @@ use std::path::Path;
 fn main() {
     // Re-run if build script changes
     println!("cargo:rerun-if-changed=build.rs");
-    
+
     // Re-run if version files change
     println!("cargo:rerun-if-changed=version.txt");
-    
+
     // Generate version information
     generate_version_info();
-    
+
     // Set build-time configuration
     set_build_config();
-    
+
     // Platform-specific configuration
     configure_for_platform();
 }
@@ -254,7 +258,7 @@ fn generate_version_info() {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     let git_hash = get_git_hash().unwrap_or_else(|| "unknown".to_string());
     let build_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
-    
+
     let version_info = format!(
         r#"
         pub const VERSION: &str = "{}";
@@ -263,7 +267,7 @@ fn generate_version_info() {
         "#,
         version, git_hash, build_time
     );
-    
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("version.rs");
     fs::write(dest_path, version_info).unwrap();
@@ -271,12 +275,12 @@ fn generate_version_info() {
 
 fn get_git_hash() -> Option<String> {
     use std::process::Command;
-    
+
     let output = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output()
         .ok()?;
-    
+
     if output.status.success() {
         String::from_utf8(output.stdout)
             .ok()
@@ -291,7 +295,7 @@ fn set_build_config() {
     if cfg!(target_os = "linux") {
         println!("cargo:rustc-cfg=has_epoll");
     }
-    
+
     // Set optimization flags for release builds
     if env::var("PROFILE").unwrap() == "release" {
         println!("cargo:rustc-env=OPTIMIZATION_LEVEL=3");
@@ -300,7 +304,7 @@ fn set_build_config() {
 
 fn configure_for_platform() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-    
+
     match target_os.as_str() {
         "windows" => {
             println!("cargo:rustc-link-lib=shell32");
@@ -317,6 +321,7 @@ fn configure_for_platform() {
 ```
 
 **Using Generated Code**
+
 ```rust
 // src/version.rs
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -335,6 +340,7 @@ pub fn full_version_info() -> String {
 ### Dependency Guidelines
 
 **Dependency Selection Criteria**
+
 ```toml
 # ✅ Prefer well-maintained crates with clear semver
 serde = "1.0"              # Stable, widely used
@@ -358,12 +364,13 @@ criterion = { version = "0.5", features = ["html_reports"] } # Specific features
 ```
 
 **Dependency Auditing**
+
 ```toml
 # Cargo.deny.toml - Policy enforcement
 [licenses]
 allow = [
     "MIT",
-    "Apache-2.0", 
+    "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
@@ -373,7 +380,7 @@ allow = [
 
 deny = [
     "GPL-2.0",
-    "GPL-3.0", 
+    "GPL-3.0",
     "AGPL-1.0",
     "AGPL-3.0",
     "LGPL-2.0",
@@ -410,6 +417,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 ### Version Management Strategy
 
 **Semantic Versioning Guidelines**
+
 ```toml
 # Version bumping rules for cache project:
 # MAJOR: Breaking API changes, Rust edition changes
@@ -427,6 +435,7 @@ version = "0.1.0"  # Pre-1.0: breaking changes allowed in minor versions
 ```
 
 **Changelog Integration**
+
 ```toml
 # Cargo.toml
 [package.metadata.changelog]
@@ -444,7 +453,7 @@ name = "Added"
 description = "New features"
 
 [[package.metadata.changelog.sections]]
-name = "Changed" 
+name = "Changed"
 description = "Changes in existing functionality"
 
 [[package.metadata.changelog.sections]]
@@ -469,6 +478,7 @@ description = "Security improvements"
 ### Test Organization
 
 **Comprehensive Test Setup**
+
 ```toml
 # Cargo.toml test configuration
 [dev-dependencies]
@@ -507,12 +517,13 @@ name = "search_performance"
 harness = false
 
 [[bench]]
-name = "cache_performance" 
+name = "cache_performance"
 harness = false
 required-features = ["cache"]
 ```
 
 **Test Runner Configuration**
+
 ```toml
 # .cargo/config.toml
 [target.'cfg(test)']
@@ -533,13 +544,14 @@ debug = 2
 ```
 
 **Coverage Configuration**
+
 ```toml
 # Cargo.toml
 [package.metadata.coverage]
 # Configure code coverage tools
 exclude-patterns = [
     "tests/*",
-    "benches/*", 
+    "benches/*",
     "examples/*",
     "*/generated/*",
 ]
@@ -552,6 +564,7 @@ minimum-coverage = 80.0
 ### Compilation Performance
 
 **Faster Debug Builds**
+
 ```toml
 # .cargo/config.toml
 [profile.dev.package."*"]
@@ -581,25 +594,26 @@ rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 ```
 
 **Conditional Compilation**
+
 ```rust
 // Use cfg attributes for platform-specific or feature-specific code
 #[cfg(feature = "metrics")]
 pub mod metrics {
     use prometheus::{Counter, Histogram, Registry};
-    
+
     pub struct SearchMetrics {
         search_counter: Counter,
         search_duration: Histogram,
     }
-    
+
     impl SearchMetrics {
         pub fn new(registry: &Registry) -> Self {
             let search_counter = Counter::new("searches_total", "Total searches").unwrap();
             let search_duration = Histogram::new("search_duration_seconds", "Search duration").unwrap();
-            
+
             registry.register(Box::new(search_counter.clone())).unwrap();
             registry.register(Box::new(search_duration.clone())).unwrap();
-            
+
             Self { search_counter, search_duration }
         }
     }
@@ -608,7 +622,7 @@ pub mod metrics {
 #[cfg(not(feature = "metrics"))]
 pub mod metrics {
     pub struct SearchMetrics;
-    
+
     impl SearchMetrics {
         pub fn new(_registry: &()) -> Self {
             Self
@@ -644,6 +658,7 @@ mod platform {
 ### Release Optimization
 
 **Production Build Configuration**
+
 ```toml
 [profile.release]
 # Maximum optimization
@@ -667,6 +682,7 @@ lto = "thin"              # Lighter LTO for smaller size
 ```
 
 **Binary Size Optimization**
+
 ```toml
 # For minimal binary size
 [profile.min-size]
@@ -683,6 +699,7 @@ strip = "symbols"
 ### Documentation Configuration
 
 **Comprehensive Documentation Setup**
+
 ```toml
 [package.metadata.docs.rs]
 # Configure docs.rs build
@@ -715,6 +732,7 @@ doc-scrape-examples = true
 ```
 
 **Custom Documentation Tasks**
+
 ```toml
 # Cargo.toml - Custom commands via cargo-make or just
 [package.metadata.cargo-make.tasks.docs]
@@ -738,6 +756,7 @@ dependencies = ["docs"]
 ### CI-Friendly Configuration
 
 **GitHub Actions Optimization**
+
 ```toml
 # .cargo/config.toml
 [registries.crates-io]
@@ -753,6 +772,7 @@ incremental = false     # Disable incremental compilation for CI
 ```
 
 **Build Caching Strategy**
+
 ```yaml
 # .github/workflows/ci.yml excerpt
 - name: Cache cargo registry
@@ -773,12 +793,13 @@ incremental = false     # Disable incremental compilation for CI
 ### Avoid These Configuration Patterns
 
 **Problematic Configurations**
+
 ```toml
 # ❌ Overly broad dependency versions
 regex = "*"                    # Could break with any update
 serde = ">= 1.0"              # Too permissive
 
-# ❌ Unnecessary features enabled  
+# ❌ Unnecessary features enabled
 tokio = { version = "1.0", features = ["full"] }  # Pulls in everything
 
 # ❌ Missing dev-dependency boundaries

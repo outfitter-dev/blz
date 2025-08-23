@@ -9,6 +9,18 @@ Thank you for your interest in contributing to `blz`! This document provides gui
 - Rust 1.75+ (edition 2021)
 - Cargo
 - Git
+- (Optional) `just` or `make` for convenience commands
+
+### Installing Development Tools
+
+```bash
+# Install security and dependency management tools
+cargo install cargo-deny    # License and vulnerability checking
+cargo install cargo-shear   # Unused dependency detection
+
+# Or use the Makefile/justfile
+make install-tools   # or: just install-tools
+```
 
 ### Building
 
@@ -30,12 +42,16 @@ cargo run -- --verbose search "test"
 ## Project Structure
 
 ```
-cache/
+blz/
 ├── crates/
-│   ├── cache-core/      # Core functionality (fetcher, parser, index, storage)
-│   ├── cache-cli/       # CLI binary
-│   └── cache-mcp/       # MCP server (JSON-RPC)
+│   ├── blz-core/        # Core functionality (fetcher, parser, index, storage)
+│   ├── blz-cli/         # CLI binary
+│   └── blz-mcp/         # MCP server (JSON-RPC)
 ├── scripts/             # Shell completions and utilities
+├── docs/                # User documentation
+├── deny.toml            # Dependency security and license configuration
+├── Makefile             # Common development commands
+├── justfile             # Alternative to Makefile (just command runner)
 └── .agent/              # Development documentation
 ```
 
@@ -47,6 +63,26 @@ cache/
 - Fix all warnings with `cargo clippy`
 - Ensure clean build with `cargo build --release`
 
+### Security & Dependencies
+
+Before submitting a PR, ensure:
+
+```bash
+# Check for security advisories and license compliance
+cargo deny check
+
+# Check for unused dependencies
+cargo shear
+
+# Or run all checks at once
+make check-deps   # or: just check-deps
+```
+
+If you encounter security advisories:
+- Check if updates are available: `cargo update`
+- If no safe update exists, document in `deny.toml` with justification
+- Consider alternative dependencies if issues persist
+
 ### Testing
 
 ```bash
@@ -54,7 +90,7 @@ cache/
 cargo test
 
 # Test specific crate
-cargo test -p cache-core
+cargo test -p blz-core
 
 # Run benchmarks
 hyperfine './target/release/blz search "test" --alias bun'
@@ -72,14 +108,14 @@ All changes must maintain or improve performance:
 
 ### New Commands
 
-1. Add the command to `Commands` enum in `crates/cache-cli/src/main.rs`
+1. Add the command to `Commands` enum in `crates/blz-cli/src/main.rs`
 2. Implement the handler function
 3. Update shell completions by rebuilding
 4. Add tests
 
 ### New Search Features
 
-1. Modify `SearchIndex` in `crates/cache-core/src/index.rs`
+1. Modify `SearchIndex` in `crates/blz-core/src/index.rs`
 2. Update schema if needed
 3. Ensure backward compatibility or add migration
 4. Benchmark the changes

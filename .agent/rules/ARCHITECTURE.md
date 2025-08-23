@@ -2,7 +2,7 @@
 
 ## System Overview
 
-The cache project is a Rust-based search cache system built on Tantivy, designed for high-performance full-text search with efficient caching and CLI integration.
+The blz project is a Rust-based search cache system built on Tantivy, designed for high-performance full-text search with efficient caching and CLI integration.
 
 ## Architecture Patterns
 
@@ -14,7 +14,7 @@ The cache project is a Rust-based search cache system built on Tantivy, designed
 cache/
 ├── Cargo.toml                 # Workspace root
 ├── crates/
-│   ├── cache-core/           # Core search and indexing logic
+│   ├── blz-core/             # Core search and indexing logic
 │   │   ├── src/
 │   │   │   ├── lib.rs        # Public API
 │   │   │   ├── index.rs      # Tantivy index management
@@ -23,13 +23,13 @@ cache/
 │   │   │   ├── config.rs     # Configuration
 │   │   │   └── error.rs      # Error types
 │   │   └── Cargo.toml
-│   ├── cache-cli/            # Command-line interface
+│   ├── blz-cli/              # Command-line interface
 │   │   ├── src/
 │   │   │   ├── main.rs       # CLI entry point
 │   │   │   ├── commands/     # CLI commands
 │   │   │   └── shell/        # Shell integration
 │   │   └── Cargo.toml
-│   └── cache-mcp/            # MCP server integration
+│   └── blz-mcp/              # MCP server integration
 │       ├── src/
 │       │   ├── main.rs       # MCP server
 │       │   ├── handlers/     # Request handlers
@@ -42,18 +42,18 @@ cache/
 
 **Clear Separation of Concerns**
 
-1. **`cache-core`**: Business logic and domain models
+1. **`blz-core`**: Business logic and domain models
    - No CLI dependencies
    - No I/O beyond what's necessary for indexing
    - Pure, testable functions where possible
 
-2. **`cache-cli`**: User interface and shell integration
-   - Depends on `cache-core`
+2. **`blz-cli`**: User interface and shell integration
+   - Depends on `blz-core`
    - Handles argument parsing and output formatting
    - Manages configuration files
 
-3. **`cache-mcp`**: Network protocol and server logic
-   - Depends on `cache-core`
+3. **`blz-mcp`**: Network protocol and server logic
+   - Depends on `blz-core`
    - Handles JSON-RPC protocol
    - Manages concurrent requests
 
@@ -62,9 +62,9 @@ cache/
 **Unidirectional Dependencies**
 
 ```
-cache-cli ──┐
-            ├──→ cache-core
-cache-mcp ──┘
+blz-cli ──┐
+          ├──→ blz-core
+blz-mcp ──┘
 ```
 
 **Forbidden Patterns**

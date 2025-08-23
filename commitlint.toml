@@ -1,0 +1,48 @@
+# commitlint-rs configuration
+# https://github.com/conventional-limiter/commitlint-rs
+
+[rules]
+# Header rules
+header-max-length = { level = "error", value = 100 }
+header-min-length = { level = "error", value = 10 }
+
+# Type rules
+type-enum = { level = "error", value = [
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "test",
+    "chore",
+    "perf",
+    "ci",
+    "build",
+    "revert"
+] }
+type-case = { level = "error", value = "lower-case" }
+type-empty = { level = "error" }
+
+# Scope rules
+scope-enum = { level = "error", value = [
+    "core",
+    "cli",
+    "mcp",
+    "index",
+    "storage",
+    "config",
+    "parser",
+    "fetcher"
+] }
+scope-case = { level = "error", value = "lower-case" }
+
+# Subject rules
+subject-case = { level = "error", value = "lower-case" }
+subject-empty = { level = "error" }
+subject-full-stop = { level = "error", value = false }
+
+# Body rules
+body-max-line-length = { level = "warning", value = 100 }
+
+# Footer rules
+footer-max-line-length = { level = "warning", value = 100 }
