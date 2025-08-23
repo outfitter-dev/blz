@@ -1,6 +1,6 @@
-# Contributing to @outfitter/blzr
+# Contributing to `blz`
 
-Thank you for your interest in contributing to @outfitter/blzr! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to `blz`! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing to @outfitter/blzr! This document pr
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/blzr
-cd blzr
+git clone https://github.com/outfitter-dev/blz
+cd blz
 
 # Build all crates
 cargo build --release
@@ -63,6 +63,7 @@ hyperfine './target/release/blz search "test" --alias bun'
 ### Performance Requirements
 
 All changes must maintain or improve performance:
+
 - Search latency: P50 < 10ms on standard hardware
 - Index build: < 150ms per MB of markdown
 - Zero unnecessary allocations in hot paths
@@ -86,6 +87,7 @@ All changes must maintain or improve performance:
 ## Commit Messages
 
 Follow conventional commits:
+
 - `feat:` New feature
 - `fix:` Bug fix
 - `docs:` Documentation only
@@ -131,7 +133,6 @@ hyperfine --warmup 10 --min-runs 50 \
 - Update README.md for user-facing changes
 - Update PERFORMANCE.md if benchmarks change
 - Document new functions and modules with doc comments
-- Keep .agent/PRD.md aligned with implementation
 
 ## Questions?
 

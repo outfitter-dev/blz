@@ -1,3 +1,4 @@
+<!-- note::: @agents this is a work in progress. Do not use this guidance verbatim. -->
 # Performance Benchmarks
 
 ## TL;DR
@@ -7,15 +8,17 @@
 ## Real-World Performance
 
 ### Bun's llms.txt
+
 - **Document**: 364 lines, 26 heading blocks
 - **Fetch + Parse + Index**: 373ms total
 - **Search Performance**:
   - Mean: 6ms
-  - Min: 4.8ms  
+  - Min: 4.8ms
   - Max: 8ms
   - P95: <8ms
 
 ### Node.js API Documentation
+
 - **Document**: 108,600 lines (4.8MB JSON)
 - **Fetch + Parse + Index**: 1.9s
 - **Search Performance**: ~32ms (searching across all sources)
@@ -64,6 +67,7 @@ hyperfine --warmup 10 --min-runs 50 \
 ## System Specs
 
 Benchmarks run on:
+
 - Platform: macOS Darwin 24.4.0
 - Date: 2025-08-23
 - Rust: 1.80+ (edition 2021)
@@ -76,6 +80,7 @@ Benchmarks run on:
 The cache includes comprehensive profiling and performance analysis tools:
 
 #### Basic Performance Metrics
+
 ```bash
 # Show detailed timing breakdowns
 ./target/release/blz search "react hooks" --debug
@@ -88,6 +93,7 @@ The cache includes comprehensive profiling and performance analysis tools:
 ```
 
 #### CPU Profiling (Flamegraph)
+
 ```bash
 # Build with flamegraph support
 cargo build --release --features flamegraph
@@ -98,6 +104,7 @@ cargo build --release --features flamegraph
 ```
 
 #### Benchmarking
+
 ```bash
 # Run comprehensive performance benchmarks
 cd crates/cache-core
@@ -113,6 +120,7 @@ cargo bench performance_targets # Regression testing
 ### Performance Metrics Tracked
 
 **Search Operations:**
+
 - Total execution time (target: <10ms, achieved: ~6ms)
 - Lines searched per operation
 - Component-level breakdowns:
@@ -123,6 +131,7 @@ cargo bench performance_targets # Regression testing
 - Throughput in lines/second
 
 **Index Building:**
+
 - Total indexing time
 - Bytes processed
 - Component-level breakdowns:
@@ -133,6 +142,7 @@ cargo bench performance_targets # Regression testing
 - Throughput in MB/second
 
 **Resource Usage:**
+
 - Memory consumption (current and delta)
 - CPU utilization during operations
 - Peak resource usage tracking
@@ -140,7 +150,8 @@ cargo bench performance_targets # Regression testing
 ### Component Timing Breakdown
 
 When using `--debug`, you'll see detailed breakdowns like:
-```
+
+```text
 Component Breakdown
 ==================
   tantivy_search      :     2.15ms ( 35.8%)
@@ -162,8 +173,9 @@ Our benchmarking shows consistent sub-millisecond performance:
 | 1000       | 500KB       | ~105μs     | 4.4 GiB/s  |
 
 **Real-world scenarios:**
+
 - Small library docs (50 blocks): ~50μs
-- Medium framework (200 blocks): ~70μs  
+- Medium framework (200 blocks): ~70μs
 - Large framework like React (1000 blocks): ~105μs
 - Very large docs like Node.js (5000 blocks): ~200μs
 
@@ -172,6 +184,7 @@ All measurements consistently meet performance targets.
 ### Memory Efficiency
 
 Index memory usage remains minimal:
+
 - ~1-2MB per 1000 documentation blocks
 - Lazy loading of search indices
 - Efficient string interning in Tantivy
@@ -180,11 +193,13 @@ Index memory usage remains minimal:
 ### Performance Regression Testing
 
 Use `performance_targets` benchmark to ensure no regressions:
+
 ```bash
 cargo bench performance_targets
 ```
 
 This validates:
+
 - Individual searches complete in <10ms (target achieved: ~6ms)
 - Multiple rapid searches maintain performance
 - Memory usage stays within reasonable bounds
@@ -192,8 +207,9 @@ This validates:
 ## Next Steps
 
 Even with these numbers, we can go faster:
+
 - [ ] Parallel search across sources
-- [ ] Memory-mapped index files  
+- [ ] Memory-mapped index files
 - [ ] Optional SIMD acceleration
 - [ ] Query result caching
 - [x] **Comprehensive profiling and benchmarking** ✅

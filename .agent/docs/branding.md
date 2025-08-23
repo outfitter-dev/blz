@@ -1,5 +1,4 @@
 <!-- note::: @agents this is a work in progress. Do not use this guidance verbatim. -->
-
 # blz Branding
 
 > [!WARNING]

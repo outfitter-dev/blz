@@ -1,10 +1,10 @@
 # blz
 
 > **blaze** */bleɪz/* (verb, noun)
-> 
-> 1. **verb** – Move or proceed at high speed; achieve something rapidly  
-> 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey  
-> 3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval  
+>
+> 1. **verb** – Move or proceed at high speed; achieve something rapidly
+> 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey
+> 3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval
 
 ---
 
@@ -24,6 +24,7 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 ## Installation
 
 ### From Source
+
 ```bash
 # Clone and install
 git clone https://github.com/outfitter-dev/blz
@@ -37,6 +38,7 @@ cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
 ### Shell Setup
 
 #### Fish
+
 ```fish
 # Add to PATH
 set -gx PATH $HOME/.cargo/bin $PATH
@@ -46,6 +48,7 @@ blz completions fish > ~/.config/fish/completions/blz.fish
 ```
 
 #### Bash/Zsh
+
 ```bash
 # Add to PATH
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -115,7 +118,7 @@ IDE agents can run `blz` commands directly for millisecond responses:
 # Search for documentation
 blz search "test runner" --alias bun --format json
 
-# Get exact line ranges  
+# Get exact line ranges
 blz get bun --lines 423-445
 
 # List all cached sources
@@ -206,6 +209,7 @@ blz get <TAB>             # Completes with your cached aliases
 ### Auto-updating Completions
 
 For Fish users, completions can auto-regenerate when the binary updates:
+
 ```bash
 # Run the install script after updates
 ./scripts/install-completions.sh
@@ -276,4 +280,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
-For detailed architecture and implementation details, see [.agent/PRD.md](.agent/PRD.md).
+For detailed architecture and implementation details, see [docs/architecture.md](docs/architecture.md).

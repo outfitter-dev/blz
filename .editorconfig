@@ -1,0 +1,43 @@
+# EditorConfig helps maintain consistent coding styles across different editors
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.rs]
+indent_size = 4
+max_line_length = 100
+
+[*.toml]
+indent_size = 4
+
+[*.{js,jsx,ts,tsx,json,jsonc}]
+indent_size = 2
+max_line_length = 100
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = 80
+
+[*.sh]
+indent_size = 2
+
+[*.fish]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.go]
+indent_style = tab
+indent_size = 4

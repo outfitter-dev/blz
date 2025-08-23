@@ -1,7 +1,7 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use sysinfo::System;
 use tracing::{debug, info, span, Level};
 
@@ -33,66 +33,98 @@ impl PerformanceMetrics {
     /// Record a search operation
     pub fn record_search(&self, duration: Duration, lines_count: usize) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
-        self.total_search_time.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
-        self.lines_searched.fetch_add(lines_count as u64, Ordering::Relaxed);
+        self.total_search_time
+            .fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+        self.lines_searched
+            .fetch_add(lines_count as u64, Ordering::Relaxed);
     }
-    
+
     /// Record an index build operation
     pub fn record_index_build(&self, duration: Duration, bytes_count: usize) {
         self.index_build_count.fetch_add(1, Ordering::Relaxed);
-        self.total_index_time.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
-        self.bytes_processed.fetch_add(bytes_count as u64, Ordering::Relaxed);
+        self.total_index_time
+            .fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+        self.bytes_processed
+            .fetch_add(bytes_count as u64, Ordering::Relaxed);
     }
-    
+
     /// Get average search time in microseconds
     pub fn avg_search_time_micros(&self) -> f64 {
         let count = self.search_count.load(Ordering::Relaxed);
         let total = self.total_search_time.load(Ordering::Relaxed);
-        if count == 0 { 0.0 } else { total as f64 / count as f64 }
+        if count == 0 {
+            0.0
+        } else {
+            total as f64 / count as f64
+        }
     }
-    
+
     /// Get average index build time in milliseconds
     pub fn avg_index_time_millis(&self) -> f64 {
         let count = self.index_build_count.load(Ordering::Relaxed);
         let total = self.total_index_time.load(Ordering::Relaxed);
-        if count == 0 { 0.0 } else { (total as f64 / count as f64) / 1000.0 }
+        if count == 0 {
+            0.0
+        } else {
+            (total as f64 / count as f64) / 1000.0
+        }
     }
-    
+
     /// Get throughput in lines per second for search operations
     pub fn search_throughput_lines_per_sec(&self) -> f64 {
         let lines = self.lines_searched.load(Ordering::Relaxed);
         let time_seconds = (self.total_search_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
-        if time_seconds == 0.0 { 0.0 } else { lines as f64 / time_seconds }
+        if time_seconds == 0.0 {
+            0.0
+        } else {
+            lines as f64 / time_seconds
+        }
     }
-    
+
     /// Get processing throughput in MB/s for indexing operations
     pub fn index_throughput_mbps(&self) -> f64 {
         let bytes = self.bytes_processed.load(Ordering::Relaxed);
         let time_seconds = (self.total_index_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
-        if time_seconds == 0.0 { 0.0 } else { (bytes as f64 / (1024.0 * 1024.0)) / time_seconds }
+        if time_seconds == 0.0 {
+            0.0
+        } else {
+            (bytes as f64 / (1024.0 * 1024.0)) / time_seconds
+        }
     }
-    
+
     /// Print performance summary
     pub fn print_summary(&self) {
         let searches = self.search_count.load(Ordering::Relaxed);
         let indexes = self.index_build_count.load(Ordering::Relaxed);
-        
+
         println!("\n{}", "Performance Summary".bold());
         println!("{}", "===================".bold());
-        
+
         if searches > 0 {
             println!("Search Operations:");
             println!("  Total searches: {}", searches);
-            println!("  Average time: {:.2}ms", self.avg_search_time_micros() / 1000.0);
-            println!("  Total lines searched: {}", self.lines_searched.load(Ordering::Relaxed));
-            println!("  Throughput: {:.0} lines/sec", self.search_throughput_lines_per_sec());
+            println!(
+                "  Average time: {:.2}ms",
+                self.avg_search_time_micros() / 1000.0
+            );
+            println!(
+                "  Total lines searched: {}",
+                self.lines_searched.load(Ordering::Relaxed)
+            );
+            println!(
+                "  Throughput: {:.0} lines/sec",
+                self.search_throughput_lines_per_sec()
+            );
         }
-        
+
         if indexes > 0 {
             println!("Index Operations:");
             println!("  Total builds: {}", indexes);
             println!("  Average time: {:.2}ms", self.avg_index_time_millis());
-            println!("  Total bytes processed: {}", format_bytes(self.bytes_processed.load(Ordering::Relaxed)));
+            println!(
+                "  Total bytes processed: {}",
+                format_bytes(self.bytes_processed.load(Ordering::Relaxed))
+            );
             println!("  Throughput: {:.2} MB/s", self.index_throughput_mbps());
         }
     }
@@ -114,7 +146,7 @@ impl OperationTimer {
             metrics: None,
         }
     }
-    
+
     pub fn with_metrics(operation: &str, metrics: PerformanceMetrics) -> Self {
         info!("Starting operation with metrics: {}", operation);
         Self {
@@ -123,32 +155,44 @@ impl OperationTimer {
             metrics: Some(metrics),
         }
     }
-    
+
     /// Finish timing and optionally record metrics
     pub fn finish(self) -> Duration {
         let duration = self.start.elapsed();
-        info!("Completed {}: {:.2}ms", self.operation, duration.as_millis());
+        info!(
+            "Completed {}: {:.2}ms",
+            self.operation,
+            duration.as_millis()
+        );
         duration
     }
-    
+
     /// Finish timing a search operation with line count
     pub fn finish_search(self, lines_count: usize) -> Duration {
         let duration = self.start.elapsed();
-        info!("Completed {} search: {:.2}ms ({} lines)", 
-              self.operation, duration.as_millis(), lines_count);
-        
+        info!(
+            "Completed {} search: {:.2}ms ({} lines)",
+            self.operation,
+            duration.as_millis(),
+            lines_count
+        );
+
         if let Some(metrics) = &self.metrics {
             metrics.record_search(duration, lines_count);
         }
         duration
     }
-    
+
     /// Finish timing an index operation with byte count
     pub fn finish_index(self, bytes_count: usize) -> Duration {
         let duration = self.start.elapsed();
-        info!("Completed {} indexing: {:.2}ms ({} bytes)", 
-              self.operation, duration.as_millis(), bytes_count);
-        
+        info!(
+            "Completed {} indexing: {:.2}ms ({} bytes)",
+            self.operation,
+            duration.as_millis(),
+            bytes_count
+        );
+
         if let Some(metrics) = &self.metrics {
             metrics.record_index_build(duration, bytes_count);
         }
@@ -166,7 +210,7 @@ impl ComponentTimings {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn time<T, F>(&mut self, component: &str, operation: F) -> T
     where
         F: FnOnce() -> T,
@@ -175,47 +219,51 @@ impl ComponentTimings {
         let start = Instant::now();
         let result = operation();
         let duration = start.elapsed();
-        
-        self.timings.insert(component.to_string(), 
-            self.timings.get(component).copied().unwrap_or_default() + duration);
-        
+
+        self.timings.insert(
+            component.to_string(),
+            self.timings.get(component).copied().unwrap_or_default() + duration,
+        );
+
         debug!("Component {}: {:.2}ms", component, duration.as_millis());
         result
     }
-    
+
     pub fn get_timing(&self, component: &str) -> Option<Duration> {
         self.timings.get(component).copied()
     }
-    
+
     pub fn total_time(&self) -> Duration {
         self.timings.values().sum()
     }
-    
+
     pub fn print_breakdown(&self) {
         if self.timings.is_empty() {
             return;
         }
-        
+
         let total = self.total_time();
         println!("\n{}", "Component Breakdown".bold());
         println!("{}", "==================".bold());
-        
+
         let mut sorted_timings: Vec<_> = self.timings.iter().collect();
         sorted_timings.sort_by(|a, b| b.1.cmp(a.1));
-        
+
         for (component, duration) in sorted_timings {
             let percentage = if total.as_micros() > 0 {
                 (duration.as_micros() as f64 / total.as_micros() as f64) * 100.0
             } else {
                 0.0
             };
-            
-            println!("  {:<20}: {:>8.2}ms ({:>5.1}%)", 
-                     component, 
-                     duration.as_millis(), 
-                     percentage);
+
+            println!(
+                "  {:<20}: {:>8.2}ms ({:>5.1}%)",
+                component,
+                duration.as_millis(),
+                percentage
+            );
         }
-        
+
         println!("  {:<20}: {:>8.2}ms", "TOTAL", total.as_millis());
     }
 }
@@ -232,22 +280,23 @@ impl ResourceMonitor {
         let mut system = System::new_all();
         system.refresh_all();
         let pid = std::process::id();
-        
-        let initial_memory = system.process(sysinfo::Pid::from(pid as usize))
+
+        let initial_memory = system
+            .process(sysinfo::Pid::from(pid as usize))
             .map(|p| p.memory())
             .unwrap_or(0);
-        
+
         Self {
             system,
             pid,
             initial_memory,
         }
     }
-    
+
     pub fn refresh(&mut self) {
         self.system.refresh_all();
     }
-    
+
     pub fn current_memory_mb(&mut self) -> f64 {
         self.refresh();
         if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
@@ -256,7 +305,7 @@ impl ResourceMonitor {
             0.0
         }
     }
-    
+
     pub fn memory_delta_mb(&mut self) -> f64 {
         self.refresh();
         if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
@@ -266,7 +315,7 @@ impl ResourceMonitor {
             0.0
         }
     }
-    
+
     pub fn cpu_usage(&mut self) -> f32 {
         self.refresh();
         if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
@@ -275,13 +324,15 @@ impl ResourceMonitor {
             0.0
         }
     }
-    
+
     pub fn print_resource_usage(&mut self) {
         println!("\n{}", "Resource Usage".bold());
         println!("{}", "==============".bold());
-        println!("Memory: {:.1} MB (Δ{:+.1} MB)", 
-                self.current_memory_mb(), 
-                self.memory_delta_mb());
+        println!(
+            "Memory: {:.1} MB (Δ{:+.1} MB)",
+            self.current_memory_mb(),
+            self.memory_delta_mb()
+        );
         println!("CPU: {:.1}%", self.cpu_usage());
     }
 }
@@ -298,20 +349,22 @@ pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::e
 
 /// Stop profiling and generate flamegraph
 #[cfg(feature = "flamegraph")]
-pub fn stop_profiling_and_report(guard: pprof::ProfilerGuard) -> Result<(), Box<dyn std::error::Error>> {
+pub fn stop_profiling_and_report(
+    guard: pprof::ProfilerGuard,
+) -> Result<(), Box<dyn std::error::Error>> {
     match guard.report().build() {
         Ok(report) => {
             // Note: Protobuf output temporarily disabled due to API changes
             // TODO: Re-enable once pprof protobuf API is clarified
-            
+
             // Generate flamegraph if possible
             let file = std::fs::File::create("flamegraph.svg")?;
             report.flamegraph(file)?;
             println!("Flamegraph saved to flamegraph.svg");
-        }
+        },
         Err(e) => {
             eprintln!("Failed to generate profile report: {}", e);
-        }
+        },
     }
     Ok(())
 }
@@ -334,12 +387,12 @@ fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {
@@ -364,62 +417,62 @@ impl BoldFormat for str {
 mod tests {
     use super::*;
     use std::thread;
-    
+
     #[test]
     fn test_performance_metrics() {
         let metrics = PerformanceMetrics::default();
-        
+
         // Record some search operations
         metrics.record_search(Duration::from_millis(5), 1000);
         metrics.record_search(Duration::from_millis(7), 1500);
-        
+
         assert_eq!(metrics.search_count.load(Ordering::Relaxed), 2);
         assert_eq!(metrics.lines_searched.load(Ordering::Relaxed), 2500);
-        
+
         // Average should be 6ms = 6000 microseconds
         assert!((metrics.avg_search_time_micros() - 6000.0).abs() < 1.0);
     }
-    
+
     #[test]
     fn test_operation_timer() {
         let timer = OperationTimer::new("test_operation");
         thread::sleep(Duration::from_millis(1));
         let duration = timer.finish();
-        
+
         assert!(duration >= Duration::from_millis(1));
     }
-    
+
     #[test]
     fn test_component_timings() {
         let mut timings = ComponentTimings::new();
-        
+
         timings.time("parsing", || {
             thread::sleep(Duration::from_millis(2));
             "parsed"
         });
-        
+
         timings.time("indexing", || {
             thread::sleep(Duration::from_millis(3));
             "indexed"
         });
-        
+
         let parsing_time = timings.get_timing("parsing").unwrap();
         let indexing_time = timings.get_timing("indexing").unwrap();
-        
+
         assert!(parsing_time >= Duration::from_millis(2));
         assert!(indexing_time >= Duration::from_millis(3));
         assert!(timings.total_time() >= Duration::from_millis(5));
     }
-    
+
     #[test]
     fn test_resource_monitor() {
         let mut monitor = ResourceMonitor::new();
         let memory = monitor.current_memory_mb();
         let _cpu = monitor.cpu_usage();
-        
+
         assert!(memory > 0.0, "Should report some memory usage");
     }
-    
+
     #[test]
     fn test_format_bytes() {
         assert_eq!(format_bytes(500), "500 B");

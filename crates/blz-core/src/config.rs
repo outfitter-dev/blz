@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -34,7 +34,7 @@ pub struct PathsConfig {
 impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
-        
+
         if config_path.exists() {
             let content = fs::read_to_string(&config_path)
                 .map_err(|e| Error::Config(format!("Failed to read config: {}", e)))?;
@@ -44,28 +44,29 @@ impl Config {
             Ok(Self::default())
         }
     }
-    
+
     pub fn save(&self) -> Result<()> {
         let config_path = Self::config_path()?;
-        let parent = config_path.parent()
+        let parent = config_path
+            .parent()
             .ok_or_else(|| Error::Config("Invalid config path".into()))?;
-        
+
         fs::create_dir_all(parent)
             .map_err(|e| Error::Config(format!("Failed to create config directory: {}", e)))?;
-        
+
         let content = toml::to_string_pretty(self)
             .map_err(|e| Error::Config(format!("Failed to serialize config: {}", e)))?;
-        
+
         fs::write(&config_path, content)
             .map_err(|e| Error::Config(format!("Failed to write config: {}", e)))?;
-        
+
         Ok(())
     }
-    
+
     fn config_path() -> Result<PathBuf> {
         let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "cache")
             .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
-        
+
         Ok(project_dirs.config_dir().join("global.toml"))
     }
 }
@@ -123,7 +124,7 @@ impl ToolConfig {
         toml::from_str(&content)
             .map_err(|e| Error::Config(format!("Failed to parse tool config: {}", e)))
     }
-    
+
     pub fn save(&self, path: &Path) -> Result<()> {
         let content = toml::to_string_pretty(self)
             .map_err(|e| Error::Config(format!("Failed to serialize tool config: {}", e)))?;

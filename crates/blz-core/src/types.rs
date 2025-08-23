@@ -180,7 +180,7 @@ mod tests {
         // Test serialization/deserialization
         let json = serde_json::to_string(&diagnostic).expect("Should serialize");
         let deserialized: Diagnostic = serde_json::from_str(&json).expect("Should deserialize");
-        
+
         match deserialized.severity {
             DiagnosticSeverity::Error => {},
             _ => panic!("Expected Error severity"),
