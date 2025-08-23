@@ -1,0 +1,116 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, review_requested]  # Trigger on open, draft→ready, or review request
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    # Run on PR events (open, ready_for_review, review_requested) OR when someone comments "@claude review"
+    # Allow specific bots (@copilot[bot], @devin[bot], @coderabbitai[bot]) and all humans
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment &&
+       contains(github.event.comment.body, '@claude review') &&
+       (github.event.comment.user.type != 'Bot' ||
+        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login)))
+    
+    runs-on: ubuntu-latest
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read  # Required for Claude to read CI results
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4.1)
+          # model: "claude-opus-4-1-20250805"
+
+          # Direct prompt for automated review (no @claude mention needed)
+          direct_prompt: |
+            ${{ contains(github.event.comment.body, '@claude review latest') || contains(github.event.comment.body, '@claude review recent') && 
+            'Please perform an incremental review focusing ONLY on the changes made since your last review. Look at the most recent commits and provide feedback specifically on what has changed.' ||
+            'Please review this Rust pull request and provide feedback on:
+            - Rust idioms and best practices
+            - Memory safety and error handling (no unwrap/expect in production code)
+            - Performance considerations (especially for search operations)
+            - Clippy warnings and code quality
+            - Test coverage for new functionality
+            - Documentation for public APIs
+            - Compliance with rules in .agent/rules/
+            - Updates to AGENTS.md if architecture changed
+            
+            Be constructive and specific in your feedback. Give inline comments where applicable.
+            Focus on Rust-specific concerns like ownership, borrowing, and trait implementations.
+            
+            ---
+            💡 **For future reviews on this PR**, you can request:
+            - `@claude review` - Full review of all changes
+            - `@claude review latest` or `@claude review recent` - Incremental review of only the newest changes since last review' }}
+          
+          # MCP tools for creating proper GitHub PR reviews with inline comments
+          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+
+          # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
+          # use_sticky_comment: true
+          
+          # Optional: Customize review based on file types
+          # direct_prompt: |
+          #   Review this PR focusing on:
+          #   - For .rs files: Memory safety, ownership, error handling
+          #   - For Cargo.toml: Dependency versions and security
+          #   - For benchmarks: Performance regression checks
+          #   - For tests: Coverage, edge cases, and proptest usage
+          
+          # Optional: Different prompts for different authors
+          # direct_prompt: |
+          #   ${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' && 
+          #   'Welcome! Please review this PR from a first-time contributor. Be encouraging and provide detailed explanations for any suggestions.' ||
+          #   'Please provide a thorough code review focusing on our coding standards and best practices.' }}
+          
+          # Optional: Add specific tools for running tests or linting
+          # allowed_tools: "Bash(cargo test),Bash(cargo clippy),Bash(cargo fmt --check)"
+          
+          # Optional: Skip review for certain conditions
+          # if: |
+          #   !contains(github.event.pull_request.title, '[skip-review]') &&
+          #   !contains(github.event.pull_request.title, '[WIP]')
+
+# This workflow runs automatically when:
+# 1. A PR is first opened (not draft)
+# 2. A draft PR is marked as ready for review
+# 3. Someone requests a review on the PR
+# 4. Someone comments "@claude review" on a PR
+#
+# Review types:
+# - Initial open: Full review with instructions for future reviews
+# - "@claude review": Full review of all changes
+# - "@claude review latest" or "@claude review recent": Incremental review of newest changes only
+#
+# Allowed comment sources:
+# - All human users
+# - Specific bots: @copilot[bot], @devin[bot], @coderabbitai[bot]
+#
+# It will NOT run on:
+# - New commits to existing PRs (unless manually triggered)
+# - Draft PRs
+# - Other bot comments (except the allowed ones)
