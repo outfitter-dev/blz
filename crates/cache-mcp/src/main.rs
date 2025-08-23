@@ -83,7 +83,7 @@ fn main() -> Result<()> {
     io.add_method("get_lines", |params: Params| async {
         let params = params.parse::<serde_json::Value>().unwrap();
         let alias = params["alias"].as_str().unwrap();
-        let file = params.get("file").and_then(|v| v.as_str()).unwrap_or("llms.txt");
+        let _file = params.get("file").and_then(|v| v.as_str()).unwrap_or("llms.txt");
         let start = params["start"].as_u64().unwrap() as usize;
         let end = params["end"].as_u64().unwrap() as usize;
         
@@ -104,7 +104,7 @@ fn main() -> Result<()> {
     });
     
     let server = ServerBuilder::new(io);
-    server.build();
+    let _ = server.build();
     
     Ok(())
 }
