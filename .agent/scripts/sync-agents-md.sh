@@ -4,14 +4,11 @@
 # AGENTS.md is the source of truth - always overwrites CLAUDE.md
 # Creates/updates CLAUDE.md as copies of AGENTS.md
 
-set -euo pipefail
+# Set script directory before sourcing common.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Source common configuration - go up to scripts directory
+source "$(dirname "$SCRIPT_DIR")/scripts/common.sh"
 
 # Counter for statistics
 created=0

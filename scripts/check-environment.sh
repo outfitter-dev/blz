@@ -3,19 +3,11 @@
 # check-environment.sh - Verify development environment for blz
 # Can be run independently or sourced by other scripts
 
-set -euo pipefail
+# Set script directory before sourcing common.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-# Configuration
-REQUIRED_RUST_VERSION="1.75.0"
-REQUIRED_NODE_VERSION="18.0.0"  # For development tools
-MIN_DISK_SPACE_MB=500
-MIN_MEMORY_MB=1024
+# Source common configuration and utilities
+source "${SCRIPT_DIR}/common.sh"
 
 # Status tracking
 CHECKS_PASSED=0
@@ -24,26 +16,18 @@ CHECKS_WARNING=0
 
 # Helper functions
 check_pass() {
-    echo -e "${GREEN}✓${NC} $1"
+    log_success "$1"
     CHECKS_PASSED=$((CHECKS_PASSED + 1))
 }
 
 check_fail() {
-    echo -e "${RED}✗${NC} $1"
+    log_error "$1"
     CHECKS_FAILED=$((CHECKS_FAILED + 1))
 }
 
 check_warn() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    log_warning "$1"
     CHECKS_WARNING=$((CHECKS_WARNING + 1))
-}
-
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-version_ge() {
-    [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
 }
 
 # Check functions

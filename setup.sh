@@ -6,56 +6,25 @@
 # This script provides idempotent environment setup with clear progress indicators
 # and handles common failure modes gracefully.
 
-set -euo pipefail
-
-# Colors for output (works in most terminals)
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Configuration
+# Set script directory before sourcing common.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
-REQUIRED_RUST_VERSION="1.75.0"
-BINARY_NAME="blz"
+
+# Source common configuration and utilities
+source "${SCRIPT_DIR}/scripts/common.sh"
 
 # Progress tracking for AI agents
 STEP_COUNT=0
 TOTAL_STEPS=10
 
-# Helper functions
-log_step() {
+# Override log_step to include counter
+log_step_with_counter() {
     STEP_COUNT=$((STEP_COUNT + 1))
-    echo -e "${BLUE}[${STEP_COUNT}/${TOTAL_STEPS}]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}✗${NC} $1"
-}
-
-# Check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-# Compare version strings
-version_ge() {
-    [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+    log_step_with_counter "${STEP_COUNT}" "${TOTAL_STEPS}" "$1"
 }
 
 # Main setup functions
 setup_rust() {
-    log_step "Checking Rust installation..."
+    log_step_with_counter "Checking Rust installation..."
     
     if command_exists rustc; then
         RUST_VERSION=$(rustc --version | cut -d' ' -f2)
@@ -73,13 +42,13 @@ setup_rust() {
     fi
     
     # Ensure we have required components
-    log_step "Installing Rust components..."
+    log_step_with_counter "Installing Rust components..."
     rustup component add clippy rustfmt rust-src 2>/dev/null || true
     log_success "Rust components installed"
 }
 
 setup_cargo_tools() {
-    log_step "Installing required cargo tools..."
+    log_step_with_counter "Installing required cargo tools..."
     
     local tools=("cargo-deny" "cargo-shear")
     local installed=0
@@ -107,7 +76,7 @@ setup_cargo_tools() {
 }
 
 setup_dev_tools() {
-    log_step "Installing optional development tools..."
+    log_step_with_counter "Installing optional development tools..."
     
     local optional_tools=("cargo-watch" "flamegraph" "cargo-llvm-cov")
     local installed=0
@@ -124,7 +93,7 @@ setup_dev_tools() {
 }
 
 build_project() {
-    log_step "Building project..."
+    log_step_with_counter "Building project..."
     
     cd "$PROJECT_ROOT"
     
@@ -149,7 +118,7 @@ build_project() {
 }
 
 run_tests() {
-    log_step "Running tests..."
+    log_step_with_counter "Running tests..."
     
     cd "$PROJECT_ROOT"
     
@@ -161,7 +130,7 @@ run_tests() {
 }
 
 run_quality_checks() {
-    log_step "Running quality checks..."
+    log_step_with_counter "Running quality checks..."
     
     cd "$PROJECT_ROOT"
     
@@ -189,7 +158,7 @@ run_quality_checks() {
 }
 
 setup_shell_completions() {
-    log_step "Setting up shell completions..."
+    log_step_with_counter "Setting up shell completions..."
     
     if [ -f "$PROJECT_ROOT/scripts/install-completions.sh" ]; then
         if bash "$PROJECT_ROOT/scripts/install-completions.sh" "$BINARY_NAME" >/dev/null 2>&1; then
@@ -203,7 +172,7 @@ setup_shell_completions() {
 }
 
 create_development_env() {
-    log_step "Creating development environment files..."
+    log_step_with_counter "Creating development environment files..."
     
     # Create .env.example if it doesn't exist
     if [ ! -f "$PROJECT_ROOT/.env.example" ]; then

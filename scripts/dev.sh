@@ -3,39 +3,11 @@
 # dev.sh - Quick development commands for blz
 # Provides common development workflows for AI agents and developers
 
-set -euo pipefail
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-# Configuration
+# Set script directory before sourcing common.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BINARY_NAME="blz"
 
-# Helper functions
-log_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}✗${NC} $1"
-}
-
-log_section() {
-    echo
-    echo -e "${CYAN}▶ $1${NC}"
-    echo "────────────────────────────────────────────"
-}
+# Source common configuration and utilities
+source "${SCRIPT_DIR}/common.sh"
 
 # Command functions
 cmd_build() {

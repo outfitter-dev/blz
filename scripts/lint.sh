@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Run Clippy linting on the blz project
 
-set -e
+# Set script directory before sourcing common.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common configuration and utilities
+source "${SCRIPT_DIR}/common.sh"
 
 echo "🔍 Running Clippy linting checks..."
 echo ""
