@@ -1,5 +1,5 @@
 [package]
-name = "blzr-core"
+name = "blz-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

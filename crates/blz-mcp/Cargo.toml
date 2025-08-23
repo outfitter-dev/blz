@@ -1,5 +1,5 @@
 [package]
-name = "blzr-mcp"
+name = "blz-mcp"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ name = "blz-mcp"
 path = "src/main.rs"
 
 [dependencies]
-blzr-core.workspace = true
+blz-core.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

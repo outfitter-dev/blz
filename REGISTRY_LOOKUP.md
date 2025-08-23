@@ -112,7 +112,7 @@ When run in non-interactive environments (like CI/CD or when stdout is redirecte
 
 ## Adding New Registry Entries
 
-The registry is currently hardcoded in `crates/blzr-core/src/registry.rs`. To add new entries:
+The registry is currently hardcoded in `crates/blz-core/src/registry.rs`. To add new entries:
 
 1. Add a new `RegistryEntry::new()` call to the `Registry::new()` method
 2. Specify the name, slug (kebab-case), description, and llms.txt URL

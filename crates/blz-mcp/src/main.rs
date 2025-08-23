@@ -1,5 +1,5 @@
 use anyhow::Result;
-use blzr_core::{SearchIndex, Storage};
+use blz_core::{SearchIndex, Storage};
 use jsonrpc_core::{IoHandler, Params, Value};
 use jsonrpc_stdio_server::ServerBuilder;
 use serde_json::json;

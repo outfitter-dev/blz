@@ -1,11 +1,11 @@
 use anyhow::Result;
-use blzr_core::{
+use blz_core::{
     Fetcher, FlavorInfo, LlmsJson, MarkdownParser, SearchIndex, Source, Storage, FileInfo, LineIndex,
     PerformanceMetrics, ResourceMonitor, Registry,
 };
 
 #[cfg(feature = "flamegraph")]
-use blzr_core::profiling::{start_profiling, stop_profiling_and_report};
+use blz_core::profiling::{start_profiling, stop_profiling_and_report};
 use chrono::Utc;
 use clap::{CommandFactory, Parser, Subcommand};
 use colored::Colorize;
@@ -18,7 +18,7 @@ use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
 #[command(name = "blz")]
-#[command(about = "Local-first llms.txt cache and MCP server for blazing trails", long_about = None)]
+#[command(about = "Blaze - Blazingly fast documentation cache for llms.txt ecosystems", long_about = None)]
 #[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
 struct Cli {
     #[command(subcommand)]
@@ -942,7 +942,7 @@ async fn lookup_registry(
     Ok(())
 }
 
-fn try_interactive_selection(results: &[blzr_core::registry::RegistrySearchResult]) -> Result<&blzr_core::registry::RegistryEntry> {
+fn try_interactive_selection(results: &[blz_core::registry::RegistrySearchResult]) -> Result<&blz_core::registry::RegistryEntry> {
     if !std::io::stderr().is_terminal() {
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
@@ -1192,7 +1192,7 @@ mod tests {
     // Test helper functions (kept for potential future use in integration tests)
     #[allow(dead_code)]
     mod test_helpers {
-        use blzr_core::Storage;
+        use blz_core::Storage;
         use tempfile::TempDir;
 
         pub fn create_test_storage_with_sources(sources: &[&str]) -> (Storage, TempDir) {
@@ -1285,7 +1285,7 @@ mod tests {
 
     #[test]
     fn test_search_result_deduplication_logic() {
-        use blzr_core::SearchHit;
+        use blz_core::SearchHit;
         
         // Create test hits with duplicates
         let mut hits = vec![
@@ -1497,7 +1497,7 @@ mod tests {
 
     #[test]
     fn test_flavor_sorting_preference() {
-        use blzr_core::FlavorInfo;
+        use blz_core::FlavorInfo;
 
         let mut flavors = vec![
             FlavorInfo {

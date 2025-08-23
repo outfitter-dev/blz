@@ -1,5 +1,5 @@
 [package]
-name = "blzr-cli"
+name = "blz-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,14 +7,14 @@ license.workspace = true
 build = "build.rs"
 
 [features]
-flamegraph = ["blzr-core/flamegraph"]
+flamegraph = ["blz-core/flamegraph"]
 
 [[bin]]
 name = "blz"
 path = "src/main.rs"
 
 [dependencies]
-blzr-core.workspace = true
+blz-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true

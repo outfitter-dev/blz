@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/blzr-core",
-    "crates/blzr-cli",
-    "crates/blzr-mcp",
+    "crates/blz-core",
+    "crates/blz-cli",
+    "crates/blz-mcp",
 ]
 
 [workspace.package]
@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Outfitter Dev"]
 license = "MIT"
-repository = "https://github.com/outfitter-dev/blzr"
+repository = "https://github.com/outfitter-dev/blz"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -45,7 +45,7 @@ sysinfo = "0.32"
 tempfile = "3"
 
 # Internal crates
-blzr-core = { path = "crates/blzr-core" }
-blzr-cli = { path = "crates/blzr-cli" }
-blzr-mcp = { path = "crates/blzr-mcp" }
+blz-core = { path = "crates/blz-core" }
+blz-cli = { path = "crates/blz-cli" }
+blz-mcp = { path = "crates/blz-mcp" }
 

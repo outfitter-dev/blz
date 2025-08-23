@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+
+/**
+ * Blaze (blz) - Blazingly fast documentation cache
+ * 
+ * This is the npm wrapper for the Rust binary.
+ * The actual binary is downloaded during postinstall.
+ */
+
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
+import { platform, arch } from 'os';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Determine the binary name based on platform
+const getBinaryName = () => {
+  const p = platform();
+  const a = arch();
+  
+  if (p === 'win32') {
+    return 'blz.exe';
+  }
+  
+  return `blz-${p}-${a}`;
+};
+
+const binaryPath = join(__dirname, 'bin', getBinaryName());
+
+if (!existsSync(binaryPath)) {
+  console.error('Error: Blaze binary not found.');
+  console.error('Please run: npm install outfitter-blaze');
+  process.exit(1);
+}
+
+// Spawn the binary with all arguments
+const child = spawn(binaryPath, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: process.env,
+});
+
+child.on('exit', (code) => {
+  process.exit(code || 0);
+});
+
+child.on('error', (err) => {
+  console.error('Failed to start Blaze:', err);
+  process.exit(1);
+});

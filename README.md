@@ -1,8 +1,8 @@
-# @outfitter/blzr
+# Blaze
 
-## Why "Blazer"?
+## Why "Blaze"?
 
-Like wilderness explorers who blaze trails by marking paths through uncharted territory, `@outfitter/blzr` ("Blazer") creates clear, marked routes through your documentation landscape. The name captures the dual meaning: blazing trails by establishing clear paths to knowledge, and blazing speed in finding exactly what you need. Just as trail blazers mark trees and rocks to guide future travelers, blzr marks and indexes documentation to guide your coding journey.
+Like wilderness explorers who blaze trails by marking paths through uncharted territory, **Blaze** (`blz`) creates clear, marked routes through your documentation landscape. The name captures the dual meaning: blazing trails by establishing clear paths to knowledge, and blazing speed in finding exactly what you need. Just as trail blazers mark trees and rocks to guide future travelers, Blaze marks and indexes documentation to guide your coding journey.
 
 A local-first, line-accurate docs blz and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
 
@@ -21,12 +21,12 @@ A local-first, line-accurate docs blz and MCP server for fast lookups of `llms.t
 ### From Source
 ```bash
 # Clone and install
-git clone https://github.com/outfitter-dev/blzr
-cd blzr
-cargo install --path crates/blzr-cli
+git clone https://github.com/outfitter-dev/blz
+cd blz
+cargo install --path crates/blz-cli
 
 # Or install directly from GitHub
-cargo install --git https://github.com/outfitter-dev/blzr --branch main blzr-cli
+cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
 ```
 
 ### Shell Setup
@@ -93,7 +93,7 @@ blz diff bun --since "2025-08-20T00:00:00Z"
            │
 ┌──────────▼──────────┐
 │ Storage             │
-│ ~/.outfitter/blzr/ │
+│ ~/.outfitter/blz/ │
 │ - llms.txt/json     │
 │ - .index/           │
 │ - .archive/         │
@@ -107,7 +107,7 @@ The blz includes an MCP server for integration with AI agents and IDEs:
 ```json
 {
   "mcpServers": {
-    "outfitter-blzr": {
+    "outfitter-blz": {
       "command": "blz",
       "args": ["mcp"]
     }
@@ -141,7 +141,7 @@ The blz includes an MCP server for integration with AI agents and IDEs:
 ## Storage Layout
 
 ```
-~/.outfitter/blzr/
+~/.outfitter/blz/
   global.toml                 # Global configuration
   bun/
     llms.txt                  # Latest upstream text
@@ -156,7 +156,7 @@ The blz includes an MCP server for integration with AI agents and IDEs:
 
 ## Configuration
 
-### Global Settings (`~/.outfitter/blzr/global.toml`)
+### Global Settings (`~/.outfitter/blz/global.toml`)
 
 ```toml
 [defaults]
@@ -166,7 +166,7 @@ fetch_enabled = true
 follow_links = "first_party"  # none|first_party|allowlist
 
 [paths]
-root = "~/.outfitter/blzr"
+root = "~/.outfitter/blz"
 ```
 
 ### Per-Tool Settings (`<alias>/settings.toml`)
@@ -220,8 +220,8 @@ See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/blzr
-cd blzr
+git clone https://github.com/outfitter-dev/blz
+cd blz
 
 # Build with Cargo
 cargo build --release

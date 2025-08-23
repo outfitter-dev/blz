@@ -1,0 +1,56 @@
+{
+  "name": "outfitter-blaze",
+  "version": "0.1.0",
+  "description": "Blazingly fast documentation cache for llms.txt ecosystems",
+  "keywords": [
+    "documentation",
+    "cache",
+    "llms",
+    "search",
+    "tantivy",
+    "rust",
+    "cli",
+    "mcp",
+    "blaze",
+    "blz"
+  ],
+  "homepage": "https://blz.run",
+  "bugs": {
+    "url": "https://github.com/outfitter-dev/blz/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/outfitter-dev/blz.git"
+  },
+  "license": "MIT",
+  "author": "Outfitter Dev",
+  "type": "module",
+  "bin": {
+    "blz": "./npm/blz"
+  },
+  "files": [
+    "npm/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "postinstall": "node npm/postinstall.js",
+    "prepack": "node npm/prepack.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
