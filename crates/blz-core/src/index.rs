@@ -329,64 +329,81 @@ impl SearchIndex {
 
     fn extract_snippet(&self, content: &str, query: &str, max_len: usize) -> String {
         let query_lower = query.to_lowercase();
-        let content_lower = content.to_lowercase();
 
-        if let Some(pos) = content_lower.find(&query_lower) {
-            // Find safe UTF-8 boundaries around the match
-            let context_before = 50;
-            let context_after = 50;
+        // Find match position using character indices to handle Unicode correctly
+        let mut match_char_pos = None;
 
-            // Calculate byte positions
-            let byte_start = pos.saturating_sub(context_before);
-            let byte_end = (pos + query.len() + context_after).min(content.len());
+        // Use a sliding window approach with character iteration
+        let content_chars: Vec<char> = content.chars().collect();
+        let query_chars: Vec<char> = query_lower.chars().collect();
 
-            // Find the nearest character boundary for start
-            let start = if byte_start == 0 {
-                0
-            } else {
-                // Find the start of the character at or before byte_start
-                content
-                    .char_indices()
-                    .take_while(|(i, _)| *i <= byte_start)
-                    .last()
-                    .map_or(0, |(i, _)| i)
-            };
+        if !query_chars.is_empty() {
+            for window_start in 0..content_chars.len() {
+                let window_end = (window_start + query_chars.len()).min(content_chars.len());
+                if window_end - window_start < query_chars.len() {
+                    break;
+                }
 
-            // Find the nearest character boundary for end
-            let end = content
-                .char_indices()
-                .find(|(i, _)| *i >= byte_end)
-                .map_or(content.len(), |(i, _)| i);
+                // Check if this window matches (case-insensitive)
+                let window_matches = content_chars[window_start..window_end]
+                    .iter()
+                    .zip(query_chars.iter())
+                    .all(|(c1, c2)| c1.to_lowercase().eq(c2.to_lowercase()));
 
-            let mut snippet = String::with_capacity(end - start + 6);
-            if start > 0 {
+                if window_matches {
+                    match_char_pos = Some(window_start);
+                    break;
+                }
+            }
+        }
+
+        if let Some(char_pos) = match_char_pos {
+            // Derive context from max_len so we don't overshoot the requested length.
+            let total_chars = content_chars.len();
+            let qlen = query_chars.len();
+            let ctx_each_side = max_len.saturating_sub(qlen) / 2;
+
+            let start_char = char_pos.saturating_sub(ctx_each_side);
+            let mut end_char = (char_pos + qlen + ctx_each_side).min(total_chars);
+
+            // Clamp to at most max_len characters around the match.
+            let span = end_char.saturating_sub(start_char);
+            if span > max_len {
+                end_char = start_char + max_len;
+            }
+
+            let left_trunc = start_char > 0;
+            let right_trunc = end_char < total_chars;
+
+            // Build snippet
+            let mut snippet = String::with_capacity((end_char - start_char) * 4 + 6);
+            if left_trunc {
                 snippet.push_str("...");
             }
-            snippet.push_str(&content[start..end]);
-            if end < content.len() {
+            for &ch in content_chars.iter().take(end_char).skip(start_char) {
+                snippet.push(ch);
+            }
+            if right_trunc {
                 snippet.push_str("...");
             }
-
             return snippet;
         }
 
-        // No match found - return truncated content
-        if content.len() <= max_len {
+        // No match found - return truncated content using character count
+        let content_chars: Vec<char> = content.chars().collect();
+        if content_chars.len() <= max_len {
             content.to_string()
         } else {
-            // Find safe UTF-8 boundary for truncation
-            let boundary = content
-                .char_indices()
-                .take_while(|(i, _)| *i < max_len)
-                .last()
-                .map_or(0, |(i, c)| i + c.len_utf8());
-
-            if boundary == 0 {
-                // Edge case: first character is longer than max_len
-                String::from("...")
-            } else {
-                format!("{}...", &content[..boundary])
+            // Truncate based on character count, not byte count
+            let mut result = String::with_capacity(max_len * 4 + 3);
+            for (i, ch) in content_chars.iter().enumerate() {
+                if i >= max_len {
+                    break;
+                }
+                result.push(*ch);
             }
+            result.push_str("...");
+            result
         }
     }
 }
