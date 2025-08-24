@@ -41,9 +41,13 @@ fuzzy-matcher = "0.3"
 
 # Performance & profiling
 criterion = "0.5"
-pprof = { version = "0.13", features = ["flamegraph", "protobuf-codec"] }
+pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"] }
 sysinfo = "0.32"
 tempfile = "3"
+futures = "0.3"
+once_cell = "1"
+parking_lot = "0.12"
+url = "2"
 
 # Internal crates
 blz-core = { path = "crates/blz-core" }
@@ -55,23 +59,23 @@ unsafe_code = "warn"
 missing_docs = "warn"
 
 [workspace.lints.clippy]
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
-cargo = "warn"
+# Set group priorities correctly - specific lints override groups
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 
-# Allow some pedantic lints
+# Allow some pedantic lints with higher priority
 module_name_repetitions = "allow"
-must_use_candidate = "allow"
+must_use_candidate = "allow" 
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 cargo_common_metadata = "allow"
 multiple_crate_versions = "allow"
 
-# Deny dangerous patterns
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-unimplemented = "deny"
-todo = "deny"
+# Warn on dangerous patterns (deny in CI, but allow for development)
+unwrap_used = { level = "warn", priority = 1 }
+expect_used = { level = "warn", priority = 1 }
+panic = { level = "warn", priority = 1 }
+unimplemented = { level = "warn", priority = 1 }
+todo = { level = "warn", priority = 1 }
 

@@ -18,7 +18,7 @@ impl Fetcher {
             .gzip(true)
             .brotli(true)
             .build()
-            .map_err(|e| Error::Network(e))?;
+            .map_err(Error::Network)?;
 
         Ok(Self { client })
     }
@@ -50,22 +50,24 @@ impl Fetcher {
         }
 
         if !status.is_success() {
-            return Err(Error::Network(reqwest::Error::from(
-                response.error_for_status().unwrap_err(),
-            )));
+            // Try to get the actual error, or create one manually
+            match response.error_for_status() {
+                Ok(_) => unreachable!("Status should be an error"),
+                Err(err) => return Err(Error::Network(err)),
+            }
         }
 
         let new_etag = response
             .headers()
             .get(ETAG)
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         let new_last_modified = response
             .headers()
             .get(LAST_MODIFIED)
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         let content = response.text().await?;
         let sha256 = calculate_sha256(&content);
@@ -84,9 +86,11 @@ impl Fetcher {
         let response = self.client.get(url).send().await?;
 
         if !response.status().is_success() {
-            return Err(Error::Network(reqwest::Error::from(
-                response.error_for_status().unwrap_err(),
-            )));
+            // Try to get the actual error, or create one manually
+            match response.error_for_status() {
+                Ok(_) => unreachable!("Status should be an error"),
+                Err(err) => return Err(Error::Network(err)),
+            }
         }
 
         let content = response.text().await?;
@@ -109,7 +113,7 @@ impl Fetcher {
         ];
 
         for flavor_name in flavor_names {
-            let flavor_url = format!("{}/{}", base_url, flavor_name);
+            let flavor_url = format!("{base_url}/{flavor_name}");
 
             // Make HEAD request to check if file exists and get size
             match self.client.head(&flavor_url).send().await {
@@ -143,7 +147,7 @@ impl Fetcher {
         }
 
         // If the user provided a specific llms.txt variant, make sure it's in the list
-        if let Some(filename) = url.split('/').last() {
+        if let Some(filename) = url.split('/').next_back() {
             if filename.starts_with("llms")
                 && filename.ends_with(".txt")
                 && !flavors.iter().any(|f| f.name == filename)
@@ -217,7 +221,7 @@ fn extract_base_url(url: &str) -> String {
     // Simply remove the filename from the URL
     if let Some(last_slash) = url.rfind('/') {
         // Special case: if this is just the scheme separator, keep the full URL
-        if url.len() > 3 && &url[last_slash - 2..last_slash + 1] == "://" {
+        if url.len() > 3 && &url[(last_slash - 2)..=last_slash] == "://" {
             url.to_string()
         } else {
             url[..last_slash].to_string()
@@ -244,11 +248,8 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-impl Default for Fetcher {
-    fn default() -> Self {
-        Self::new().expect("Failed to create fetcher")
-    }
-}
+// Note: Default is not implemented as Fetcher::new() can fail.
+// Use Fetcher::new() directly and handle the Result.
 
 #[cfg(test)]
 mod tests {
@@ -293,13 +294,13 @@ mod tests {
             size: Some(892_000),
             url: "https://example.com/llms-full.txt".to_string(),
         };
-        assert_eq!(format!("{}", flavor_with_size), "llms-full.txt (871.1 KB)");
+        assert_eq!(format!("{flavor_with_size}"), "llms-full.txt (871.1 KB)");
 
         let flavor_no_size = FlavorInfo {
             name: "llms.txt".to_string(),
             size: None,
             url: "https://example.com/llms.txt".to_string(),
         };
-        assert_eq!(format!("{}", flavor_no_size), "llms.txt");
+        assert_eq!(format!("{flavor_no_size}"), "llms.txt");
     }
 }
