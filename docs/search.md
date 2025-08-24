@@ -1,6 +1,6 @@
 # Search Guide
 
-Master the art of searching your cached documentation with blz's fast local search.
+Master the art of searching your indexed documentation with blz's fast local search.
 
 ## Basic Search
 

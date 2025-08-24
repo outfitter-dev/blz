@@ -95,8 +95,9 @@ use crate::output::OutputFormat;
 /// # Generate flamegraph while searching
 /// blz --flamegraph search "performance optimization"
 /// ```
-#[derive(Parser, Clone)]
+#[derive(Parser, Clone, Debug)]
 #[command(name = "blz")]
+#[command(version)]
 #[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
 #[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
 pub struct Cli {
@@ -107,7 +108,7 @@ pub struct Cli {
     #[arg(global = true)]
     pub args: Vec<String>,
 
-    #[arg(long, global = true)]
+    #[arg(short = 'v', long, global = true)]
     pub verbose: bool,
 
     /// Show detailed performance metrics
@@ -167,7 +168,7 @@ pub struct Cli {
 /// # Utility
 /// blz completions bash > ~/.bash_completion.d/blz
 /// ```
-#[derive(Subcommand, Clone)]
+#[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
     /// Generate shell completions
     Completions {

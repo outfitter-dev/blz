@@ -55,7 +55,7 @@ blz search --<TAB>           # Shows all options for search
 
 # Dynamic alias completions
 blz search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
-blz get <TAB>                # Completes with your cached aliases
+blz get <TAB>                # Completes with your indexed aliases
 blz update <TAB>             # Shows available sources to update
 blz diff <TAB>               # Shows sources you can diff
 
@@ -92,7 +92,7 @@ blz search --<TAB>       # Shows options
 Fish completions are enhanced with runtime data:
 
 ```fish
-# This function queries your actual cached sources
+# This function queries your actual indexed sources
 function __fish_blz_complete_aliases
     blz list --format json 2>/dev/null | python3 -c "
 import json, sys
@@ -108,7 +108,7 @@ end
 
 ### What Gets Completed
 
-1. **Aliases** - Your actual cached sources
+1. **Aliases** - Your actual indexed sources
 2. **Commands** - All available subcommands
 3. **Options** - Flags and parameters
 4. **Values** - Format options (json/pretty)

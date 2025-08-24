@@ -4,7 +4,7 @@ This guide covers everything about managing documentation sources in `blz`.
 
 ## Understanding Sources
 
-A **source** is a cached copy of documentation from a URL, typically in `llms.txt` format. Each source has:
+A **source** is an indexed copy of documentation from a URL, typically in `llms.txt` format. Each source has:
 
 - An **alias** - Short name for referencing (e.g., `bun`, `node`)
 - A **URL** - Where the documentation comes from
@@ -216,7 +216,7 @@ Content...
 
 ### JSON Documents
 
-The blz can handle JSON documents (like Node.js API):
+blz can handle JSON documents (like Node.js API):
 
 ```bash
 blz add node https://nodejs.org/api/all.json
@@ -260,7 +260,7 @@ blz update --all
 ```
 
 ### 4. Monitor Storage
-The blz is efficient, but check occasionally:
+blz is efficient, but check occasionally:
 
 ```bash
 blz list  # Shows line counts
@@ -283,7 +283,7 @@ blz add bun https://bun.sh/llms.txt
 Check your internet connection and try again.
 
 ### Parse Errors
-The blz handles malformed documents gracefully, but check diagnostics in the JSON:
+blz handles malformed documents gracefully, but check diagnostics in the JSON:
 
 ```bash
 cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnostics
@@ -335,6 +335,6 @@ done
 
 ## Next Steps
 
-- Learn about [Searching](search.md) your cached sources
+- Learn about [Searching](search.md) your indexed sources
 - Understand the storage layout details in [AGENTS.md](../AGENTS.md#storage-layout)
 - Read about [Architecture](architecture.md) for technical details

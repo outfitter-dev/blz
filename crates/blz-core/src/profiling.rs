@@ -368,7 +368,7 @@ pub fn stop_profiling_and_report(
             println!("Flamegraph saved to flamegraph.svg");
         },
         Err(e) => {
-            eprintln!("Failed to generate profile report: {}", e);
+            eprintln!("Failed to generate profile report: {e}");
         },
     }
     Ok(())
