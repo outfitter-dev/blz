@@ -1,0 +1,72 @@
+# Lefthook configuration for Rust project
+# https://github.com/evilmartians/lefthook
+#
+# Installation:
+#   brew install lefthook          # macOS with Homebrew
+#   cargo install lefthook          # Cross-platform with Cargo
+#   curl -sSfL https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | sh  # Script
+#
+# Setup:
+#   lefthook install                # Install git hooks
+#
+# Required tools:
+#   cargo install commitlint-rs     # Rust-based commit linter
+
+# Skip hooks in CI/CD environments
+skip_in_ci: true
+
+# Colors in output
+colors: true
+
+# Hooks configuration
+pre-commit:
+  parallel: true
+  commands:
+    # Rust formatting check
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt -- --check
+      skip:
+        - merge
+        - rebase
+    
+    # Rust linting with Clippy (using existing script)
+    clippy:
+      glob: "*.rs"
+      run: ./scripts/lint.sh
+      skip:
+        - merge
+        - rebase
+
+commit-msg:
+  commands:
+    # Validate commit message with commitlint-rs
+    commitlint:
+      run: |
+        if command -v commitlint &> /dev/null; then
+          commitlint --edit {1}
+        else
+          echo "⚠️  commitlint-rs not installed. Install with: cargo install commitlint-rs"
+          echo "    Skipping commit message validation..."
+        fi
+
+pre-push:
+  parallel: true
+  commands:
+    # Run tests before push (using Makefile)
+    test:
+      run: make test
+      skip:
+        - wip
+    
+    # Build check (using Makefile)
+    build:
+      run: make build
+      skip:
+        - wip
+
+# Post-merge hook to remind about dependencies
+post-merge:
+  commands:
+    deps-reminder:
+      run: echo "📦 Remember to run 'cargo build' if Cargo.toml changed"

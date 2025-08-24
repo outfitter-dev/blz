@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/cache-core",
-    "crates/cache-cli",
-    "crates/cache-mcp",
+    "crates/blz-core",
+    "crates/blz-cli",
+    "crates/blz-mcp",
 ]
 
 [workspace.package]
@@ -11,7 +11,8 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Outfitter Dev"]
 license = "MIT"
-repository = "https://github.com/outfitter-dev/cache"
+repository = "https://github.com/outfitter-dev/blz"
+rust-version = "1.75.0"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -33,6 +34,7 @@ tree-sitter = "0.24"
 tree-sitter-md = "0.3"
 tantivy = "0.22"
 similar = "2"
+fuzzy-matcher = "0.3"
 
 # MCP server
 # rmcp = "0.4"  # Will uncomment when available
@@ -44,7 +46,32 @@ sysinfo = "0.32"
 tempfile = "3"
 
 # Internal crates
-cache-core = { path = "crates/cache-core" }
-cache-cli = { path = "crates/cache-cli" }
-cache-mcp = { path = "crates/cache-mcp" }
+blz-core = { path = "crates/blz-core" }
+blz-cli = { path = "crates/blz-cli" }
+blz-mcp = { path = "crates/blz-mcp" }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+# Allow some pedantic lints
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cargo_common_metadata = "allow"
+multiple_crate_versions = "allow"
+
+# Deny dangerous patterns
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
 

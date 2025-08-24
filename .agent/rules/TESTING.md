@@ -9,6 +9,7 @@ Testing in Rust should leverage the type system to catch bugs at compile time, t
 ### 1. Unit Tests
 
 **Co-located with Source Code**
+
 ```rust
 // src/query/parser.rs
 pub fn parse_query(input: &str) -> Result<ParsedQuery, ParseError> {
@@ -33,7 +34,7 @@ mod tests {
     fn parse_complex_boolean_query() {
         let input = "(title:rust OR body:programming) AND NOT deprecated:true";
         let result = parse_query(input).unwrap();
-        
+
         match result {
             ParsedQuery::Boolean { op: BoolOp::And, left, right } => {
                 // Verify structure
@@ -47,6 +48,7 @@ mod tests {
 ```
 
 **Testing Traits and Generics**
+
 ```rust
 pub trait CacheStorage: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StorageError>;
@@ -80,17 +82,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_storage_contract() {
+    async fn test_blz_storage_contract() {
         let storage = MockStorage::default();
-        
+
         // Test empty cache
         assert_eq!(storage.get("key1").await.unwrap(), None);
-        
+
         // Test set and get
         let value = b"test_value".to_vec();
         storage.set("key1", value.clone()).await.unwrap();
         assert_eq!(storage.get("key1").await.unwrap(), Some(value));
-        
+
         // Test overwrite
         let new_value = b"new_value".to_vec();
         storage.set("key1", new_value.clone()).await.unwrap();
@@ -102,9 +104,10 @@ mod tests {
 ### 2. Integration Tests
 
 **Separate Test Directory**
+
 ```rust
 // tests/integration/search_pipeline.rs
-use cache_core::{SearchIndex, CacheConfig, SearchCache};
+use blz_core::{SearchIndex, CacheConfig, SearchCache};
 use tempfile::TempDir;
 use tokio_test;
 
@@ -120,10 +123,10 @@ impl TestContext {
         let temp_dir = TempDir::new()?;
         let mut config = CacheConfig::default();
         config.index_path = temp_dir.path().join("index");
-        
+
         let index = SearchIndex::create(&config.index_path)?;
         let cache = SearchCache::new(config.clone())?;
-        
+
         Ok(Self {
             temp_dir,
             config,
@@ -149,7 +152,7 @@ impl TestContext {
         for doc in documents {
             self.index.add_document(doc).await?;
         }
-        
+
         self.index.commit().await?;
         Ok(())
     }
@@ -163,12 +166,12 @@ async fn test_full_search_pipeline() {
     // Test basic search
     let results = ctx.cache.search("rust").await.unwrap();
     assert_eq!(results.hits.len(), 2);
-    assert!(!results.from_cache);
+    assert!(!results.from_blz);
 
     // Test cache hit
     let cached_results = ctx.cache.search("rust").await.unwrap();
     assert_eq!(cached_results.hits.len(), 2);
-    assert!(cached_results.from_cache);
+    assert!(cached_results.from_blz);
     assert!(cached_results.execution_time < results.execution_time);
 
     // Test field-specific search
@@ -193,7 +196,7 @@ async fn test_concurrent_searches() {
     for i in 0..10 {
         let cache_clone = Arc::clone(&cache);
         let query = if i % 2 == 0 { "rust" } else { "programming" };
-        
+
         handles.push(tokio::spawn(async move {
             cache_clone.search(query).await
         }));
@@ -218,6 +221,7 @@ async fn test_concurrent_searches() {
 ### 3. Property-Based Tests
 
 **Using Proptest**
+
 ```rust
 use proptest::prelude::*;
 
@@ -256,7 +260,7 @@ proptest! {
     #[test]
     fn query_parsing_roundtrip(query in any::<ArbitraryQuery>()) {
         let query_string = query.to_string();
-        
+
         // If parsing succeeds, serializing and parsing again should be identical
         if let Ok(parsed) = parse_query(&query_string) {
             let serialized = parsed.to_string();
@@ -271,13 +275,13 @@ proptest! {
         limit in 1u16..100u16
     ) {
         prop_assume!(!query.trim().is_empty());
-        
+
         let index = create_test_index();
-        
+
         // Same query should return same results
         let results1 = index.search(&query, limit).unwrap();
         let results2 = index.search(&query, limit).unwrap();
-        
+
         prop_assert_eq!(results1.hits, results2.hits);
         prop_assert_eq!(results1.total_count, results2.total_count);
     }
@@ -288,17 +292,17 @@ proptest! {
         limit in 1u16..100u16
     ) {
         prop_assume!(!query.trim().is_empty());
-        
-        let mut cache = create_test_cache();
-        
+
+        let mut cache = create_test_blz();
+
         // First search (miss)
         let uncached = cache.search(&query, limit).unwrap();
-        prop_assert!(!uncached.from_cache);
-        
+        prop_assert!(!uncached.from_blz);
+
         // Second search (hit)
         let cached = cache.search(&query, limit).unwrap();
-        prop_assert!(cached.from_cache);
-        
+        prop_assert!(cached.from_blz);
+
         // Results should be identical except for cache flag
         prop_assert_eq!(uncached.hits, cached.hits);
         prop_assert_eq!(uncached.total_count, cached.total_count);
@@ -309,10 +313,11 @@ proptest! {
 ### 4. Benchmark Tests
 
 **Performance Regression Detection**
+
 ```rust
 // benches/search_benchmarks.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use cache_core::*;
+use blz_core::*;
 
 fn search_performance_benchmarks(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -323,7 +328,7 @@ fn search_performance_benchmarks(c: &mut Criterion) {
     });
 
     let mut group = c.benchmark_group("search_performance");
-    
+
     // Benchmark different query types
     let query_types = vec![
         ("simple_term", "rust"),
@@ -336,46 +341,46 @@ fn search_performance_benchmarks(c: &mut Criterion) {
 
     for (name, query) in query_types {
         group.throughput(Throughput::Elements(1));
-        
+
         group.bench_with_input(
             BenchmarkId::new("uncached", name),
             &query,
             |b, &query| {
                 b.to_async(&rt).iter(|| async {
-                    index.clear_cache().await;
+                    index.clear_blz().await;
                     black_box(index.search(query, 10).await.unwrap())
                 })
             },
         );
-        
+
         group.bench_with_input(
             BenchmarkId::new("cached", name),
             &query,
             |b, &query| {
                 // Warm up cache
                 rt.block_on(async { index.search(query, 10).await.unwrap() });
-                
+
                 b.to_async(&rt).iter(|| async {
                     black_box(index.search(query, 10).await.unwrap())
                 })
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn indexing_performance_benchmarks(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     let mut group = c.benchmark_group("indexing_performance");
-    
+
     // Benchmark document sizes
     let doc_sizes = vec![100, 1_000, 10_000, 100_000];
-    
+
     for size in doc_sizes {
         group.throughput(Throughput::Bytes(size as u64));
-        
+
         group.bench_with_input(
             BenchmarkId::new("add_document", size),
             &size,
@@ -393,7 +398,7 @@ fn indexing_performance_benchmarks(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
@@ -404,6 +409,7 @@ criterion_main!(benches);
 ### 5. Stress Tests
 
 **Resource Limits and Edge Cases**
+
 ```rust
 // tests/stress/resource_limits.rs
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -412,28 +418,28 @@ use tokio::time::{timeout, Duration};
 
 #[tokio::test]
 async fn test_memory_usage_under_load() {
-    let cache = create_test_cache_with_limits();
+    let cache = create_test_blz_with_limits();
     let memory_tracker = MemoryTracker::new();
-    
+
     // Generate load
     let tasks = (0..1000)
         .map(|i| {
             let cache = cache.clone();
             let query = format!("test query {}", i % 100); // Some overlap for caching
-            
+
             tokio::spawn(async move {
                 cache.search(&query, 10).await
             })
         })
         .collect::<Vec<_>>();
-    
+
     let results = futures::future::join_all(tasks).await;
-    
+
     // Verify all searches completed successfully
     for result in results {
         assert!(result.unwrap().is_ok());
     }
-    
+
     // Verify memory usage stayed within bounds
     let peak_memory = memory_tracker.peak_usage();
     assert!(peak_memory < 500_000_000, "Peak memory usage: {} bytes", peak_memory);
@@ -442,13 +448,13 @@ async fn test_memory_usage_under_load() {
 #[tokio::test]
 async fn test_query_timeout_handling() {
     let index = create_slow_test_index(); // Intentionally slow for timeout testing
-    
+
     let query = "complex AND expensive AND query";
     let result = timeout(
         Duration::from_millis(100),
         index.search(query, 1000)
     ).await;
-    
+
     match result {
         Ok(search_result) => {
             // Query completed within timeout - that's fine
@@ -466,7 +472,7 @@ async fn test_query_timeout_handling() {
 async fn test_concurrent_index_updates() {
     let index = Arc::new(create_test_index().await.unwrap());
     let counter = Arc::new(AtomicUsize::new(0));
-    
+
     // Concurrent readers
     let readers = (0..10).map(|_| {
         let index = Arc::clone(&index);
@@ -476,7 +482,7 @@ async fn test_concurrent_index_updates() {
             }
         })
     });
-    
+
     // Concurrent writers
     let writers = (0..5).map(|_| {
         let index = Arc::clone(&index);
@@ -489,11 +495,11 @@ async fn test_concurrent_index_updates() {
             }
         })
     });
-    
+
     // Wait for all operations to complete
     let _ = futures::future::try_join_all(readers).await;
     let _ = futures::future::try_join_all(writers).await;
-    
+
     // Verify index is in consistent state
     index.commit().await.unwrap();
     let final_count = index.document_count().await.unwrap();
@@ -506,6 +512,7 @@ async fn test_concurrent_index_updates() {
 ### Test Structure
 
 **Directory Layout**
+
 ```
 cache/
 ├── src/                    # Source code with inline unit tests
@@ -530,6 +537,7 @@ cache/
 ### Test Utilities
 
 **Common Test Infrastructure**
+
 ```rust
 // tests/common/mod.rs
 use std::sync::Once;
@@ -540,7 +548,7 @@ static INIT: Once = Once::new();
 pub fn init_test_logging() {
     INIT.call_once(|| {
         tracing_subscriber::fmt()
-            .with_env_filter("cache_core=debug")
+            .with_env_filter("blz_core=debug")
             .with_test_writer()
             .init();
     });
@@ -555,17 +563,17 @@ impl TestIndex {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let temp_dir = TempDir::new()?;
         let index = SearchIndex::create(temp_dir.path()).await?;
-        
+
         Ok(Self { index, temp_dir })
     }
-    
+
     pub async fn with_documents(documents: Vec<TestDocument>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut test_index = Self::new().await?;
-        
+
         for doc in documents {
             test_index.index.add_document(doc).await?;
         }
-        
+
         test_index.index.commit().await?;
         Ok(test_index)
     }
@@ -588,22 +596,22 @@ impl TestDocumentBuilder {
             url: None,
         }
     }
-    
+
     pub fn body(mut self, body: impl Into<String>) -> Self {
         self.body = body.into();
         self
     }
-    
+
     pub fn tags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.tags = tags.into_iter().map(Into::into).collect();
         self
     }
-    
+
     pub fn url(mut self, url: impl Into<String>) -> Self {
         self.url = Some(url.into());
         self
     }
-    
+
     pub fn build(self) -> TestDocument {
         TestDocument {
             title: self.title,
@@ -626,11 +634,13 @@ impl TestDocumentBuilder {
 ### Coverage Requirements
 
 **Minimum Coverage Targets**
+
 - **Unit Tests**: 90% line coverage, 85% branch coverage
 - **Integration Tests**: 80% of public API paths
 - **Critical Paths**: 100% coverage (error handling, security, data integrity)
 
 **Measuring Coverage**
+
 ```bash
 # Install coverage tool
 cargo install cargo-tarpaulin
@@ -645,12 +655,14 @@ open coverage/tarpaulin-report.html
 ### Test Performance Standards
 
 **Speed Requirements**
+
 - **Unit tests**: Complete in <1ms each, <5s total
 - **Integration tests**: Complete in <100ms each, <30s total
 - **Property tests**: Complete in <10s each
 - **Benchmarks**: Stable results with <5% variance
 
 **Reliability Requirements**
+
 - **Zero flaky tests**: All tests must be deterministic
 - **Parallel execution**: Tests must not interfere with each other
 - **Resource cleanup**: No test should leak resources
@@ -659,22 +671,23 @@ open coverage/tarpaulin-report.html
 ### Test Documentation
 
 **Test Descriptions**
+
 ```rust
 #[test]
-fn should_cache_repeated_queries() {
+fn should_blz_repeated_queries() {
     // Given: A search cache with a populated index
-    let mut cache = create_test_cache();
+    let mut cache = create_test_blz();
     let query = "rust programming";
-    
+
     // When: The same query is executed twice
     let first_result = cache.search(query, 10).unwrap();
     let second_result = cache.search(query, 10).unwrap();
-    
+
     // Then: The second result should come from cache
-    assert!(!first_result.from_cache, "First search should miss cache");
-    assert!(second_result.from_cache, "Second search should hit cache");
+    assert!(!first_result.from_blz, "First search should miss cache");
+    assert!(second_result.from_blz, "Second search should hit cache");
     assert_eq!(first_result.hits, second_result.hits, "Results should be identical");
-    assert!(second_result.execution_time < first_result.execution_time, 
+    assert!(second_result.execution_time < first_result.execution_time,
              "Cached result should be faster");
 }
 ```
@@ -684,6 +697,7 @@ fn should_cache_repeated_queries() {
 ### Common Testing Mistakes
 
 **Avoid These Patterns**
+
 ```rust
 // ❌ Tests that depend on external state
 #[test]
@@ -699,7 +713,7 @@ fn test_search_with_mock_api() {
     let mock_client = MockApiClient::new();
     mock_client.expect_search("rust")
         .returning(|_| Ok(vec![create_test_result()]));
-    
+
     let results = mock_client.search("rust").unwrap();
     assert_eq!(results.len(), 1);
 }
@@ -732,7 +746,7 @@ fn test_complex_scenario() {
 }
 
 // ✅ Break into focused tests with helper functions
-#[test]  
+#[test]
 fn test_search_with_filters() {
     let index = create_index_with_filtered_documents();
     let results = index.search_with_filters("rust", &["programming"]).unwrap();

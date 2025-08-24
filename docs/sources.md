@@ -1,10 +1,11 @@
 # Managing Sources
 
-This guide covers everything about managing documentation sources in @outfitter/cache.
+This guide covers everything about managing documentation sources in `blz`.
 
 ## Understanding Sources
 
 A **source** is a cached copy of documentation from a URL, typically in `llms.txt` format. Each source has:
+
 - An **alias** - Short name for referencing (e.g., `bun`, `node`)
 - A **URL** - Where the documentation comes from
 - **Metadata** - Fetch time, ETag, size, checksum
@@ -14,12 +15,13 @@ A **source** is a cached copy of documentation from a URL, typically in `llms.tx
 ### Basic Usage
 
 ```bash
-cache add <alias> <url>
+blz add <alias> <url>
 ```
 
 Example:
+
 ```bash
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 ```
 
 ### What Happens When You Add
@@ -32,6 +34,7 @@ cache add bun https://bun.sh/llms.txt
 ### Naming Conventions
 
 Choose short, memorable aliases:
+
 - ✅ Good: `bun`, `node`, `react`, `vue`
 - ❌ Avoid: `my-bun-docs`, `bunjs-latest-documentation`
 
@@ -39,10 +42,10 @@ Choose short, memorable aliases:
 
 ```bash
 # Add several documentation sources
-cache add bun https://bun.sh/llms.txt
-cache add node https://nodejs.org/llms.txt  
-cache add deno https://deno.land/llms.txt
-cache add ts https://typescriptlang.org/llms.txt
+blz add bun https://bun.sh/llms.txt
+blz add node https://nodejs.org/llms.txt
+blz add deno https://deno.land/llms.txt
+blz add ts https://typescriptlang.org/llms.txt
 ```
 
 ## Listing Sources
@@ -50,11 +53,12 @@ cache add ts https://typescriptlang.org/llms.txt
 ### View All Sources
 
 ```bash
-cache sources
+blz list
 ```
 
 Output:
-```
+
+```text
 Cached sources:
 
   bun https://bun.sh/llms.txt
@@ -71,10 +75,11 @@ Cached sources:
 For scripting and automation:
 
 ```bash
-cache sources --format json
+blz list --format json
 ```
 
 Output:
+
 ```json
 [
   {
@@ -93,10 +98,11 @@ Output:
 ### Future: Update Single Source
 
 ```bash
-cache update bun
+blz update bun
 ```
 
 This will:
+
 - Check ETag/Last-Modified headers
 - Skip if unchanged (304 Not Modified)
 - Re-index only if content changed
@@ -104,7 +110,7 @@ This will:
 ### Future: Update All Sources
 
 ```bash
-cache update --all
+blz update --all
 ```
 
 Updates all sources efficiently using conditional requests.
@@ -114,7 +120,8 @@ Updates all sources efficiently using conditional requests.
 Sources are stored in platform-specific directories:
 
 ### macOS
-```
+
+```text
 ~/Library/Application Support/outfitter.cache/
   bun/
     llms.txt        # Raw content
@@ -123,7 +130,8 @@ Sources are stored in platform-specific directories:
 ```
 
 ### Linux
-```
+
+```text
 ~/.local/share/outfitter.cache/
   bun/
     llms.txt
@@ -132,7 +140,8 @@ Sources are stored in platform-specific directories:
 ```
 
 ### Windows
-```
+
+```text
 %APPDATA%\outfitter\cache\
   bun\
     llms.txt
@@ -185,7 +194,7 @@ Currently manual - delete the directory:
 # macOS
 rm -rf ~/Library/Application\ Support/outfitter.cache/bun
 
-# Linux  
+# Linux
 rm -rf ~/.local/share/outfitter.cache/bun
 ```
 
@@ -194,6 +203,7 @@ rm -rf ~/.local/share/outfitter.cache/bun
 ### Standard llms.txt
 
 Most sources follow the llms.txt format:
+
 ```markdown
 # Project Documentation
 
@@ -206,67 +216,75 @@ Content...
 
 ### JSON Documents
 
-The cache can handle JSON documents (like Node.js API):
+The blz can handle JSON documents (like Node.js API):
+
 ```bash
-cache add node https://nodejs.org/api/all.json
+blz add node https://nodejs.org/api/all.json
 ```
 
 ### Markdown Files
 
 Any valid Markdown works:
+
 ```bash
-cache add readme https://raw.githubusercontent.com/user/repo/main/README.md
+blz add readme https://raw.githubusercontent.com/user/repo/main/README.md
 ```
 
 ## Best Practices
 
 ### 1. Use Descriptive Aliases
+
 - `bun` not `b`
 - `react` not `r`
 - `typescript` not `ts-docs-latest`
 
 ### 2. Group Related Sources
+
 ```bash
 # Frontend frameworks
-cache add react https://react.dev/llms.txt
-cache add vue https://vuejs.org/llms.txt
-cache add svelte https://svelte.dev/llms.txt
+blz add react https://react.dev/llms.txt
+blz add vue https://vuejs.org/llms.txt
+blz add svelte https://svelte.dev/llms.txt
 
 # Build tools
-cache add vite https://vitejs.dev/llms.txt
-cache add webpack https://webpack.js.org/llms.txt
+blz add vite https://vitejs.dev/llms.txt
+blz add webpack https://webpack.js.org/llms.txt
 ```
 
 ### 3. Regular Updates
 Once implemented, update regularly:
+
 ```bash
 # Future: Daily update
-cache update --all
+blz update --all
 ```
 
 ### 4. Monitor Storage
-The cache is efficient, but check occasionally:
+The blz is efficient, but check occasionally:
+
 ```bash
-cache sources  # Shows line counts
+blz list  # Shows line counts
 ```
 
 ## Troubleshooting
 
 ### 404 Not Found
 The URL might be incorrect:
+
 ```bash
 # Wrong
-cache add bun https://bun.sh/docs/llms.txt
+blz add bun https://bun.sh/docs/llms.txt
 
 # Correct
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 ```
 
 ### Network Errors
 Check your internet connection and try again.
 
 ### Parse Errors
-The cache handles malformed documents gracefully, but check diagnostics in the JSON:
+The blz handles malformed documents gracefully, but check diagnostics in the JSON:
+
 ```bash
 cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnostics
 ```
@@ -276,6 +294,7 @@ cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnosti
 ### Custom Sources
 
 Create your own llms.txt:
+
 ```bash
 # Create a custom documentation file
 cat > my-docs.txt << EOF
@@ -292,7 +311,7 @@ EOF
 python3 -m http.server 8000
 
 # Add to cache
-cache add myproject http://localhost:8000/my-docs.txt
+blz add myproject http://localhost:8000/my-docs.txt
 ```
 
 ### Scripting Source Management
@@ -310,12 +329,12 @@ sources=(
 for source in "${sources[@]}"; do
   IFS=',' read -r alias url <<< "$source"
   echo "Adding $alias from $url"
-  cache add "$alias" "$url"
+  blz add "$alias" "$url"
 done
 ```
 
 ## Next Steps
 
 - Learn about [Searching](search.md) your cached sources
-- Understand [Storage Format](storage.md) for advanced usage
+- Understand the storage layout details in [AGENTS.md](../AGENTS.md#storage-layout)
 - Read about [Architecture](architecture.md) for technical details

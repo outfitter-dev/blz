@@ -2,9 +2,19 @@
 target/
 Cargo.lock
 
+# Environment files
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+.env.test
+*.env
+!.env.example
+!.env.template
+
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 *~

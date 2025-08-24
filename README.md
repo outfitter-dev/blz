@@ -1,10 +1,14 @@
-# @outfitter/cache
+# blz
 
-## Why "Cache"?
+> **blaze** */bleɪz/* (verb, noun)
+>
+> 1. **verb** – Move or proceed at high speed; achieve something rapidly
+> 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey
+> 3. **abbr.** – `blz` – A local-first search cache that indexes llms.txt documentation for instant, line-accurate retrieval
 
-Like explorers leaving supply caches along wilderness trails, `@outfitter/cache` creates reliable stashes of documentation for your coding journey. The name captures both meanings: the technical act of caching data locally for speed, and the expedition practice of strategically placing provisions where they'll be needed most.
+---
 
-A local-first, line-accurate docs cache and MCP server for fast lookups of `llms.txt` ecosystems. Search in milliseconds, cite exact lines, keep diffs, and stay fresh via conditional fetches. Powered by Rust + Tantivy for speed and determinism.
+Local-first search for `llms.txt` ecosystems. Returns exact line citations in milliseconds. Built with Rust + Tantivy for deterministic, fast searches that work offline.
 
 ## Features
 
@@ -14,73 +18,77 @@ A local-first, line-accurate docs cache and MCP server for fast lookups of `llms
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
 - **Change Tracking**: Built-in diff journal with unified diffs and changed sections
-- **MCP Integration**: Official Rust SDK for IDE/agent consumption
+- **Direct CLI Integration**: IDE agents run commands directly for instant results
+- **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
 ## Installation
 
 ### From Source
+
 ```bash
 # Clone and install
-git clone https://github.com/outfitter-dev/cache
-cd cache
-cargo install --path crates/cache-cli
+git clone https://github.com/outfitter-dev/blz
+cd blz
+cargo install --path crates/blz-cli
 
 # Or install directly from GitHub
-cargo install --git https://github.com/outfitter-dev/cache --branch main cache-cli
+cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
 ```
 
 ### Shell Setup
 
 #### Fish
+
 ```fish
 # Add to PATH
 set -gx PATH $HOME/.cargo/bin $PATH
 
 # Install completions
-cache completions fish > ~/.config/fish/completions/cache.fish
+blz completions fish > ~/.config/fish/completions/blz.fish
 ```
 
 #### Bash/Zsh
+
 ```bash
 # Add to PATH
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # Install completions (Bash)
-cache completions bash > ~/.local/share/bash-completion/completions/cache
+blz completions bash > ~/.local/share/bash-completion/completions/blz
 
 # Install completions (Zsh)
-cache completions zsh > ~/.zsh/completions/_cache
+blz completions zsh > ~/.zsh/completions/_blz
 ```
 
 ## Quick Start
 
 ```bash
 # Add a source
-cache add bun https://bun.sh/llms.txt
+blz add bun https://bun.sh/llms.txt
 
 # Search across docs
-cache "test concurrency" bun
-# Or: cache bun "test concurrency"
+blz "test concurrency" bun
+# Or: blz bun "test concurrency"
 
 # Get exact lines
-cache get bun --lines 120-142
-# Or with context: cache get bun -l 120+20
+blz get bun --lines 120-142
+# Or with context: blz get bun -l 120+20
 
 # List all sources
-cache sources
+blz list
 
 # Update all sources (not yet implemented)
-cache update --all
+blz update --all
 
 # View changes (not yet implemented)
-cache diff bun --since "2025-08-20T00:00:00Z"
+blz diff bun --since "2025-08-20T00:00:00Z"
 ```
 
 ## Architecture
 
 ```
 ┌─────────────────────┐
-│ CLI / MCP Server    │
+│ CLI (MCP soon)      │
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐      ┌─────────────────┐
@@ -93,37 +101,31 @@ cache diff bun --since "2025-08-20T00:00:00Z"
            │
 ┌──────────▼──────────┐
 │ Storage             │
-│ ~/.outfitter/cache/ │
+│ ~/.outfitter/blz/ │
 │ - llms.txt/json     │
 │ - .index/           │
 │ - .archive/         │
 └─────────────────────┘
 ```
 
-## MCP Server Usage
+## IDE Agent Integration
 
-The cache includes an MCP server for integration with AI agents and IDEs:
+### Direct CLI Usage (Recommended)
 
-```json
-{
-  "mcpServers": {
-    "outfitter-cache": {
-      "command": "cache",
-      "args": ["mcp"]
-    }
-  }
-}
+IDE agents can run `blz` commands directly for millisecond responses:
+
+```bash
+# Search for documentation
+blz search "test runner" --alias bun --format json
+
+# Get exact line ranges
+blz get bun --lines 423-445
+
+# List all cached sources
+blz list --format json
 ```
 
-### Available Tools
-
-- `list_sources()` - List all cached sources with metadata
-- `search({query, alias?, limit?})` - Search across docs with BM25 ranking
-- `get_lines({alias, file, start, end})` - Get exact line spans
-- `update({alias?})` - Update sources with conditional fetching
-- `diff({alias, since?})` - View changes with unified diffs
-
-### Response Format
+The JSON output is designed for easy parsing by agents:
 
 ```json
 {
@@ -138,10 +140,14 @@ The cache includes an MCP server for integration with AI agents and IDEs:
 }
 ```
 
+### MCP Server (Coming Soon)
+
+For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+
 ## Storage Layout
 
 ```
-~/.outfitter/cache/
+~/.outfitter/blz/
   global.toml                 # Global configuration
   bun/
     llms.txt                  # Latest upstream text
@@ -156,7 +162,7 @@ The cache includes an MCP server for integration with AI agents and IDEs:
 
 ## Configuration
 
-### Global Settings (`~/.outfitter/cache/global.toml`)
+### Global Settings (`~/.outfitter/blz/global.toml`)
 
 ```toml
 [defaults]
@@ -166,7 +172,7 @@ fetch_enabled = true
 follow_links = "first_party"  # none|first_party|allowlist
 
 [paths]
-root = "~/.outfitter/cache"
+root = "~/.outfitter/blz"
 ```
 
 ### Per-Tool Settings (`<alias>/settings.toml`)
@@ -187,22 +193,23 @@ max_heading_block_lines = 400
 
 ## Shell Completions
 
-The `cache` command includes built-in shell completion support with dynamic alias completion:
+The `blz` command includes built-in shell completion support with dynamic alias completion:
 
 ```bash
 # Generate completions for your shell
-cache completions fish    # Fish shell
-cache completions bash    # Bash
-cache completions zsh     # Zsh
+blz completions fish    # Fish shell
+blz completions bash    # Bash
+blz completions zsh     # Zsh
 
 # Fish users get dynamic alias completion
-cache <TAB>                 # Shows your cached aliases
-cache get <TAB>             # Completes with your cached aliases
+blz <TAB>                 # Shows your cached aliases
+blz get <TAB>             # Completes with your cached aliases
 ```
 
 ### Auto-updating Completions
 
 For Fish users, completions can auto-regenerate when the binary updates:
+
 ```bash
 # Run the install script after updates
 ./scripts/install-completions.sh
@@ -220,8 +227,8 @@ See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ```bash
 # Clone the repository
-git clone https://github.com/outfitter-dev/cache
-cd cache
+git clone https://github.com/outfitter-dev/blz
+cd blz
 
 # Build with Cargo
 cargo build --release
@@ -239,7 +246,7 @@ cargo install --path .
 - [tree-sitter-md](https://github.com/tree-sitter-grammars/tree-sitter-markdown) - Markdown parsing
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - Line-level search (optional)
 - [similar](https://github.com/mitsuhiko/similar) - Unified diffs
-- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK
+- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK (coming soon)
 
 ## Security & Privacy
 
@@ -273,4 +280,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
-For detailed architecture and implementation details, see [.agent/PRD.md](.agent/PRD.md).
+For detailed architecture and implementation details, see [docs/architecture.md](docs/architecture.md).

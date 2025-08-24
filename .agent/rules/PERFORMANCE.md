@@ -9,6 +9,7 @@ Performance optimization in Rust follows the principle: **Measure First, Optimiz
 ### Profiling Tools
 
 **CPU Profiling**
+
 ```bash
 # Install profiling tools
 cargo install flamegraph
@@ -27,6 +28,7 @@ cargo instruments -t "Time Profiler" --bin cache-cli -- search "rust programming
 ```
 
 **Memory Profiling**
+
 ```bash
 # Install memory profiling tools
 cargo install dhat
@@ -40,83 +42,84 @@ ms_print massif.out.* | head -30
 ```
 
 **Benchmarking Framework**
+
 ```rust
 // benches/performance.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use cache_core::*;
+use blz_core::*;
 
 fn search_performance(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     // Create test data once
     let (cache, test_queries) = rt.block_on(async {
-        let mut cache = create_large_test_cache().await.unwrap();
+        let mut cache = create_large_test_blz().await.unwrap();
         populate_test_data(&mut cache, 100_000).await.unwrap();
-        
+
         let queries = vec![
             ("simple", "rust"),
-            ("field", "title:programming"), 
+            ("field", "title:programming"),
             ("boolean", "rust AND programming"),
             ("phrase", "\"rust programming language\""),
             ("wildcard", "program*"),
             ("complex", "(title:rust OR body:language) AND NOT deprecated:true"),
         ];
-        
+
         (cache, queries)
     });
 
     let mut group = c.benchmark_group("search_performance");
     group.throughput(Throughput::Elements(1));
-    
+
     for (name, query) in test_queries {
         // Cold cache performance
         group.bench_with_input(
-            BenchmarkId::new("cold_cache", name),
+            BenchmarkId::new("cold_blz", name),
             &query,
             |b, &query| {
                 b.to_async(&rt).iter(|| async {
-                    cache.clear_cache().await;
+                    cache.clear_blz().await;
                     black_box(cache.search(query, 10).await.unwrap())
                 })
             },
         );
-        
-        // Warm cache performance  
+
+        // Warm cache performance
         group.bench_with_input(
-            BenchmarkId::new("warm_cache", name),
+            BenchmarkId::new("warm_blz", name),
             &query,
             |b, &query| {
                 // Warm up cache
                 rt.block_on(async { cache.search(query, 10).await.unwrap() });
-                
+
                 b.to_async(&rt).iter(|| async {
                     black_box(cache.search(query, 10).await.unwrap())
                 })
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn indexing_performance(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     let mut group = c.benchmark_group("indexing_performance");
-    
+
     // Benchmark different document sizes
     let sizes = [1_000, 10_000, 100_000];
-    
+
     for size in sizes {
         group.throughput(Throughput::Bytes(size as u64));
-        
+
         group.bench_with_input(
             BenchmarkId::new("add_document", size),
             &size,
             |b, &size| {
                 b.to_async(&rt).iter_with_setup(
                     || {
-                        let cache = rt.block_on(create_test_cache()).unwrap();
+                        let cache = rt.block_on(create_test_blz()).unwrap();
                         let doc = generate_document(size);
                         (cache, doc)
                     },
@@ -127,7 +130,7 @@ fn indexing_performance(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
@@ -138,6 +141,7 @@ criterion_main!(benches);
 ### Performance Monitoring
 
 **Runtime Metrics Collection**
+
 ```rust
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -151,13 +155,13 @@ pub struct PerformanceMetrics {
     pub cache_hits: AtomicU64,
     pub cache_misses: AtomicU64,
     pub index_operations: AtomicU64,
-    
+
     // Timing histograms (simplified - use proper histogram in production)
     pub search_latency_sum: AtomicU64,
     pub search_latency_count: AtomicU64,
-    pub index_latency_sum: AtomicU64, 
+    pub index_latency_sum: AtomicU64,
     pub index_latency_count: AtomicU64,
-    
+
     // Memory tracking
     pub memory_usage_bytes: AtomicU64,
     pub peak_memory_bytes: AtomicU64,
@@ -178,29 +182,29 @@ impl PerformanceMetrics {
             peak_memory_bytes: AtomicU64::new(0),
         }
     }
-    
+
     pub fn record_search(&self, duration: Duration, cache_hit: bool) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
         self.search_latency_sum.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
         self.search_latency_count.fetch_add(1, Ordering::Relaxed);
-        
+
         if cache_hit {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
         } else {
             self.cache_misses.fetch_add(1, Ordering::Relaxed);
         }
     }
-    
+
     pub fn record_memory_usage(&self, bytes: u64) {
         self.memory_usage_bytes.store(bytes, Ordering::Relaxed);
-        
+
         // Update peak memory
         let mut current_peak = self.peak_memory_bytes.load(Ordering::Relaxed);
         while bytes > current_peak {
             match self.peak_memory_bytes.compare_exchange_weak(
-                current_peak, 
-                bytes, 
-                Ordering::Relaxed, 
+                current_peak,
+                bytes,
+                Ordering::Relaxed,
                 Ordering::Relaxed
             ) {
                 Ok(_) => break,
@@ -208,24 +212,24 @@ impl PerformanceMetrics {
             }
         }
     }
-    
+
     pub fn get_stats(&self) -> PerformanceStats {
         let search_count = self.search_count.load(Ordering::Relaxed);
         let search_latency_sum = self.search_latency_sum.load(Ordering::Relaxed);
         let search_latency_count = self.search_latency_count.load(Ordering::Relaxed);
-        
+
         let avg_search_latency = if search_latency_count > 0 {
             Duration::from_micros(search_latency_sum / search_latency_count)
         } else {
             Duration::ZERO
         };
-        
+
         let cache_hit_rate = if search_count > 0 {
             self.cache_hits.load(Ordering::Relaxed) as f64 / search_count as f64
         } else {
             0.0
         };
-        
+
         PerformanceStats {
             total_searches: search_count,
             average_search_latency: avg_search_latency,
@@ -251,6 +255,7 @@ pub struct PerformanceStats {
 ### String and Buffer Management
 
 **Avoid Unnecessary Allocations**
+
 ```rust
 use std::borrow::Cow;
 use std::ops::Range;
@@ -265,38 +270,38 @@ impl<'a> DocumentParser<'a> {
     pub fn new(content: &'a str) -> Self {
         Self { content, current_pos: 0 }
     }
-    
+
     /// Extract title without allocating new string
     pub fn extract_title(&mut self) -> Option<&'a str> {
         let start = self.find_pattern("# ")?;
         let end = self.find_line_end(start)?;
-        
+
         Some(&self.content[start + 2..end])
     }
-    
+
     /// Extract body sections as string slices
     pub fn extract_sections(&mut self) -> Vec<Section<'a>> {
         let mut sections = Vec::new();
-        
+
         while let Some(section) = self.next_section() {
             sections.push(section);
         }
-        
+
         sections
     }
-    
+
     fn next_section(&mut self) -> Option<Section<'a>> {
         let start = self.find_pattern("## ")?;
         let title_end = self.find_line_end(start)?;
         let content_start = title_end + 1;
         let content_end = self.find_next_section_or_end(content_start);
-        
+
         let section = Section {
             title: &self.content[start + 3..title_end],
             content: &self.content[content_start..content_end],
             range: start..content_end,
         };
-        
+
         self.current_pos = content_end;
         Some(section)
     }
@@ -332,7 +337,7 @@ impl<'a> SearchHit<'a> {
             score,
         }
     }
-    
+
     /// Create search hit with highlighting (requires allocation)
     pub fn new_highlighted(
         document_id: u64,
@@ -353,6 +358,7 @@ impl<'a> SearchHit<'a> {
 ### Memory Pool Pattern
 
 **Reuse Allocations**
+
 ```rust
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -360,7 +366,7 @@ use std::sync::Mutex;
 /// Memory pool for reusing buffers
 pub struct BufferPool {
     small_buffers: Mutex<VecDeque<Vec<u8>>>,   // < 1KB
-    medium_buffers: Mutex<VecDeque<Vec<u8>>>,  // 1-64KB  
+    medium_buffers: Mutex<VecDeque<Vec<u8>>>,  // 1-64KB
     large_buffers: Mutex<VecDeque<Vec<u8>>>,   // > 64KB
 }
 
@@ -372,7 +378,7 @@ impl BufferPool {
             large_buffers: Mutex::new(VecDeque::new()),
         }
     }
-    
+
     /// Get a buffer of at least the specified size
     pub fn get_buffer(&self, min_size: usize) -> PooledBuffer {
         let mut buffer = if min_size <= 1024 {
@@ -382,7 +388,7 @@ impl BufferPool {
         } else {
             self.large_buffers.lock().unwrap().pop_front()
         };
-        
+
         if let Some(ref mut buf) = buffer {
             if buf.capacity() < min_size {
                 buf.reserve(min_size - buf.capacity());
@@ -391,7 +397,7 @@ impl BufferPool {
         } else {
             buffer = Some(Vec::with_capacity(min_size));
         }
-        
+
         PooledBuffer {
             buffer: buffer.unwrap(),
             pool: self,
@@ -409,7 +415,7 @@ impl<'a> PooledBuffer<'a> {
     pub fn as_mut(&mut self) -> &mut Vec<u8> {
         &mut self.buffer
     }
-    
+
     pub fn as_slice(&self) -> &[u8] {
         &self.buffer
     }
@@ -419,7 +425,7 @@ impl Drop for PooledBuffer<'_> {
     fn drop(&mut self) {
         // Return buffer to appropriate pool
         let capacity = self.buffer.capacity();
-        
+
         if capacity <= 1024 {
             let mut pool = self.pool.small_buffers.lock().unwrap();
             if pool.len() < 10 { // Limit pool size
@@ -448,7 +454,7 @@ impl SearchIndex {
     ) -> CacheResult<SearchResults> {
         let mut result_buffer = buffer_pool.get_buffer(8192);
         let mut temp_buffer = buffer_pool.get_buffer(4096);
-        
+
         // Use pooled buffers for intermediate results
         self.execute_search_with_buffers(query, result_buffer.as_mut(), temp_buffer.as_mut()).await
     }
@@ -460,6 +466,7 @@ impl SearchIndex {
 ### Multi-Level Caching
 
 **LRU Cache with Size Limits**
+
 ```rust
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -496,12 +503,12 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
             size_fn,
         }
     }
-    
+
     pub fn get(&mut self, key: &K) -> Option<&V> {
         if let Some(&node_ptr) = self.map.get(key) {
             // Move to front
             self.move_to_front(node_ptr);
-            
+
             unsafe {
                 Some(&(*node_ptr.as_ptr()).value)
             }
@@ -509,10 +516,10 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
             None
         }
     }
-    
+
     pub fn put(&mut self, key: K, value: V) {
         let value_size = (self.size_fn)(&value);
-        
+
         // Check if key exists
         if let Some(&existing_ptr) = self.map.get(&key) {
             unsafe {
@@ -523,15 +530,15 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
             self.move_to_front(existing_ptr);
             return;
         }
-        
+
         // Evict items if necessary
-        while self.map.len() >= self.capacity || 
+        while self.map.len() >= self.capacity ||
               self.current_memory_bytes + value_size > self.max_memory_bytes {
             if !self.evict_lru() {
                 break; // Cache is empty
             }
         }
-        
+
         // Create new node
         let node = Box::new(LruNode {
             key: key.clone(),
@@ -539,25 +546,25 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
             prev: None,
             next: None,
         });
-        
+
         let node_ptr = NonNull::new(Box::into_raw(node)).unwrap();
         self.map.insert(key, node_ptr);
         self.current_memory_bytes += value_size;
-        
+
         // Add to front
         self.add_to_front(node_ptr);
     }
-    
+
     fn evict_lru(&mut self) -> bool {
         if let Some(tail_ptr) = self.tail {
             unsafe {
                 let tail_key = (*tail_ptr.as_ptr()).key.clone();
                 let tail_size = (self.size_fn)(&(*tail_ptr.as_ptr()).value);
-                
+
                 self.remove_node(tail_ptr);
                 self.map.remove(&tail_key);
                 self.current_memory_bytes -= tail_size;
-                
+
                 let _ = Box::from_raw(tail_ptr.as_ptr());
                 true
             }
@@ -565,28 +572,28 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
             false
         }
     }
-    
+
     unsafe fn move_to_front(&mut self, node_ptr: NonNull<LruNode<K, V>>) {
         self.remove_node(node_ptr);
         self.add_to_front(node_ptr);
     }
-    
+
     unsafe fn add_to_front(&mut self, node_ptr: NonNull<LruNode<K, V>>) {
         (*node_ptr.as_ptr()).prev = None;
         (*node_ptr.as_ptr()).next = self.head;
-        
+
         if let Some(head_ptr) = self.head {
             (*head_ptr.as_ptr()).prev = Some(node_ptr);
         } else {
             self.tail = Some(node_ptr);
         }
-        
+
         self.head = Some(node_ptr);
     }
-    
+
     unsafe fn remove_node(&mut self, node_ptr: NonNull<LruNode<K, V>>) {
         let node = &mut *node_ptr.as_ptr();
-        
+
         match (node.prev, node.next) {
             (None, None) => {
                 // Only node
@@ -609,11 +616,11 @@ impl<K: Hash + Eq + Clone, V> LruCache<K, V> {
                 (*next.as_ptr()).prev = Some(prev);
             }
         }
-        
+
         node.prev = None;
         node.next = None;
     }
-    
+
     pub fn cache_stats(&self) -> CacheStats {
         CacheStats {
             entries: self.map.len(),
@@ -636,7 +643,7 @@ pub struct CacheStats {
 
 // Usage with search results
 fn search_result_size(result: &SearchResults) -> usize {
-    std::mem::size_of::<SearchResults>() + 
+    std::mem::size_of::<SearchResults>() +
     result.hits.len() * std::mem::size_of::<SearchHit>() +
     result.hits.iter().map(|hit| hit.title.len() + hit.snippet.len()).sum::<usize>()
 }
@@ -644,7 +651,7 @@ fn search_result_size(result: &SearchResults) -> usize {
 pub type SearchCache = LruCache<String, SearchResults>;
 
 impl SearchIndex {
-    pub fn create_search_cache() -> SearchCache {
+    pub fn create_search_blz() -> SearchCache {
         LruCache::new(
             1000,                    // Max 1000 cached queries
             100 * 1024 * 1024,      // Max 100MB cache
@@ -657,6 +664,7 @@ impl SearchIndex {
 ### Cache Warming Strategies
 
 **Predictive Cache Loading**
+
 ```rust
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -682,52 +690,52 @@ impl QueryAnalytics {
             cleanup_interval: Duration::from_hours(1),
         }
     }
-    
+
     pub fn record_query(&self, query: &str, execution_time: Duration) {
         let mut counts = self.query_counts.write().unwrap();
-        
+
         let stats = counts.entry(query.to_string()).or_insert(QueryStats {
             count: 0,
             last_used: std::time::Instant::now(),
             average_execution_time: Duration::ZERO,
         });
-        
+
         stats.count += 1;
         stats.last_used = std::time::Instant::now();
-        
+
         // Update running average
         if stats.count == 1 {
             stats.average_execution_time = execution_time;
         } else {
             let alpha = 0.1; // Exponential moving average factor
-            let new_avg_millis = (1.0 - alpha) * stats.average_execution_time.as_millis() as f64 
+            let new_avg_millis = (1.0 - alpha) * stats.average_execution_time.as_millis() as f64
                                + alpha * execution_time.as_millis() as f64;
             stats.average_execution_time = Duration::from_millis(new_avg_millis as u64);
         }
     }
-    
+
     pub fn get_popular_queries(&self, limit: usize) -> Vec<String> {
         let counts = self.query_counts.read().unwrap();
-        
+
         let mut queries: Vec<_> = counts
             .iter()
             .map(|(query, stats)| (query.clone(), stats.count))
             .collect();
-            
+
         queries.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by count descending
         queries.into_iter().take(limit).map(|(query, _)| query).collect()
     }
-    
+
     pub fn cleanup_old_entries(&self) {
         let mut counts = self.query_counts.write().unwrap();
         let cutoff = std::time::Instant::now() - Duration::from_days(7);
-        
+
         counts.retain(|_, stats| stats.last_used > cutoff);
     }
-    
+
     pub async fn start_cleanup_task(self: Arc<Self>) {
         let mut interval = interval(self.cleanup_interval);
-        
+
         tokio::spawn(async move {
             loop {
                 interval.tick().await;
@@ -756,12 +764,12 @@ impl CacheWarmer {
             cache,
         }
     }
-    
+
     /// Warm cache with popular queries during off-peak hours
-    pub async fn warm_cache(&self) -> Result<usize, CacheError> {
+    pub async fn warm_blz(&self) -> Result<usize, CacheError> {
         let popular_queries = self.analytics.get_popular_queries(50);
         let mut warmed_count = 0;
-        
+
         for query in popular_queries {
             // Check if already cached
             {
@@ -770,7 +778,7 @@ impl CacheWarmer {
                     continue;
                 }
             }
-            
+
             // Execute query and cache result
             match self.search_index.search(&query, 20).await {
                 Ok(results) => {
@@ -782,27 +790,27 @@ impl CacheWarmer {
                     warn!("Failed to warm cache for query '{}': {}", query, e);
                 }
             }
-            
+
             // Small delay to avoid overwhelming the system
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        
+
         Ok(warmed_count)
     }
-    
+
     pub async fn start_warming_task(self: Arc<Self>) {
         let mut interval = interval(Duration::from_hours(2));
-        
+
         tokio::spawn(async move {
             loop {
                 interval.tick().await;
-                
+
                 // Only warm during off-peak hours (adjust for your timezone)
                 let now = chrono::Local::now();
                 let hour = now.hour();
-                
+
                 if (2..6).contains(&hour) { // 2 AM - 6 AM
-                    match self.warm_cache().await {
+                    match self.warm_blz().await {
                         Ok(count) => {
                             info!("Warmed cache with {} popular queries", count);
                         }
@@ -822,6 +830,7 @@ impl CacheWarmer {
 ### Efficient Async Patterns
 
 **Concurrent Operations**
+
 ```rust
 use futures::future::{try_join, try_join_all};
 use tokio::sync::Semaphore;
@@ -840,48 +849,48 @@ impl MultiIndexSearch {
             concurrency_limit: Arc::new(Semaphore::new(max_concurrent)),
         }
     }
-    
+
     /// Search all indices concurrently and merge results
     pub async fn search_all(&self, query: &str, limit_per_index: u16) -> CacheResult<SearchResults> {
         let search_futures = self.indices.iter().map(|index| {
             let query = query.to_string();
             let index = Arc::clone(index);
             let semaphore = Arc::clone(&self.concurrency_limit);
-            
+
             async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 index.search(&query, limit_per_index).await
             }
         });
-        
+
         // Execute all searches concurrently
         let results = try_join_all(search_futures).await?;
-        
+
         // Merge and sort results by score
         let merged = self.merge_search_results(results, query.len() as u16 * limit_per_index);
         Ok(merged)
     }
-    
+
     fn merge_search_results(&self, results: Vec<SearchResults>, total_limit: u16) -> SearchResults {
         let mut all_hits = Vec::new();
         let mut total_count = 0;
         let mut max_execution_time = Duration::ZERO;
-        
+
         for result in results {
             all_hits.extend(result.hits);
             total_count += result.total_count;
             max_execution_time = max_execution_time.max(result.execution_time);
         }
-        
+
         // Sort by score and limit results
         all_hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         all_hits.truncate(total_limit as usize);
-        
+
         SearchResults {
             hits: all_hits,
             total_count,
             execution_time: max_execution_time,
-            from_cache: false,
+            from_blz: false,
         }
     }
 }
@@ -899,19 +908,19 @@ impl<T: Send + 'static> BatchProcessor<T> {
         batch_size: usize,
         flush_interval: Duration,
         processor_fn: F,
-    ) -> Self 
+    ) -> Self
     where
         F: Fn(Vec<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<(), CacheError>> + Send + 'static,
     {
         let (sender, receiver) = mpsc::channel(batch_size * 2);
-        
+
         let processor = Arc::new(move |batch| {
             Box::pin(processor_fn(batch)) as BoxFuture<'static, Result<(), CacheError>>
         });
-        
+
         Self::start_batch_worker(receiver, batch_size, flush_interval, Arc::clone(&processor));
-        
+
         Self {
             batch_size,
             flush_interval,
@@ -919,7 +928,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
             sender,
         }
     }
-    
+
     pub async fn send(&self, item: T) -> Result<(), CacheError> {
         self.sender.send(item).await
             .map_err(|_| CacheError::ResourceUnavailable {
@@ -927,7 +936,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
                 source: None,
             })
     }
-    
+
     fn start_batch_worker(
         mut receiver: mpsc::Receiver<T>,
         batch_size: usize,
@@ -937,7 +946,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(batch_size);
             let mut flush_timer = interval(flush_interval);
-            
+
             loop {
                 tokio::select! {
                     // Receive new items
@@ -945,7 +954,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
                         match item {
                             Some(item) => {
                                 batch.push(item);
-                                
+
                                 // Flush if batch is full
                                 if batch.len() >= batch_size {
                                     let current_batch = std::mem::take(&mut batch);
@@ -963,7 +972,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
                             }
                         }
                     }
-                    
+
                     // Periodic flush
                     _ = flush_timer.tick() => {
                         if !batch.is_empty() {
@@ -983,7 +992,7 @@ impl<T: Send + 'static> BatchProcessor<T> {
 impl SearchIndex {
     pub fn create_indexing_processor(&self) -> BatchProcessor<Document> {
         let index = Arc::clone(&self.index);
-        
+
         BatchProcessor::new(
             100, // Batch size
             Duration::from_secs(5), // Flush interval
@@ -992,11 +1001,11 @@ impl SearchIndex {
                 async move {
                     // Process batch of documents
                     let mut writer = index.writer(50_000_000)?; // 50MB heap
-                    
+
                     for doc in documents {
                         writer.add_document(doc)?;
                     }
-                    
+
                     writer.commit()?;
                     Ok(())
                 }
@@ -1011,6 +1020,7 @@ impl SearchIndex {
 ### Avoid These Patterns
 
 **Common Performance Mistakes**
+
 ```rust
 // ❌ Unnecessary cloning in hot paths
 pub fn format_results(results: &[SearchHit]) -> Vec<String> {
@@ -1043,7 +1053,7 @@ pub fn process_queries(queries: &[&str]) -> Vec<String> {
 pub fn process_queries(queries: &[&str]) -> Vec<String> {
     let mut results = Vec::with_capacity(queries.len());
     let mut buffer = String::with_capacity(100); // Reuse buffer
-    
+
     for query in queries {
         buffer.clear();
         buffer.push_str("processed: ");
@@ -1056,20 +1066,20 @@ pub fn process_queries(queries: &[&str]) -> Vec<String> {
 // ❌ Blocking in async context
 pub async fn search_and_log(cache: &SearchCache, query: &str) -> CacheResult<SearchResults> {
     let results = cache.search(query, 10).await?;
-    
+
     // This blocks the async runtime!
     std::fs::write("search.log", format!("Query: {}\n", query))?;
-    
+
     Ok(results)
 }
 
 // ✅ Use async file operations
 pub async fn search_and_log(cache: &SearchCache, query: &str) -> CacheResult<SearchResults> {
     let results = cache.search(query, 10).await?;
-    
+
     // Non-blocking file write
     tokio::fs::write("search.log", format!("Query: {}\n", query)).await?;
-    
+
     Ok(results)
 }
 ```

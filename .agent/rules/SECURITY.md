@@ -9,6 +9,7 @@ Security in Rust leverages the language's memory safety guarantees while adding 
 ### Safe Rust by Default
 
 **Forbid Unsafe Code**
+
 ```toml
 # Cargo.toml workspace configuration
 [workspace.lints.rust]
@@ -16,10 +17,11 @@ unsafe_code = "forbid"
 ```
 
 **Justified Unsafe Code**
+
 ```rust
 // Only use unsafe when absolutely necessary and document safety requirements
 /// # Safety
-/// 
+///
 /// This function is safe to call when:
 /// 1. `ptr` is valid and points to initialized memory
 /// 2. The memory region is at least `len` bytes long
@@ -35,10 +37,10 @@ unsafe fn read_raw_bytes<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
 fn read_bytes_safe(buffer: &[u8], offset: usize, len: usize) -> Result<&[u8], SecurityError> {
     buffer
         .get(offset..offset + len)
-        .ok_or(SecurityError::BufferOverflow { 
-            offset, 
-            len, 
-            buffer_size: buffer.len() 
+        .ok_or(SecurityError::BufferOverflow {
+            offset,
+            len,
+            buffer_size: buffer.len()
         })
 }
 ```
@@ -46,6 +48,7 @@ fn read_bytes_safe(buffer: &[u8], offset: usize, len: usize) -> Result<&[u8], Se
 ### Memory Management
 
 **Resource Limits**
+
 ```rust
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -66,7 +69,7 @@ impl MemoryTracker {
 
     pub fn allocate(&self, size: usize) -> Result<MemoryGuard, SecurityError> {
         let current = self.current_usage.load(Ordering::Relaxed);
-        
+
         if current + size > self.max_allowed {
             return Err(SecurityError::MemoryLimit {
                 requested: size,
@@ -123,6 +126,7 @@ impl Drop for MemoryGuard<'_> {
 ### Query Sanitization
 
 **Comprehensive Input Validation**
+
 ```rust
 use regex::Regex;
 use once_cell::sync::Lazy;
@@ -132,19 +136,19 @@ use once_cell::sync::Lazy;
 pub enum SecurityError {
     #[error("Input validation failed: {field} - {reason}")]
     InputValidation { field: String, reason: String },
-    
+
     #[error("Resource limit exceeded: {resource}")]
     ResourceLimit { resource: String },
-    
+
     #[error("Memory limit exceeded: requested {requested}, current {current}, max {max}")]
     MemoryLimit { requested: usize, current: usize, max: usize },
-    
+
     #[error("Rate limit exceeded: {requests} requests in {window:?}")]
     RateLimit { requests: u32, window: std::time::Duration },
-    
+
     #[error("Access denied: {reason}")]
     AccessDenied { reason: String },
-    
+
     #[error("Buffer overflow: offset {offset}, len {len}, buffer size {buffer_size}")]
     BufferOverflow { offset: usize, len: usize, buffer_size: usize },
 }
@@ -174,7 +178,7 @@ impl QueryValidator {
         allowed_fields.insert("tags".to_string());
         allowed_fields.insert("url".to_string());
         allowed_fields.insert("author".to_string());
-        
+
         Self {
             max_query_length: 1000,
             max_terms: 50,
@@ -216,10 +220,10 @@ impl QueryValidator {
 
         // Parse and validate structure
         let parsed = self.parse_query_safely(trimmed)?;
-        
+
         // Check complexity limits
         self.check_query_complexity(&parsed)?;
-        
+
         Ok(ValidatedQuery {
             original: query.to_string(),
             sanitized: trimmed.to_string(),
@@ -231,17 +235,17 @@ impl QueryValidator {
         let mut term_count = 0;
         let mut nesting_depth = 0;
         let mut max_depth = 0;
-        
+
         // Simple recursive descent parser with limits
         self.parse_expression(query, &mut term_count, &mut nesting_depth, &mut max_depth)?;
-        
+
         if term_count > self.max_terms {
             return Err(SecurityError::InputValidation {
                 field: "query".to_string(),
                 reason: format!("Too many terms: {}, max {}", term_count, self.max_terms),
             });
         }
-        
+
         if max_depth > self.max_nesting_depth {
             return Err(SecurityError::InputValidation {
                 field: "query".to_string(),
@@ -252,7 +256,7 @@ impl QueryValidator {
                 ),
             });
         }
-        
+
         // Use a real parser here (this is simplified)
         Ok(ParsedQuery::Term(query.to_string()))
     }
@@ -266,7 +270,7 @@ impl QueryValidator {
     ) -> Result<(), SecurityError> {
         *current_depth += 1;
         *max_depth = (*max_depth).max(*current_depth);
-        
+
         // Check for field queries and validate field names
         if let Some(colon_pos) = expr.find(':') {
             let field_name = &expr[..colon_pos].trim();
@@ -276,7 +280,7 @@ impl QueryValidator {
                     reason: format!("Invalid field name: '{}'", field_name),
                 });
             }
-            
+
             if !self.allowed_fields.contains(*field_name) {
                 return Err(SecurityError::InputValidation {
                     field: "field_name".to_string(),
@@ -284,7 +288,7 @@ impl QueryValidator {
                 });
             }
         }
-        
+
         *term_count += 1;
         *current_depth -= 1;
         Ok(())
@@ -303,6 +307,7 @@ pub struct ValidatedQuery {
 ### File System Security
 
 **Safe Path Handling**
+
 ```rust
 use std::path::{Path, PathBuf};
 
@@ -318,13 +323,13 @@ impl SecurePath {
                 field: "path".to_string(),
                 reason: format!("Invalid path: {}", e),
             })?;
-            
+
         let canonical_base = allowed_base.canonicalize()
             .map_err(|e| SecurityError::InputValidation {
                 field: "base_path".to_string(),
                 reason: format!("Invalid base path: {}", e),
             })?;
-        
+
         // Ensure the path is within the allowed base directory
         if !canonical_path.starts_with(&canonical_base) {
             return Err(SecurityError::AccessDenied {
@@ -335,7 +340,7 @@ impl SecurePath {
                 ),
             });
         }
-        
+
         Ok(canonical_path)
     }
 
@@ -350,7 +355,7 @@ impl SecurePath {
                 field: "file_path".to_string(),
                 reason: format!("Cannot access file: {}", e),
             })?;
-            
+
         if metadata.len() > max_size as u64 {
             return Err(SecurityError::ResourceLimit {
                 resource: format!(
@@ -361,7 +366,7 @@ impl SecurePath {
                 ),
             });
         }
-        
+
         // Read file with timeout
         let content = tokio::time::timeout(
             std::time::Duration::from_secs(30),
@@ -374,7 +379,7 @@ impl SecurePath {
             field: "file_content".to_string(),
             reason: format!("Cannot read file: {}", e),
         })?;
-        
+
         Ok(content)
     }
 }
@@ -385,6 +390,7 @@ impl SecurePath {
 ### Rate Limiting
 
 **Token Bucket Rate Limiter**
+
 ```rust
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -412,7 +418,7 @@ impl TokenBucket {
 
     pub fn try_consume(&mut self, tokens: u32) -> bool {
         self.refill();
-        
+
         if self.tokens >= tokens {
             self.tokens -= tokens;
             true
@@ -452,13 +458,13 @@ impl RateLimiter {
 
     pub async fn check_rate_limit(&self, client_id: &str) -> Result<(), SecurityError> {
         let mut buckets = self.buckets.write().await;
-        
+
         let bucket = buckets
             .entry(client_id.to_string())
             .or_insert_with(|| {
                 TokenBucket::new(self.default_capacity, self.default_refill_rate)
             });
-        
+
         if bucket.try_consume(1) {
             Ok(())
         } else {
@@ -474,6 +480,7 @@ impl RateLimiter {
 ### Resource Limits
 
 **Query Execution Limits**
+
 ```rust
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -517,10 +524,10 @@ impl QueryResourceManager {
 
         // Execute with timeout
         let result = timeout(self.max_query_duration, query_fn).await;
-        
+
         // Decrement counter
         self.current_queries.fetch_sub(1, Ordering::Relaxed);
-        
+
         match result {
             Ok(query_result) => query_result.map_err(|e| SecurityError::InputValidation {
                 field: "query_execution".to_string(),
@@ -553,6 +560,7 @@ impl Drop for QueryExecutionGuard<'_> {
 ### File System Permissions
 
 **Secure File Operations**
+
 ```rust
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
@@ -567,7 +575,7 @@ impl SecureFileSystem {
             .map_err(|e| SecurityError::AccessDenied {
                 reason: format!("Cannot create directory '{}': {}", path.display(), e),
             })?;
-        
+
         // Set restrictive permissions (owner read/write/execute only)
         #[cfg(unix)]
         {
@@ -576,15 +584,15 @@ impl SecureFileSystem {
                     reason: format!("Cannot read directory permissions: {}", e),
                 })?
                 .permissions();
-            
+
             permissions.set_mode(0o700); // rwx------
-            
+
             tokio::fs::set_permissions(path, permissions).await
                 .map_err(|e| SecurityError::AccessDenied {
                     reason: format!("Cannot set directory permissions: {}", e),
                 })?;
         }
-        
+
         Ok(())
     }
 
@@ -594,12 +602,12 @@ impl SecureFileSystem {
             .map_err(|e| SecurityError::AccessDenied {
                 reason: format!("Cannot access file '{}': {}", path.display(), e),
             })?;
-        
+
         #[cfg(unix)]
         {
             let permissions = metadata.permissions();
             let mode = permissions.mode();
-            
+
             // Check that file is not world-readable or group-readable
             if mode & 0o044 != 0 {
                 return Err(SecurityError::AccessDenied {
@@ -611,7 +619,7 @@ impl SecureFileSystem {
                 });
             }
         }
-        
+
         Ok(())
     }
 }
@@ -620,6 +628,7 @@ impl SecureFileSystem {
 ### Configuration Security
 
 **Secure Configuration Loading**
+
 ```rust
 use serde::Deserialize;
 use std::env;
@@ -640,7 +649,7 @@ impl SecurityConfig {
     /// Load configuration from environment variables and config file
     pub fn load() -> Result<Self, SecurityError> {
         let mut config = Self::default();
-        
+
         // Override with environment variables (prefixed with CACHE_)
         if let Ok(val) = env::var("CACHE_MAX_QUERY_LENGTH") {
             config.max_query_length = val.parse()
@@ -649,7 +658,7 @@ impl SecurityConfig {
                     reason: "Must be a valid number".to_string(),
                 })?;
         }
-        
+
         if let Ok(val) = env::var("CACHE_MAX_CONCURRENT_QUERIES") {
             config.max_concurrent_queries = val.parse()
                 .map_err(|_| SecurityError::InputValidation {
@@ -657,13 +666,13 @@ impl SecurityConfig {
                     reason: "Must be a valid number".to_string(),
                 })?;
         }
-        
+
         // Validate configuration values
         config.validate()?;
-        
+
         Ok(config)
     }
-    
+
     fn validate(&self) -> Result<(), SecurityError> {
         if self.max_query_length > 10_000 {
             return Err(SecurityError::InputValidation {
@@ -671,21 +680,21 @@ impl SecurityConfig {
                 reason: "Cannot exceed 10,000 characters".to_string(),
             });
         }
-        
+
         if self.max_concurrent_queries > 1000 {
             return Err(SecurityError::InputValidation {
                 field: "max_concurrent_queries".to_string(),
                 reason: "Cannot exceed 1,000 concurrent queries".to_string(),
             });
         }
-        
+
         if self.rate_limit_requests_per_second > 1000 {
             return Err(SecurityError::InputValidation {
                 field: "rate_limit_requests_per_second".to_string(),
                 reason: "Cannot exceed 1,000 requests per second".to_string(),
             });
         }
-        
+
         // Validate allowed paths exist and are directories
         for path in &self.allowed_index_paths {
             if !path.exists() {
@@ -694,7 +703,7 @@ impl SecurityConfig {
                     reason: format!("Path does not exist: {}", path.display()),
                 });
             }
-            
+
             if !path.is_dir() {
                 return Err(SecurityError::InputValidation {
                     field: "allowed_index_paths".to_string(),
@@ -702,7 +711,7 @@ impl SecurityConfig {
                 });
             }
         }
-        
+
         Ok(())
     }
 }
@@ -729,6 +738,7 @@ impl Default for SecurityConfig {
 ### Cargo Audit Integration
 
 **Security Scanning**
+
 ```toml
 # .github/workflows/security.yml
 name: Security Audit
@@ -746,16 +756,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      
+
     - name: Install cargo-audit
       run: cargo install --force cargo-audit
-      
+
     - name: Run cargo audit
       run: cargo audit
-      
+
     - name: Run cargo deny
       run: |
         cargo install --force cargo-deny
@@ -763,6 +773,7 @@ jobs:
 ```
 
 **Cargo Deny Configuration**
+
 ```toml
 # deny.toml
 [licenses]
@@ -794,6 +805,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 ### Secure Dependency Patterns
 
 **Minimal Dependencies**
+
 ```toml
 # Prefer established, well-maintained crates
 [dependencies]
@@ -821,6 +833,7 @@ tantivy = "0.21"
 ### Security Test Suite
 
 **Fuzzing and Property Testing**
+
 ```rust
 #[cfg(test)]
 mod security_tests {
@@ -834,21 +847,21 @@ mod security_tests {
             // Should never panic, even with malicious input
             let _ = validator.validate_query(&query);
         }
-        
+
         #[test]
         fn path_validation_prevents_traversal(
             path in r"[./\\]+[a-zA-Z0-9_-]*"
         ) {
             let base = std::path::Path::new("/safe/directory");
             let test_path = std::path::Path::new(&path);
-            
+
             // Should never allow access outside base directory
             let result = SecurePath::validate_path(test_path, base);
             if let Ok(validated_path) = result {
                 assert!(validated_path.starts_with(base));
             }
         }
-        
+
         #[test]
         fn memory_tracker_prevents_overflow(
             allocations in prop::collection::vec(1usize..1000000, 1..100)
@@ -856,13 +869,13 @@ mod security_tests {
             let tracker = MemoryTracker::new(10); // 10MB limit
             let mut guards = Vec::new();
             let mut total_allocated = 0;
-            
+
             for size in allocations {
                 match tracker.allocate(size) {
                     Ok(guard) => {
                         total_allocated += size;
                         guards.push(guard);
-                        
+
                         // Should never exceed limit
                         assert!(total_allocated <= 10 * 1024 * 1024);
                     }
@@ -878,30 +891,30 @@ mod security_tests {
     #[test]
     fn test_malicious_query_inputs() {
         let validator = QueryValidator::new();
-        
+
         let malicious_inputs = vec![
             // SQL injection attempts
             "'; DROP TABLE users; --",
             "' OR 1=1 --",
-            
+
             // Directory traversal attempts
             "../../../etc/passwd",
             "..\\..\\..\\windows\\system32",
-            
+
             // Script injection attempts
             "<script>alert('xss')</script>",
             "javascript:alert('xss')",
-            
+
             // Buffer overflow attempts
             &"A".repeat(100_000),
-            
+
             // Null byte injection
             "query\0/etc/passwd",
-            
+
             // Unicode normalization attacks
             "query\u{202e}gnirts",
         ];
-        
+
         for input in malicious_inputs {
             let result = validator.validate_query(input);
             assert!(result.is_err(), "Should reject malicious input: {}", input);
@@ -912,11 +925,11 @@ mod security_tests {
     fn test_resource_exhaustion_protection() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let manager = QueryResourceManager::new();
-        
+
         rt.block_on(async {
             // Try to launch more queries than allowed
             let mut handles = Vec::new();
-            
+
             for i in 0..150 { // More than max_concurrent_queries (100)
                 handles.push(tokio::spawn({
                     let manager = &manager;
@@ -928,16 +941,16 @@ mod security_tests {
                     }
                 }));
             }
-            
+
             let results = futures::future::join_all(handles).await;
-            
+
             // Some requests should be rejected due to limits
             let rejected_count = results
                 .into_iter()
                 .filter_map(|r| r.ok())
                 .filter(|r| r.is_err())
                 .count();
-                
+
             assert!(rejected_count > 0, "Should reject some requests due to limits");
         });
     }
@@ -949,6 +962,7 @@ mod security_tests {
 ### Avoid These Patterns
 
 **Common Security Mistakes**
+
 ```rust
 // ❌ Trusting user input without validation
 pub fn search(query: String) -> SearchResults {

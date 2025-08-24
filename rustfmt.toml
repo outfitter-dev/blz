@@ -1,0 +1,26 @@
+# Rust formatting configuration for blz
+# Only stable features to avoid warnings
+
+# Use the 2021 edition style
+edition = "2021"
+
+# Line width
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+
+# Use field init shorthand
+use_field_init_shorthand = true
+
+# Use small heuristics for chains
+chain_width = 60
+single_line_if_else_max_width = 50
+
+# Imports (stable features only)
+reorder_imports = true
+reorder_modules = true
+
+# Misc
+use_try_shorthand = true
+newline_style = "Unix"
+match_block_trailing_comma = true

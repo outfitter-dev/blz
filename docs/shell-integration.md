@@ -1,28 +1,9 @@
+<!-- TODO #5: Update this doc as we improve Zsh support (track improvements in issue #5) -->
 # Shell Integration
 
-Complete guide to shell completions and integration for @outfitter/cache.
+Complete guide to shell completions and integration for `blz`.
 
 ## Quick Setup
-
-### Fish Shell 🐟
-
-```fish
-# Generate and install completions
-cache completions fish > ~/.config/fish/completions/cache.fish
-
-# Reload (or restart shell)
-source ~/.config/fish/config.fish
-```
-
-### Bash
-
-```bash
-# Generate and install completions
-cache completions bash > ~/.local/share/bash-completion/completions/cache
-
-# Reload (or restart shell)
-source ~/.bashrc
-```
 
 ### Zsh
 
@@ -31,7 +12,7 @@ source ~/.bashrc
 mkdir -p ~/.zsh/completions
 
 # Generate and install completions
-cache completions zsh > ~/.zsh/completions/_cache
+blz completions zsh > ~/.zsh/completions/_blz
 
 # Add to .zshrc if not already present
 echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
@@ -41,25 +22,45 @@ echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
 source ~/.zshrc
 ```
 
+### Fish Shell
+
+```fish
+# Generate and install completions
+blz completions fish > ~/.config/fish/completions/blz.fish
+
+# Reload (or restart shell)
+source ~/.config/fish/config.fish
+```
+
+### Bash
+
+```bash
+# Generate and install completions
+blz completions bash > ~/.local/share/bash-completion/completions/blz
+
+# Reload (or restart shell)
+source ~/.bashrc
+```
+
 ## Features by Shell
 
-### Fish (Most Complete) 🌟
+### Fish (Most Complete)
 
 Fish users get the best experience with dynamic completions:
 
 ```fish
 # Static completions for commands and options
-cache <TAB>                    # Shows all commands
-cache search --<TAB>           # Shows all options for search
+blz <TAB>                    # Shows all commands
+blz search --<TAB>           # Shows all options for search
 
 # Dynamic alias completions
-cache search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
-cache get <TAB>                # Completes with your cached aliases
-cache update <TAB>             # Shows available sources to update
-cache diff <TAB>               # Shows sources you can diff
+blz search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
+blz get <TAB>                # Completes with your cached aliases
+blz update <TAB>             # Shows available sources to update
+blz diff <TAB>               # Shows sources you can diff
 
 # Descriptions for everything
-cache <TAB>
+blz <TAB>
   add         (Add a new llms.txt source)
   search      (Search with 6ms latency!)
   get         (Get exact line ranges)
@@ -71,8 +72,8 @@ cache <TAB>
 Standard completions for commands and options:
 
 ```bash
-cache <TAB><TAB>           # Shows commands
-cache search --<TAB><TAB>  # Shows options
+blz <TAB><TAB>           # Shows commands
+blz search --<TAB><TAB>  # Shows options
 ```
 
 ### Zsh
@@ -80,8 +81,8 @@ cache search --<TAB><TAB>  # Shows options
 Similar to Bash with better formatting:
 
 ```zsh
-cache <TAB>                # Shows commands with descriptions
-cache search --<TAB>       # Shows options
+blz <TAB>                # Shows commands with descriptions
+blz search --<TAB>       # Shows options
 ```
 
 ## Dynamic Completions (Fish)
@@ -92,8 +93,8 @@ Fish completions are enhanced with runtime data:
 
 ```fish
 # This function queries your actual cached sources
-function __fish_cache_complete_aliases
-    cache sources --format json 2>/dev/null | python3 -c "
+function __fish_blz_complete_aliases
+    blz list --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     sources = json.load(sys.stdin)
@@ -119,11 +120,12 @@ end
 Use the provided script to update all shells at once:
 
 ```bash
-# After installing/updating cache
+# After installing/updating blz
 ./scripts/install-completions.sh
 ```
 
 This script:
+
 - Detects installed shells
 - Generates completions for each
 - Installs in the right location
@@ -131,13 +133,13 @@ This script:
 
 ### Manual Update
 
-When you update the `cache` binary:
+When you update the `blz` binary:
 
 ```bash
 # Regenerate for your shell
-cache completions fish > ~/.config/fish/completions/cache.fish
-cache completions bash > ~/.local/share/bash-completion/completions/cache
-cache completions zsh > ~/.zsh/completions/_cache
+blz completions fish > ~/.config/fish/completions/blz.fish
+blz completions bash > ~/.local/share/bash-completion/completions/blz
+blz completions zsh > ~/.zsh/completions/_blz
 ```
 
 ### Fish Auto-Update Function
@@ -145,18 +147,18 @@ cache completions zsh > ~/.zsh/completions/_cache
 Add to your `config.fish` for automatic updates:
 
 ```fish
-# Auto-update cache completions when binary changes
-function __update_cache_completions --on-event fish_prompt
-    set -l cache_bin (which cache 2>/dev/null)
-    if test -z "$cache_bin"
+# Auto-update blz completions when binary changes
+function __update_blz_completions --on-event fish_prompt
+    set -l blz_bin (which blz 2>/dev/null)
+    if test -z "$blz_bin"
         return
     end
-    
-    set -l completion_file "$HOME/.config/fish/completions/cache.fish"
-    
+
+    set -l completion_file "$HOME/.config/fish/completions/blz.fish"
+
     # Update if binary is newer than completions
-    if not test -f "$completion_file"; or test "$cache_bin" -nt "$completion_file"
-        cache completions fish > "$completion_file" 2>/dev/null
+    if not test -f "$completion_file"; or test "$blz_bin" -nt "$completion_file"
+        blz completions fish > "$completion_file" 2>/dev/null
     end
 end
 ```
@@ -165,17 +167,17 @@ end
 
 ### Custom Completions
 
-Add your own completions to `~/.config/fish/completions/cache.fish`:
+Add your own completions to `~/.config/fish/completions/blz.fish`:
 
 ```fish
 # Complete with markdown files for add command
-complete -c cache -n "__fish_seen_subcommand_from add" \
+complete -c blz -n "__fish_seen_subcommand_from add" \
     -a "(ls *.md *.txt 2>/dev/null)"
 
 # Add common URLs
-complete -c cache -n "__fish_seen_subcommand_from add" \
+complete -c blz -n "__fish_seen_subcommand_from add" \
     -a "bun" -d "https://bun.sh/llms.txt"
-complete -c cache -n "__fish_seen_subcommand_from add" \
+complete -c blz -n "__fish_seen_subcommand_from add" \
     -a "node" -d "https://nodejs.org/llms.txt"
 ```
 
@@ -185,14 +187,14 @@ Speed up common commands:
 
 ```fish
 # Add to config.fish
-abbr -a cs 'cache search'
-abbr -a cg 'cache get'
-abbr -a ca 'cache add'
-abbr -a cl 'cache sources'
+abbr -a cs 'blz search'
+abbr -a cg 'blz get'
+abbr -a ca 'blz add'
+abbr -a cl 'blz list'
 
 # Usage
-cs test         # Expands to: cache search test
-cg bun --lines  # Expands to: cache get bun --lines
+cs test         # Expands to: blz search test
+cg bun --lines  # Expands to: blz get bun --lines
 ```
 
 ### Functions
@@ -201,28 +203,28 @@ Create helpful functions:
 
 ```fish
 # Search and display best result
-function cache-best
+function blz-best
     set -l query $argv
-    set -l result (cache search "$query" --limit 1 --format json | jq -r '.hits[0]')
-    
+    set -l result (blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
+
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')
         set -l lines (echo $result | jq -r '.lines')
-        cache get $alias --lines $lines
+        blz get $alias --lines $lines
     else
         echo "No results for: $query"
     end
 end
 
 # Add with shorthand
-function cache-add-quick
+function blz-add-quick
     switch $argv[1]
         case bun
-            cache add bun https://bun.sh/llms.txt
+            blz add bun https://bun.sh/llms.txt
         case node
-            cache add node https://nodejs.org/llms.txt
+            blz add node https://nodejs.org/llms.txt
         case deno
-            cache add deno https://deno.land/llms.txt
+            blz add deno https://deno.land/llms.txt
         case '*'
             echo "Unknown source: $argv[1]"
     end
@@ -235,10 +237,10 @@ end
 
 ```bash
 # Fish/Bash/Zsh
-function cache-fzf
-    cache search "$1" --format json | \
+function blz-fzf
+    blz search "$1" --format json | \
     jq -r '.hits[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
-    fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "cache get {}"'
+    fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
 ```
 
@@ -251,7 +253,7 @@ Create a workflow script:
 # For Alfred/Raycast
 
 query="$1"
-results=$(cache search "$query" --format json)
+results=$(blz search "$query" --format json)
 
 echo "$results" | jq -r '.hits[] | {
     title: .heading_path | join(" > "),
@@ -263,13 +265,13 @@ echo "$results" | jq -r '.hits[] | {
 ### Vim Integration
 
 ```vim
-" Search cache from Vim
-command! -nargs=1 CacheSearch 
-    \ :r!cache search "<args>" --limit 3
+" Search blz from Vim
+command! -nargs=1 BlzSearch
+    \ :r!blz search "<args>" --limit 3
 
 " Get specific lines
-command! -nargs=+ CacheGet
-    \ :r!cache get <args>
+command! -nargs=+ BlzGet
+    \ :r!blz get <args>
 ```
 
 ## Troubleshooting
@@ -277,18 +279,20 @@ command! -nargs=+ CacheGet
 ### Completions Not Working
 
 #### Fish
+
 ```fish
 # Check if file exists
-ls ~/.config/fish/completions/cache.fish
+ls ~/.config/fish/completions/blz.fish
 
 # Regenerate
-cache completions fish > ~/.config/fish/completions/cache.fish
+blz completions fish > ~/.config/fish/completions/blz.fish
 
 # Reload
 source ~/.config/fish/config.fish
 ```
 
 #### Bash
+
 ```bash
 # Check bash-completion is installed
 type _init_completion
@@ -298,10 +302,11 @@ type _init_completion
 # Linux: apt/yum install bash-completion
 
 # Regenerate completions
-cache completions bash > ~/.local/share/bash-completion/completions/cache
+blz completions bash > ~/.local/share/bash-completion/completions/blz
 ```
 
 #### Zsh
+
 ```zsh
 # Check fpath includes completions dir
 echo $fpath
@@ -317,11 +322,11 @@ The dynamic completions query live data:
 
 ```fish
 # Test the query function
-cache sources --format json
+blz list --format json
 
 # If this works, completions should work
 # If not, check that you have sources:
-cache sources
+blz list
 ```
 
 ## Platform-Specific Notes
@@ -365,21 +370,22 @@ Add to your shell config:
 
 ```bash
 # Bash/Zsh
-alias cs='cache search'
-alias cg='cache get'
-alias ca='cache add'
+alias cs='blz search'
+alias cg='blz get'
+alias ca='blz add'
 
 # Fish
-alias cs 'cache search'
-alias cg 'cache get'
-alias ca 'cache add'
+alias cs 'blz search'
+alias cg 'blz get'
+alias ca 'blz add'
 ```
 
 ### Search History
 
 Fish automatically provides history:
+
 ```fish
-cache search <UP>  # Shows previous searches
+blz search <UP>  # Shows previous searches
 ```
 
 For Bash/Zsh, use Ctrl+R for reverse search.
@@ -390,13 +396,14 @@ For Bash/Zsh, use Ctrl+R for reverse search.
 # Add multiple sources
 for url in bun.sh/llms.txt deno.land/llms.txt; do
     name=$(echo $url | cut -d'.' -f1)
-    cache add "$name" "https://$url"
+    blz add "$name" "https://$url"
 done
 ```
 
 ## Future Enhancements
 
 Planned improvements:
+
 - PowerShell completions
 - Nushell support
 - More dynamic completions for Bash/Zsh
@@ -407,9 +414,9 @@ Planned improvements:
 
 To improve completions:
 
-1. Edit `crates/cache-cli/src/main.rs`
+1. Edit `crates/blz-cli/src/main.rs`
 2. Update the `Commands` enum with better descriptions
 3. Rebuild: `cargo build --release`
-4. Test: `cache completions <shell>`
+4. Test: `blz completions <shell>`
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more details.

@@ -1,6 +1,6 @@
 # Architecture
 
-Deep dive into how @outfitter/cache achieves 6ms search latency.
+Deep dive into how @outfitter/blz achieves 6ms search latency.
 
 ## System Overview
 
@@ -10,7 +10,7 @@ Deep dive into how @outfitter/cache achieves 6ms search latency.
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
-│    Core Engine      │ <- Business Logic Layer  
+│    Core Engine      │ <- Business Logic Layer
 │  ┌──────────────┐   │
 │  │   Fetcher    │   │ <- Network Layer (ETag support)
 │  ├──────────────┤   │
@@ -24,7 +24,7 @@ Deep dive into how @outfitter/cache achieves 6ms search latency.
            │
 ┌──────────▼──────────┐
 │   File System       │ <- Storage Layer
-│  ~/.../cache/       │
+│  ~/.../blz/       │
 │   ├── bun/          │
 │   │   ├── llms.txt  │
 │   │   ├── llms.json │
@@ -35,7 +35,7 @@ Deep dive into how @outfitter/cache achieves 6ms search latency.
 
 ## Core Components
 
-### 1. Fetcher (`cache-core/src/fetcher.rs`)
+### 1. Fetcher (`blz-core/src/fetcher.rs`)
 
 Handles network operations with smart caching:
 
@@ -54,13 +54,14 @@ impl Fetcher {
 ```
 
 **Features:**
+
 - HTTP/2 support via reqwest
 - Gzip/Brotli compression
 - ETag/If-None-Match headers
 - 304 Not Modified handling
 - SHA256 content hashing
 
-### 2. Parser (`cache-core/src/parser.rs`)
+### 2. Parser (`blz-core/src/parser.rs`)
 
 Uses tree-sitter for robust Markdown parsing:
 
@@ -78,6 +79,7 @@ pub struct ParseResult {
 ```
 
 **Process:**
+
 1. Parse Markdown into AST
 2. Extract heading hierarchy
 3. Create heading-based chunks
@@ -85,12 +87,13 @@ pub struct ParseResult {
 5. Generate table of contents
 
 **Why tree-sitter?**
+
 - Incremental parsing
 - Error recovery
 - Exact byte/line positions
 - Language-agnostic design
 
-### 3. Indexer (`cache-core/src/index.rs`)
+### 3. Indexer (`blz-core/src/index.rs`)
 
 Tantivy-powered full-text search:
 
@@ -104,6 +107,7 @@ pub struct SearchIndex {
 ```
 
 **Index Schema:**
+
 ```
 Document {
     content: TEXT | STORED,       // Searchable content
@@ -115,13 +119,14 @@ Document {
 ```
 
 **Why Tantivy?**
+
 - Production-grade (powers Quickwit)
 - BM25 scoring out of the box
 - Sub-millisecond search
 - Memory-mapped indexes
 - No external dependencies
 
-### 4. Storage (`cache-core/src/storage.rs`)
+### 4. Storage (`blz-core/src/storage.rs`)
 
 Platform-aware file management:
 
@@ -132,6 +137,7 @@ pub struct Storage {
 ```
 
 **Directory Structure:**
+
 ```
 ~/.../outfitter.cache/
 ├── global.toml           # Global config
@@ -153,7 +159,7 @@ pub struct Storage {
 
 ```mermaid
 sequenceDiagram
-    User->>CLI: cache add bun URL
+    User->>CLI: blz add bun URL
     CLI->>Fetcher: fetch(URL)
     Fetcher->>Web: GET URL
     Web-->>Fetcher: 200 OK + Content
@@ -170,7 +176,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    User->>CLI: cache search "test"
+    User->>CLI: blz search "test"
     CLI->>SearchIndex: search(query)
     SearchIndex->>Tantivy: QueryParser
     Tantivy->>Tantivy: BM25 scoring
@@ -189,13 +195,14 @@ Instead of indexing entire files, we index heading-based chunks:
 
 ```markdown
 # Document           <- Block 1
-## Section A         <- Block 2  
+## Section A         <- Block 2
 ### Subsection A.1   <- Block 3
 ### Subsection A.2   <- Block 4
 ## Section B         <- Block 5
 ```
 
 **Benefits:**
+
 - Better relevance scoring
 - Natural result boundaries
 - Efficient index size
@@ -204,6 +211,7 @@ Instead of indexing entire files, we index heading-based chunks:
 ### 2. Memory-Mapped Indexes
 
 Tantivy uses mmap for instant loading:
+
 - No index loading time
 - OS page cache optimization
 - Shared memory across processes
@@ -212,6 +220,7 @@ Tantivy uses mmap for instant loading:
 ### 3. Zero-Copy Architecture
 
 Where possible, we avoid copying data:
+
 - String slices over allocations
 - Reference counting for shared data
 - Streaming parsing
@@ -220,6 +229,7 @@ Where possible, we avoid copying data:
 ### 4. Smart Caching Strategy
 
 Multiple cache layers:
+
 1. **HTTP caching** - ETag/If-None-Match
 2. **OS page cache** - mmap'd index files
 3. **Process cache** - IndexReader reuse
@@ -241,6 +251,7 @@ score(D,Q) = Σ IDF(qi) * (f(qi,D) * (k1 + 1)) / (f(qi,D) + k1 * (1 - b + b * |D
 ```
 
 Where:
+
 - `IDF(qi)` = Inverse document frequency of term
 - `f(qi,D)` = Term frequency in document
 - `|D|` = Document length
@@ -250,6 +261,7 @@ Where:
 ### Result Ranking
 
 Results are sorted by:
+
 1. BM25 relevance score (primary)
 2. Document order (secondary)
 3. Line number (tertiary)
@@ -289,16 +301,19 @@ fn parse<'a>(text: &'a str) -> Vec<Block<'a>> {
 ## Platform Considerations
 
 ### macOS
+
 - Uses `~/Library/Application Support/`
 - Optimized for APFS
 - Benefits from unified memory architecture
 
 ### Linux
+
 - Uses XDG base directories
 - ext4/btrfs optimizations
 - Leverages page cache aggressively
 
 ### Windows
+
 - Uses `%APPDATA%`
 - NTFS considerations
 - Different path separators handled
@@ -360,7 +375,7 @@ Currently using JSON-RPC, will migrate to official `rmcp` SDK when available.
 
 ```bash
 hyperfine --warmup 20 --min-runs 100 \
-  './target/release/cache search "test" --alias bun'
+  './target/release/blz search "test" --alias bun'
 ```
 
 ### Performance Targets
@@ -377,7 +392,7 @@ hyperfine --warmup 20 --min-runs 100 \
 ### Verbose Mode
 
 ```bash
-cache --verbose search "test"
+blz --verbose search "test"
 ```
 
 Enables debug logging via `tracing`.
@@ -386,20 +401,20 @@ Enables debug logging via `tracing`.
 
 ```bash
 # Check index size
-du -sh ~/.../outfitter.cache/bun/.index/
+du -sh ~/.../outfitter/blz/bun/.index/
 
 # View metadata
-cat ~/.../outfitter.cache/bun/llms.json | jq .
+cat ~/.../outfitter/blz/bun/llms.json | jq .
 ```
 
 ### Performance Profiling
 
 ```bash
 # CPU profiling (macOS)
-cargo instruments -t "Time Profiler" --bin cache -- search "test"
+cargo instruments -t "Time Profiler" --bin blz -- search "test"
 
 # Memory profiling
-cargo instruments -t "Allocations" --bin cache -- add bun URL
+cargo instruments -t "Allocations" --bin blz -- add bun URL
 ```
 
 ## Contributing
@@ -407,6 +422,7 @@ cargo instruments -t "Allocations" --bin cache -- add bun URL
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for development setup.
 
 Key areas for contribution:
+
 - Additional document formats
 - Search improvements
 - Platform optimizations

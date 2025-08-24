@@ -1,0 +1,35 @@
+# Cargo configuration for blz
+
+[build]
+# Number of parallel jobs, defaults to # of CPUs
+jobs = 8
+
+[target.'cfg(all())']
+# Optimize for local CPU architecture in release builds
+rustflags = ["-C", "target-cpu=native"]
+
+[profile.release]
+# Enable link-time optimization for smaller, faster binaries
+lto = true
+# Optimize for size (also often improves speed due to cache effects)
+opt-level = "z"
+# Allow compiler to inline across crates
+codegen-units = 1
+# Strip symbols for smaller binary
+strip = true
+
+[profile.dev]
+# Faster compilation in dev mode
+opt-level = 0
+
+[profile.dev.package."*"]
+# Dependencies still optimized in dev for better performance
+opt-level = 2
+
+[alias]
+# Convenient aliases
+lint = "clippy -- -D warnings"
+lint-all = "clippy --all-targets --all-features -- -D warnings"
+fix = "clippy --fix --allow-dirty --allow-staged"
+test-all = "test --all-features"
+bench-all = "bench --all-features"

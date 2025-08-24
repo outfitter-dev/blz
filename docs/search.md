@@ -1,55 +1,78 @@
 # Search Guide
 
-Master the art of searching your cached documentation with @outfitter/cache's blazing-fast search.
+Master the art of searching your cached documentation with blz's fast local search.
 
 ## Basic Search
 
-### Simple Query
+### Quick Search Patterns
+
+The fastest way to search - just type `blz` followed by your query:
 
 ```bash
-cache search "your query"
+# Search all sources
+blz "test"
+blz "http server"
+blz "typescript"
+
+# Search specific source (source first)
+blz bun "test"
+blz node "http server"
+blz deno "typescript"
+
+# Search specific source (source last)
+blz "test" bun
+blz "http server" node
+blz "typescript" deno
 ```
 
-Searches across all cached sources:
+### Full Search Command
+
+For more control, use the explicit `search` command:
+
 ```bash
-cache search "test"
-cache search "http server"
-cache search "typescript"
+blz search "your query"
+blz search "test" --alias bun
 ```
 
-### Search Specific Source
-
-Use `--alias` to search within one source:
+### Pattern Summary
 
 ```bash
-cache search "test" --alias bun
-```
+# Quick patterns (most common)
+blz QUERY                    # Search all sources
+blz SOURCE QUERY            # Source-specific (source first)
+blz QUERY SOURCE            # Source-specific (source last)
 
-This is faster and more focused than searching all sources.
+# Explicit command (more options)
+blz search QUERY
+blz search QUERY --alias SOURCE
+```
 
 ## Search Syntax
 
 ### Single Terms
 
 Simple word searches:
+
 ```bash
-cache search "bundler"      # Finds: bundler, bundlers, bundling
-cache search "test"         # Finds: test, testing, tests
+blz search "bundler"      # Finds: bundler, bundlers, bundling
+blz search "test"         # Finds: test, testing, tests
 ```
 
 ### Multiple Terms
 
 Space-separated terms create an AND query:
+
 ```bash
-cache search "test runner"   # Must contain both "test" AND "runner"
-cache search "http server"   # Must contain both "http" AND "server"
+blz search "test runner"   # Must contain both "test" AND "runner"
+blz search "http server"   # Must contain both "http" AND "server"
 ```
 
 ### Phrase Search (Coming Soon)
 
 Future support for exact phrases:
+
 ```bash
-cache search '"test runner"'  # Exact phrase (not yet implemented)
+blz search '"test runner"'  # Exact phrase (not yet implemented)
 ```
 
 ## Search Options
@@ -57,21 +80,24 @@ cache search '"test runner"'  # Exact phrase (not yet implemented)
 ### Limit Results
 
 Control how many results you get:
+
 ```bash
-cache search "test" --limit 5    # Default: 10
-cache search "test" --limit 20   # Get more results
-cache search "test" --limit 1    # Just the best match
+blz search "test" --limit 5    # Default: 10
+blz search "test" --limit 20   # Get more results
+blz search "test" --limit 1    # Just the best match
 ```
 
 ### Output Format
 
 #### Pretty (Default)
 Human-readable output with colors:
+
 ```bash
-cache search "test"
+blz search "test"
 ```
 
 Output:
+
 ```
 Search results for 'test':
 
@@ -83,11 +109,13 @@ Search results for 'test':
 
 #### JSON
 Machine-readable for scripting:
+
 ```bash
-cache search "test" --format json
+blz search "test" --format json
 ```
 
 Output:
+
 ```json
 {
   "hits": [
@@ -110,6 +138,7 @@ Output:
 ### Result Structure
 
 Each result contains:
+
 - **Alias** - Which source it's from
 - **Score** - Relevance score (higher is better)
 - **Path** - Heading hierarchy to the content
@@ -119,6 +148,7 @@ Each result contains:
 ### Relevance Scoring
 
 Results are ranked by BM25 score:
+
 - Higher scores = better matches
 - Scores > 4.0 = excellent match
 - Scores 2.0-4.0 = good match
@@ -127,6 +157,7 @@ Results are ranked by BM25 score:
 ### Heading Paths
 
 Shows the document structure:
+
 ```
 Path: Bun Documentation > Guides > Test runner
       ^-- Top level     ^-- Section  ^-- Subsection
@@ -137,28 +168,46 @@ Path: Bun Documentation > Guides > Test runner
 ### Find Commands
 
 Search for CLI commands:
+
 ```bash
-cache search "bun test"
-cache search "npm install"
-cache search "--watch flag"
+# Quick patterns
+blz "bun test"
+blz "npm install"
+blz "--watch flag"
+
+# Or target specific sources
+blz bun "test command"
+blz node "npm install"
 ```
 
 ### Find Configuration
 
 Search for config options:
+
 ```bash
-cache search "tsconfig"
-cache search "package.json"
-cache search "bundler config"
+# Quick patterns
+blz "tsconfig"
+blz "package.json"
+blz "bundler config"
+
+# Or target specific sources
+blz typescript "tsconfig"
+blz bun "package.json fields"
 ```
 
 ### Find APIs
 
 Search for specific APIs:
+
 ```bash
-cache search "fetch API"
-cache search "file system"
-cache search "process.env"
+# Quick patterns
+blz "fetch API"
+blz "file system"
+blz "process.env"
+
+# Or target specific sources
+blz deno "fetch API"
+blz node "file system"
 ```
 
 ## Search Performance
@@ -176,13 +225,14 @@ cache search "process.env"
 
 1. **Use aliases** - Searching one source is faster
    ```bash
-   cache search "test" --alias bun  # Faster
-   cache search "test"              # Searches all
+   blz bun "test"                 # Fastest - quick pattern
+   blz search "test" --alias bun  # Fast - explicit command
+   blz "test"                     # Slower - searches all
    ```
 
 2. **Limit results** - Get results faster
    ```bash
-   cache search "test" --limit 3
+   blz search "test" --limit 3
    ```
 
 3. **Cache warmup** - First search may be slower as OS caches the index
@@ -195,12 +245,12 @@ cache search "process.env"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(cache search "test runner" --limit 1 --format json)
+result=$(blz search "test runner" --limit 1 --format json)
 alias=$(echo "$result" | jq -r '.hits[0].alias')
 lines=$(echo "$result" | jq -r '.hits[0].lines')
 
 echo "Best match in $alias at lines $lines"
-cache get "$alias" --lines "$lines"
+blz get "$alias" --lines "$lines"
 ```
 
 ### Search and Open
@@ -210,14 +260,14 @@ cache get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(cache search "$query" --limit 1 --format json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
   lines=$(echo "$result" | jq -r '.lines')
-  
+
   echo "Opening $alias at lines $lines..."
-  cache get "$alias" --lines "$lines"
+  blz get "$alias" --lines "$lines"
 else
   echo "No results found for: $query"
 fi
@@ -230,10 +280,10 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(cache search "$query" --limit 5 --format json)
+results=$(blz search "$query" --limit 5 --format json)
 
 echo "Context for query: $query"
-echo "$results" | jq -r '.hits[] | 
+echo "$results" | jq -r '.hits[] |
   "Source: \(.alias)\nSection: \(.heading_path | join(" > "))\n\(.snippet)\n"'
 ```
 
@@ -243,43 +293,43 @@ echo "$results" | jq -r '.hits[] |
 
 ```bash
 # Testing
-cache search "test"
-cache search "test runner"
-cache search "unit test"
+blz search "test"
+blz search "test runner"
+blz search "unit test"
 
 # Performance
-cache search "performance"
-cache search "benchmark"
-cache search "optimization"
+blz search "performance"
+blz search "benchmark"
+blz search "optimization"
 
 # Configuration
-cache search "config"
-cache search "settings"
-cache search "options"
+blz search "config"
+blz search "settings"
+blz search "options"
 
 # APIs
-cache search "API"
-cache search "http"
-cache search "fetch"
+blz search "API"
+blz search "http"
+blz search "fetch"
 ```
 
 ### By Technology
 
 ```bash
 # Languages
-cache search "typescript"
-cache search "javascript"
-cache search "jsx"
+blz search "typescript"
+blz search "javascript"
+blz search "jsx"
 
 # Tools
-cache search "bundler"
-cache search "transpiler"
-cache search "compiler"
+blz search "bundler"
+blz search "transpiler"
+blz search "compiler"
 
 # Frameworks
-cache search "react"
-cache search "vue"
-cache search "express"
+blz search "react"
+blz search "vue"
+blz search "express"
 ```
 
 ## Troubleshooting
@@ -287,13 +337,15 @@ cache search "express"
 ### No Results
 
 If search returns nothing:
-1. Check you have sources: `cache sources`
+
+1. Check you have sources: `blz list`
 2. Try simpler terms: `"test"` instead of `"testing framework"`
 3. Check spelling
 
 ### Too Many Results
 
 If overwhelmed with results:
+
 1. Use `--alias` to focus on one source
 2. Use more specific terms
 3. Reduce `--limit`
@@ -301,6 +353,7 @@ If overwhelmed with results:
 ### Unexpected Results
 
 BM25 scoring considers:
+
 - Term frequency in document
 - Inverse document frequency
 - Document length normalization
@@ -320,6 +373,7 @@ Short documents with many occurrences score higher.
 ### Index Structure
 
 Each source has its own Tantivy index with:
+
 - Heading-based document chunks
 - Full-text searchable content
 - Stored heading paths and line ranges
@@ -327,6 +381,6 @@ Each source has its own Tantivy index with:
 
 ## Next Steps
 
-- Learn about [Line Retrieval](retrieval.md) to get exact content
-- Set up [Shell Integration](shell-integration.md) for better productivity  
+- Learn about the "get" command in [CLI documentation](cli.md) for retrieving exact content
+- Set up [Shell Integration](shell-integration.md) for better productivity
 - Understand the [Architecture](architecture.md) for deeper knowledge

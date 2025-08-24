@@ -2,18 +2,19 @@
 
 ## System Overview
 
-The cache project is a Rust-based search cache system built on Tantivy, designed for high-performance full-text search with efficient caching and CLI integration.
+The blz project is a Rust-based search cache system built on Tantivy, designed for high-performance full-text search with efficient caching and CLI integration.
 
 ## Architecture Patterns
 
 ### Workspace Structure
 
 **Crate Organization**
+
 ```
 cache/
 ├── Cargo.toml                 # Workspace root
 ├── crates/
-│   ├── cache-core/           # Core search and indexing logic
+│   ├── blz-core/             # Core search and indexing logic
 │   │   ├── src/
 │   │   │   ├── lib.rs        # Public API
 │   │   │   ├── index.rs      # Tantivy index management
@@ -22,13 +23,13 @@ cache/
 │   │   │   ├── config.rs     # Configuration
 │   │   │   └── error.rs      # Error types
 │   │   └── Cargo.toml
-│   ├── cache-cli/            # Command-line interface
+│   ├── blz-cli/              # Command-line interface
 │   │   ├── src/
 │   │   │   ├── main.rs       # CLI entry point
 │   │   │   ├── commands/     # CLI commands
 │   │   │   └── shell/        # Shell integration
 │   │   └── Cargo.toml
-│   └── cache-mcp/            # MCP server integration
+│   └── blz-mcp/              # MCP server integration
 │       ├── src/
 │       │   ├── main.rs       # MCP server
 │       │   ├── handlers/     # Request handlers
@@ -41,31 +42,33 @@ cache/
 
 **Clear Separation of Concerns**
 
-1. **`cache-core`**: Business logic and domain models
+1. **`blz-core`**: Business logic and domain models
    - No CLI dependencies
    - No I/O beyond what's necessary for indexing
    - Pure, testable functions where possible
 
-2. **`cache-cli`**: User interface and shell integration
-   - Depends on `cache-core`
+2. **`blz-cli`**: User interface and shell integration
+   - Depends on `blz-core`
    - Handles argument parsing and output formatting
    - Manages configuration files
 
-3. **`cache-mcp`**: Network protocol and server logic
-   - Depends on `cache-core`
+3. **`blz-mcp`**: Network protocol and server logic
+   - Depends on `blz-core`
    - Handles JSON-RPC protocol
    - Manages concurrent requests
 
 ### Dependency Flow
 
 **Unidirectional Dependencies**
+
 ```
-cache-cli ──┐
-            ├──→ cache-core
-cache-mcp ──┘
+blz-cli ──┐
+          ├──→ blz-core
+blz-mcp ──┘
 ```
 
 **Forbidden Patterns**
+
 - Core cannot depend on CLI or MCP
 - CLI and MCP should not depend on each other
 - No circular dependencies between any crates
@@ -92,7 +95,7 @@ pub enum CacheError {
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("Cache operation failed: {0}")]
-    Cache(#[from] cache_core::CacheError),
+    Cache(#[from] blz_core::CacheError),
     #[error("Configuration error: {0}")]
     Config(String),
     #[error("Shell integration error: {0}")]
@@ -134,18 +137,18 @@ impl CacheConfig {
         // 1. Environment variables
         // 2. Configuration file
         // 3. Default values
-        
+
         let mut config = Self::default();
-        
+
         // Load from file if exists
         if let Some(config_path) = Self::find_config_file()? {
             let file_config = Self::load_from_file(&config_path)?;
             config = config.merge(file_config);
         }
-        
+
         // Override with environment variables
         config = config.merge(Self::from_env()?);
-        
+
         Ok(config)
     }
 }
@@ -201,7 +204,7 @@ impl CacheManager {
         // Clone Arc for async move
         let index = Arc::clone(&self.index);
         let config = Arc::clone(&self.config);
-        
+
         tokio::spawn(async move {
             index.search_with_config(&query, &config).await
         }).await?
@@ -244,7 +247,7 @@ impl ValidatedQuery {
     pub fn new(raw: String, schema: &Schema) -> Result<Self, QueryError> {
         let parser = QueryParser::for_index(&index, vec![]);
         let parsed = parser.parse_query(&raw)?;
-        
+
         Ok(Self {
             raw,
             parsed: Box::new(parsed),
@@ -272,20 +275,20 @@ pub struct CacheRegistry {
 }
 
 impl CacheRegistry {
-    pub fn register<T>(&mut self, source: T) 
+    pub fn register<T>(&mut self, source: T)
     where
         T: CacheSource + 'static
     {
         self.sources.insert(source.source_type(), Box::new(source));
     }
-    
-    pub async fn fetch(&self, source_type: SourceType, request: &FetchRequest) 
-        -> Result<Document, SourceError> 
+
+    pub async fn fetch(&self, source_type: SourceType, request: &FetchRequest)
+        -> Result<Document, SourceError>
     {
         let source = self.sources
             .get(&source_type)
             .ok_or(SourceError::UnknownSource(source_type))?;
-            
+
         source.fetch(request).await
     }
 }
@@ -313,11 +316,11 @@ impl EventBus {
         let (sender, _) = broadcast::channel(1000);
         Self { sender }
     }
-    
+
     pub fn subscribe(&self) -> broadcast::Receiver<CacheEvent> {
         self.sender.subscribe()
     }
-    
+
     pub fn publish(&self, event: CacheEvent) {
         let _ = self.sender.send(event);
     }
@@ -342,15 +345,15 @@ impl SearchPipeline {
     pub async fn execute(&self, raw_query: String) -> CacheResult<FormattedResults> {
         // Functional pipeline with error short-circuiting
         let validated = self.validator.validate(raw_query)?;
-        
+
         // Try cache first
         if let Some(cached) = self.cache.get(&validated).await? {
             return Ok(self.formatter.format(cached, true)?);
         }
-        
+
         // Execute search
         let results = self.index.search(&validated).await?;
-        
+
         // Update cache in background
         let cache = self.cache.clone();
         let cache_key = validated.cache_key();
@@ -358,7 +361,7 @@ impl SearchPipeline {
         tokio::spawn(async move {
             let _ = cache.set(cache_key, cache_results).await;
         });
-        
+
         Ok(self.formatter.format(results, false)?)
     }
 }
@@ -385,21 +388,21 @@ pub struct StateManager {
 }
 
 impl StateManager {
-    pub fn update<F>(&self, updater: F) -> Result<(), StateError> 
+    pub fn update<F>(&self, updater: F) -> Result<(), StateError>
     where
         F: FnOnce(&IndexState) -> Result<IndexState, StateError>
     {
         let mut current = self.current.write().unwrap();
         let mut history = self.history.write().unwrap();
-        
+
         let new_state = updater(&current)?;
-        
+
         // Keep history for rollback
         history.push_back(current.clone());
         if history.len() > 10 {
             history.pop_front();
         }
-        
+
         *current = new_state;
         Ok(())
     }
@@ -417,7 +420,7 @@ impl StateManager {
 
 ### Scalability Requirements
 
-- **Index Size**: Support up to 10GB indexes efficiently  
+- **Index Size**: Support up to 10GB indexes efficiently
 - **Concurrent Users**: Handle 100+ concurrent search requests
 - **Document Count**: Scale to 10M+ documents per index
 - **Query Complexity**: Support complex boolean and phrase queries
@@ -443,7 +446,7 @@ impl StateManager {
 **Avoid These Patterns**
 
 - **God Objects**: Keep services focused and single-purpose
-- **Circular Dependencies**: Maintain clean dependency hierarchy  
+- **Circular Dependencies**: Maintain clean dependency hierarchy
 - **Shared Mutable State**: Prefer message passing over shared memory
 - **Blocking in Async**: Never block async executor threads
 - **Resource Leaks**: Always implement Drop for resources
@@ -465,7 +468,7 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_query_validation() {
         // Unit test logic
@@ -479,7 +482,7 @@ async fn test_end_to_end_search() {
     // Integration test logic
 }
 
-// Benchmarks in benches/ directory  
+// Benchmarks in benches/ directory
 // benches/search_performance.rs
 use criterion::{criterion_group, criterion_main, Criterion};
 

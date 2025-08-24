@@ -1,0 +1,52 @@
+# Prettier ignore file - only format JS/TS/JSON/CSS/YAML when config exists
+
+# Rust files
+*.rs
+*.toml
+Cargo.lock
+
+# Build outputs
+target/
+dist/
+build/
+*.pb
+*.svg
+
+# Documentation (handled by markdownlint)
+*.md
+*.mdx
+
+# Shell scripts
+*.sh
+*.bash
+*.zsh
+*.fish
+
+# Python
+*.py
+
+# Go
+*.go
+go.mod
+go.sum
+
+# Binary files
+*.wasm
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Other
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
