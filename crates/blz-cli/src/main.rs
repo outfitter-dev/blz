@@ -1,5 +1,3 @@
-#![allow(clippy::similar_names)]
-
 //! blz CLI - Fast local search for llms.txt documentation
 //!
 //! This is the main entry point for the blz command-line interface.
@@ -90,7 +88,7 @@ fn start_flamegraph_if_requested(cli: &Cli) -> Option<pprof::ProfilerGuard<'stat
 #[cfg(feature = "flamegraph")]
 fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     if let Some(guard) = guard {
-        if let Err(e) = stop_profiling_and_report(guard) {
+        if let Err(e) = stop_profiling_and_report(&guard) {
             eprintln!("Failed to generate flamegraph: {e}");
         }
     }

@@ -1,4 +1,4 @@
-.PHONY: help install-tools check-deps security audit deny unused clean test build release ci
+.PHONY: help install-tools check-deps security audit deny unused clean test build release lint ci
 
 # Default target
 help:
@@ -65,13 +65,15 @@ release: clean
 
 # Run full CI validation locally
 ci: check-deps test
-	@echo "Running clippy..."
-	cargo clippy --all-targets --all-features -- -D warnings
-	@echo "Checking formatting..."
-	cargo fmt -- --check
-	@echo "Building documentation..."
-	cargo doc --no-deps --all-features
-	@echo "CI validation complete"
+        @$(MAKE) lint
+        @echo "Checking formatting..."
+        cargo fmt -- --check
+        @echo "Building documentation..."
+        cargo doc --no-deps --all-features
+        @echo "CI validation complete"
+
+lint:
+        cargo clippy --all-targets --all-features -- -D warnings
 
 # Quick security check
 .PHONY: quick-security
