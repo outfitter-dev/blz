@@ -13,6 +13,7 @@ help:
 	@echo "  test           - Run all tests"
 	@echo "  build          - Build release binaries"
 	@echo "  release        - Build optimized release"
+	@echo "  lint           - Run cargo clippy (deny warnings)"
 	@echo "  ci             - Run full CI validation locally"
 
 # Install required tools
@@ -65,15 +66,15 @@ release: clean
 
 # Run full CI validation locally
 ci: check-deps test
-        @$(MAKE) lint
-        @echo "Checking formatting..."
-        cargo fmt -- --check
-        @echo "Building documentation..."
-        cargo doc --no-deps --all-features
-        @echo "CI validation complete"
+	@$(MAKE) lint
+	@echo "Checking formatting..."
+	cargo fmt -- --check
+	@echo "Building documentation..."
+	cargo doc --no-deps --all-features
+	@echo "CI validation complete"
 
 lint:
-        cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 # Quick security check
 .PHONY: quick-security
