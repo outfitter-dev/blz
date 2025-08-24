@@ -1,3 +1,5 @@
+//! Benchmarks for search performance
+
 use blz_core::{HeadingBlock, PerformanceMetrics, SearchIndex};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::time::Duration;

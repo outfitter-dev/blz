@@ -5,7 +5,6 @@
 //! This is the main entry point for the blz command-line interface.
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
-
 use anyhow::Result;
 use blz_core::{PerformanceMetrics, ResourceMonitor};
 use clap::Parser;
@@ -79,7 +78,7 @@ fn start_flamegraph_if_requested(cli: &Cli) -> Option<pprof::ProfilerGuard<'stat
                 Some(guard)
             },
             Err(e) => {
-                eprintln!("Failed to start profiling: {}", e);
+                eprintln!("Failed to start profiling: {e}");
                 None
             },
         }
@@ -92,7 +91,7 @@ fn start_flamegraph_if_requested(cli: &Cli) -> Option<pprof::ProfilerGuard<'stat
 fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     if let Some(guard) = guard {
         if let Err(e) = stop_profiling_and_report(guard) {
-            eprintln!("Failed to generate flamegraph: {}", e);
+            eprintln!("Failed to generate flamegraph: {e}");
         }
     }
 }
@@ -205,15 +204,13 @@ mod tests {
             let result = validate_alias(keyword);
             assert!(
                 result.is_err(),
-                "Reserved keyword '{}' should be rejected",
-                keyword
+                "Reserved keyword '{keyword}' should be rejected"
             );
 
             let error_msg = result.unwrap_err().to_string();
             assert!(
                 error_msg.contains(keyword),
-                "Error message should contain the reserved keyword '{}'",
-                keyword
+                "Error message should contain the reserved keyword '{keyword}'"
             );
         }
     }
@@ -224,7 +221,7 @@ mod tests {
 
         for &alias in &valid_aliases {
             let result = validate_alias(alias);
-            assert!(result.is_ok(), "Valid alias '{}' should be accepted", alias);
+            assert!(result.is_ok(), "Valid alias '{alias}' should be accepted");
         }
     }
 
@@ -243,15 +240,13 @@ mod tests {
         for &lang in &language_names {
             assert!(
                 !RESERVED_KEYWORDS.contains(&lang),
-                "Language name '{}' should not be reserved",
-                lang
+                "Language name '{lang}' should not be reserved"
             );
 
             let result = validate_alias(lang);
             assert!(
                 result.is_ok(),
-                "Language name '{}' should be usable as alias",
-                lang
+                "Language name '{lang}' should be usable as alias"
             );
         }
     }
@@ -322,8 +317,7 @@ mod tests {
         for &keyword in RESERVED_KEYWORDS {
             assert!(
                 seen.insert(keyword),
-                "Reserved keyword '{}' appears multiple times",
-                keyword
+                "Reserved keyword '{keyword}' appears multiple times"
             );
         }
     }
@@ -351,8 +345,7 @@ mod tests {
             let result = Cli::try_parse_from(combination.clone());
             assert!(
                 result.is_ok(),
-                "Valid combination should parse: {:?}",
-                combination
+                "Valid combination should parse: {combination:?}"
             );
         }
     }
@@ -383,8 +376,7 @@ mod tests {
             let result = Cli::try_parse_from(combination.clone());
             assert!(
                 result.is_err(),
-                "Invalid combination should fail: {:?}",
-                combination
+                "Invalid combination should fail: {combination:?}"
             );
         }
     }
@@ -412,11 +404,10 @@ mod tests {
             if let Err(error) = result {
                 assert!(
                     error.kind() == clap::error::ErrorKind::DisplayHelp,
-                    "Help command should display help: {:?}",
-                    help_cmd
+                    "Help command should display help: {help_cmd:?}"
                 );
             } else {
-                panic!("Help command should not succeed: {:?}", help_cmd);
+                panic!("Help command should not succeed: {help_cmd:?}");
             }
         }
     }
@@ -433,11 +424,10 @@ mod tests {
             if let Err(error) = result {
                 assert!(
                     error.kind() == clap::error::ErrorKind::DisplayVersion,
-                    "Version command should display version: {:?}",
-                    version_cmd
+                    "Version command should display version: {version_cmd:?}"
                 );
             } else {
-                panic!("Version command should not succeed: {:?}", version_cmd);
+                panic!("Version command should not succeed: {version_cmd:?}");
             }
         }
     }
@@ -491,7 +481,7 @@ mod tests {
             let result = Cli::try_parse_from(edge_case.clone());
 
             // All these should parse successfully (validation happens at runtime)
-            assert!(result.is_ok(), "Edge case should parse: {:?}", edge_case);
+            assert!(result.is_ok(), "Edge case should parse: {edge_case:?}");
         }
     }
 
@@ -524,11 +514,7 @@ mod tests {
             let result = Cli::try_parse_from(string_case.clone());
 
             // Most string cases should parse (validation happens at runtime)
-            assert!(
-                result.is_ok(),
-                "String case should parse: {:?}",
-                string_case
-            );
+            assert!(result.is_ok(), "String case should parse: {string_case:?}");
         }
     }
 
@@ -548,8 +534,7 @@ mod tests {
             if let Some(Commands::List { output }) = cli.command {
                 assert_eq!(
                     output, expected_format,
-                    "Output format should match: {}",
-                    format_str
+                    "Output format should match: {format_str}"
                 );
             } else {
                 panic!("Expected list command");
@@ -604,18 +589,15 @@ mod tests {
 
             assert_eq!(
                 cli.verbose, expected_verbose,
-                "Verbose flag mismatch for: {:?}",
-                args
+                "Verbose flag mismatch for: {args:?}"
             );
             assert_eq!(
                 cli.debug, expected_debug,
-                "Debug flag mismatch for: {:?}",
-                args
+                "Debug flag mismatch for: {args:?}"
             );
             assert_eq!(
                 cli.profile, expected_profile,
-                "Profile flag mismatch for: {:?}",
-                args
+                "Profile flag mismatch for: {args:?}"
             );
         }
     }
@@ -710,7 +692,7 @@ mod tests {
 
         for line_range in line_range_cases {
             let result = Cli::try_parse_from(vec!["blz", "get", "test", "--lines", line_range]);
-            assert!(result.is_ok(), "Line range should parse: {}", line_range);
+            assert!(result.is_ok(), "Line range should parse: {line_range}");
         }
 
         // Test URL parsing for add command
@@ -724,7 +706,7 @@ mod tests {
 
         for url in url_cases {
             let result = Cli::try_parse_from(vec!["blz", "add", "test", url]);
-            assert!(result.is_ok(), "URL should parse: {}", url);
+            assert!(result.is_ok(), "URL should parse: {url}");
         }
     }
 
@@ -745,15 +727,12 @@ mod tests {
         for (args, expected_error_content) in error_cases {
             let result = Cli::try_parse_from(args.clone());
 
-            assert!(result.is_err(), "Should error for: {:?}", args);
+            assert!(result.is_err(), "Should error for: {args:?}");
 
             let error_msg = format!("{:?}", result.unwrap_err()).to_lowercase();
             assert!(
                 error_msg.contains(expected_error_content),
-                "Error message should contain '{}' for args {:?}, got: {}",
-                expected_error_content,
-                args,
-                error_msg
+                "Error message should contain '{expected_error_content}' for args {args:?}, got: {error_msg}"
             );
         }
     }
@@ -780,7 +759,7 @@ mod tests {
 
             for args in &command_group {
                 let result = Cli::try_parse_from(args.clone());
-                assert!(result.is_ok(), "Should parse: {:?}", args);
+                assert!(result.is_ok(), "Should parse: {args:?}");
                 parsed_commands.push(result.unwrap());
             }
 
@@ -817,8 +796,7 @@ mod tests {
 
             assert!(
                 result.is_ok(),
-                "Completion generation should not panic for {:?}",
-                shell
+                "Completion generation should not panic for {shell:?}"
             );
         }
     }
@@ -831,7 +809,7 @@ mod tests {
         // Test that our CLI structure has all expected subcommands (which completions will include)
         let cmd = Cli::command();
 
-        let subcommands: Vec<&str> = cmd.get_subcommands().map(|sub| sub.get_name()).collect();
+        let subcommands: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
 
         // Verify all main subcommands are present in CLI structure
         let expected_commands = vec![
@@ -849,8 +827,7 @@ mod tests {
         for expected_command in expected_commands {
             assert!(
                 subcommands.contains(&expected_command),
-                "CLI should have '{}' subcommand for completions",
-                expected_command
+                "CLI should have '{expected_command}' subcommand for completions"
             );
         }
 
@@ -902,8 +879,7 @@ mod tests {
         for expected_flag in expected_global_flags {
             assert!(
                 global_args.contains(&expected_flag),
-                "CLI should have global flag '{}' for completions",
-                expected_flag
+                "CLI should have global flag '{expected_flag}' for completions"
             );
         }
 
@@ -947,8 +923,7 @@ mod tests {
         for expected_flag in expected_search_flags {
             assert!(
                 search_args.contains(&expected_flag),
-                "Search command should have '{}' flag for completions",
-                expected_flag
+                "Search command should have '{expected_flag}' flag for completions"
             );
         }
 
@@ -995,7 +970,7 @@ mod tests {
             .expect("Search should have output argument");
 
         assert!(
-            output_arg.get_possible_values().len() > 0,
+            !output_arg.get_possible_values().is_empty(),
             "Output argument should have possible values for completion"
         );
     }
@@ -1015,8 +990,7 @@ mod tests {
                 });
                 assert!(
                     result.is_ok(),
-                    "Completion generation should be consistent for {:?}",
-                    shell
+                    "Completion generation should be consistent for {shell:?}"
                 );
             }
         }
@@ -1037,11 +1011,7 @@ mod tests {
 
         for args in shell_completions {
             let result = Cli::try_parse_from(args.clone());
-            assert!(
-                result.is_ok(),
-                "Completions command should parse: {:?}",
-                args
-            );
+            assert!(result.is_ok(), "Completions command should parse: {args:?}");
 
             if let Ok(cli) = result {
                 match cli.command {
@@ -1049,10 +1019,7 @@ mod tests {
                         // Expected - completions command parsed successfully
                     },
                     other => {
-                        panic!(
-                            "Expected Completions command, got: {:?} for args: {:?}",
-                            other, args
-                        );
+                        panic!("Expected Completions command, got: {other:?} for args: {args:?}");
                     },
                 }
             }
@@ -1076,8 +1043,7 @@ mod tests {
             let result = Cli::try_parse_from(args.clone());
             assert!(
                 result.is_err(),
-                "Invalid shell should be rejected: {:?}",
-                args
+                "Invalid shell should be rejected: {args:?}"
             );
         }
     }
@@ -1099,8 +1065,7 @@ mod tests {
                 assert_eq!(
                     error.kind(),
                     clap::error::ErrorKind::DisplayHelp,
-                    "Completions help should display help: {:?}",
-                    help_cmd
+                    "Completions help should display help: {help_cmd:?}"
                 );
 
                 let help_text = error.to_string();
@@ -1113,7 +1078,7 @@ mod tests {
                     "Help text should mention shell parameter"
                 );
             } else {
-                panic!("Help command should not succeed: {:?}", help_cmd);
+                panic!("Help command should not succeed: {help_cmd:?}");
             }
         }
     }
@@ -1130,7 +1095,7 @@ mod tests {
         assert_eq!(cmd.get_name(), "blz", "Command name should be 'blz'");
 
         // Verify subcommands are properly configured
-        let subcommands: Vec<&str> = cmd.get_subcommands().map(|sub| sub.get_name()).collect();
+        let subcommands: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
 
         let expected_subcommands = vec![
             "completions",
@@ -1147,9 +1112,7 @@ mod tests {
         for expected in expected_subcommands {
             assert!(
                 subcommands.contains(&expected),
-                "Command should have subcommand '{}', found: {:?}",
-                expected,
-                subcommands
+                "Command should have subcommand '{expected}', found: {subcommands:?}"
             );
         }
 

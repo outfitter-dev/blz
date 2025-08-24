@@ -129,7 +129,7 @@ pub struct DefaultsConfig {
 ///
 /// This controls how the system handles links to other documentation sources
 /// within llms.txt files.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FollowLinks {
     /// Never follow external links.
@@ -576,12 +576,7 @@ mod tests {
             let deserialized: FollowLinks = serde_json::from_str(&serialized)?;
 
             // Then: Should round-trip correctly
-            match (&variant, &deserialized) {
-                (FollowLinks::None, FollowLinks::None) => {},
-                (FollowLinks::FirstParty, FollowLinks::FirstParty) => {},
-                (FollowLinks::Allowlist, FollowLinks::Allowlist) => {},
-                _ => panic!("Round-trip failed for {variant:?}"),
-            }
+            assert_eq!(variant, deserialized, "Round-trip failed for {variant:?}");
         }
         Ok(())
     }

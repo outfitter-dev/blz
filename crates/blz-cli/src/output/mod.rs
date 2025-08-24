@@ -72,6 +72,6 @@ mod json;
 mod progress;
 mod text;
 
-pub use formatter::{OutputFormat, SearchResultFormatter, SourceInfoFormatter};
+pub use formatter::{OutputFormat, SearchResultFormatter};
 
 // Re-export commonly used formatters

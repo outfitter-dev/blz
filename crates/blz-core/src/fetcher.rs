@@ -540,7 +540,7 @@ mod tests {
             Err(Error::Network(_)) => {
                 // Expected error type
             },
-            Err(e) => panic!("Expected Network error, got: {}", e),
+            Err(e) => panic!("Expected Network error, got: {e}"),
             Ok(_) => panic!("Expected error for 404 response"),
         }
 
@@ -571,7 +571,7 @@ mod tests {
             Err(Error::Network(_)) => {
                 // Expected error type
             },
-            Err(e) => panic!("Expected Network error, got: {}", e),
+            Err(e) => panic!("Expected Network error, got: {e}"),
             Ok(_) => panic!("Expected error for 500 response"),
         }
 
@@ -707,7 +707,7 @@ mod tests {
         ];
         for flavor in &flavors {
             Mock::given(method("HEAD"))
-                .and(path(&format!("/{}", flavor)))
+                .and(path(format!("/{flavor}")))
                 .respond_with(ResponseTemplate::new(404))
                 .mount(&mock_server)
                 .await;
@@ -796,7 +796,7 @@ mod tests {
         ];
         for flavor in &standard_flavors {
             Mock::given(method("HEAD"))
-                .and(path(&format!("/docs/{}", flavor)))
+                .and(path(format!("/docs/{flavor}")))
                 .respond_with(ResponseTemplate::new(404))
                 .mount(&mock_server)
                 .await;
@@ -831,7 +831,7 @@ mod tests {
 
         for invalid_url in invalid_urls {
             let result = fetcher.fetch_with_cache(invalid_url, None, None).await;
-            assert!(result.is_err(), "Invalid URL '{}' should fail", invalid_url);
+            assert!(result.is_err(), "Invalid URL '{invalid_url}' should fail");
         }
 
         Ok(())
@@ -876,7 +876,7 @@ mod tests {
                     assert_eq!(content, "concurrent content");
                     assert!(!sha256.is_empty());
                 },
-                Err(e) => panic!("Request {} should succeed: {}", index, e),
+                Err(e) => panic!("Request {index} should succeed: {e}"),
             }
         }
 

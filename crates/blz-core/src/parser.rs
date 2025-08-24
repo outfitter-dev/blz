@@ -1114,7 +1114,7 @@ Different content for section B.
             content in r"[\u{0080}-\u{FFFF}]{1,100}"
         ) {
             let mut parser = create_test_parser();
-            let markdown = format!("# Unicode Test\n\n{}", content);
+            let markdown = format!("# Unicode Test\n\n{content}");
 
             if let Ok(result) = parser.parse(&markdown) {
                 // Unicode content should be preserved in heading blocks
@@ -1132,15 +1132,13 @@ Different content for section B.
             line_ending in prop_oneof![Just("\n"), Just("\r\n"), Just("\r")]
         ) {
             let mut parser = create_test_parser();
-            let content_lines = vec![
-                "# Main Heading",
+            let content_lines = ["# Main Heading",
                 "",
                 "This is content.",
                 "",
                 "## Sub Heading",
                 "",
-                "More content here."
-            ];
+                "More content here."];
 
             let markdown = content_lines.join(line_ending);
 
@@ -1195,7 +1193,7 @@ Different content for section B.
                 markdown.push_str(&format!("# Heading {}\n\n", i + 1));
 
                 // Add large content block
-                let content_line = format!("This is line {} of content. ", i);
+                let content_line = format!("This is line {i} of content. ");
                 let large_content = content_line.repeat(block_size / content_line.len());
                 markdown.push_str(&large_content);
                 markdown.push_str("\n\n");
@@ -1228,8 +1226,7 @@ Different content for section B.
 
             // Create markdown with potentially problematic syntax
             let markdown = format!(
-                "# Test Heading\n\nContent with {} special {} characters {} here.\n\n## Another {}\n\nMore {} content.",
-                syntax_char, syntax_char, syntax_char, syntax_char, syntax_char
+                "# Test Heading\n\nContent with {syntax_char} special {syntax_char} characters {syntax_char} here.\n\n## Another {syntax_char}\n\nMore {syntax_char} content."
             );
 
             if let Ok(result) = parser.parse(&markdown) {
@@ -1255,7 +1252,7 @@ Different content for section B.
             heading_text in r"[a-zA-Z ]{5,20}"
         ) {
             let mut parser = create_test_parser();
-            let formatted_heading = format!("# {} {}\n\nContent here.", heading_text, format_type);
+            let formatted_heading = format!("# {heading_text} {format_type}\n\nContent here.");
 
             if let Ok(result) = parser.parse(&formatted_heading) {
                 // Should extract heading text (may or may not preserve formatting)
@@ -1263,7 +1260,7 @@ Different content for section B.
 
                 let heading_found = result.heading_blocks.iter()
                     .any(|block| block.path.iter()
-                        .any(|p| p.contains(&heading_text.trim())));
+                        .any(|p| p.contains(heading_text.trim())));
                 prop_assert!(heading_found, "Should find heading text");
             }
         }
@@ -1283,8 +1280,7 @@ Different content for section B.
                                           " ".repeat(spaces_after),
                                           "\t".repeat(tabs_mixed));
 
-            let markdown = format!("{}# Test Heading{}\n\nContent here.",
-                                 whitespace_prefix, whitespace_suffix);
+            let markdown = format!("{whitespace_prefix}# Test Heading{whitespace_suffix}\n\nContent here.");
 
             if let Ok(result) = parser.parse(&markdown) {
                 // Should handle whitespace variations gracefully
@@ -1311,13 +1307,12 @@ Different content for section B.
 
             let code_content = code_lines.join("\n");
             let markdown = format!(
-                "# Code Example\n\nHere's some code:\n\n```{}\n{}\n```\n\n## After Code\n\nMore content.",
-                language, code_content
+                "# Code Example\n\nHere's some code:\n\n```{language}\n{code_content}\n```\n\n## After Code\n\nMore content."
             );
 
             if let Ok(result) = parser.parse(&markdown) {
                 // Should handle code blocks properly
-                prop_assert!(result.heading_blocks.len() >= 1);
+                prop_assert!(!result.heading_blocks.is_empty());
 
                 // Code content should be preserved in blocks
                 let has_code = result.heading_blocks.iter()
