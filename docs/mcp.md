@@ -42,7 +42,7 @@ You should see the server initialize and wait for MCP protocol messages.
 
 ### `blz_search`
 
-Search across all cached documentation sources.
+Search across all indexed documentation sources.
 
 **Parameters:**
 - `query` (required) - Search terms
@@ -81,7 +81,7 @@ Search across all cached documentation sources.
 
 ### `blz_get`
 
-Retrieve exact lines from a cached source.
+Retrieve exact lines from an indexed source.
 
 **Parameters:**
 - `alias` (required) - Source to retrieve from
@@ -115,7 +115,7 @@ Retrieve exact lines from a cached source.
 
 ### `blz_list`
 
-List all cached documentation sources.
+List all indexed documentation sources.
 
 **Parameters:**
 - `format` (optional) - Output format: "text" or "json" (default: "text")
@@ -173,7 +173,7 @@ Add a new documentation source.
 
 ### `blz_update`
 
-Update cached sources with latest content.
+Update indexed sources with latest content.
 
 **Parameters:**
 - `alias` (optional) - Specific source to update
@@ -196,7 +196,7 @@ Update cached sources with latest content.
 
 ### `blz_remove`
 
-Remove a cached source.
+Remove an indexed source.
 
 **Parameters:**
 - `alias` (required) - Source to remove
@@ -218,7 +218,7 @@ Remove a cached source.
 
 ## Resources
 
-The MCP server exposes cached documentation as resources that can be read directly.
+The MCP server exposes indexed documentation as resources that can be read directly.
 
 ### Resource Format
 
@@ -327,7 +327,7 @@ blz mcp --verbose
 ## Security Considerations
 
 - **Local Only**: No network access except for `add`/`update`
-- **Read-Only**: Sources are cached locally and read-only
+- **Read-Only**: Sources are indexed locally and read-only
 - **Sandboxed**: No file system access outside cache directory
 - **Validated**: All URLs must serve valid llms.txt format
 
@@ -357,7 +357,7 @@ blz add bun https://bun.sh/llms.txt
 
 ### Search Returns No Results
 
-Check that sources are cached:
+Check that sources are indexed:
 
 ```bash
 blz list
@@ -404,7 +404,7 @@ The MCP server can be integrated into any MCP-compatible system. See the [MCP sp
 ## Limitations
 
 - **Read-Only**: Cannot modify source content through MCP
-- **Local Sources**: Only works with cached documentation
+- **Local Sources**: Only works with indexed documentation
 - **Text Format**: Optimized for text-based documentation
 - **Single User**: Designed for single-user local usage
 

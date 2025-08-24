@@ -119,6 +119,11 @@ impl Registry {
         Self { entries }
     }
 
+    /// Create a new registry with custom entries
+    pub fn from_entries(entries: Vec<RegistryEntry>) -> Self {
+        Self { entries }
+    }
+
     /// Search for registry entries using fuzzy matching
     pub fn search(&self, query: &str) -> Vec<RegistrySearchResult> {
         let matcher = SkimMatcherV2::default();

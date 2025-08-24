@@ -148,8 +148,17 @@ impl Fetcher {
 
         // If the user provided a specific llms.txt variant, make sure it's in the list
         if let Some(filename) = url.split('/').next_back() {
-            if filename.starts_with("llms")
-                && std::path::Path::new(filename)
+            // Strip query parameters and fragments for extension check
+            let clean_filename = filename
+                .split('?')
+                .next()
+                .unwrap_or(filename)
+                .split('#')
+                .next()
+                .unwrap_or(filename);
+
+            if clean_filename.starts_with("llms")
+                && std::path::Path::new(clean_filename)
                     .extension()
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("txt"))
                 && !flavors.iter().any(|f| f.name == filename)
@@ -224,7 +233,8 @@ fn extract_base_url(url: &str) -> String {
     url.rfind('/').map_or_else(
         || url.to_string(),
         |last_slash| {
-            if url.len() > 3 && &url[(last_slash - 2)..=last_slash] == "://" {
+            let start_pos = last_slash.saturating_sub(2);
+            if url.len() > 3 && &url[start_pos..=last_slash] == "://" {
                 url.to_string()
             } else {
                 url[..last_slash].to_string()
@@ -368,8 +378,8 @@ mod tests {
         let test_cases = vec![
             (0, "llms.txt (0 B)"),
             (1024, "llms.txt (1.0 KB)"),
-            (1048576, "llms.txt (1.0 MB)"),
-            (1073741824, "llms.txt (1.0 GB)"),
+            (1_048_576, "llms.txt (1.0 MB)"),
+            (1_073_741_824, "llms.txt (1.0 GB)"),
         ];
 
         for (size, expected) in test_cases {
@@ -757,10 +767,10 @@ mod tests {
 
         // Should be sorted by preference
         assert_eq!(flavors[0].name, "llms-full.txt");
-        assert_eq!(flavors[0].size, Some(2048000));
+        assert_eq!(flavors[0].size, Some(2_048_000));
 
         assert_eq!(flavors[1].name, "llms.txt");
-        assert_eq!(flavors[1].size, Some(1024000));
+        assert_eq!(flavors[1].size, Some(1_024_000));
 
         Ok(())
     }

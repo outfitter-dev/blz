@@ -6,7 +6,8 @@
 //! - Fuzzy matching performance
 //! - Concurrent search operations
 
-use blz_core::{Registry, RegistryEntry};
+use blz_core::registry::RegistryEntry;
+use blz_core::Registry;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
 use std::time::Duration;
@@ -94,20 +95,19 @@ fn create_large_registry() -> Registry {
     ];
 
     for (i, name) in similar_names.iter().enumerate() {
+        let alt_name = format!("{}-alt", name);
         let entry = RegistryEntry::new(
             &format!("{} Framework", name.to_uppercase()),
             &format!("similar-{}", i),
             &format!("Similar name testing framework: {}", name),
             &format!("https://{}.example.com/llms.txt", name),
         )
-        .with_aliases(vec![name, &format!("{}-alt", name)]);
+        .with_aliases(vec![name, alt_name.as_str()]);
         entries.push(entry);
     }
 
-    // Create registry with custom entries (this is a simplified version)
-    // In a real implementation, we'd need a way to create Registry with custom entries
-    // For now, we'll just use the default registry for benchmarking
-    Registry::new()
+    // Create registry with all the synthetic entries
+    Registry::from_entries(entries)
 }
 
 fn bench_search_query_sizes(c: &mut Criterion) {
@@ -354,6 +354,7 @@ fn bench_edge_case_queries(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("edge_cases");
 
+    let long_repeated = "javascript ".repeat(20);
     let edge_cases = vec![
         ("empty_string", ""),
         ("whitespace_only", "   "),
@@ -362,7 +363,7 @@ fn bench_edge_case_queries(c: &mut Criterion) {
         ("numbers_only", "12345"),
         ("mixed_special", "node.js-v18+"),
         ("repeated_chars", "aaaaaaaaaa"),
-        ("long_repeated", &"javascript ".repeat(20)),
+        ("long_repeated", long_repeated.as_str()),
         ("unicode_mixed", "react🚀"),
         ("newlines", "react\nnode"),
     ];
