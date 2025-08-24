@@ -248,7 +248,7 @@ Use the standard MCP resource reading:
 1. **Discovery**: Use `blz_list` to see available sources
 2. **Search**: Use `blz_search` to find relevant documentation
 3. **Retrieval**: Use `blz_get` to fetch specific content
-4. **Expansion**: Use `blz_add` to cache new sources as needed
+4. **Expansion**: Use `blz_add` to index new sources as needed
 
 ### Example Agent Flow
 
@@ -311,7 +311,7 @@ The MCP server uses the same configuration as the CLI:
 
 ```
 ~/.outfitter/blz/
-├── sources/          # Cached documentation
+├── sources/          # Indexed documentation
 ├── indices/          # Search indices  
 └── config.json      # Server configuration
 ```
@@ -328,7 +328,7 @@ blz mcp --verbose
 
 - **Local Only**: No network access except for `add`/`update`
 - **Read-Only**: Sources are indexed locally and read-only
-- **Sandboxed**: No file system access outside cache directory
+- **Sandboxed**: No file system access outside data directory
 - **Validated**: All URLs must serve valid llms.txt format
 
 ## Troubleshooting
