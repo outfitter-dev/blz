@@ -39,7 +39,6 @@ pprof.workspace = true
 sysinfo.workspace = true
 
 [dev-dependencies]
-pretty_assertions = "1"
 proptest = "1"
 criterion.workspace = true
 tempfile.workspace = true
