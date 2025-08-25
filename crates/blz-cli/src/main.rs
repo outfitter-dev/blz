@@ -1,5 +1,3 @@
-#![allow(clippy::similar_names)]
-
 //! blz CLI - Fast local search for llms.txt documentation
 //!
 //! This is the main entry point for the blz command-line interface.
