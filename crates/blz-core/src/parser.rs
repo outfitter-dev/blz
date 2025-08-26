@@ -349,58 +349,92 @@ impl MarkdownParser {
         blocks: &mut Vec<HeadingBlock>,
         toc: &mut Vec<TocEntry>,
     ) -> Result<()> {
-        let mut current_path = Vec::new();
-        let mut current_content = String::new();
-        let mut current_start = 0;
-        let mut stack: VecDeque<usize> = VecDeque::new();
+        // Collect all heading information first
+        #[derive(Debug)]
+        struct HeadingInfo {
+            level: usize,
+            text: String,
+            byte_start: usize,
+            line_start: usize,
+        }
 
+        let mut headings = Vec::new();
+
+        // First pass: collect all headings with their positions
         self.walk_tree(cursor, text, |node| {
             if node.kind() == "atx_heading" {
-                if !current_content.is_empty() && !current_path.is_empty() {
-                    blocks.push(HeadingBlock {
-                        path: current_path.clone(),
-                        content: current_content.clone(),
-                        start_line: current_start + 1,
-                        end_line: node.start_position().row,
-                    });
-                }
-
                 let level = self.get_heading_level(node, text);
                 let heading_text = self.get_heading_text(node, text);
+                let line_start = node.start_position().row;
 
-                while stack.len() >= level {
-                    stack.pop_back();
-                    current_path.pop();
-                }
-
-                current_path.push(heading_text);
-                stack.push_back(level);
-
-                current_content.clear();
-                current_start = node.start_position().row;
-
-                let entry = TocEntry {
-                    heading_path: current_path.clone(),
-                    lines: format!("{}-", current_start + 1),
-                    children: Vec::new(),
-                };
-
-                self.add_to_toc(toc, entry, stack.len());
+                headings.push(HeadingInfo {
+                    level,
+                    text: heading_text,
+                    byte_start: node.byte_range().start,
+                    line_start,
+                });
             }
-
-            let node_text = &text[node.byte_range()];
-            current_content.push_str(node_text);
-            current_content.push('\n');
         });
 
-        if !current_content.is_empty() && !current_path.is_empty() {
-            let line_count = text.lines().count();
+        // If no headings, create a single document block
+        if headings.is_empty() {
+            return Ok(());
+        }
+
+        // Second pass: build blocks by slicing between headings
+        let mut current_path = Vec::new();
+        let mut stack: VecDeque<usize> = VecDeque::new();
+
+        for i in 0..headings.len() {
+            let heading = &headings[i];
+
+            // Update path based on heading level
+            while stack.len() >= heading.level {
+                stack.pop_back();
+                current_path.pop();
+            }
+            current_path.push(heading.text.clone());
+            stack.push_back(heading.level);
+
+            // Determine content range
+            let content_start = heading.byte_start;
+            let content_end = if i + 1 < headings.len() {
+                headings[i + 1].byte_start
+            } else {
+                text.len()
+            };
+
+            // Extract content slice
+            let content = &text[content_start..content_end];
+
+            // Calculate line numbers
+            let start_line = heading.line_start + 1; // 1-based
+            let end_line = if i + 1 < headings.len() {
+                headings[i + 1].line_start // End at the line before next heading
+            } else {
+                text.lines().count()
+            };
+
+            // Create heading block
             blocks.push(HeadingBlock {
-                path: current_path,
-                content: current_content,
-                start_line: current_start + 1,
-                end_line: line_count,
+                path: current_path.clone(),
+                content: content.to_string(),
+                start_line,
+                end_line,
             });
+
+            // Create TOC entry
+            let entry = TocEntry {
+                heading_path: current_path.clone(),
+                lines: if end_line > start_line {
+                    format!("{start_line}-{end_line}")
+                } else {
+                    format!("{start_line}")
+                },
+                children: Vec::new(),
+            };
+
+            self.add_to_toc(toc, entry, stack.len());
         }
 
         Ok(())
@@ -1543,6 +1577,185 @@ And even more content
             assert_eq!(block1.start_line, block2.start_line);
             assert_eq!(block1.end_line, block2.end_line);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_heading_blocks_no_duplication() -> Result<()> {
+        // Given: Markdown with sentinel markers to verify exact extraction
+        let markdown = r"# First Heading
+SENTINEL_FIRST_START
+Content under first heading
+with multiple lines
+SENTINEL_FIRST_END
+
+## First Sub
+SENTINEL_SUB_START  
+Content under first sub
+SENTINEL_SUB_END
+
+## Second Sub
+SENTINEL_SUB2_START
+Content under second sub
+SENTINEL_SUB2_END
+
+# Second Heading
+SENTINEL_SECOND_START
+Final content
+SENTINEL_SECOND_END";
+
+        let mut parser = create_test_parser();
+        let result = parser.parse(markdown)?;
+
+        // Verify correct number of blocks
+        assert_eq!(
+            result.heading_blocks.len(),
+            4,
+            "Should have 4 heading blocks"
+        );
+
+        // Verify no content duplication
+        for block in &result.heading_blocks {
+            // Each sentinel should appear exactly once
+            let first_count = block.content.matches("SENTINEL_FIRST_START").count();
+            let sub_count = block.content.matches("SENTINEL_SUB_START").count();
+            let sub2_count = block.content.matches("SENTINEL_SUB2_START").count();
+            let second_count = block.content.matches("SENTINEL_SECOND_START").count();
+
+            // Each block should contain at most one sentinel section
+            assert!(first_count <= 1, "First sentinel duplicated");
+            assert!(sub_count <= 1, "Sub sentinel duplicated");
+            assert!(sub2_count <= 1, "Sub2 sentinel duplicated");
+            assert!(second_count <= 1, "Second sentinel duplicated");
+        }
+
+        // Verify each block contains its expected content
+        let first_block = &result.heading_blocks[0];
+        assert!(first_block.content.contains("SENTINEL_FIRST_START"));
+        assert!(first_block.content.contains("SENTINEL_FIRST_END"));
+        assert!(!first_block.content.contains("SENTINEL_SUB_START"));
+
+        let sub_block = &result.heading_blocks[1];
+        assert!(sub_block.content.contains("SENTINEL_SUB_START"));
+        assert!(sub_block.content.contains("SENTINEL_SUB_END"));
+        assert!(!sub_block.content.contains("SENTINEL_FIRST"));
+        assert!(!sub_block.content.contains("SENTINEL_SUB2"));
+
+        let sub2_block = &result.heading_blocks[2];
+        assert!(sub2_block.content.contains("SENTINEL_SUB2_START"));
+        assert!(sub2_block.content.contains("SENTINEL_SUB2_END"));
+        assert!(!sub2_block.content.contains("SENTINEL_SUB_START"));
+        assert!(!sub2_block.content.contains("SENTINEL_SECOND"));
+
+        let second_block = &result.heading_blocks[3];
+        assert!(second_block.content.contains("SENTINEL_SECOND_START"));
+        assert!(second_block.content.contains("SENTINEL_SECOND_END"));
+        assert!(!second_block.content.contains("SENTINEL_FIRST"));
+        assert!(!second_block.content.contains("SENTINEL_SUB"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_line_ranges_accuracy() -> Result<()> {
+        // Given: Markdown with known line structure
+        let markdown = "# Heading at Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n## Sub at Line 6\nLine 7\nLine 8\n# Another at Line 9\nLine 10";
+
+        let mut parser = create_test_parser();
+        let result = parser.parse(markdown)?;
+
+        assert_eq!(result.line_count, 10, "Should have 10 lines total");
+        assert_eq!(
+            result.heading_blocks.len(),
+            3,
+            "Should have 3 heading blocks"
+        );
+
+        // First block: "Heading at Line 1" (lines 1-5)
+        let first = &result.heading_blocks[0];
+        assert_eq!(first.path, vec!["Heading at Line 1"]);
+        assert_eq!(first.start_line, 1, "First heading starts at line 1");
+        assert_eq!(first.end_line, 5, "First heading ends at line 5");
+
+        // Second block: "Sub at Line 6" (lines 6-8)
+        let second = &result.heading_blocks[1];
+        assert_eq!(second.path, vec!["Heading at Line 1", "Sub at Line 6"]);
+        assert_eq!(second.start_line, 6, "Sub heading starts at line 6");
+        assert_eq!(second.end_line, 8, "Sub heading ends at line 8");
+
+        // Third block: "Another at Line 9" (lines 9-10)
+        let third = &result.heading_blocks[2];
+        assert_eq!(third.path, vec!["Another at Line 9"]);
+        assert_eq!(third.start_line, 9, "Another heading starts at line 9");
+        assert_eq!(third.end_line, 10, "Another heading ends at line 10");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_mixed_headings_edge_cases() -> Result<()> {
+        // Given: Markdown with unicode and various heading levels
+        let markdown = r"# 🔥 Main Section
+Content with emoji
+
+## Ünïcödë Heading
+Спецйальные символы
+
+### Deep → Nested ← Section
+More content here
+
+#### Even Deeper
+Nested content
+
+##### Fifth Level
+Very deep
+
+###### Sixth Level  
+Deepest level
+
+### Back to Level 3
+After deep nesting";
+
+        let mut parser = create_test_parser();
+        let result = parser.parse(markdown)?;
+
+        // Should handle all heading levels
+        assert!(
+            result.heading_blocks.len() >= 7,
+            "Should extract all heading levels"
+        );
+
+        // Verify unicode preservation
+        assert!(result.heading_blocks[0].path[0].contains("🔥"));
+        assert!(result.heading_blocks[1].path[1].contains("Ünïcödë"));
+
+        // Verify proper nesting handling
+        let deep_block = result
+            .heading_blocks
+            .iter()
+            .find(|b| b.path.last().map_or(false, |p| p.contains("Fifth Level")))
+            .expect("Should find Fifth Level heading");
+        assert!(
+            deep_block.path.len() >= 5,
+            "Fifth level should be deeply nested"
+        );
+
+        // Verify back-tracking works (going from level 6 back to level 3)
+        let back_block = result
+            .heading_blocks
+            .iter()
+            .find(|b| {
+                b.path
+                    .last()
+                    .map_or(false, |p| p.contains("Back to Level 3"))
+            })
+            .expect("Should find Back to Level 3 heading");
+        assert_eq!(
+            back_block.path.len(),
+            3,
+            "Should be at level 3 after backtracking"
+        );
 
         Ok(())
     }
