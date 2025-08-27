@@ -121,9 +121,27 @@ async fn update_source(
     let fetch_result = fetcher.fetch_with_cache(&url, etag, last_modified).await?;
 
     match fetch_result {
-        FetchResult::NotModified => {
-            pb.finish_with_message(format!("{}: Not modified", alias));
+        FetchResult::NotModified {
+            etag: new_etag,
+            last_modified: new_last_modified,
+        } => {
+            pb.finish_with_message(format!("{}: Up-to-date", alias));
             info!("{} is up to date", alias);
+
+            // Update metadata timestamp and any new validator values
+            let current = existing_metadata
+                .clone()
+                .unwrap_or(existing_json.source.clone());
+
+            let updated_metadata = Source {
+                fetched_at: Utc::now(),
+                etag: new_etag.or(current.etag),
+                last_modified: new_last_modified.or(current.last_modified),
+                ..current
+            };
+
+            storage.save_source_metadata(alias, &updated_metadata)?;
+
             Ok(false)
         },
         FetchResult::Modified {

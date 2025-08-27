@@ -46,7 +46,24 @@ impl Fetcher {
 
         if status == StatusCode::NOT_MODIFIED {
             info!("Resource not modified (304) for {}", url);
-            return Ok(FetchResult::NotModified);
+
+            // Extract ETag and Last-Modified headers even on 304
+            let etag = response
+                .headers()
+                .get(ETAG)
+                .and_then(|v| v.to_str().ok())
+                .map(std::string::ToString::to_string);
+
+            let last_modified = response
+                .headers()
+                .get(LAST_MODIFIED)
+                .and_then(|v| v.to_str().ok())
+                .map(std::string::ToString::to_string);
+
+            return Ok(FetchResult::NotModified {
+                etag,
+                last_modified,
+            });
         }
 
         if !status.is_success() {
@@ -210,7 +227,10 @@ impl Fetcher {
 }
 
 pub enum FetchResult {
-    NotModified,
+    NotModified {
+        etag: Option<String>,
+        last_modified: Option<String>,
+    },
     Modified {
         content: String,
         etag: Option<String>,
@@ -440,7 +460,7 @@ mod tests {
             .await?;
 
         match result {
-            FetchResult::NotModified => {
+            FetchResult::NotModified { .. } => {
                 // Expected result
             },
             _ => panic!("Expected NotModified result for matching ETag"),
@@ -522,7 +542,7 @@ mod tests {
             .await?;
 
         match result {
-            FetchResult::NotModified => {
+            FetchResult::NotModified { .. } => {
                 // Expected result
             },
             _ => panic!("Expected NotModified result for matching Last-Modified"),
@@ -685,7 +705,7 @@ mod tests {
             .await?;
 
         match result {
-            FetchResult::NotModified => {
+            FetchResult::NotModified { .. } => {
                 // Expected result
             },
             _ => panic!("Expected NotModified result for matching cache headers"),

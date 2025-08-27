@@ -156,8 +156,16 @@ impl Storage {
         let path = self.metadata_path(alias)?;
         let json = serde_json::to_string_pretty(source)
             .map_err(|e| Error::Storage(format!("Failed to serialize metadata: {e}")))?;
-        fs::write(&path, json)
-            .map_err(|e| Error::Storage(format!("Failed to write metadata: {e}")))?;
+
+        // Write to a temp file first to ensure atomicity
+        let tmp_path = path.with_extension("json.tmp");
+        fs::write(&tmp_path, &json)
+            .map_err(|e| Error::Storage(format!("Failed to write temp metadata: {e}")))?;
+
+        // Atomically rename temp file to final path
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to persist metadata: {e}")))?;
+
         debug!("Saved metadata for {}", alias);
         Ok(())
     }

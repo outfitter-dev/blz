@@ -156,7 +156,13 @@ async fn perform_search(
             }
 
             let index = SearchIndex::open(&index_path)
-                .with_context(|| format!("open index for source={} at {}", source, index_path.display()))?
+                .with_context(|| {
+                    format!(
+                        "open index for source={} at {}",
+                        source,
+                        index_path.display()
+                    )
+                })?
                 .with_metrics(metrics);
             let hits = index
                 .search(&query, Some(&source), effective_limit)
@@ -183,9 +189,10 @@ async fn perform_search(
     while let Some(result) = search_stream.next().await {
         match result {
             Ok((hits, lines, source)) => {
+                let has_hits = !hits.is_empty();
                 all_hits.extend(hits);
                 total_lines_searched += lines;
-                if lines > 0 || !hits.is_empty() {
+                if lines > 0 || has_hits {
                     sources_searched.push(source);
                 }
             },
