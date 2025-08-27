@@ -28,6 +28,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
 directories = "5"
+futures = "0.3"
 
 # Parsing & indexing
 tree-sitter = "0.24"
@@ -43,7 +44,6 @@ criterion = "0.5"
 pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"] }
 sysinfo = "0.32"
 tempfile = "3"
-futures = "0.3"
 url = "2"
 
 # Internal crates
