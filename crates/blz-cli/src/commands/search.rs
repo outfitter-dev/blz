@@ -143,20 +143,26 @@ async fn perform_search(
     // Set max concurrent searches to prevent resource exhaustion
     const MAX_CONCURRENT_SEARCHES: usize = 8;
 
-    // Create futures for parallel search across sources
-    let search_futures = sources.into_iter().map(|source| {
+    // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
+    let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
         let query = options.query.clone();
 
-        async move {
+        tokio::task::spawn_blocking(move || -> anyhow::Result<(Vec<SearchHit>, usize, String)> {
             let index_path = storage.index_dir(&source)?;
             if !index_path.exists() {
-                return Ok::<_, anyhow::Error>((Vec::new(), 0, source));
+                return Ok((Vec::new(), 0, source));
             }
 
             let index = SearchIndex::open(&index_path)
-                .with_context(|| format!("open index for source={} at {}", source, index_path.display()))?
+                .with_context(|| {
+                    format!(
+                        "open index for source={} at {}",
+                        source,
+                        index_path.display()
+                    )
+                })?
                 .with_metrics(metrics);
             let hits = index
                 .search(&query, Some(&source), effective_limit)
@@ -169,29 +175,32 @@ async fn perform_search(
                 .unwrap_or(0);
 
             Ok((hits, total_lines, source))
-        }
+        })
     });
 
     // Execute searches with bounded concurrency
-    let mut search_stream = stream::iter(search_futures).buffer_unordered(MAX_CONCURRENT_SEARCHES);
+    let mut search_stream = stream::iter(search_tasks).buffer_unordered(MAX_CONCURRENT_SEARCHES);
 
     let mut all_hits = Vec::new();
     let mut total_lines_searched = 0usize;
     let mut sources_searched = Vec::new();
 
     // Collect results from the stream
-    while let Some(result) = search_stream.next().await {
-        match result {
-            Ok((hits, lines, source)) => {
+    while let Some(join_res) = search_stream.next().await {
+        match join_res {
+            Ok(Ok((hits, lines, source))) => {
+                let has_hits = !hits.is_empty();
                 all_hits.extend(hits);
                 total_lines_searched += lines;
-                if lines > 0 || !hits.is_empty() {
+                if lines > 0 || has_hits {
                     sources_searched.push(source);
                 }
             },
-            Err(e) => {
-                // Log error but continue with other sources
+            Ok(Err(e)) => {
                 tracing::warn!("Search failed: {}", e);
+            },
+            Err(join_err) => {
+                tracing::warn!("Search task panicked: {}", join_err);
             },
         }
     }
