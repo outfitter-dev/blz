@@ -215,18 +215,27 @@ async fn update_source(
             };
             storage.save_source_metadata(alias, &metadata)?;
 
-            // Rebuild search index
+            // Rebuild search index atomically
             pb.set_message(format!("Reindexing {alias}..."));
             let index_path = storage.index_dir(alias)?;
 
-            // Remove existing index if present
+            // Build into temp path, then atomic swap
+            let tmp_index = index_path.with_extension("new");
+            if tmp_index.exists() {
+                std::fs::remove_dir_all(&tmp_index)
+                    .map_err(|e| anyhow!("Failed to clean temp index: {}", e))?;
+            }
+            
+            let mut index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
+            index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+            
+            // Swap in the new index
             if index_path.exists() {
                 std::fs::remove_dir_all(&index_path)
                     .map_err(|e| anyhow!("Failed to remove old index: {}", e))?;
             }
-
-            let mut index = SearchIndex::create(&index_path)?.with_metrics(metrics);
-            index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+            std::fs::rename(&tmp_index, &index_path)
+                .map_err(|e| anyhow!("Failed to move new index into place: {}", e))?;
 
             let elapsed = start.elapsed();
             pb.finish_with_message(format!(

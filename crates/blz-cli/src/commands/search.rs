@@ -141,10 +141,13 @@ async fn perform_search(
     };
 
     // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
-    const MAX_CONCURRENT_SEARCHES: usize = match std::thread::available_parallelism() {
-        Ok(n) => (n.get().saturating_mul(2)).min(16),
-        Err(_) => 8,
-    };
+    fn get_max_concurrent_searches() -> usize {
+        match std::thread::available_parallelism() {
+            Ok(n) => (n.get().saturating_mul(2)).min(16),
+            Err(_) => 8,
+        }
+    }
+    let max_concurrent_searches = get_max_concurrent_searches();
 
     // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
     let search_tasks = sources.into_iter().map(|source| {
@@ -182,7 +185,7 @@ async fn perform_search(
     });
 
     // Execute searches with bounded concurrency
-    let mut search_stream = stream::iter(search_tasks).buffer_unordered(MAX_CONCURRENT_SEARCHES);
+    let mut search_stream = stream::iter(search_tasks).buffer_unordered(max_concurrent_searches);
 
     let mut all_hits = Vec::new();
     let mut total_lines_searched = 0usize;
