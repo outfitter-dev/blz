@@ -1,12 +1,14 @@
 //! Search command implementation
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Storage};
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
 
 use crate::output::{OutputFormat, SearchResultFormatter};
+
+const ALL_RESULTS_LIMIT: usize = 10_000;
 
 /// Search options
 #[derive(Debug, Clone)]
@@ -17,7 +19,7 @@ pub struct SearchOptions {
     pub page: usize,
     pub top_percentile: Option<u8>,
     pub output: OutputFormat,
-    pub all: bool,
+    pub(crate) all: bool,
 }
 
 /// Execute a search across cached documentation
@@ -38,7 +40,7 @@ pub async fn execute(
         page,
         top_percentile,
         output,
-        all: limit >= 10000, // If limit is >= 10000, we want all results
+        all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -131,10 +133,11 @@ async fn perform_search(
 
     // Calculate effective limit to prevent over-fetching
     // If we want all results, use 10k limit. Otherwise, use (limit * 3) capped at 1000
+    // The 3x multiplier provides buffer for good results after deduplication/sorting
     let effective_limit = if options.all {
-        10_000
+        ALL_RESULTS_LIMIT
     } else {
-        (options.limit * 3).min(1000)
+        ((options.limit * 3).min(1000)).max(1)
     };
 
     // Set max concurrent searches to prevent resource exhaustion
@@ -152,8 +155,12 @@ async fn perform_search(
                 return Ok::<_, anyhow::Error>((Vec::new(), 0, source));
             }
 
-            let index = SearchIndex::open(&index_path)?.with_metrics(metrics);
-            let hits = index.search(&query, Some(&source), effective_limit)?;
+            let index = SearchIndex::open(&index_path)
+                .with_context(|| format!("open index for source={} at {}", source, index_path.display()))?
+                .with_metrics(metrics);
+            let hits = index
+                .search(&query, Some(&source), effective_limit)
+                .with_context(|| format!("search failed for source={}", source))?;
 
             // Count total lines for stats
             let total_lines = storage
@@ -178,11 +185,13 @@ async fn perform_search(
             Ok((hits, lines, source)) => {
                 all_hits.extend(hits);
                 total_lines_searched += lines;
-                sources_searched.push(source);
+                if lines > 0 || !hits.is_empty() {
+                    sources_searched.push(source);
+                }
             },
             Err(e) => {
                 // Log error but continue with other sources
-                tracing::warn!("Search failed for a source: {}", e);
+                tracing::warn!("Search failed: {}", e);
             },
         }
     }
@@ -192,6 +201,7 @@ async fn perform_search(
     sort_by_score(&mut all_hits);
     apply_percentile_filter(&mut all_hits, options.top_percentile);
 
+    sources_searched.sort();
     Ok(SearchResults {
         hits: all_hits,
         total_lines_searched,
@@ -224,9 +234,9 @@ fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
 fn sort_by_score(hits: &mut Vec<SearchHit>) {
     // Sort by score with deterministic tie-breakers
     hits.sort_by(|a, b| {
-        // First by score (descending)
-        match b.score.partial_cmp(&a.score) {
-            Some(std::cmp::Ordering::Equal) | None => {
+        // First by score (descending) with total ordering on floats
+        match b.score.total_cmp(&a.score) {
+            std::cmp::Ordering::Equal => {
                 // Then by alias (ascending)
                 a.alias.cmp(&b.alias)
                     // Then by line number (ascending)
@@ -234,7 +244,7 @@ fn sort_by_score(hits: &mut Vec<SearchHit>) {
                     // Finally by heading path (ascending)
                     .then(a.heading_path.cmp(&b.heading_path))
             },
-            Some(ordering) => ordering,
+            ordering => ordering,
         }
     });
 }
@@ -259,10 +269,10 @@ fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result
     let total_results = results.hits.len();
 
     // Apply pagination
-    let actual_limit = if options.limit >= 10000 {
-        results.hits.len()
+    let actual_limit = if options.limit >= ALL_RESULTS_LIMIT {
+        results.hits.len().max(1)
     } else {
-        options.limit
+        options.limit.max(1)
     };
 
     let start_idx = (options.page - 1) * actual_limit;
@@ -286,7 +296,7 @@ fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result
         total_results,
         results.total_lines_searched,
         results.search_time,
-        options.limit < 10000,
+        options.limit < ALL_RESULTS_LIMIT,
         options.alias.is_some(),
         &results.sources,
         start_idx,
