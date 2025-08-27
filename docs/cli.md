@@ -262,7 +262,7 @@ blz completions <SHELL>
 
 **Arguments:**
 
-- `<SHELL>` - Target shell: `bash`, `zsh`, `fish`, or `powershell`
+- `<SHELL>` - Target shell: `bash`, `zsh`, `fish`, `elvish`, or `powershell`
 
 **Examples:**
 
@@ -357,7 +357,7 @@ blz search "complex query" --flamegraph
 
 ### Configuration
 
-- **macOS**: `~/Library/Application Support/outfitter.blz/global.toml`
+- **macOS**: `~/Library/Preferences/outfitter.blz/global.toml`
 - **Linux**: `~/.config/outfitter/blz/global.toml`
 - **Windows**: `%APPDATA%\outfitter\blz\global.toml`
 

@@ -58,6 +58,9 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 
 # Install completions (Zsh)
 blz completions zsh > ~/.zsh/completions/_blz
+
+# Install completions (Elvish)
+blz completions elvish > ~/.elvish/lib/blz.elv
 ```
 
 ## Quick Start

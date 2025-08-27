@@ -20,16 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CLI Commands**
   - `add <alias> <url>` - Add and index a documentation source
-  - `search <query> [alias]` - Search across indexed documentation
+  - `search <query>` - Search across indexed documentation
   - `list` - List all indexed sources with metadata
   - `remove <alias>` - Remove a source and its index
-  - `update [alias]` - Update sources (placeholder - not yet functional)
+  - `update [alias]` - Update sources with conditional fetching and archiving
   - `completions <shell>` - Generate shell completions (fish, bash, zsh, elvish, powershell)
 
 - **Storage & Configuration**
-  - Unified storage location: `~/.outfitter/blz/`
+  - Platform-specific storage locations for data and configuration
   - Per-source data organization with metadata tracking
-  - Global configuration at platform-specific config directories
+  - Global configuration in platform-appropriate directories
   - Automatic migration from old `~/.outfitter/cache/` paths
 
 - **Performance**
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **No incremental indexing**: Full re-index required on updates
 - **`diff` command disabled**: Currently experimental, will be enabled in future release
-- **`update` command stub**: Command exists but is not yet functional
+- **No incremental updates**: Full re-index required on updates (ETag/Last-Modified used for conditional fetching)
 - **Single file format**: Only supports llms.txt markdown format
 - **No search history**: Search queries are not persisted
 - **Limited query syntax**: Basic text and field queries only
@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Storage Paths by Platform
 
-- **macOS**: `~/Library/Application Support/outfitter.blz/` (data), `~/Library/Application Support/outfitter.blz/` (config)
+- **macOS**: `~/Library/Application Support/outfitter.blz/` (data), `~/Library/Preferences/outfitter.blz/` (config)
 - **Linux**: `~/.local/share/outfitter/blz/` (data), `~/.config/outfitter/blz/` (config)  
 - **Windows**: `%APPDATA%\outfitter\blz\` (data), `%APPDATA%\outfitter\blz\` (config)
 
