@@ -1,3 +1,6 @@
+#![allow(clippy::cast_precision_loss)] // Performance metrics inherently lose precision when converting to f64
+#![allow(clippy::cast_possible_wrap)] // Wrapping is acceptable for memory delta calculations
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -31,24 +34,31 @@ impl Default for PerformanceMetrics {
 
 impl PerformanceMetrics {
     /// Record a search operation
+    #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_search(&self, duration: Duration, lines_count: usize) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
-        self.total_search_time
-            .fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+        self.total_search_time.fetch_add(
+            duration.as_micros().min(u128::from(u64::MAX)) as u64,
+            Ordering::Relaxed,
+        );
         self.lines_searched
             .fetch_add(lines_count as u64, Ordering::Relaxed);
     }
 
     /// Record an index build operation
+    #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_index_build(&self, duration: Duration, bytes_count: usize) {
         self.index_build_count.fetch_add(1, Ordering::Relaxed);
-        self.total_index_time
-            .fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+        self.total_index_time.fetch_add(
+            duration.as_micros().min(u128::from(u64::MAX)) as u64,
+            Ordering::Relaxed,
+        );
         self.bytes_processed
             .fetch_add(bytes_count as u64, Ordering::Relaxed);
     }
 
     /// Get average search time in microseconds
+    #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
     pub fn avg_search_time_micros(&self) -> f64 {
         let count = self.search_count.load(Ordering::Relaxed);
         let total = self.total_search_time.load(Ordering::Relaxed);
@@ -60,6 +70,7 @@ impl PerformanceMetrics {
     }
 
     /// Get average index build time in milliseconds
+    #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
     pub fn avg_index_time_millis(&self) -> f64 {
         let count = self.index_build_count.load(Ordering::Relaxed);
         let total = self.total_index_time.load(Ordering::Relaxed);

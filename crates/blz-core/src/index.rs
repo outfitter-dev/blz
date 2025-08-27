@@ -185,17 +185,17 @@ impl SearchIndex {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)] // Complex search logic requires detailed implementation
     pub fn search(
         &self,
         query_str: &str,
         alias: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
-        let timer = if let Some(metrics) = &self.metrics {
-            OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone())
-        } else {
-            OperationTimer::new(&format!("search_{query_str}"))
-        };
+        let timer = self.metrics.as_ref().map_or_else(
+            || OperationTimer::new(&format!("search_{query_str}")),
+            |metrics| OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone()),
+        );
 
         let mut timings = ComponentTimings::new();
         let mut lines_searched = 0usize;
@@ -245,11 +245,10 @@ impl SearchIndex {
             }
         } else {
             // No escaping needed, minimize allocations
-            if let Some(alias) = alias {
-                format!("alias:{alias} AND ({query_str})")
-            } else {
-                query_str.to_string()
-            }
+            alias.map_or_else(
+                || query_str.to_string(),
+                |alias| format!("alias:{alias} AND ({query_str})"),
+            )
         };
 
         let query = timings.time("query_parsing", || {
@@ -272,11 +271,11 @@ impl SearchIndex {
                     .doc(doc_address)
                     .map_err(|e| Error::Index(format!("Failed to retrieve doc: {e}")))?;
 
-                let alias = self.get_field_text(&doc, self.alias_field)?;
-                let file = self.get_field_text(&doc, self.path_field)?;
-                let heading_path_str = self.get_field_text(&doc, self.heading_path_field)?;
-                let lines = self.get_field_text(&doc, self.lines_field)?;
-                let content = self.get_field_text(&doc, self.content_field)?;
+                let alias = Self::get_field_text(&doc, self.alias_field)?;
+                let file = Self::get_field_text(&doc, self.path_field)?;
+                let heading_path_str = Self::get_field_text(&doc, self.heading_path_field)?;
+                let lines = Self::get_field_text(&doc, self.lines_field)?;
+                let content = Self::get_field_text(&doc, self.content_field)?;
 
                 // Count lines for metrics
                 lines_searched += content.lines().count();
@@ -286,7 +285,7 @@ impl SearchIndex {
                     .map(std::string::ToString::to_string)
                     .collect();
 
-                let snippet = self.extract_snippet(&content, query_str, 100);
+                let snippet = Self::extract_snippet(&content, query_str, 100);
 
                 hits.push(SearchHit {
                     alias,
@@ -320,14 +319,14 @@ impl SearchIndex {
         Ok(hits)
     }
 
-    fn get_field_text(&self, doc: &tantivy::TantivyDocument, field: Field) -> Result<String> {
+    fn get_field_text(doc: &tantivy::TantivyDocument, field: Field) -> Result<String> {
         doc.get_first(field)
             .and_then(|v| v.as_str())
             .map(std::string::ToString::to_string)
             .ok_or_else(|| Error::Index("Field not found in document".into()))
     }
 
-    fn extract_snippet(&self, content: &str, query: &str, max_len: usize) -> String {
+    fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
         let query_lower = query.to_lowercase();
 
         // Find match position using character indices to handle Unicode correctly
