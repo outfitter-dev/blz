@@ -20,16 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CLI Commands**
   - `add <alias> <url>` - Add and index a documentation source
-  - `search <query>` - Search across indexed documentation
+  - `search <query> [--alias <ALIAS>]` - Search across indexed documentation
   - `list` - List all indexed sources with metadata
   - `remove <alias>` - Remove a source and its index
-  - `update [alias]` - Update sources with conditional fetching and archiving
+  - `update [alias]` - Update sources (not yet implemented in v0.1)
   - `completions <shell>` - Generate shell completions (fish, bash, zsh, elvish, powershell)
 
 - **Storage & Configuration**
-  - Platform-specific storage locations for data and configuration
+  - Platform-specific data directories using OS conventions
   - Per-source data organization with metadata tracking
-  - Global configuration in platform-appropriate directories
+  - Global configuration at platform-specific config directories
   - Automatic migration from old `~/.outfitter/cache/` paths
 
 - **Performance**
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Concurrent search across multiple sources
   - Memory-efficient operation with streaming where possible
 
-- **MCP Server Integration**
+- **MCP Server Integration** (planned; not included in v0.1)
   - JSON-RPC 2.0 compliant server implementation
   - Structured output formats (JSON, NDJSON, Text)
   - Stable response shapes for programmatic consumption
@@ -50,10 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Limitations
 
-- **No incremental indexing**: Full re-index required on updates
+- **No incremental indexing/updates**: Full re-index required on updates (ETag/Last-Modified headers are used for conditional fetching)
 - **`diff` command disabled**: Currently experimental, will be enabled in future release
-- **No incremental updates**: Full re-index required on updates (ETag/Last-Modified used for conditional fetching)
-- **Single file format**: Only supports llms.txt markdown format
+- **Single file format**: Only supports llms.txt Markdown format
 - **No search history**: Search queries are not persisted
 - **Limited query syntax**: Basic text and field queries only
 
