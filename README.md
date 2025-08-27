@@ -15,6 +15,8 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Fast Search**: 6ms typical search latency (yes, milliseconds)
 - **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
+- **Efficient Updates**: Archives previous versions before updating; checks ETag/Last-Modified headers
+- **Parallel Search**: Searches multiple sources concurrently for comprehensive results  
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
 - **Change Tracking**: Built-in diff journal with unified diffs and changed sections
@@ -77,7 +79,10 @@ blz get bun --lines 120-142
 # List all sources
 blz list
 
-# Update all sources (not yet implemented)
+# Update a single source (checks for changes with ETag)
+blz update bun
+
+# Update all sources at once
 blz update --all
 
 # View changes (not yet implemented)
@@ -276,7 +281,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] MVP: Core CLI with search and retrieval
-- [ ] v0.2: Conditional updates with diff tracking
+- [x] v0.1: Conditional updates with ETag/Last-Modified, archive support, parallel search
+- [ ] v0.2: Full diff tracking and change journal
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
