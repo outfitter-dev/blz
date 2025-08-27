@@ -26,7 +26,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `list` | `sources` | List all indexed sources |
 | `update` | | Update indexed sources |
 | `remove` | `rm`, `delete` | Remove an indexed source |
-| `diff` | | View changes in sources |
+| `diff` | | View changes in sources (Coming Soon) |
 | `completions` | | Generate shell completions |
 
 ## Command Reference
@@ -228,13 +228,11 @@ blz rm bun
 blz delete bun
 ```
 
-### `blz diff`
+### `blz diff` (Coming Soon)
 
-View changes in indexed sources.
+View changes in indexed sources. 
 
-```bash
-blz diff <ALIAS> [OPTIONS]
-```
+**Note**: This command is currently experimental and disabled in v0.1. It will be available in a future release.
 
 **Arguments:**
 
@@ -349,18 +347,34 @@ blz search "complex query" --flamegraph
 
 ## Configuration
 
-`blz` stores data in `~/.outfitter/blz/`:
+`blz` stores data in platform-specific locations:
+
+### Data Storage
+
+- **macOS**: `~/Library/Application Support/outfitter.blz/`
+- **Linux**: `~/.local/share/outfitter/blz/`
+- **Windows**: `%APPDATA%\outfitter\blz\`
+
+### Configuration
+
+- **macOS**: `~/Library/Application Support/outfitter.blz/global.toml`
+- **Linux**: `~/.config/outfitter/blz/global.toml`
+- **Windows**: `%APPDATA%\outfitter\blz\global.toml`
+
+### Storage Structure
 
 ```
-~/.outfitter/blz/
-├── sources/          # Cached documentation
-│   ├── bun.json
-│   └── node.json
-├── indices/          # Search indices
-│   ├── bun.idx
-│   └── node.idx
-└── config.json      # Configuration
+<data_directory>/
+├── <alias>/          # Per-source data
+│   ├── llms.txt     # Original documentation
+│   ├── llms.json    # Parsed structure
+│   ├── .index/      # Tantivy search index
+│   ├── .archive/    # Historical snapshots
+│   └── settings.toml # Source-specific config
+└── global.toml      # Global configuration
 ```
+
+**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old `~/.outfitter/cache/` directory.
 
 ## Tips
 

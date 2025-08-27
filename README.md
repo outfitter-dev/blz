@@ -67,21 +67,22 @@ blz completions zsh > ~/.zsh/completions/_blz
 blz add bun https://bun.sh/llms.txt
 
 # Search across docs
-blz "test concurrency" bun
-# Or: blz bun "test concurrency"
+blz search "test runner"
+blz search "concurrency" --alias bun
 
 # Get exact lines
 blz get bun --lines 120-142
-# Or with context: blz get bun -l 120+20
+blz get bun --lines 120-142 --context 3
 
 # List all sources
 blz list
 
-# Update all sources (not yet implemented)
-blz update --all
+# Update sources (coming soon)
+# blz update bun
+# blz update --all
 
-# View changes (not yet implemented)
-blz diff bun --since "2025-08-20T00:00:00Z"
+# View changes (coming soon in v0.2)
+# blz diff bun --since "2025-08-20"
 ```
 
 ## Architecture
@@ -156,8 +157,7 @@ For deeper integration, an MCP server interface is in development that will expo
     .archive/                 # Historical snapshots
       2025-08-22T12-01Z-llms.txt
       2025-08-22T12-01Z.diff
-    diffs.log.jsonl           # Change journal
-    settings.toml             # Per-tool overrides
+    settings.toml             # Per-source configuration
 ```
 
 ## Configuration
@@ -175,7 +175,7 @@ follow_links = "first_party"  # none|first_party|allowlist
 root = "~/.outfitter/blz"
 ```
 
-### Per-Tool Settings (`<alias>/settings.toml`)
+### Per-Source Settings (`<alias>/settings.toml`)
 
 ```toml
 [meta]
@@ -276,7 +276,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] MVP: Core CLI with search and retrieval
-- [ ] v0.2: Conditional updates with diff tracking
+- [x] v0.1: Core CLI with search, retrieval, and conditional updates
+- [ ] v0.2: Diff tracking and change journal
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
