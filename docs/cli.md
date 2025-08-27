@@ -228,31 +228,11 @@ blz rm bun
 blz delete bun
 ```
 
-### `blz diff`
+### `blz diff` (coming soon)
 
 View changes in indexed sources.
 
-```bash
-blz diff <ALIAS> [OPTIONS]
-```
-
-**Arguments:**
-
-- `<ALIAS>` - Source alias to check
-
-**Options:**
-
-- `--since <TIMESTAMP>` - Show changes since specific time
-
-**Examples:**
-
-```bash
-# View changes in Bun docs
-blz diff bun
-
-# Changes since specific date
-blz diff node --since "2025-08-20"
-```
+*Note: This command is currently under development and will be available in a future release.*
 
 ### `blz completions`
 
