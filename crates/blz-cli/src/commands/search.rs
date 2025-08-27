@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Storage};
+use futures::stream::{self, StreamExt};
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::output::{OutputFormat, SearchResultFormatter};
@@ -15,6 +17,7 @@ pub struct SearchOptions {
     pub page: usize,
     pub top_percentile: Option<u8>,
     pub output: OutputFormat,
+    pub all: bool,
 }
 
 /// Execute a search across cached documentation
@@ -35,6 +38,7 @@ pub async fn execute(
         page,
         top_percentile,
         output,
+        all: limit >= 10000, // If limit is >= 10000, we want all results
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -111,7 +115,7 @@ async fn perform_search(
     metrics: PerformanceMetrics,
 ) -> Result<SearchResults> {
     let start_time = Instant::now();
-    let storage = Storage::new()?;
+    let storage = Arc::new(Storage::new()?);
 
     let sources = if let Some(ref alias) = options.alias {
         vec![alias.clone()]
@@ -125,21 +129,61 @@ async fn perform_search(
         ));
     }
 
-    let mut all_hits = Vec::new();
-    let mut total_lines_searched = 0usize;
+    // Calculate effective limit to prevent over-fetching
+    // If we want all results, use 10k limit. Otherwise, use (limit * 3) capped at 1000
+    let effective_limit = if options.all {
+        10_000
+    } else {
+        (options.limit * 3).min(1000)
+    };
 
-    // Collect all hits from all sources
-    for source in &sources {
-        let index_path = storage.index_dir(source)?;
-        if index_path.exists() {
-            let index = SearchIndex::open(&index_path)?.with_metrics(metrics.clone());
-            let hits = index.search(&options.query, Some(source), 10000)?;
-            all_hits.extend(hits);
+    // Set max concurrent searches to prevent resource exhaustion
+    const MAX_CONCURRENT_SEARCHES: usize = 8;
+
+    // Create futures for parallel search across sources
+    let search_futures = sources.into_iter().map(|source| {
+        let storage = Arc::clone(&storage);
+        let metrics = metrics.clone();
+        let query = options.query.clone();
+
+        async move {
+            let index_path = storage.index_dir(&source)?;
+            if !index_path.exists() {
+                return Ok::<_, anyhow::Error>((Vec::new(), 0, source));
+            }
+
+            let index = SearchIndex::open(&index_path)?.with_metrics(metrics);
+            let hits = index.search(&query, Some(&source), effective_limit)?;
 
             // Count total lines for stats
-            if let Ok(llms_json) = storage.load_llms_json(source) {
-                total_lines_searched += llms_json.line_index.total_lines;
-            }
+            let total_lines = storage
+                .load_llms_json(&source)
+                .map(|json| json.line_index.total_lines)
+                .unwrap_or(0);
+
+            Ok((hits, total_lines, source))
+        }
+    });
+
+    // Execute searches with bounded concurrency
+    let mut search_stream = stream::iter(search_futures).buffer_unordered(MAX_CONCURRENT_SEARCHES);
+
+    let mut all_hits = Vec::new();
+    let mut total_lines_searched = 0usize;
+    let mut sources_searched = Vec::new();
+
+    // Collect results from the stream
+    while let Some(result) = search_stream.next().await {
+        match result {
+            Ok((hits, lines, source)) => {
+                all_hits.extend(hits);
+                total_lines_searched += lines;
+                sources_searched.push(source);
+            },
+            Err(e) => {
+                // Log error but continue with other sources
+                tracing::warn!("Search failed for a source: {}", e);
+            },
         }
     }
 
@@ -152,7 +196,7 @@ async fn perform_search(
         hits: all_hits,
         total_lines_searched,
         search_time: start_time.elapsed(),
-        sources,
+        sources: sources_searched,
     })
 }
 
@@ -178,10 +222,20 @@ fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
 }
 
 fn sort_by_score(hits: &mut Vec<SearchHit>) {
+    // Sort by score with deterministic tie-breakers
     hits.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        // First by score (descending)
+        match b.score.partial_cmp(&a.score) {
+            Some(std::cmp::Ordering::Equal) | None => {
+                // Then by alias (ascending)
+                a.alias.cmp(&b.alias)
+                    // Then by line number (ascending)
+                    .then(a.lines.cmp(&b.lines))
+                    // Finally by heading path (ascending)
+                    .then(a.heading_path.cmp(&b.heading_path))
+            },
+            Some(ordering) => ordering,
+        }
     });
 }
 
