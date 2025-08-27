@@ -315,11 +315,9 @@ impl ResourceMonitor {
 
     pub fn current_memory_mb(&mut self) -> f64 {
         self.refresh();
-        if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
-            process.memory() as f64 / (1024.0 * 1024.0)
-        } else {
-            0.0
-        }
+        self.system
+            .process(sysinfo::Pid::from(self.pid as usize))
+            .map_or(0.0, |process| process.memory() as f64 / (1024.0 * 1024.0))
     }
 
     pub fn memory_delta_mb(&mut self) -> f64 {
@@ -334,11 +332,9 @@ impl ResourceMonitor {
 
     pub fn cpu_usage(&mut self) -> f32 {
         self.refresh();
-        if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
-            process.cpu_usage()
-        } else {
-            0.0
-        }
+        self.system
+            .process(sysinfo::Pid::from(self.pid as usize))
+            .map_or(0.0, sysinfo::Process::cpu_usage)
     }
 
     pub fn print_resource_usage(&mut self) {
@@ -387,12 +383,14 @@ pub fn stop_profiling_and_report(
 
 /// Fallback profiling stubs when flamegraph feature is disabled
 #[cfg(not(feature = "flamegraph"))]
+#[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn start_profiling() -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
     Ok(())
 }
 
 #[cfg(not(feature = "flamegraph"))]
+#[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn stop_profiling_and_report(_guard: ()) -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
     Ok(())
