@@ -26,7 +26,6 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `list` | `sources` | List all indexed sources |
 | `update` | | Update indexed sources |
 | `remove` | `rm`, `delete` | Remove an indexed source |
-| `diff` | | View changes in sources |
 | `completions` | | Generate shell completions |
 
 ## Command Reference
