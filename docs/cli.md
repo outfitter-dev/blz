@@ -362,14 +362,16 @@ blz search "complex query" --flamegraph
 
 ```
 ~/.outfitter/blz/
-├── sources/          # Cached documentation
-│   ├── bun.json
-│   └── node.json
-├── indices/          # Search indices
-│   ├── bun.idx
-│   └── node.idx
-└── config.json      # Configuration
+├── <alias>/          # Per-source data
+│   ├── llms.txt     # Original documentation
+│   ├── llms.json    # Parsed structure
+│   ├── .index/      # Tantivy search index
+│   ├── .archive/    # Historical snapshots
+│   └── settings.toml # Source-specific config
+└── global.toml      # Global configuration
 ```
+
+Note: If upgrading from an earlier version, `blz` will automatically migrate your data from the old `~/.outfitter/cache/` directory.
 
 ## Tips
 

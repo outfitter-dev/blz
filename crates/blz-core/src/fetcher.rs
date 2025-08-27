@@ -14,7 +14,7 @@ impl Fetcher {
     pub fn new() -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent("outfitter-cache/0.1.0")
+            .user_agent("outfitter-blz/0.1.0")
             .gzip(true)
             .brotli(true)
             .build()
