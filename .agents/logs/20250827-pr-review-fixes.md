@@ -16,7 +16,7 @@ Systematically reviewed and addressed all CodeRabbit and Diamond AI review comme
 - ✅ Updated search command synopsis in CHANGELOG (removed incorrect `[alias]` parameter)
 - ✅ Added elvish to documented shells in README and CLI docs
 - ✅ Fixed contradictory storage messaging (clarified platform-specific paths)
-- ✅ Updated CHANGELOG to accurately reflect v0.1 features (update command is functional, not a stub)
+- ✅ Updated CHANGELOG to accurately reflect v0.1 features (update command remains stubbed and is not yet implemented)
 
 ### PR #44: Unify Storage and Config Paths
 **Branch**: `08-27-fix_32_unify_storage_and_config_paths`
@@ -41,7 +41,7 @@ Systematically reviewed and addressed all CodeRabbit and Diamond AI review comme
 **Status**: Already addressed in previous commits
 **Verification**:
 
-- ✅ Futures dependency already exists in workspace `Cargo.toml` at line 31
+- ✅ Futures dependency already exists in the workspace `Cargo.toml`
 - ✅ `spawn_blocking` implementation already properly handles blocking operations
 
 ### PR #40: Apply Stricter Lints and Fix Issues
@@ -56,13 +56,13 @@ Systematically reviewed and addressed all CodeRabbit and Diamond AI review comme
 
 ### In PR #46 (docs):
 
-- `/Users/mg/Developer/outfitter/blz/docs/cli.md` - Fixed macOS config path, added elvish
-- `/Users/mg/Developer/outfitter/blz/README.md` - Added elvish shell documentation
-- `/Users/mg/Developer/outfitter/blz/CHANGELOG.md` - Fixed CLI synopsis, storage paths, and feature descriptions
+- `docs/cli.md` - Fixed macOS config path, added elvish
+- `README.md` - Added elvish shell documentation
+- `CHANGELOG.md` - Fixed CLI synopsis, storage paths, and feature descriptions
 
 ### In PR #44 (storage):
 
-- `/Users/mg/Developer/outfitter/blz/crates/blz-core/src/config.rs` - Fixed tilde expansion, updated documentation
+- `crates/blz-core/src/config.rs` - Fixed tilde expansion, updated documentation
 
 ## Git Operations Performed
 
@@ -112,9 +112,9 @@ After fixes, the correct paths are:
 
 1. **Tilde Expansion Fix**: Changed from using raw `PathBuf::from("~/.outfitter/blz")` to properly using `directories::BaseDirs::new()` for home directory expansion.
 
-2. **Update Command**: Fully functional with ETag/Last-Modified conditional fetching and archive support. Not a stub as previously documented.
+2. **Update Command**: Currently returns "not yet implemented" message. Planned for future release with ETag/Last-Modified conditional fetching and archive support.
 
-3. **Diff Command**: Experimental and hidden via `#[arg(hide = true)]` in CLI. Documented as "coming soon" in all user-facing documentation.
+3. **Diff command**: Experimental and hidden via `#[command(hide = true)]` on the subcommand. Documented as "coming soon" in all user-facing documentation.
 
 4. **Shell Support**: Now includes bash, zsh, fish, elvish, and powershell completions.
 

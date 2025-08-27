@@ -17,7 +17,7 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Built-in diff journal with unified diffs and changed sections
+- **Change Tracking**: Planned diff journal with unified diffs and changed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
@@ -100,7 +100,7 @@ blz list
 │ - Fetcher (ETag)    │      └─────────────────┘
 │ - Parser (tree-sitter)
 │ - Search (BM25)     │
-│ - Diff (similar)    │
+│ - Diff (experimental)│
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
@@ -120,13 +120,13 @@ IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
 # Search for documentation
-blz search "test runner" --alias bun --format json
+blz search "test runner" --alias bun --output json
 
 # Get exact line ranges
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --format json
+blz list --output json
 ```
 
 The JSON output is designed for easy parsing by agents:
@@ -149,6 +149,8 @@ The JSON output is designed for easy parsing by agents:
 For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
 ## Storage Layout
+
+Example showing Linux default paths. See CLI docs for platform-specific locations.
 
 ```
 ~/.outfitter/blz/
@@ -203,6 +205,7 @@ The `blz` command includes built-in shell completion support with dynamic alias 
 blz completions fish    # Fish shell
 blz completions bash    # Bash
 blz completions zsh     # Zsh
+blz completions elvish  # Elvish
 
 # Fish users get dynamic alias completion
 blz <TAB>                 # Shows your indexed aliases
@@ -279,7 +282,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] MVP: Core CLI with search and retrieval
-- [x] v0.1: Core CLI with search, retrieval, and conditional updates
+- [x] v0.1: Core CLI with search and retrieval
 - [ ] v0.2: Diff tracking and change journal
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
