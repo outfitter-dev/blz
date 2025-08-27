@@ -68,6 +68,14 @@ impl SearchIndex {
         })
     }
 
+    pub fn create_or_open(index_path: &Path) -> Result<Self> {
+        if index_path.exists() {
+            Self::open(index_path)
+        } else {
+            Self::create(index_path)
+        }
+    }
+
     pub fn open(index_path: &Path) -> Result<Self> {
         let index = Index::open_in_dir(index_path)
             .map_err(|e| Error::Index(format!("Failed to open index: {e}")))?;
