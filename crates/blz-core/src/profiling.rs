@@ -37,9 +37,11 @@ impl PerformanceMetrics {
     #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_search(&self, duration: Duration, lines_count: usize) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
-        self.total_search_time.fetch_add(
-            duration.as_micros().min(u128::from(u64::MAX)) as u64,
+        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let _ = self.total_search_time.fetch_update(
             Ordering::Relaxed,
+            Ordering::Relaxed,
+            |cur| Some(cur.saturating_add(inc)),
         );
         self.lines_searched
             .fetch_add(lines_count as u64, Ordering::Relaxed);
@@ -49,9 +51,11 @@ impl PerformanceMetrics {
     #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_index_build(&self, duration: Duration, bytes_count: usize) {
         self.index_build_count.fetch_add(1, Ordering::Relaxed);
-        self.total_index_time.fetch_add(
-            duration.as_micros().min(u128::from(u64::MAX)) as u64,
+        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let _ = self.total_index_time.fetch_update(
             Ordering::Relaxed,
+            Ordering::Relaxed,
+            |cur| Some(cur.saturating_add(inc)),
         );
         self.bytes_processed
             .fetch_add(bytes_count as u64, Ordering::Relaxed);

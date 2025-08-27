@@ -226,14 +226,13 @@ blz update --all
 blz update bun --verbose
 ```
 
-**Archive Behavior:**
+**Archive Behaviour:**
 
-When a source is updated, the previous version is archived to:
+When a source is updated, previous files are archived under:
 ```
-~/.outfitter/blz/<alias>/.archive/YYYYMMDD_HHMMSS/
-├── llms.txt      # Previous content
-├── llms.json     # Previous metadata
-└── metadata.json # Previous fetch metadata
+~/.outfitter/blz/<alias>/.archive/
+└── YYYY-MM-DDTHH-MMZ-llms.txt
+└── YYYY-MM-DDTHH-MMZ-llms.json
 ```
 
 ### `blz remove` / `blz rm` / `blz delete`

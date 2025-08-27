@@ -140,8 +140,11 @@ async fn perform_search(
         ((options.limit * 3).min(1000)).max(1)
     };
 
-    // Set max concurrent searches to prevent resource exhaustion
-    const MAX_CONCURRENT_SEARCHES: usize = 8;
+    // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
+    const MAX_CONCURRENT_SEARCHES: usize = match std::thread::available_parallelism() {
+        Ok(n) => (n.get().saturating_mul(2)).min(16),
+        Err(_) => 8,
+    };
 
     // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
     let search_tasks = sources.into_iter().map(|source| {
@@ -220,24 +223,9 @@ async fn perform_search(
 }
 
 fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
-    hits.sort_by(|a, b| {
-        let cmp = a
-            .alias
-            .cmp(&b.alias)
-            .then(a.lines.cmp(&b.lines))
-            .then(a.heading_path.cmp(&b.heading_path));
-        if cmp == std::cmp::Ordering::Equal {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        } else {
-            cmp
-        }
-    });
-
-    hits.dedup_by(|a, b| {
-        a.alias == b.alias && a.lines == b.lines && a.heading_path == b.heading_path
-    });
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
 fn sort_by_score(hits: &mut Vec<SearchHit>) {
