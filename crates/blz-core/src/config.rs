@@ -5,7 +5,7 @@
 //!
 //! ## Configuration Hierarchy
 //!
-//! 1. **Global config**: `~/.config/outfitter/cache/global.toml`
+//! 1. **Global config**: Platform-specific config directory (see GlobalConfig docs)
 //! 2. **Per-source config**: `<source_dir>/settings.toml`
 //! 3. **Environment variables**: `CACHE_*` prefix
 //!
@@ -64,8 +64,8 @@ use std::path::{Path, PathBuf};
 /// ## File Location
 ///
 /// The configuration file is stored at:
-/// - Linux: `~/.config/outfitter/cache/global.toml`
-/// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`  
+/// - Linux: `~/.config/outfitter/blz/global.toml`
+/// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`  
 /// - Windows: `%APPDATA%\outfitter\cache\global.toml`
 ///
 /// ## Example Configuration File
@@ -163,8 +163,8 @@ pub struct PathsConfig {
     /// structure is: `root/<source_alias>/`
     ///
     /// Default locations:
-    /// - Linux: `~/.local/share/outfitter/cache`
-    /// - macOS: `~/Library/Application Support/outfitter.cache`
+    /// - Linux: `~/.local/share/outfitter/blz`
+    /// - macOS: `~/Library/Application Support/outfitter.blz`
     /// - Windows: `%APPDATA%\outfitter\cache`
     pub root: PathBuf,
 }
@@ -260,7 +260,7 @@ impl Config {
     ///
     /// Uses the system-appropriate config directory based on the platform:
     /// - Linux: `~/.config/outfitter/blz/global.toml`
-    /// - macOS: `~/Library/Application Support/outfitter.blz/global.toml`
+    /// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`
     /// - Windows: `%APPDATA%\outfitter\blz\global.toml`
     ///
     /// # Errors
@@ -336,7 +336,12 @@ impl Default for Config {
             },
             paths: PathsConfig {
                 root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
-                    || PathBuf::from("~/.outfitter/blz"),
+                    || {
+                        // Expand home directory properly
+                        directories::BaseDirs::new()
+                            .map(|base| base.home_dir().join(".outfitter").join("blz"))
+                            .unwrap_or_else(|| PathBuf::from(".outfitter/blz"))
+                    },
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),
             },
