@@ -259,19 +259,68 @@ impl Config {
     /// Get the path where the global configuration file is stored.
     ///
     /// Uses the system-appropriate config directory based on the platform:
-    /// - Linux: `~/.config/outfitter/cache/global.toml`
-    /// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`
-    /// - Windows: `%APPDATA%\outfitter\cache\global.toml`
+    /// - Linux: `~/.config/outfitter/blz/global.toml`
+    /// - macOS: `~/Library/Application Support/outfitter.blz/global.toml`
+    /// - Windows: `%APPDATA%\outfitter\blz\global.toml`
     ///
     /// # Errors
     ///
     /// Returns an error if the system config directory cannot be determined,
     /// which may happen on unsupported platforms or in sandboxed environments.
     fn config_path() -> Result<PathBuf> {
-        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
 
-        Ok(project_dirs.config_dir().join("global.toml"))
+        let config_path = project_dirs.config_dir().join("global.toml");
+
+        // Check for migration from old cache directory
+        Self::check_and_migrate_old_config(&config_path)?;
+
+        Ok(config_path)
+    }
+
+    /// Check if we need to migrate from the old cache config
+    fn check_and_migrate_old_config(new_config_path: &Path) -> Result<()> {
+        // Only migrate if new config doesn't exist
+        if new_config_path.exists() {
+            return Ok(());
+        }
+
+        // Try to find the old cache config
+        if let Some(old_project_dirs) = directories::ProjectDirs::from("dev", "outfitter", "cache")
+        {
+            let old_config_path = old_project_dirs.config_dir().join("global.toml");
+
+            if old_config_path.exists() {
+                // Create parent directory if needed
+                if let Some(parent) = new_config_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        Error::Config(format!("Failed to create config directory: {e}"))
+                    })?;
+                }
+
+                // Attempt to copy the old config
+                match std::fs::copy(&old_config_path, new_config_path) {
+                    Ok(_) => {
+                        tracing::info!(
+                            "Migrated config from {} to {}",
+                            old_config_path.display(),
+                            new_config_path.display()
+                        );
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to migrate config from {} to {}: {}",
+                            old_config_path.display(),
+                            new_config_path.display(),
+                            e
+                        );
+                    },
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -286,8 +335,8 @@ impl Default for Config {
                 allowlist: Vec::new(),
             },
             paths: PathsConfig {
-                root: directories::ProjectDirs::from("dev", "outfitter", "cache").map_or_else(
-                    || PathBuf::from("~/.outfitter/cache"),
+                root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
+                    || PathBuf::from("~/.outfitter/blz"),
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),
             },
