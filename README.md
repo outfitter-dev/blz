@@ -15,11 +15,9 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Fast Search**: 6ms typical search latency (yes, milliseconds)
 - **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
-- **Efficient Updates**: Archives previous versions before updating; checks ETag/Last-Modified headers
-- **Parallel Search**: Searches multiple sources concurrently for comprehensive results  
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Version Archiving**: Automatic backup of previous versions before updates
+- **Change Tracking**: Built-in diff journal with unified diffs and changed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
@@ -69,21 +67,22 @@ blz completions zsh > ~/.zsh/completions/_blz
 blz add bun https://bun.sh/llms.txt
 
 # Search across docs
-blz "test concurrency" bun
-# Or: blz bun "test concurrency"
+blz search "test runner"
+blz search "concurrency" --alias bun
 
 # Get exact lines
 blz get bun --lines 120-142
-# Or with context: blz get bun -l 120+20
+blz get bun --lines 120-142 --context 3
 
 # List all sources
 blz list
 
-# Update a single source (checks for changes with ETag)
-blz update bun
+# Update sources (coming soon)
+# blz update bun
+# blz update --all
 
-# Update all sources at once
-blz update --all
+# View changes (coming soon in v0.2)
+# blz diff bun --since "2025-08-20"
 ```
 
 ## Architecture
@@ -98,6 +97,7 @@ blz update --all
 │ - Fetcher (ETag)    │      └─────────────────┘
 │ - Parser (tree-sitter)
 │ - Search (BM25)     │
+│ - Diff (similar)    │
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
@@ -143,7 +143,7 @@ The JSON output is designed for easy parsing by agents:
 
 ### MCP Server (Coming Soon)
 
-For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, and `update` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
 ## Storage Layout
 
@@ -156,8 +156,8 @@ For deeper integration, an MCP server interface is in development that will expo
     .index/                   # Tantivy search index
     .archive/                 # Historical snapshots
       2025-08-22T12-01Z-llms.txt
-      2025-08-22T12-01Z-llms.json
-    settings.toml             # Per-tool overrides
+      2025-08-22T12-01Z.diff
+    settings.toml             # Per-source configuration
 ```
 
 ## Configuration
@@ -175,7 +175,7 @@ follow_links = "first_party"  # none|first_party|allowlist
 root = "~/.outfitter/blz"
 ```
 
-### Per-Tool Settings (`<alias>/settings.toml`)
+### Per-Source Settings (`<alias>/settings.toml`)
 
 ```toml
 [meta]
@@ -276,8 +276,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] MVP: Core CLI with search and retrieval
-- [x] v0.1: Conditional updates with ETag/Last-Modified, archive support, parallel search
-- [ ] v0.2: Full diff tracking and change journal
+- [x] v0.1: Core CLI with search, retrieval, and conditional updates
+- [ ] v0.2: Diff tracking and change journal
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
