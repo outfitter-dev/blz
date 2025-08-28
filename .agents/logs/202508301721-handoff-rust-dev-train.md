@@ -5,7 +5,7 @@ Owner: @galligan • Last updated: 2025-08-30T17:21:00Z
 ## TL;DR
 - One unified train for v0.1. GitHub setup (#54, #55) stays independent.
 - CI baseline adjusted; Miri scoped; Coverage fixed; Trybuild harness stabilized.
-- deny.toml updated; legacy `.agent` references cleaned.
+- deny.toml updated; legacy `.agents` references cleaned.
 - Branchwork CURRENT maintained for all train slices; status comments posted on PRs.
 - Directed next steps below; expect the train to turn green with the queued re-runs.
 
@@ -47,7 +47,7 @@ Independent (merge separately): #54, #55
 - Coverage (#78): installs llvm-tools-preview; runs tests+examples (skips benches)
 - Trybuild (#79): harness skips if empty; added `tests/compile-fail/invalid_api.rs`
 - deny.toml: allowed `CDLA-Permissive-2.0` (webpki-roots) to pass licenses
-- Legacy `.agent` references fixed in docs
+- Legacy `.agents` references fixed in docs
 - Branchwork CURRENT created/refreshed + PR comments added for each slice
 
 ## Directed Next Steps (Do These in Order)
@@ -269,7 +269,7 @@ CodeRabbit	pass	0		Review skipped
 \n## PR #65
 {"additions":1518,"author":"galligan","base":"graphite-base/65","changedFiles":21,"createdAt":"2025-08-29T21:21:28Z","deletions":238,"head":"08-29-docs_add_development_and_ci_cd_documentation","isDraft":false,"merge":"UNSTABLE","number":65,"state":"OPEN","title":"docs: add comprehensive development documentation","updatedAt":"2025-08-30T15:57:51Z","url":"https://github.com/outfitter-dev/blz/pull/65"}
 
-Ban legacy .agent path	fail	4s	https://github.com/outfitter-dev/blz/actions/runs/17335684290/job/49221317470	
+Ban legacy .agents path	fail	4s	https://github.com/outfitter-dev/blz/actions/runs/17335684290/job/49221317470	
 Dependency validation (bans licenses sources)	fail	28s	https://github.com/outfitter-dev/blz/actions/runs/17335684290/job/49221321217	
 Graphite / mergeability_check	pending	0	https://app.graphite.dev/github/pr/outfitter-dev/blz/65	
 Check for unused dependencies	pass	1m10s	https://github.com/outfitter-dev/blz/actions/runs/17335684290/job/49221321222	

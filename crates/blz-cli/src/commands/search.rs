@@ -1,7 +1,7 @@
 //! Search command implementation
 
 use anyhow::{Context, Result};
-use blz_core::{PerformanceMetrics, SearchHit, SearchIndex, Storage};
+use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Storage};
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
@@ -23,6 +23,7 @@ pub struct SearchOptions {
 }
 
 /// Execute a search across cached documentation
+#[allow(clippy::too_many_arguments)]
 pub async fn execute(
     query: &str,
     alias: Option<&str>,
@@ -31,6 +32,7 @@ pub async fn execute(
     top_percentile: Option<u8>,
     output: OutputFormat,
     metrics: PerformanceMetrics,
+    resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
     let options = SearchOptions {
         query: query.to_string(),
@@ -45,11 +47,19 @@ pub async fn execute(
     let results = perform_search(&options, metrics.clone()).await?;
     format_and_display(&results, &options)?;
 
+    if let Some(monitor) = resource_monitor {
+        monitor.print_resource_usage();
+    }
+
     Ok(())
 }
 
 /// Handle default search from command line arguments
-pub async fn handle_default(args: &[String], metrics: PerformanceMetrics) -> Result<()> {
+pub async fn handle_default(
+    args: &[String],
+    metrics: PerformanceMetrics,
+    resource_monitor: Option<&mut ResourceMonitor>,
+) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
         println!("       blz search [OPTIONS] QUERY");
@@ -74,6 +84,7 @@ pub async fn handle_default(args: &[String], metrics: PerformanceMetrics) -> Res
         None,
         OutputFormat::Text,
         metrics,
+        resource_monitor,
     )
     .await
 }
@@ -102,6 +113,11 @@ struct SearchResults {
     sources: Vec<String>,
 }
 
+fn get_max_concurrent_searches() -> usize {
+    std::thread::available_parallelism()
+        .map_or(8, |n| (n.get().saturating_mul(2)).min(16))
+}
+
 async fn perform_search(
     options: &SearchOptions,
     metrics: PerformanceMetrics,
@@ -109,10 +125,10 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
 
-    let sources = options
-        .alias
-        .as_ref()
-        .map_or_else(|| storage.list_sources(), |alias| vec![alias.clone()]);
+    let sources = options.alias.as_ref().map_or_else(
+        || storage.list_sources(),
+        |alias| vec![alias.clone()]
+    );
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -130,8 +146,7 @@ async fn perform_search(
     };
 
     // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
-    let max_concurrent_searches =
-        std::thread::available_parallelism().map_or(8, |n| (n.get().saturating_mul(2)).min(16));
+    let max_concurrent_searches = get_max_concurrent_searches();
 
     // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
     let search_tasks = sources.into_iter().map(|source| {
@@ -147,7 +162,11 @@ async fn perform_search(
 
             let index = SearchIndex::open(&index_path)
                 .with_context(|| {
-                    format!("open index for source={source} at {}", index_path.display())
+                    format!(
+                        "open index for source={} at {}",
+                        source,
+                        index_path.display()
+                    )
                 })?
                 .with_metrics(metrics);
             let hits = index
@@ -231,13 +250,10 @@ fn sort_by_score(hits: &mut [SearchHit]) {
 
 fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>) {
     if let Some(percentile) = top_percentile {
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            clippy::cast_precision_loss
-        )]
-        let percentile_count =
-            (hits.len() as f32 * (f32::from(percentile) / 100.0)).ceil() as usize;
+        let len = hits.len();
+        let percentile_f = f64::from(percentile) / 100.0;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+        let percentile_count = ((len as f64) * percentile_f).ceil().min(len as f64) as usize;
         hits.truncate(percentile_count.max(1));
 
         if hits.len() < 10 {
@@ -256,7 +272,7 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 /// - Empty result sets (returns without error)
 /// - Single result (paginates correctly)
 /// - Over-large page numbers (displays helpful message)
-/// - The actual_limit is guaranteed to be at least 1 to prevent divide-by-zero
+/// - The `actual_limit` is guaranteed to be at least 1 to prevent divide-by-zero
 ///
 /// # Example
 ///
@@ -307,7 +323,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.output);
-    let format_params = FormatParams {
+    let params = FormatParams {
         hits: page_hits,
         query: &options.query,
         total_results,
@@ -318,7 +334,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         sources: &results.sources,
         start_idx,
     };
-    formatter.format(&format_params)?;
+    formatter.format(&params)?;
 
     Ok(())
 }
@@ -474,7 +490,8 @@ mod tests {
             all: false,
         };
 
-        let result_beyond = format_and_display(&create_test_results(10), &options_beyond);
+        let test_results = create_test_results(10);
+        let result_beyond = format_and_display(&test_results, &options_beyond);
         assert!(result_beyond.is_ok());
     }
 

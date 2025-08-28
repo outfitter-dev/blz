@@ -119,6 +119,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
                 top,
                 output,
                 metrics,
+                None,
             )
             .await?;
         },
@@ -153,7 +154,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
 
         None => {
             // Default search command
-            commands::handle_default_search(&cli.args, metrics).await?;
+            commands::handle_default_search(&cli.args, metrics, None).await?;
         },
     }
 

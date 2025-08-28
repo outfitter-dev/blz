@@ -18,7 +18,7 @@ Created comprehensive template system for all agent log types, standardizing doc
 
 - [x] Reorganize agent documentation structure
   - CLOSES: BLZ-23
-  - Migrated from .agent to .agents
+  - Migrated from .agents to .agents
   - Standardized naming conventions
   - Updated all references (8 files)
 - [x] Create checkpoint template with full example

@@ -26,9 +26,9 @@ async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
     let sources = storage.list_sources();
 
     let mut result = Vec::new();
-    for source in sources {
-        if let Ok(llms_json) = storage.load_llms_json(&source) {
-            let path = storage.llms_txt_path(&source).map_or_else(
+    for source in &sources {
+        if let Ok(llms_json) = storage.load_llms_json(source) {
+            let path = storage.llms_txt_path(source).map_or_else(
                 |_| format!("~/.outfitter/blz/{source}/llms.txt"),
                 |p| p.to_string_lossy().to_string(),
             );
@@ -90,8 +90,8 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
 
     let mut all_hits = Vec::new();
 
-    for source in sources {
-        let index_path = match storage.index_dir(&source) {
+    for source in &sources {
+        let index_path = match storage.index_dir(source) {
             Ok(p) => p,
             Err(e) => {
                 error!("Failed to get index dir for {source}: {e}");
@@ -108,7 +108,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
                 },
             };
 
-            let hits = match index.search(query, Some(&source), limit) {
+            let hits = match index.search(query, Some(source), limit) {
                 Ok(h) => h,
                 Err(e) => {
                     error!("Search failed for {source}: {e}");

@@ -132,27 +132,27 @@ Areas where we need Rust-specific rules:
 
 ### Phase 1: Direct Copies
 Copy these files as-is:
-- create-pr.mdc → cache/.agent/rules/version-control/create-pr.md
-- commits.md → cache/.agent/rules/conventions/commits.md
-- GREPABLE.md → cache/.agent/rules/conventions/grepable.md
+- create-pr.mdc → cache/.agents/rules/version-control/create-pr.md
+- commits.md → cache/.agents/rules/conventions/commits.md
+- GREPABLE.md → cache/.agents/rules/conventions/grepable.md
 
 ### Phase 2: Core Philosophy
 Adapt engineering principles:
-- CORE.md + mode-max-eng.md → cache/.agent/rules/CORE.md (merged and adapted)
+- CORE.md + mode-max-eng.md → cache/.agents/rules/CORE.md (merged and adapted)
 
 ### Phase 3: Rust-Specific Conventions
 Create new with AI assistance:
-- cache/.agent/rules/conventions/rust.md (language conventions)
-- cache/.agent/rules/conventions/cargo.md (build system)
-- cache/.agent/rules/conventions/tantivy.md (search engine)
-- cache/.agent/rules/conventions/clippy.md (linting)
+- cache/.agents/rules/conventions/rust.md (language conventions)
+- cache/.agents/rules/conventions/cargo.md (build system)
+- cache/.agents/rules/conventions/tantivy.md (search engine)
+- cache/.agents/rules/conventions/clippy.md (linting)
 
 ### Phase 4: Adapted Rules
 Transform TypeScript rules to Rust:
-- TESTING.md → cache/.agent/rules/TESTING.md (Rust testing)
-- ERRORS.md → cache/.agent/rules/ERRORS.md (Result pattern)
-- SECURITY.md → cache/.agent/rules/SECURITY.md (Rust security)
-- PERFORMANCE.md → cache/.agent/rules/PERFORMANCE.md (Rust perf)
+- TESTING.md → cache/.agents/rules/TESTING.md (Rust testing)
+- ERRORS.md → cache/.agents/rules/ERRORS.md (Result pattern)
+- SECURITY.md → cache/.agents/rules/SECURITY.md (Rust security)
+- PERFORMANCE.md → cache/.agents/rules/PERFORMANCE.md (Rust perf)
 
 ## Key Principles to Maintain
 

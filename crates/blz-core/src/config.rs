@@ -5,7 +5,7 @@
 //!
 //! ## Configuration Hierarchy
 //!
-//! 1. **Global config**: Platform-specific config directory (see GlobalConfig docs)
+//! 1. **Global config**: Platform-specific config directory (see `GlobalConfig` docs)
 //! 2. **Per-source config**: `<source_dir>/settings.toml`
 //! 3. **Environment variables**: `CACHE_*` prefix
 //!
@@ -339,8 +339,7 @@ impl Default for Config {
                     || {
                         // Expand home directory properly
                         directories::BaseDirs::new()
-                            .map(|base| base.home_dir().join(".outfitter").join("blz"))
-                            .unwrap_or_else(|| PathBuf::from(".outfitter/blz"))
+                            .map_or_else(|| PathBuf::from(".outfitter/blz"), |base| base.home_dir().join(".outfitter").join("blz"))
                     },
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),

@@ -17,7 +17,7 @@ impl Storage {
         let root_dir = project_dirs.data_dir().to_path_buf();
 
         // Check for migration from old cache directory
-        Self::check_and_migrate_old_cache(&root_dir)?;
+        Self::check_and_migrate_old_cache(&root_dir);
 
         Self::with_root(root_dir)
     }
@@ -254,7 +254,7 @@ impl Storage {
     }
 
     /// Check for old cache directory and migrate if needed
-    fn check_and_migrate_old_cache(new_root: &Path) -> Result<()> {
+    fn check_and_migrate_old_cache(new_root: &Path) {
         // Try to find the old cache directory
         let old_project_dirs = ProjectDirs::from("dev", "outfitter", "cache");
 
@@ -318,8 +318,6 @@ impl Storage {
                 }
             }
         }
-
-        Ok(())
     }
 
     /// Recursively copy directory contents from old to new location

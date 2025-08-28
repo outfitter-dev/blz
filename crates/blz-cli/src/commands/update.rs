@@ -40,8 +40,8 @@ pub async fn execute_all(metrics: PerformanceMetrics) -> Result<()> {
     let mut skipped_count = 0;
     let mut error_count = 0;
 
-    for alias in sources {
-        match update_source(&storage, &alias, metrics.clone()).await {
+    for alias in &sources {
+        match update_source(&storage, alias, metrics.clone()).await {
             Ok(updated) => {
                 if updated {
                     updated_count += 1;
