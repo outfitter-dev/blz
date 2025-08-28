@@ -351,15 +351,15 @@ blz search "complex query" --flamegraph
 
 ### Data Storage
 
-- **macOS**: `~/Library/Application Support/outfitter.blz/`
+- **macOS**: `~/Library/Application Support/dev.outfitter.blz/`
 - **Linux**: `~/.local/share/outfitter/blz/`
-- **Windows**: `%APPDATA%\outfitter\blz\`
+- **Windows**: `%APPDATA%\outfitter\blz\data\`
 
 ### Configuration
 
-- **macOS**: `~/Library/Preferences/outfitter.blz/global.toml`
+- **macOS**: `~/Library/Application Support/dev.outfitter.blz/global.toml`
 - **Linux**: `~/.config/outfitter/blz/global.toml`
-- **Windows**: `%APPDATA%\outfitter\blz\global.toml`
+- **Windows**: `%APPDATA%\outfitter\blz\config\global.toml`
 
 ### Storage Structure
 
@@ -374,7 +374,7 @@ blz search "complex query" --flamegraph
 └── global.toml      # Global configuration
 ```
 
-**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old `~/.outfitter/cache/` directory.
+**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old cache directory location.
 
 ## Tips
 
