@@ -64,9 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Storage Paths by Platform
 
-- **macOS**: `~/Library/Application Support/outfitter.blz/` (data), `~/Library/Preferences/outfitter.blz/` (config)
+- **macOS**: `~/Library/Application Support/dev.outfitter.blz/` (data and config)
 - **Linux**: `~/.local/share/outfitter/blz/` (data), `~/.config/outfitter/blz/` (config)  
-- **Windows**: `%APPDATA%\outfitter\blz\` (data), `%APPDATA%\outfitter\blz\` (config)
+- **Windows**: `%APPDATA%\outfitter\blz\data\` (data), `%APPDATA%\outfitter\blz\config\` (config)
 
 ### Dependencies
 

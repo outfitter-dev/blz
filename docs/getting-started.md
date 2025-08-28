@@ -125,7 +125,7 @@ blz search "test" --alias bun --limit 5
 blz search "performance" --limit 20
 
 # JSON output for scripts
-blz search "bundler" --format json
+blz search "bundler" --output json
 ```
 
 ### Integration with Scripts
@@ -134,7 +134,7 @@ blz search "bundler" --format json
 #!/bin/bash
 # Find and display TypeScript information
 
-result=$(blz search "typescript" --format json | jq -r '.hits[0]')
+result=$(blz search "typescript" --output json | jq -r '.hits[0]')
 alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 
