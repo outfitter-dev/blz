@@ -16,7 +16,7 @@
 /// ## Commands
 /// Primary CLI commands that users can invoke:
 /// - `add`, `search`, `get`, `list`, `sources`, `update`, `remove`, `rm`, `delete`
-/// - `help`, `version`, `completions`, `diff`, `lookup`
+/// - `help`, `version`, `completions`, `lookup`
 ///
 /// ## Meta Operations  
 /// Configuration and system-level operations (may be added in future versions):
@@ -61,7 +61,7 @@
 /// 1. Add the new keyword to this array
 /// 2. Update the documentation categories above
 /// 3. Ensure tests cover the new reserved word
-/// 4. Consider backward compatibility impact
+/// 4. Consider future compatibility impact
 ///
 /// # Case Sensitivity
 ///
@@ -82,7 +82,6 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "help",
     "version",
     "completions",
-    "diff",
     "lookup",
     // Meta
     "config",

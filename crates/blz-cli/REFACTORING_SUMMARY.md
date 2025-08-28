@@ -25,7 +25,6 @@ Each command in its own file with focused responsibility:
 - **lookup.rs**: 129 lines - Registry search
 - **remove.rs**: 54 lines - Source removal
 - **update.rs**: 14 lines - Update placeholder
-- **diff.rs**: 8 lines - Diff placeholder
 - **completions.rs**: 10 lines - Shell completions
 - **mod.rs**: 26 lines - Module exports
 

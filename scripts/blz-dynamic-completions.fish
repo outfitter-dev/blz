@@ -26,8 +26,6 @@ complete -c blz -n "__fish_seen_subcommand_from get" -xa "(__fish_blz_complete_a
 # Complete for update command
 complete -c blz -n "__fish_seen_subcommand_from update" -xa "(__fish_blz_complete_aliases)"
 
-# Complete for diff command
-complete -c blz -n "__fish_seen_subcommand_from diff" -xa "(__fish_blz_complete_aliases)"
 
 # Add descriptions for main commands
 complete -c blz -n "__fish_blz_needs_command" -a add -d "Add a new llms.txt source"
@@ -35,5 +33,4 @@ complete -c blz -n "__fish_blz_needs_command" -a search -d "Search with 6ms late
 complete -c blz -n "__fish_blz_needs_command" -a get -d "Get exact line ranges"
 complete -c blz -n "__fish_blz_needs_command" -a sources -d "List blzd sources"
 complete -c blz -n "__fish_blz_needs_command" -a update -d "Update sources with ETag"
-complete -c blz -n "__fish_blz_needs_command" -a diff -d "View changes"
 complete -c blz -n "__fish_blz_needs_command" -a completions -d "Generate shell completions"

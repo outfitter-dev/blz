@@ -4,7 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Important
 
-- Follow the @./.agent/rules/IMPORTANT.md rules
+- Follow the @./.agent/rules/CORE.md rules
 
 ## Repository Overview
 
@@ -24,7 +24,7 @@ Key components:
 - **Parser**: Tree-sitter-based markdown parser for structured document parsing
 - **Index**: Tantivy-powered full-text search with BM25 ranking
 - **Registry**: Source management and configuration
-- **Storage**: Local filesystem storage with archive support
+- **Storage**: Local filesystem storage
 
 ## Common Development Commands
 
@@ -110,7 +110,6 @@ blz completions zsh > ~/.zsh/completions/_blz
     llms.txt                  # Latest upstream text
     llms.json                 # Parsed TOC + line map
     .index/                   # Tantivy search index
-    .archive/                 # Historical snapshots
     settings.toml             # Per-source overrides
 ```
 

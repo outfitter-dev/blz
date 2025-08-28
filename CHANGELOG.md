@@ -30,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unified storage location: `~/.outfitter/blz/`
   - Per-source data organization with metadata tracking
   - Global configuration at platform-specific config directories
-  - Automatic migration from old `~/.outfitter/cache/` paths
 
 - **Performance**
   - Search latency: P50 < 10ms
@@ -45,13 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Storage paths migrated from `~/.outfitter/cache/` to `~/.outfitter/blz/`
 - User agent updated from `outfitter-cache` to `outfitter-blz`
 
 ### Known Limitations
 
 - **No incremental indexing**: Full re-index required on updates
-- **`diff` command disabled**: Currently experimental, will be enabled in future release
 - **`update` command stub**: Command exists but is not yet functional
 - **Single file format**: Only supports llms.txt markdown format
 - **No search history**: Search queries are not persisted

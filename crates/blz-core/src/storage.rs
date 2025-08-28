@@ -11,7 +11,7 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
 
         let root_dir = project_dirs.data_dir().to_path_buf();

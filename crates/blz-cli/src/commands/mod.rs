@@ -5,7 +5,6 @@
 
 mod add;
 mod completions;
-mod diff;
 mod get;
 mod list;
 mod lookup;
@@ -15,7 +14,6 @@ mod update;
 
 pub use add::execute as add_source;
 pub use completions::generate;
-pub use diff::show as show_diff;
 pub use get::execute as get_lines;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;

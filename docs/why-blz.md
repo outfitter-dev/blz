@@ -29,7 +29,6 @@ Most coding tools fetch documentation (or search the web), then *paste large chu
 1) **Preload & index** `llms.txt` / `llms-full.txt` locally (ETag/If-Modified-Since for freshness).  
 2) **Search in ~6 ms** using Tantivy over *heading-sized blocks* (BM25).  
 3) **Return precise spans**: `file#Lstart-Lend` + heading path + tight snippet (dozens of tokens, not thousands).  
-4) **Audit & repeat**: the same query yields the same line-exact result; diffs are logged when upstream changes.
 
 This “span-first” model is agent-native: tiny, deterministic payloads that slot into prompts without blowing the budget.
 
@@ -52,14 +51,12 @@ Bun > CLI > Test runner
 - **Latency**: local, index-backed search avoids 100s of ms per fetch; you get millisecond hits.  
 - **Token economy**: agents operate on **line-level** facts; span outputs keep prompts lean.  
 - **Determinism**: stable IDs (`file#Lstart-Lend`) → reproducible reasoning and easy audits.  
-- **Freshness without spam**: conditional GETs + diff journal; only re-index when the ETag changes.  
 - **Scope control**: repo-scoped preload means your agent only searches relevant tool docs.
 
 ## How blz integrates with IDE agents
 
 - **Direct CLI**: Agents can run `blz` commands directly—no server needed. Simple `blz search "query"` and `blz get alias --lines 123-145` commands return results in milliseconds.
 - **Context strategy**: instead of dumping pages, agents call `search → get` to stitch 2–5 *spans* into a prompt.  
-- **MCP server** (coming soon): For deeper integration, an MCP server will expose tools like `search`, `get_lines`, `update`, `diff`, `list_sources` via stdio.
 - **Optional RAG**: if you need semantic retrieval, plug spans into your existing AI SDK RAG flow—`blz` still supplies the precise citations.
 
 ## Comparison
@@ -70,5 +67,5 @@ Bun > CLI > Test runner
 | **Token usage** | 1000s (full pages/sections) | 10s-100s (exact spans) |
 | **Determinism** | Content varies per fetch | Stable `file#L123-L145` citations |
 | **Offline** | Requires network | Fully local after initial cache |
-| **Updates** | Re-fetch everything | Conditional GET + diff tracking |
+| **Updates** | Re-fetch everything | Conditional GET |
 | **Context precision** | "Here's the whole page about X" | "Lines 423-445: exactly about X" |

@@ -159,10 +159,6 @@ async fn execute_command(
             commands::remove_source(&alias).await?;
         },
 
-        Some(Commands::Diff { alias, since }) => {
-            commands::show_diff(&alias, since.as_deref()).await?;
-        },
-
         None => {
             // Default search command
             commands::handle_default_search(&cli.args, metrics, resource_monitor).await?;
@@ -818,7 +814,6 @@ mod tests {
             "update",
             "remove",
             "lookup",
-            "diff",
             "completions",
         ];
 
@@ -1104,7 +1099,6 @@ mod tests {
             "list",
             "update",
             "remove",
-            "diff",
         ];
 
         for expected in expected_subcommands {

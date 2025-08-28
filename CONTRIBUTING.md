@@ -117,8 +117,7 @@ All changes must maintain or improve performance:
 
 1. Modify `SearchIndex` in `crates/blz-core/src/index.rs`
 2. Update schema if needed
-3. Ensure backward compatibility or add migration
-4. Benchmark the changes
+3. Benchmark the changes
 
 ## Commit Messages
 

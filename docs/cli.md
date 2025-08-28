@@ -26,7 +26,6 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `list` | `sources` | List all indexed sources |
 | `update` | | Update indexed sources |
 | `remove` | `rm`, `delete` | Remove an indexed source |
-| `diff` | | View changes in sources (Coming Soon) |
 | `completions` | | Generate shell completions |
 
 ## Command Reference
@@ -228,30 +227,6 @@ blz rm bun
 blz delete bun
 ```
 
-### `blz diff` (Coming Soon)
-
-View changes in indexed sources. 
-
-**Note**: This command is currently experimental and disabled in v0.1. It will be available in a future release.
-
-**Arguments:**
-
-- `<ALIAS>` - Source alias to check
-
-**Options:**
-
-- `--since <TIMESTAMP>` - Show changes since specific time
-
-**Examples:**
-
-```bash
-# View changes in Bun docs
-blz diff bun
-
-# Changes since specific date
-blz diff node --since "2025-08-20"
-```
-
 ### `blz completions`
 
 Generate shell completion scripts.
@@ -374,7 +349,6 @@ blz search "complex query" --flamegraph
 └── global.toml      # Global configuration
 ```
 
-**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old `~/.outfitter/cache/` directory.
 
 ## Tips
 

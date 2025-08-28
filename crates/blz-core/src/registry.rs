@@ -120,6 +120,7 @@ impl Registry {
     }
 
     /// Create a new registry with custom entries
+    #[allow(clippy::missing_const_for_fn)]
     pub fn from_entries(entries: Vec<RegistryEntry>) -> Self {
         Self { entries }
     }

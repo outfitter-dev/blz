@@ -57,7 +57,6 @@ blz search --<TAB>           # Shows all options for search
 blz search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
 blz get <TAB>                # Completes with your indexed aliases
 blz update <TAB>             # Shows available sources to update
-blz diff <TAB>               # Shows sources you can diff
 
 # Descriptions for everything
 blz <TAB>

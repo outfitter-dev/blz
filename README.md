@@ -17,7 +17,6 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Built-in diff journal with unified diffs and changed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
@@ -81,8 +80,6 @@ blz list
 # blz update bun
 # blz update --all
 
-# View changes (coming soon in v0.2)
-# blz diff bun --since "2025-08-20"
 ```
 
 ## Architecture
@@ -97,7 +94,6 @@ blz list
 │ - Fetcher (ETag)    │      └─────────────────┘
 │ - Parser (tree-sitter)
 │ - Search (BM25)     │
-│ - Diff (similar)    │
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
@@ -143,7 +139,7 @@ The JSON output is designed for easy parsing by agents:
 
 ### MCP Server (Coming Soon)
 
-For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, and `update` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
 ## Storage Layout
 
@@ -156,7 +152,6 @@ For deeper integration, an MCP server interface is in development that will expo
     .index/                   # Tantivy search index
     .archive/                 # Historical snapshots
       2025-08-22T12-01Z-llms.txt
-      2025-08-22T12-01Z.diff
     settings.toml             # Per-source configuration
 ```
 
@@ -245,7 +240,6 @@ cargo install --path .
 - [Tantivy](https://github.com/quickwit-oss/tantivy) - Full-text search engine
 - [tree-sitter-md](https://github.com/tree-sitter-grammars/tree-sitter-markdown) - Markdown parsing
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - Line-level search (optional)
-- [similar](https://github.com/mitsuhiko/similar) - Unified diffs
 - [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK (coming soon)
 
 ## Security & Privacy

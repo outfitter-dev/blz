@@ -5,7 +5,7 @@
 //!
 //! ## Configuration Hierarchy
 //!
-//! 1. **Global config**: `~/.config/outfitter/cache/global.toml`
+//! 1. **Global config**: `~/.config/outfitter/blz/global.toml`
 //! 2. **Per-source config**: `<source_dir>/settings.toml`
 //! 3. **Environment variables**: `CACHE_*` prefix
 //!
@@ -64,9 +64,9 @@ use std::path::{Path, PathBuf};
 /// ## File Location
 ///
 /// The configuration file is stored at:
-/// - Linux: `~/.config/outfitter/cache/global.toml`
-/// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`  
-/// - Windows: `%APPDATA%\outfitter\cache\global.toml`
+/// - Linux: `~/.config/outfitter/blz/global.toml`
+/// - macOS: `~/Library/Application Support/outfitter.blz/global.toml`  
+/// - Windows: `%APPDATA%\outfitter\blz\global.toml`
 ///
 /// ## Example Configuration File
 ///
@@ -79,7 +79,7 @@ use std::path::{Path, PathBuf};
 /// allowlist = ["docs.rs", "developer.mozilla.org"]
 ///
 /// [paths]
-/// root = "/home/user/.outfitter/cache"
+/// root = "/home/user/.outfitter/blz"
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -163,9 +163,9 @@ pub struct PathsConfig {
     /// structure is: `root/<source_alias>/`
     ///
     /// Default locations:
-    /// - Linux: `~/.local/share/outfitter/cache`
-    /// - macOS: `~/Library/Application Support/outfitter.cache`
-    /// - Windows: `%APPDATA%\outfitter\cache`
+    /// - Linux: `~/.local/share/outfitter/blz`
+    /// - macOS: `~/Library/Application Support/outfitter.blz`
+    /// - Windows: `%APPDATA%\outfitter\blz`
     pub root: PathBuf,
 }
 
@@ -259,16 +259,16 @@ impl Config {
     /// Get the path where the global configuration file is stored.
     ///
     /// Uses the system-appropriate config directory based on the platform:
-    /// - Linux: `~/.config/outfitter/cache/global.toml`
-    /// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`
-    /// - Windows: `%APPDATA%\outfitter\cache\global.toml`
+    /// - Linux: `~/.config/outfitter/blz/global.toml`
+    /// - macOS: `~/Library/Application Support/outfitter.blz/global.toml`
+    /// - Windows: `%APPDATA%\outfitter\blz\global.toml`
     ///
     /// # Errors
     ///
     /// Returns an error if the system config directory cannot be determined,
     /// which may happen on unsupported platforms or in sandboxed environments.
     fn config_path() -> Result<PathBuf> {
-        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
 
         Ok(project_dirs.config_dir().join("global.toml"))
@@ -286,8 +286,8 @@ impl Default for Config {
                 allowlist: Vec::new(),
             },
             paths: PathsConfig {
-                root: directories::ProjectDirs::from("dev", "outfitter", "cache").map_or_else(
-                    || PathBuf::from("~/.outfitter/cache"),
+                root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
+                    || PathBuf::from("~/.outfitter/blz"),
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),
             },

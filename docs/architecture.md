@@ -139,7 +139,7 @@ pub struct Storage {
 **Directory Structure:**
 
 ```
-~/.../outfitter.cache/
+~/.../outfitter.blz/
 ├── global.toml           # Global config
 ├── bun/
 │   ├── llms.txt         # Raw content
@@ -346,7 +346,6 @@ The Model Context Protocol server exposes cache functionality:
     "search",
     "get_lines",
     "update",
-    "diff"
   ]
 }
 ```

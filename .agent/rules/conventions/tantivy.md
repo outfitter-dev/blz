@@ -155,20 +155,8 @@ pub fn create_or_open_index(config: &IndexConfig) -> tantivy::Result<Index> {
     
     // Try to open existing index first
     if config.path.exists() {
-        match Index::open_in_dir(&config.path) {
-            Ok(index) => {
-                // Verify schema compatibility
-                if schemas_compatible(&schema, index.schema()) {
-                    return Ok(index);
-                } else {
-                    return Err(tantivy::TantivyError::SchemaError(
-                        "Schema mismatch with existing index".to_string()
-                    ));
-                }
-            }
-            Err(_) => {
-                // Index exists but corrupted, fall through to create new
-            }
+        if let Ok(index) = Index::open_in_dir(&config.path) {
+            return Ok(index);
         }
     }
     
@@ -202,10 +190,6 @@ pub fn create_or_open_index(config: &IndexConfig) -> tantivy::Result<Index> {
     Ok(index)
 }
 
-fn schemas_compatible(new_schema: &tantivy::schema::Schema, existing_schema: &tantivy::schema::Schema) -> bool {
-    // Simplified compatibility check - in production, implement full schema evolution
-    new_schema.to_json() == existing_schema.to_json()
-}
 ```
 
 ### Writer Management

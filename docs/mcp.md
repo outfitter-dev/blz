@@ -371,7 +371,6 @@ blz update --all
 
 ### MCP Client Connection Issues
 
-Verify MCP protocol version compatibility. The `blz` server supports MCP v0.1.0+.
 
 ## Development
 

@@ -140,7 +140,6 @@ pub struct Cli {
 /// ## Content Access
 /// - [`Search`]: Full-text search across cached documentation
 /// - [`Get`]: Retrieve specific lines from a source
-/// - [`Diff`]: View changes between document versions
 ///
 /// ## Utility
 /// - [`Completions`]: Generate shell completion scripts
@@ -163,7 +162,6 @@ pub struct Cli {
 /// # Content access
 /// blz search "useEffect" --limit 5
 /// blz get react --lines 120-142 --context 3
-/// blz diff react --since "2024-01-01"
 ///
 /// # Utility
 /// blz completions bash > ~/.bash_completion.d/blz
@@ -252,14 +250,5 @@ pub enum Commands {
     Remove {
         /// Source alias
         alias: String,
-    },
-
-    /// View diffs
-    Diff {
-        /// Source alias
-        alias: String,
-        /// Show changes since timestamp
-        #[arg(long)]
-        since: Option<String>,
     },
 }
