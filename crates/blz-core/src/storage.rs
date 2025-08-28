@@ -266,18 +266,16 @@ impl Storage {
                 // Check if there's actually content to migrate (look for llms.json files)
                 let has_content = fs::read_dir(old_root)
                     .map(|entries| {
-                        entries
-                            .filter_map(std::result::Result::ok)
-                            .any(|entry| {
-                                let path = entry.path();
-                                if !path.is_dir() {
-                                    return false;
-                                }
-                                let has_llms_json = path.join("llms.json").exists();
-                                let has_llms_txt = path.join("llms.txt").exists();
-                                let has_metadata = path.join("metadata.json").exists();
-                                has_llms_json || has_llms_txt || has_metadata
-                            })
+                        entries.filter_map(std::result::Result::ok).any(|entry| {
+                            let path = entry.path();
+                            if !path.is_dir() {
+                                return false;
+                            }
+                            let has_llms_json = path.join("llms.json").exists();
+                            let has_llms_txt = path.join("llms.txt").exists();
+                            let has_metadata = path.join("metadata.json").exists();
+                            has_llms_json || has_llms_txt || has_metadata
+                        })
                     })
                     .unwrap_or(false);
                 if has_content {
