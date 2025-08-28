@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/outfitter-dev/blz/discussions
+    about: Please ask and answer questions in GitHub Discussions
+  - name: Documentation
+    url: https://github.com/outfitter-dev/blz/blob/main/README.md
+    about: Check the documentation for common questions
