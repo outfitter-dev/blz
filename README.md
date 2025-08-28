@@ -105,7 +105,7 @@ blz list
            │
 ┌──────────▼──────────┐
 │ Storage             │
-│ ~/.outfitter/blz/ │
+│ Platform-specific   │
 │ - llms.txt/json     │
 │ - .index/           │
 │ - .archive/         │
@@ -153,7 +153,7 @@ For deeper integration, an MCP server interface is in development that will expo
 Example showing Linux default paths. See CLI docs for platform-specific locations.
 
 ```
-~/.outfitter/blz/
+~/.local/share/outfitter/blz/
   global.toml                 # Global configuration
   bun/
     llms.txt                  # Latest upstream text
@@ -167,7 +167,7 @@ Example showing Linux default paths. See CLI docs for platform-specific location
 
 ## Configuration
 
-### Global Settings (`~/.outfitter/blz/global.toml`)
+### Global Settings
 
 ```toml
 [defaults]
@@ -177,7 +177,7 @@ fetch_enabled = true
 follow_links = "first_party"  # none|first_party|allowlist
 
 [paths]
-root = "~/.outfitter/blz"
+# Platform-specific path used by default
 ```
 
 ### Per-Source Settings (`<alias>/settings.toml`)
