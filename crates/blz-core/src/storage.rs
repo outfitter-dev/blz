@@ -1,4 +1,4 @@
-use crate::{Error, LlmsJson, Result};
+use crate::{Error, LlmsJson, Result, Source};
 use chrono::Utc;
 use directories::ProjectDirs;
 use std::fs;
@@ -113,6 +113,10 @@ impl Storage {
         Ok(self.tool_dir(alias)?.join(".archive"))
     }
 
+    pub fn metadata_path(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join("metadata.json"))
+    }
+
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_txt_path(alias)?;
@@ -147,6 +151,37 @@ impl Storage {
             .map_err(|e| Error::Storage(format!("Failed to parse JSON: {e}")))
     }
 
+    pub fn save_source_metadata(&self, alias: &str, source: &Source) -> Result<()> {
+        self.ensure_tool_dir(alias)?;
+        let path = self.metadata_path(alias)?;
+        let json = serde_json::to_string_pretty(source)
+            .map_err(|e| Error::Storage(format!("Failed to serialize metadata: {e}")))?;
+
+        // Write to a temp file first to ensure atomicity
+        let tmp_path = path.with_extension("json.tmp");
+        fs::write(&tmp_path, &json)
+            .map_err(|e| Error::Storage(format!("Failed to write temp metadata: {e}")))?;
+
+        // Atomically rename temp file to final path
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to persist metadata: {e}")))?;
+
+        debug!("Saved metadata for {}", alias);
+        Ok(())
+    }
+
+    pub fn load_source_metadata(&self, alias: &str) -> Result<Option<Source>> {
+        let path = self.metadata_path(alias)?;
+        if !path.exists() {
+            return Ok(None);
+        }
+        let json = fs::read_to_string(&path)
+            .map_err(|e| Error::Storage(format!("Failed to read metadata: {e}")))?;
+        let source = serde_json::from_str(&json)
+            .map_err(|e| Error::Storage(format!("Failed to parse metadata: {e}")))?;
+        Ok(Some(source))
+    }
+
     pub fn exists(&self, alias: &str) -> bool {
         self.llms_json_path(alias)
             .map(|path| path.exists())
@@ -177,7 +212,8 @@ impl Storage {
         fs::create_dir_all(&archive_dir)
             .map_err(|e| Error::Storage(format!("Failed to create archive directory: {e}")))?;
 
-        let timestamp = Utc::now().format("%Y-%m-%dT%H-%MZ");
+        // Include seconds for uniqueness and clearer chronology
+        let timestamp = Utc::now().format("%Y-%m-%dT%H-%M-%SZ");
 
         let llms_txt = self.llms_txt_path(alias)?;
         if llms_txt.exists() {

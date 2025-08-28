@@ -149,9 +149,9 @@ async fn execute_command(
 
         Some(Commands::Update { alias, all }) => {
             if all || alias.is_none() {
-                commands::update_all().await?;
+                commands::update_all(metrics, resource_monitor).await?;
             } else if let Some(alias) = alias {
-                commands::update_source(&alias).await?;
+                commands::update_source(&alias, metrics, resource_monitor).await?;
             }
         },
 

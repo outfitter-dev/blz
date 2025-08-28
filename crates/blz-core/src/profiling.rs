@@ -37,10 +37,12 @@ impl PerformanceMetrics {
     #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_search(&self, duration: Duration, lines_count: usize) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
-        self.total_search_time.fetch_add(
-            duration.as_micros().min(u128::from(u64::MAX)) as u64,
-            Ordering::Relaxed,
-        );
+        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let _ = self
+            .total_search_time
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
+                Some(cur.saturating_add(inc))
+            });
         self.lines_searched
             .fetch_add(lines_count as u64, Ordering::Relaxed);
     }
@@ -49,10 +51,12 @@ impl PerformanceMetrics {
     #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_index_build(&self, duration: Duration, bytes_count: usize) {
         self.index_build_count.fetch_add(1, Ordering::Relaxed);
-        self.total_index_time.fetch_add(
-            duration.as_micros().min(u128::from(u64::MAX)) as u64,
-            Ordering::Relaxed,
-        );
+        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let _ = self
+            .total_index_time
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
+                Some(cur.saturating_add(inc))
+            });
         self.bytes_processed
             .fetch_add(bytes_count as u64, Ordering::Relaxed);
     }
@@ -315,11 +319,9 @@ impl ResourceMonitor {
 
     pub fn current_memory_mb(&mut self) -> f64 {
         self.refresh();
-        if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
-            process.memory() as f64 / (1024.0 * 1024.0)
-        } else {
-            0.0
-        }
+        self.system
+            .process(sysinfo::Pid::from(self.pid as usize))
+            .map_or(0.0, |process| process.memory() as f64 / (1024.0 * 1024.0))
     }
 
     pub fn memory_delta_mb(&mut self) -> f64 {
@@ -334,11 +336,9 @@ impl ResourceMonitor {
 
     pub fn cpu_usage(&mut self) -> f32 {
         self.refresh();
-        if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
-            process.cpu_usage()
-        } else {
-            0.0
-        }
+        self.system
+            .process(sysinfo::Pid::from(self.pid as usize))
+            .map_or(0.0, sysinfo::Process::cpu_usage)
     }
 
     pub fn print_resource_usage(&mut self) {
@@ -387,12 +387,14 @@ pub fn stop_profiling_and_report(
 
 /// Fallback profiling stubs when flamegraph feature is disabled
 #[cfg(not(feature = "flamegraph"))]
+#[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn start_profiling() -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
     Ok(())
 }
 
 #[cfg(not(feature = "flamegraph"))]
+#[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn stop_profiling_and_report(_guard: ()) -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
     Ok(())

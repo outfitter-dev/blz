@@ -71,7 +71,7 @@ pub use config::{
     ToolMeta,
 };
 pub use error::{Error, Result};
-pub use fetcher::{Fetcher, FlavorInfo};
+pub use fetcher::{FetchResult, Fetcher, FlavorInfo};
 pub use index::SearchIndex;
 pub use parser::{MarkdownParser, ParseResult};
 pub use profiling::{PerformanceMetrics, ResourceMonitor};

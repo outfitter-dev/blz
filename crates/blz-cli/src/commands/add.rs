@@ -118,7 +118,20 @@ async fn fetch_and_index(
 ) -> Result<()> {
     let pb = create_spinner(format!("Fetching {url}").as_str());
 
-    let (content, sha256) = fetcher.fetch(url).await?;
+    let fetch_result = fetcher.fetch_with_cache(url, None, None).await?;
+
+    let (content, sha256, etag, last_modified) = match fetch_result {
+        blz_core::FetchResult::Modified {
+            content,
+            sha256,
+            etag,
+            last_modified,
+        } => (content, sha256, etag, last_modified),
+        blz_core::FetchResult::NotModified { .. } => {
+            // Defensive: should not happen on initial fetch, but handle gracefully
+            anyhow::bail!("Server returned 304 Not Modified on initial fetch for '{}'; please retry or verify the URL", url)
+        },
+    };
     pb.set_message("Parsing markdown");
 
     let mut parser = MarkdownParser::new()?;
@@ -129,8 +142,25 @@ async fn fetch_and_index(
     let storage = Storage::new()?;
     storage.save_llms_txt(alias, &content)?;
 
-    let llms_json = create_llms_json(alias, url, sha256, parse_result.clone());
+    let llms_json = create_llms_json(
+        alias,
+        url,
+        sha256.clone(),
+        etag.clone(),
+        last_modified.clone(),
+        parse_result.clone(),
+    );
     storage.save_llms_json(alias, &llms_json)?;
+
+    // Also save metadata for efficient update checking
+    let metadata = Source {
+        url: url.to_string(),
+        etag,
+        last_modified,
+        fetched_at: Utc::now(),
+        sha256,
+    };
+    storage.save_source_metadata(alias, &metadata)?;
 
     let index_path = storage.index_dir(alias)?;
     let mut index = SearchIndex::create(&index_path)?.with_metrics(metrics);
@@ -154,14 +184,16 @@ fn create_llms_json(
     alias: &str,
     url: &str,
     sha256: String,
+    etag: Option<String>,
+    last_modified: Option<String>,
     parse_result: blz_core::ParseResult,
 ) -> LlmsJson {
     LlmsJson {
         alias: alias.to_string(),
         source: Source {
             url: url.to_string(),
-            etag: None,
-            last_modified: None,
+            etag,
+            last_modified,
             fetched_at: Utc::now(),
             sha256: sha256.clone(),
         },

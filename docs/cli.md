@@ -81,7 +81,7 @@ blz lookup react
 
 ### `blz search`
 
-Search across all indexed documentation sources.
+Search across all indexed documentation sources. When searching without an alias filter, searches are performed in parallel across all sources for maximum performance.
 
 ```bash
 blz search <QUERY> [OPTIONS]
@@ -99,6 +99,13 @@ blz search <QUERY> [OPTIONS]
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
 - `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+
+**Features:**
+
+- **Parallel execution**: Searches all sources concurrently (up to 8 at a time)
+- **Smart limiting**: Prevents over-fetching by calculating effective limits
+- **Deterministic ordering**: Results sorted by score, then by alias for consistency
+- **Error resilience**: Continues searching even if some sources fail
 
 **Examples:**
 
@@ -180,7 +187,7 @@ blz list --output json
 
 ### `blz update`
 
-Update indexed sources with latest content.
+Update indexed sources with latest content. Uses ETag and Last-Modified headers to check if content has changed before downloading, saving bandwidth and time. Archives previous versions before updating.
 
 ```bash
 blz update [ALIAS] [OPTIONS]
@@ -194,14 +201,37 @@ blz update [ALIAS] [OPTIONS]
 
 - `--all` - Update all sources
 
+**Features:**
+
+- **Conditional fetching**: Only downloads if content changed (ETag/Last-Modified)
+- **Automatic archiving**: Backs up current version before updating
+- **Atomic updates**: Ensures index consistency during updates
+- **Progress reporting**: Shows update status for each source
+
 **Examples:**
 
 ```bash
-# Update specific source
+# Update specific source (only downloads if changed)
 blz update bun
+# Output: ✓ bun: Up-to-date
 
 # Update all sources
 blz update --all
+# Output: 
+# Updating 15 source(s)...
+# Summary: 2 updated, 13 unchanged, 0 errors
+
+# Update with verbose output to see details
+blz update bun --verbose
+```
+
+**Archive Behaviour:**
+
+When a source is updated, previous files are archived under:
+```
+~/.outfitter/blz/<alias>/.archive/
+└── YYYY-MM-DDTHH-MMZ-llms.txt
+└── YYYY-MM-DDTHH-MMZ-llms.json
 ```
 
 ### `blz remove` / `blz rm` / `blz delete`
