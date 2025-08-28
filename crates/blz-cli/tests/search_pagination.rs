@@ -39,7 +39,8 @@ fn test_empty_results_pagination() {
         .arg("10")
         .arg("--page")
         .arg("1")
-        .arg("--quiet"); // Use quiet mode to suppress INFO messages
+        .arg("-o")
+        .arg("json"); // Use JSON output to avoid display issues
 
     // Should handle gracefully with no panic
     // The command succeeds even with no results
@@ -65,4 +66,84 @@ fn test_single_result_pagination() {
 
     // Should run without panic
     cmd.assert().success();
+}
+
+#[test]
+fn test_large_limit_with_small_results() {
+    // Regression test: when limit >= ALL_RESULTS_LIMIT (10,000) and results are empty or small,
+    // the actual_limit calculation should not cause divide-by-zero
+    let mut cmd = Command::cargo_bin("blz").unwrap();
+
+    cmd.arg("search")
+        .arg("extremely_unlikely_search_term_that_wont_match_xyz123")
+        .arg("--limit")
+        .arg("10000")  // ALL_RESULTS_LIMIT
+        .arg("--page")
+        .arg("1")
+        .arg("-o")
+        .arg("json");
+
+    // Should not panic even with large limit and no results
+    cmd.assert().success();
+}
+
+#[test]
+fn test_page_boundary_with_exact_division() {
+    // Test when results divide exactly by limit
+    let mut cmd = Command::cargo_bin("blz").unwrap();
+
+    cmd.arg("search")
+        .arg("test")
+        .arg("--limit")
+        .arg("5")
+        .arg("--page")
+        .arg("2");
+
+    // Should handle page boundary correctly
+    cmd.assert().success();
+}
+
+#[test]
+fn test_minimum_limit_value() {
+    // Test with the minimum valid limit (1)
+    let mut cmd = Command::cargo_bin("blz").unwrap();
+
+    cmd.arg("search")
+        .arg("test")
+        .arg("--limit")
+        .arg("1")
+        .arg("--page")
+        .arg("1");
+
+    // Should handle minimum limit correctly
+    cmd.assert().success();
+}
+
+#[test]
+fn test_pagination_prevents_panic_on_edge_cases() {
+    // Test multiple edge cases that could cause panics
+    let edge_cases = vec![
+        ("1", "1"),     // Minimum values
+        ("1", "10000"), // Minimum limit, huge page
+        ("10000", "1"), // ALL_RESULTS_LIMIT
+        ("100", "100"), // Large page number
+    ];
+
+    for (limit, page) in edge_cases {
+        let mut cmd = Command::cargo_bin("blz").unwrap();
+
+        cmd.arg("search")
+            .arg("test")
+            .arg("--limit")
+            .arg(limit)
+            .arg("--page")
+            .arg(page)
+            .arg("-o")
+        .arg("json");
+
+        // None of these should panic
+        cmd.assert()
+            .success()
+            .stdout(predicates::str::contains("panic").not());
+    }
 }
