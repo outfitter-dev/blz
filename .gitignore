@@ -39,7 +39,7 @@ llms-full.txt
 llms.json
 
 # User cache directory (if testing locally)
-~/.outfitter/cache/
+~/.outfitter/blz/
 
 # Benchmark results
 criterion/

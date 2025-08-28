@@ -1620,13 +1620,13 @@ SENTINEL_SECOND_END";
             // Each sentinel should appear exactly once
             let first_count = block.content.matches("SENTINEL_FIRST_START").count();
             let sub_count = block.content.matches("SENTINEL_SUB_START").count();
-            let sub2_count = block.content.matches("SENTINEL_SUB2_START").count();
+            let sub_alt_count = block.content.matches("SENTINEL_SUB2_START").count();
             let second_count = block.content.matches("SENTINEL_SECOND_START").count();
 
             // Each block should contain at most one sentinel section
             assert!(first_count <= 1, "First sentinel duplicated");
             assert!(sub_count <= 1, "Sub sentinel duplicated");
-            assert!(sub2_count <= 1, "Sub2 sentinel duplicated");
+            assert!(sub_alt_count <= 1, "Sub2 sentinel duplicated");
             assert!(second_count <= 1, "Second sentinel duplicated");
         }
 
@@ -1642,11 +1642,11 @@ SENTINEL_SECOND_END";
         assert!(!sub_block.content.contains("SENTINEL_FIRST"));
         assert!(!sub_block.content.contains("SENTINEL_SUB2"));
 
-        let sub2_block = &result.heading_blocks[2];
-        assert!(sub2_block.content.contains("SENTINEL_SUB2_START"));
-        assert!(sub2_block.content.contains("SENTINEL_SUB2_END"));
-        assert!(!sub2_block.content.contains("SENTINEL_SUB_START"));
-        assert!(!sub2_block.content.contains("SENTINEL_SECOND"));
+        let sub_alt_block = &result.heading_blocks[2];
+        assert!(sub_alt_block.content.contains("SENTINEL_SUB2_START"));
+        assert!(sub_alt_block.content.contains("SENTINEL_SUB2_END"));
+        assert!(!sub_alt_block.content.contains("SENTINEL_SUB_START"));
+        assert!(!sub_alt_block.content.contains("SENTINEL_SECOND"));
 
         let second_block = &result.heading_blocks[3];
         assert!(second_block.content.contains("SENTINEL_SECOND_START"));

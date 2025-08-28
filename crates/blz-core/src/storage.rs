@@ -1,9 +1,8 @@
 use crate::{Error, LlmsJson, Result};
-use chrono::Utc;
 use directories::ProjectDirs;
 use std::fs;
 use std::path::PathBuf;
-use tracing::{debug, info};
+use tracing::debug;
 
 pub struct Storage {
     root_dir: PathBuf,
@@ -109,10 +108,6 @@ impl Storage {
         Ok(self.tool_dir(alias)?.join(".index"))
     }
 
-    pub fn archive_dir(&self, alias: &str) -> Result<PathBuf> {
-        Ok(self.tool_dir(alias)?.join(".archive"))
-    }
-
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_txt_path(alias)?;
@@ -171,31 +166,6 @@ impl Storage {
         sources.sort();
         Ok(sources)
     }
-
-    pub fn archive(&self, alias: &str) -> Result<()> {
-        let archive_dir = self.archive_dir(alias)?;
-        fs::create_dir_all(&archive_dir)
-            .map_err(|e| Error::Storage(format!("Failed to create archive directory: {e}")))?;
-
-        let timestamp = Utc::now().format("%Y-%m-%dT%H-%MZ");
-
-        let llms_txt = self.llms_txt_path(alias)?;
-        if llms_txt.exists() {
-            let archive_path = archive_dir.join(format!("{timestamp}-llms.txt"));
-            fs::copy(&llms_txt, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.txt: {e}")))?;
-        }
-
-        let llms_json = self.llms_json_path(alias)?;
-        if llms_json.exists() {
-            let archive_path = archive_dir.join(format!("{timestamp}-llms.json"));
-            fs::copy(&llms_json, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.json: {e}")))?;
-        }
-
-        info!("Archived {} at {}", alias, timestamp);
-        Ok(())
-    }
 }
 
 // Note: Default is not implemented as Storage::new() can fail.
@@ -205,6 +175,7 @@ impl Storage {
 mod tests {
     use super::*;
     use crate::types::{FileInfo, LineIndex, Source, TocEntry};
+    use chrono::Utc;
     use std::fs;
     use tempfile::TempDir;
 
@@ -266,15 +237,11 @@ mod tests {
             .llms_json_path("react")
             .expect("Should get llms.json path");
         let index_dir = storage.index_dir("react").expect("Should get index dir");
-        let archive_dir = storage
-            .archive_dir("react")
-            .expect("Should get archive dir");
 
         assert!(tool_dir.ends_with("react"));
         assert!(llms_txt_path.ends_with("react/llms.txt"));
         assert!(llms_json_path.ends_with("react/llms.json"));
         assert!(index_dir.ends_with("react/.index"));
-        assert!(archive_dir.ends_with("react/.archive"));
     }
 
     #[test]
@@ -456,68 +423,6 @@ mod tests {
         let sources = storage.list_sources().expect("Should list sources");
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0], "complete");
-    }
-
-    #[test]
-    fn test_archive_functionality() {
-        let (storage, _temp_dir) = create_test_storage();
-
-        // Create source data
-        let content = "# Test content";
-        let llms_json = create_test_llms_json("test");
-
-        storage
-            .save_llms_txt("test", content)
-            .expect("Should save txt");
-        storage
-            .save_llms_json("test", &llms_json)
-            .expect("Should save json");
-
-        // Archive the source
-        storage.archive("test").expect("Should archive");
-
-        // Verify archive directory exists
-        let archive_dir = storage.archive_dir("test").expect("Should get archive dir");
-        assert!(archive_dir.exists());
-
-        // Verify archived files exist (names contain timestamp)
-        let archive_entries: Vec<_> = fs::read_dir(&archive_dir)
-            .expect("Should read archive dir")
-            .collect::<std::result::Result<Vec<_>, std::io::Error>>()
-            .expect("Should collect entries");
-
-        assert_eq!(archive_entries.len(), 2); // llms.txt and llms.json
-
-        // Verify archived files have correct names
-        let mut has_txt = false;
-        let mut has_json = false;
-        for entry in archive_entries {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.contains("llms.txt") {
-                has_txt = true;
-            }
-            if name.contains("llms.json") {
-                has_json = true;
-            }
-        }
-
-        assert!(has_txt, "Should have archived llms.txt");
-        assert!(has_json, "Should have archived llms.json");
-    }
-
-    #[test]
-    fn test_archive_missing_files() {
-        let (storage, _temp_dir) = create_test_storage();
-
-        // Archive non-existent source - should not fail
-        let result = storage.archive("nonexistent");
-        assert!(result.is_ok());
-
-        // Archive directory should still be created
-        let archive_dir = storage
-            .archive_dir("nonexistent")
-            .expect("Should get archive dir");
-        assert!(archive_dir.exists());
     }
 
     #[test]

@@ -73,7 +73,6 @@ use std::path::{Path, PathBuf};
 /// ```toml
 /// [defaults]
 /// refresh_hours = 24
-/// max_archives = 10
 /// fetch_enabled = true
 /// follow_links = "first_party"
 /// allowlist = ["docs.rs", "developer.mozilla.org"]
@@ -99,12 +98,6 @@ pub struct DefaultsConfig {
     /// Sources are only re-fetched if they haven't been updated within this interval.
     /// Set to 0 to always fetch on access.
     pub refresh_hours: u32,
-
-    /// Maximum number of archived versions to keep per source.
-    ///
-    /// When a source is updated, the previous version is archived. This setting
-    /// controls how many historical versions to retain for diff generation.
-    pub max_archives: usize,
 
     /// Whether fetching from remote sources is enabled.
     ///
@@ -280,7 +273,6 @@ impl Default for Config {
         Self {
             defaults: DefaultsConfig {
                 refresh_hours: 24,
-                max_archives: 10,
                 fetch_enabled: true,
                 follow_links: FollowLinks::FirstParty,
                 allowlist: Vec::new(),
@@ -513,7 +505,6 @@ mod tests {
         Config {
             defaults: DefaultsConfig {
                 refresh_hours: 12,
-                max_archives: 5,
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec!["example.com".to_string(), "docs.rs".to_string()],
@@ -551,7 +542,6 @@ mod tests {
         // When: Examining default values
         // Then: Should have sensible defaults
         assert_eq!(config.defaults.refresh_hours, 24);
-        assert_eq!(config.defaults.max_archives, 10);
         assert!(config.defaults.fetch_enabled);
         assert!(matches!(
             config.defaults.follow_links,
@@ -604,10 +594,6 @@ mod tests {
         assert_eq!(
             loaded_config.defaults.refresh_hours,
             original_config.defaults.refresh_hours
-        );
-        assert_eq!(
-            loaded_config.defaults.max_archives,
-            original_config.defaults.max_archives
         );
         assert_eq!(
             loaded_config.defaults.fetch_enabled,
@@ -756,7 +742,6 @@ mod tests {
         let extreme_config = Config {
             defaults: DefaultsConfig {
                 refresh_hours: 1_000_000, // Large but not MAX to avoid TOML issues
-                max_archives: 1_000_000,  // Large but not MAX to avoid TOML issues
                 fetch_enabled: false,
                 follow_links: FollowLinks::None,
                 allowlist: vec!["a".repeat(1000)], // Very long domain
@@ -774,7 +759,6 @@ mod tests {
 
         // Then: Should handle extreme values correctly
         assert_eq!(deserialized.defaults.refresh_hours, 1_000_000);
-        assert_eq!(deserialized.defaults.max_archives, 1_000_000);
         assert!(!deserialized.defaults.fetch_enabled);
         assert_eq!(deserialized.defaults.allowlist.len(), 1);
         assert_eq!(deserialized.defaults.allowlist[0].len(), 1000);
@@ -788,7 +772,6 @@ mod tests {
         let config = Config {
             defaults: DefaultsConfig {
                 refresh_hours: 24,
-                max_archives: 10,
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec![], // Empty allowlist
@@ -819,7 +802,6 @@ mod tests {
             let config = Config {
                 defaults: DefaultsConfig {
                     refresh_hours,
-                    max_archives: 10,
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
@@ -836,32 +818,10 @@ mod tests {
         }
 
         #[test]
-        fn test_config_max_archives_roundtrip(max_archives in 1usize..=1000) {
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours: 24,
-                    max_archives,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::FirstParty,
-                    allowlist: vec![],
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from("/tmp"),
-                },
-            };
-
-            let serialized = toml::to_string_pretty(&config).unwrap();
-            let deserialized: Config = toml::from_str(&serialized).unwrap();
-
-            prop_assert_eq!(deserialized.defaults.max_archives, max_archives);
-        }
-
-        #[test]
         fn test_config_allowlist_roundtrip(allowlist in prop::collection::vec(r"[a-z0-9\.-]+", 0..=10)) {
             let config = Config {
                 defaults: DefaultsConfig {
                     refresh_hours: 24,
-                    max_archives: 10,
                     fetch_enabled: true,
                     follow_links: FollowLinks::Allowlist,
                     allowlist: allowlist.clone(),
@@ -894,7 +854,6 @@ mod tests {
             let config = Config {
                 defaults: DefaultsConfig {
                     refresh_hours: 24,
-                    max_archives: 10,
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
@@ -926,7 +885,6 @@ mod tests {
             let config = Config {
                 defaults: DefaultsConfig {
                     refresh_hours: 24,
-                    max_archives: 10,
                     fetch_enabled: true,
                     follow_links: FollowLinks::Allowlist,
                     allowlist: vec![malicious_string.to_string()],
@@ -960,7 +918,6 @@ mod tests {
         let unicode_config = Config {
             defaults: DefaultsConfig {
                 refresh_hours: 24,
-                max_archives: 10,
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec![
@@ -1000,7 +957,6 @@ mod tests {
         let empty_config = Config {
             defaults: DefaultsConfig {
                 refresh_hours: 0, // Edge case: zero refresh
-                max_archives: 0,  // Edge case: no archives
                 fetch_enabled: false,
                 follow_links: FollowLinks::None,
                 allowlist: vec![String::new()], // Empty string in allowlist
@@ -1016,7 +972,6 @@ mod tests {
 
         // Then: Empty/zero values should be handled correctly
         assert_eq!(deserialized.defaults.refresh_hours, 0);
-        assert_eq!(deserialized.defaults.max_archives, 0);
         assert_eq!(deserialized.defaults.allowlist.len(), 1);
         assert_eq!(deserialized.defaults.allowlist[0], "");
         assert_eq!(deserialized.paths.root, PathBuf::from(""));

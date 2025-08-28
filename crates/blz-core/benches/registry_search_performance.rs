@@ -10,7 +10,6 @@ use blz_core::registry::RegistryEntry;
 use blz_core::Registry;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Create a small test registry matching the default size
 fn create_small_registry() -> Registry {

@@ -117,14 +117,13 @@ pub enum Error {
     /// Storage operation failed.
     ///
     /// Covers cache storage operations beyond basic file I/O, such as
-    /// managing archived versions, checksum validation, and cache consistency.
+    /// checksum validation and cache consistency.
     ///
     /// ## Common Causes
     ///
     /// - Cache corruption
     /// - Concurrent access conflicts
     /// - Checksum mismatches
-    /// - Archive management failures
     #[error("Storage error: {0}")]
     Storage(String),
 
