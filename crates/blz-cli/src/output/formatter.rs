@@ -301,10 +301,10 @@ impl SearchResultFormatter {
 /// ```
 ///
 /// Reserved for future use when implementing structured source info output.
-#[allow(dead_code)]
+#[cfg(feature = "progress-ui")]
 pub struct SourceInfoFormatter;
 
-#[allow(dead_code)]
+#[cfg(feature = "progress-ui")]
 impl SourceInfoFormatter {
     /// Format source information for display in the specified format
     ///

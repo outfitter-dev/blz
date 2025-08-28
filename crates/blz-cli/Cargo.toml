@@ -10,7 +10,9 @@ build = "build.rs"
 workspace = true
 
 [features]
+progress-ui = []
 flamegraph = ["blz-core/flamegraph"]
+default = []
 
 [[bin]]
 name = "blz"

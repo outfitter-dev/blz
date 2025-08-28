@@ -520,7 +520,6 @@ mod tests {
 
     // Temporarily disabled - mock server setup needs adjustment
     // #[tokio::test]
-    #[allow(dead_code)]
     async fn test_fetch_with_last_modified() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -678,7 +677,6 @@ mod tests {
 
     // Temporarily disabled - mock server setup needs adjustment
     // #[tokio::test]
-    #[allow(dead_code)]
     async fn test_fetch_with_both_etag_and_last_modified() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
