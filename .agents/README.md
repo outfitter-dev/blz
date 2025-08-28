@@ -52,4 +52,3 @@ Commands:
 ## References
 - Rules: `./.agents/rules/`
 - Detailed logs guide: `./.agents/logs/AGENTS.md`
-```
