@@ -3,7 +3,7 @@ use chrono::Utc;
 use directories::ProjectDirs;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub struct Storage {
     root_dir: PathBuf,
@@ -124,8 +124,16 @@ impl Storage {
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_txt_path(alias)?;
-        fs::write(&path, content)
+
+        // Write to temporary file first for atomic operation
+        let tmp_path = path.with_extension("txt.tmp");
+        fs::write(&tmp_path, content)
             .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {e}")))?;
+
+        // Atomically rename temp file to final location
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to commit llms.txt: {e}")))?;
+
         debug!("Saved llms.txt for {}", alias);
         Ok(())
     }
@@ -141,8 +149,16 @@ impl Storage {
         let path = self.llms_json_path(alias)?;
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| Error::Storage(format!("Failed to serialize JSON: {e}")))?;
-        fs::write(&path, json)
+
+        // Write to temporary file first for atomic operation
+        let tmp_path = path.with_extension("json.tmp");
+        fs::write(&tmp_path, json)
             .map_err(|e| Error::Storage(format!("Failed to write llms.json: {e}")))?;
+
+        // Atomically rename temp file to final location
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to commit llms.json: {e}")))?;
+
         debug!("Saved llms.json for {}", alias);
         Ok(())
     }
@@ -265,7 +281,7 @@ impl Storage {
                             .unwrap_or(false)
                     {
                         // New directory already has content, just log a warning
-                        info!(
+                        warn!(
                             "Found old cache at {} but new cache at {} already exists. \
                              Manual migration may be needed if you want to preserve old data.",
                             old_root.display(),
@@ -281,7 +297,7 @@ impl Storage {
 
                         if let Err(e) = Self::migrate_directory(old_root, new_root) {
                             // Log warning but don't fail - let the user continue with fresh cache
-                            info!(
+                            warn!(
                                 "Could not automatically migrate cache: {}. \
                                  Starting with fresh cache at {}. \
                                  To manually migrate, copy contents from {} to {}",
