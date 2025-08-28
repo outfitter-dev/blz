@@ -25,6 +25,7 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono.workspace = true
+futures.workspace = true
 
 # CLI-specific
 colored = "2"
