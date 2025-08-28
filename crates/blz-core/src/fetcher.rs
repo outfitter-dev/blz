@@ -50,6 +50,13 @@ impl Fetcher {
         }
 
         if !status.is_success() {
+            // Map 404 to a clearer NotFound error
+            if status == StatusCode::NOT_FOUND {
+                return Err(Error::NotFound(format!(
+                    "Resource not found at '{url}'. Check the URL or try 'blz lookup' to find available sources"
+                )));
+            }
+
             // Try to get the actual error, or create one manually
             match response.error_for_status() {
                 Ok(_) => unreachable!("Status should be an error"),
@@ -84,8 +91,16 @@ impl Fetcher {
 
     pub async fn fetch(&self, url: &str) -> Result<(String, String)> {
         let response = self.client.get(url).send().await?;
+        let status = response.status();
 
-        if !response.status().is_success() {
+        if !status.is_success() {
+            // Map 404 to a clearer NotFound error
+            if status == StatusCode::NOT_FOUND {
+                return Err(Error::NotFound(format!(
+                    "Resource not found at '{url}'. Check the URL or try 'blz lookup' to find available sources"
+                )));
+            }
+
             // Try to get the actual error, or create one manually
             match response.error_for_status() {
                 Ok(_) => unreachable!("Status should be an error"),
@@ -537,10 +552,12 @@ mod tests {
         assert!(result.is_err(), "404 should result in error");
 
         match result {
-            Err(Error::Network(_)) => {
-                // Expected error type
+            Err(Error::NotFound(msg)) => {
+                // Expected error type - 404 now maps to NotFound
+                assert!(msg.contains("not found"));
+                assert!(msg.contains("blz lookup"));
             },
-            Err(e) => panic!("Expected Network error, got: {e}"),
+            Err(e) => panic!("Expected NotFound error, got: {e}"),
             Ok(_) => panic!("Expected error for 404 response"),
         }
 

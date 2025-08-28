@@ -254,7 +254,8 @@ pub enum Commands {
         alias: String,
     },
 
-    /// View diffs
+    /// View diffs (coming soon)
+    #[command(hide = true)]
     Diff {
         /// Source alias
         alias: String,

@@ -315,7 +315,7 @@ impl MarkdownParser {
         }
 
         let mut cursor = root.walk();
-        self.extract_headings(&mut cursor, text, &mut heading_blocks, &mut toc)?;
+        Self::extract_headings(&mut cursor, text, &mut heading_blocks, &mut toc);
 
         if heading_blocks.is_empty() {
             diagnostics.push(Diagnostic {
@@ -343,12 +343,11 @@ impl MarkdownParser {
     }
 
     fn extract_headings(
-        &self,
         cursor: &mut TreeCursor,
         text: &str,
         blocks: &mut Vec<HeadingBlock>,
         toc: &mut Vec<TocEntry>,
-    ) -> Result<()> {
+    ) {
         // Collect all heading information first
         #[derive(Debug)]
         struct HeadingInfo {
@@ -361,10 +360,10 @@ impl MarkdownParser {
         let mut headings = Vec::new();
 
         // First pass: collect all headings with their positions
-        self.walk_tree(cursor, text, |node| {
+        Self::walk_tree(cursor, text, |node| {
             if node.kind() == "atx_heading" {
-                let level = self.get_heading_level(node, text);
-                let heading_text = self.get_heading_text(node, text);
+                let level = Self::get_heading_level(node, text);
+                let heading_text = Self::get_heading_text(node, text);
                 let line_start = node.start_position().row;
 
                 headings.push(HeadingInfo {
@@ -378,7 +377,7 @@ impl MarkdownParser {
 
         // If no headings, create a single document block
         if headings.is_empty() {
-            return Ok(());
+            return;
         }
 
         // Second pass: build blocks by slicing between headings
@@ -434,13 +433,11 @@ impl MarkdownParser {
                 children: Vec::new(),
             };
 
-            self.add_to_toc(toc, entry, stack.len());
+            Self::add_to_toc(toc, entry, stack.len());
         }
-
-        Ok(())
     }
 
-    fn walk_tree<F>(&self, cursor: &mut TreeCursor, _text: &str, mut callback: F)
+    fn walk_tree<F>(cursor: &mut TreeCursor, _text: &str, mut callback: F)
     where
         F: FnMut(Node),
     {
@@ -467,7 +464,7 @@ impl MarkdownParser {
         }
     }
 
-    fn get_heading_level(&self, node: Node, _text: &str) -> usize {
+    fn get_heading_level(node: Node, _text: &str) -> usize {
         for child in node.children(&mut node.walk()) {
             if child.kind() == "atx_h1_marker" {
                 return 1;
@@ -486,7 +483,7 @@ impl MarkdownParser {
         1
     }
 
-    fn get_heading_text(&self, node: Node, text: &str) -> String {
+    fn get_heading_text(node: Node, text: &str) -> String {
         for child in node.children(&mut node.walk()) {
             if child.kind().contains("heading") && child.kind().contains("content") {
                 return text[child.byte_range()].trim().to_string();
@@ -497,19 +494,19 @@ impl MarkdownParser {
         full_text.trim_start_matches('#').trim().to_string()
     }
 
-    fn add_to_toc(&self, toc: &mut Vec<TocEntry>, entry: TocEntry, depth: usize) {
+    fn add_to_toc(toc: &mut Vec<TocEntry>, entry: TocEntry, depth: usize) {
         if depth == 1 {
             toc.push(entry);
         } else if let Some(parent) = toc.last_mut() {
-            self.add_to_toc_recursive(&mut parent.children, entry, depth - 1);
+            Self::add_to_toc_recursive(&mut parent.children, entry, depth - 1);
         }
     }
 
-    fn add_to_toc_recursive(&self, toc: &mut Vec<TocEntry>, entry: TocEntry, depth: usize) {
+    fn add_to_toc_recursive(toc: &mut Vec<TocEntry>, entry: TocEntry, depth: usize) {
         if depth == 1 {
             toc.push(entry);
         } else if let Some(parent) = toc.last_mut() {
-            self.add_to_toc_recursive(&mut parent.children, entry, depth - 1);
+            Self::add_to_toc_recursive(&mut parent.children, entry, depth - 1);
         }
     }
 }
@@ -1582,6 +1579,7 @@ And even more content
     }
 
     #[test]
+    #[allow(clippy::similar_names)] // Test uses similar names for related test blocks
     fn test_heading_blocks_no_duplication() -> Result<()> {
         // Given: Markdown with sentinel markers to verify exact extraction
         let markdown = r"# First Heading
