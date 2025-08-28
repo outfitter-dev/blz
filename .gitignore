@@ -19,6 +19,12 @@ Cargo.lock
 *.swo
 *~
 
+# Node/Bun
+node_modules/
+bun.lockb
+.bun/
+.npmrc
+
 # OS
 .DS_Store
 Thumbs.db
