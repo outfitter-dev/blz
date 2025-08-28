@@ -19,6 +19,12 @@ Cargo.lock
 *.swo
 *~
 
+# Node/Bun
+node_modules/
+bun.lockb
+.bun/
+.npmrc
+
 # OS
 .DS_Store
 Thumbs.db
@@ -51,3 +57,7 @@ coverage/
 
 # Logs
 *.log
+
+# Agent logs archive (keep directory but not contents)
+.agents/logs/.archive/*
+!.agents/logs/.archive/.gitkeep
