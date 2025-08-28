@@ -225,10 +225,10 @@ async fn update_source(
                 std::fs::remove_dir_all(&tmp_index)
                     .map_err(|e| anyhow!("Failed to clean temp index: {}", e))?;
             }
-            
+
             let mut index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
             index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
-            
+
             // Swap in the new index
             if index_path.exists() {
                 std::fs::remove_dir_all(&index_path)

@@ -212,7 +212,8 @@ impl Storage {
         fs::create_dir_all(&archive_dir)
             .map_err(|e| Error::Storage(format!("Failed to create archive directory: {e}")))?;
 
-        let timestamp = Utc::now().format("%Y-%m-%dT%H-%MZ");
+        // Include seconds for uniqueness and clearer chronology
+        let timestamp = Utc::now().format("%Y-%m-%dT%H-%M-%SZ");
 
         let llms_txt = self.llms_txt_path(alias)?;
         if llms_txt.exists() {
