@@ -12,7 +12,7 @@ Successfully adapted comprehensive development rules from TypeScript projects (r
 ### Phase 1: Analysis & Audit (Completed)
 - **Action**: Audited existing rules across three TypeScript repositories
 - **Repositories Analyzed**: rulesets/, monorepo/, carabiner/
-- **Output**: Created comprehensive audit document at `cache/.agent/memory/notes/rules-audit.md`
+- **Output**: Created comprehensive audit document at `cache/.agents/memory/notes/rules-audit.md`
 - **Key Finding**: Identified directly applicable rules (version control, commits) and those needing major adaptation (linting, testing, error handling)
 
 ### Phase 2: Direct Rule Transfer (Completed)

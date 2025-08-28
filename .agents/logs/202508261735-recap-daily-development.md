@@ -27,7 +27,7 @@
 
 ### Priority Work (P0 Issues)
 
-Based on the release plan in `.agent/memory/docs/20250825-blz-release-stack-plan.md`:
+Based on the release plan in `.agents/memory/docs/20250825-blz-release-stack-plan.md`:
 
 1. **Issue #31**: Correct heading-block extraction with exact line slices
    - Critical for accurate search results

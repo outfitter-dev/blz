@@ -89,7 +89,7 @@ jobs:
           # Custom instructions for the blz Rust project
           custom_instructions: |
             This is a Rust project using Tantivy for search indexing.
-            Follow the rules in .agent/rules/DEVELOPMENT.md
+            Follow the rules in .agents/rules/DEVELOPMENT.md
             Use cargo for all build/test operations
             Ensure all code passes clippy with no warnings
             Write tests for any new functionality
