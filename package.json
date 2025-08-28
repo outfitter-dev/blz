@@ -1,5 +1,5 @@
 {
-  "name": "outfitter-blaze",
+  "name": "@outfitter/blz",
   "version": "0.1.0",
   "description": "Fast local llms.txt search for agents",
   "keywords": [
@@ -39,8 +39,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "postinstall": "node npm/postinstall.js",
-    "prepack": "node npm/prepack.js"
+    "changeset": "bunx @changesets/cli",
+    "version": "bunx @changesets/cli version",
+    "release": "bunx @changesets/cli publish"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -57,5 +58,8 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
   }
 }
