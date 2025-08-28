@@ -22,7 +22,7 @@ REPO_URL="https://github.com/outfitter-dev/blz"
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-AGENT_DIR="$PROJECT_ROOT/.agent"
+AGENT_DIR="$PROJECT_ROOT/.agents"
 STATE_FILE="$PROJECT_ROOT/.agent-state.json"
 NOTES_FILE="$PROJECT_ROOT/notes.txt"
 
@@ -59,14 +59,14 @@ cache/                      # Root directory (will be renamed to blz/)
 │   ├── blz-cli/           # Command-line interface
 │   └── blz-mcp/           # MCP server (in development)
 ├── scripts/               # Development scripts
-├── .agent/                # Agent-specific configuration
+├── .agents/                # Agent-specific configuration
 │   └── rules/            # Development guidelines
 └── target/               # Build artifacts (git-ignored)
 ```
 
 ## Key Files for Agents
 1. **Cargo.toml** - Workspace configuration
-2. **.agent/rules/** - Development standards and patterns
+2. **.agents/rules/** - Development standards and patterns
 3. **CLAUDE.md** - AI agent instructions
 4. **AGENTS.md** - Source of truth for agent behavior
 5. **notes.txt** - Your persistent notes (created by this script)
@@ -132,10 +132,10 @@ cargo deny check    # Security audit
 Keep track of your work in `notes.txt`. This file persists across sessions.
 
 ## Getting Help
-- Development guide: `.agent/rules/DEVELOPMENT.md`
-- Architecture: `.agent/rules/ARCHITECTURE.md`
-- Performance: `.agent/rules/PERFORMANCE.md`
-- Security: `.agent/rules/SECURITY.md`
+- Development guide: `.agents/rules/DEVELOPMENT.md`
+- Architecture: `.agents/rules/ARCHITECTURE.md`
+- Performance: `.agents/rules/PERFORMANCE.md`
+- Security: `.agents/rules/SECURITY.md`
 EOF
 
     echo -e "${GREEN}✓${NC} Created AGENT_CONTEXT.md"
@@ -200,7 +200,7 @@ EOF
 
 # Create knowledge base entries
 create_knowledge_entries() {
-    local kb_dir="$PROJECT_ROOT/.agent/knowledge"
+    local kb_dir="$PROJECT_ROOT/.agents/knowledge"
     mkdir -p "$kb_dir"
     
     # Create common patterns file
@@ -323,7 +323,7 @@ print_agent_guidance() {
     echo "🎯 Suggested first tasks:"
     echo "  1. Review AGENT_CONTEXT.md for project overview"
     echo "  2. Run './scripts/dev.sh quick' for a quick check"
-    echo "  3. Review .agent/rules/ for coding standards"
+    echo "  3. Review .agents/rules/ for coding standards"
     echo "  4. Check current issues with './scripts/dev.sh check'"
     echo
     echo "🔧 Useful commands:"
@@ -336,7 +336,7 @@ print_agent_guidance() {
     echo "  - Keep notes in notes.txt as you work"
     echo "  - Run 'dev.sh quick' frequently for fast feedback"
     echo "  - Use 'dev.sh fix' to auto-resolve common issues"
-    echo "  - Check .agent/rules/ for detailed guidelines"
+    echo "  - Check .agents/rules/ for detailed guidelines"
     echo
     echo "Ready to start development! What would you like to work on?"
     echo "════════════════════════════════════════════════════════════════"

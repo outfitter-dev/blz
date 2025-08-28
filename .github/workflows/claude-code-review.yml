@@ -56,7 +56,7 @@ jobs:
             - Clippy warnings and code quality
             - Test coverage for new functionality
             - Documentation for public APIs
-            - Compliance with rules in .agent/rules/
+            - Compliance with rules in .agents/rules/
             - Updates to AGENTS.md if architecture changed
             
             Be constructive and specific in your feedback. Give inline comments where applicable.

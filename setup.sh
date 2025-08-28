@@ -212,7 +212,7 @@ EOF
 
 ## Documentation
 - View docs: `cargo doc --open`
-- Agent rules: `.agent/rules/`
+- Agent rules: `.agents/rules/`
 EOF
         log_success "Created notes.txt for agent context"
     fi
@@ -233,7 +233,7 @@ print_summary() {
     echo "  3. View documentation: cargo doc --open"
     echo
     echo "For AI agents:"
-    echo "  - Configuration: See .agent/rules/ for development guidelines"
+    echo "  - Configuration: See .agents/rules/ for development guidelines"
     echo "  - Quick reference: See notes.txt for common commands"
     echo "  - Environment: Copy .env.example to .env for local settings"
     echo
@@ -257,7 +257,7 @@ print_error_summary() {
     echo
     echo "For help, see:"
     echo "  - README.md"
-    echo "  - .agent/rules/DEVELOPMENT.md"
+    echo "  - .agents/rules/DEVELOPMENT.md"
     echo "════════════════════════════════════════════════════════════════"
 }
 

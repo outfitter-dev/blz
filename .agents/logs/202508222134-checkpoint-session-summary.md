@@ -63,7 +63,7 @@ blz/
 │   ├── install-completions.sh
 │   ├── blz-fish-init.fish
 │   └── blz-dynamic-completions.fish
-└── .agent/
+└── .agents/
     ├── PRD.md               # Original product requirements
     └── memory/handoffs/     # This document
 ```

@@ -90,7 +90,7 @@ For Issue #31 (Parser fix):
 
 ## Release Planning
 
-Per `.agent/memory/docs/20250825-blz-release-stack-plan.md`, v0.1 release requires:
+Per `.agents/memory/docs/20250825-blz-release-stack-plan.md`, v0.1 release requires:
 - ✅ Search latency < 10ms (achieved)
 - ❌ Accurate line citations (blocked by Issue #31)
 - ❌ Stable storage format (blocked by Issue #32)

@@ -52,7 +52,7 @@ blz/
 ├── deny.toml            # Dependency security and license configuration
 ├── Makefile             # Common development commands
 ├── justfile             # Alternative to Makefile (just command runner)
-└── .agent/              # Development documentation
+└── .agents/             # Development documentation
 ```
 
 ## Making Changes

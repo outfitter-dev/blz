@@ -22,7 +22,7 @@ This directory contains automated workflows for the blz Rust project.
 - `just *` - Justfile commands
 
 **Custom Instructions**:
-- Follows `.agent/rules/DEVELOPMENT.md`
+- Follows `.agents/rules/DEVELOPMENT.md`
 - Ensures clippy compliance
 - Requires tests for new functionality
 - Updates AGENTS.md for architectural changes
@@ -42,7 +42,7 @@ This directory contains automated workflows for the blz Rust project.
 - Clippy warnings and code quality
 - Test coverage
 - Public API documentation
-- Compliance with `.agent/rules/`
+- Compliance with `.agents/rules/`
 - AGENTS.md updates for architecture changes
 
 **Review Commands**:

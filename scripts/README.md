@@ -99,7 +99,7 @@ If you're an AI coding agent, start with:
 3. **Keep notes:**
    - Write to `notes.txt` to track your progress
    - Check `AGENT_CONTEXT.md` for project overview
-   - Review `.agent/rules/` for coding standards
+   - Review `.agents/rules/` for coding standards
 
 ## Common Workflows
 
