@@ -9,8 +9,6 @@ use tracing::{debug, info, Level};
 
 pub struct SearchIndex {
     index: Index,
-    #[allow(dead_code)]
-    schema: Schema,
     content_field: Field,
     path_field: Field,
     heading_path_field: Field,
@@ -57,7 +55,6 @@ impl SearchIndex {
 
         Ok(Self {
             index,
-            schema,
             content_field,
             path_field,
             heading_path_field,
@@ -106,7 +103,6 @@ impl SearchIndex {
 
         Ok(Self {
             index,
-            schema,
             content_field,
             path_field,
             heading_path_field,

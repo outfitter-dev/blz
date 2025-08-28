@@ -6,10 +6,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 ///
 /// These methods are preserved for future use when implementing
 /// download progress, long-running operations, and batch processing.
-#[allow(dead_code)]
+#[cfg(feature = "progress-ui")]
 pub struct ProgressDisplay;
 
-#[allow(dead_code)]
+#[cfg(feature = "progress-ui")]
 impl ProgressDisplay {
     /// Create a new spinner with the given message
     ///

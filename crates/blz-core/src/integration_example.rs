@@ -234,7 +234,7 @@ impl PerformanceStatsSummary {
 }
 
 /// Example usage function
-#[allow(dead_code)]
+#[cfg(test)]
 async fn example_usage() -> Result<()> {
     // Create high-performance search system
     let search_system = HighPerformanceSearchSystem::new(
