@@ -39,8 +39,7 @@ fn test_empty_results_pagination() {
         .arg("10")
         .arg("--page")
         .arg("1")
-        .arg("-o")
-        .arg("json"); // Use JSON output to avoid display issues
+        .arg("--quiet"); // Use quiet mode to suppress INFO messages
 
     // Should handle gracefully with no panic
     // The command succeeds even with no results
@@ -146,4 +145,3 @@ fn test_pagination_prevents_panic_on_edge_cases() {
             .success()
             .stdout(predicates::str::contains("panic").not());
     }
-}
