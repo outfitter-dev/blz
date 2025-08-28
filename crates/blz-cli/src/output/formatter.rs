@@ -299,8 +299,12 @@ impl SearchResultFormatter {
 ///   }
 /// ]
 /// ```
+///
+/// Reserved for future use when implementing structured source info output.
+#[allow(dead_code)]
 pub struct SourceInfoFormatter;
 
+#[allow(dead_code)]
 impl SourceInfoFormatter {
     /// Format source information for display in the specified format
     ///

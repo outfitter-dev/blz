@@ -2,10 +2,18 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 
+/// Progress display utilities for CLI operations
+///
+/// These methods are preserved for future use when implementing
+/// download progress, long-running operations, and batch processing.
+#[allow(dead_code)]
 pub struct ProgressDisplay;
 
+#[allow(dead_code)]
 impl ProgressDisplay {
     /// Create a new spinner with the given message
+    ///
+    /// Use for operations with unknown duration.
     pub fn spinner(message: &str) -> ProgressBar {
         let pb = ProgressBar::new_spinner();
         pb.set_style(
@@ -18,6 +26,8 @@ impl ProgressDisplay {
     }
 
     /// Create a progress bar for downloads or operations with known size
+    ///
+    /// Use for operations where progress can be measured.
     pub fn bar(total: u64) -> ProgressBar {
         let pb = ProgressBar::new(total);
         pb.set_style(
