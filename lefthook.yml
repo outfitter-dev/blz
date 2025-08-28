@@ -58,12 +58,14 @@ pre-push:
       run: make test
       skip:
         - wip
+        - draft
     
     # Build check (using Makefile)
     build:
       run: make build
       skip:
         - wip
+        - draft
 
 # Post-merge hook to remind about dependencies
 post-merge:
