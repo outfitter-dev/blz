@@ -42,6 +42,16 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 source ~/.bashrc
 ```
 
+### Zsh
+
+For detailed Zsh setup including custom functions and troubleshooting, see [Zsh Setup Guide](./zsh-setup.md).
+
+```bash
+# Quick setup
+blz completions zsh > ~/.zsh/completions/_blz
+autoload -Uz compinit && compinit
+```
+
 ## Features by Shell
 
 ### Fish (Most Complete)
