@@ -11,19 +11,18 @@
 - **Tagline**: "Fast local search for llms.txt documentation"
 
 ## Meaning
-The name "blz" (pronounced "blaze") carries a double meaning:
+The name "blz" carries a double meaning:
 
-1. **Speed**: Fast 6ms search performance
+1. **Speed**: Performant, efficient, local-first documentation search
 2. **Trail Blazing**: Marking clear paths through documentation, like wilderness trail markers
 
 ## Distribution Channels
 
 ### npm Package
 
-- **Package Name**: `outfitter-blaze`
-- **Install**: `npm install -g outfitter-blaze`
+- **Package Name**: `@outfitter/blz`
+- **Install**: `npm install -g @outfitter/blz`
 - **Binary**: Installs `blz` command globally
-- **Docs Package**: `@outfitter/blz` (for scoped documentation)
 
 ### Homebrew
 
@@ -46,36 +45,35 @@ The name "blz" (pronounced "blaze") carries a double meaning:
 
 ## Domain & Web Presence
 
-- **Primary Domain**: `blz.run`
-- **Documentation**: `docs.blz.run` (future)
-- **API/Registry**: `api.blz.run` (future)
+- **Primary Domain**: `https://blz.run`
+- **Documentation**: `https://docs.blz.run` (future)
+- **API/Registry**: `https://api.blz.run` (future)
 
 ## Visual Identity
 
 - **Colors**:
-  - Primary: Fire orange/red gradients
-  - Secondary: Trail brown/earth tones
+  - Primary: International orange
+  - Secondary: Trail green, brown, earth tones
 - **Logo Concept**: Simple trail blaze mark (painted pattern on tree) that indicates direction
 - **Typography**: Modern, clean, fast-looking
 
 ## Marketing Messages
 
-- "Mark your trail through documentation"
-- "6ms to any answer"
-- "Local-first search that works offline"
-- "Your agent's guide through the docs wilderness"
-- "Fast, deterministic, offline-ready"
+- "Find your way through documentation, fast"
+- "Line-accurate, local-first documentation search"
+- "Local-first search that works anywhere"
+- "Your agent's guide through the documentation wilderness"
+- "Fast, deterministic, offline-ready" (results in sub-[n]ms)
 
 ## Technical Branding
 
-- Emphasize speed (6ms latency)
+- Emphasize speed ([n]ms latency)
 - Highlight local-first approach
 - Focus on developer experience
 - Rust-powered performance
 
 ## Future Expansions
 
-- `blz.run/registry` - Community registry of documentation sources
-- `blz.run/stats` - Public performance benchmarks
-- Cloud sync service (optional, paid)
-- VS Code extension as `vscode-blaze`
+- `https://registry.blz.run` - Community registry of documentation sources
+- `https://stats.blz.run` - Public performance benchmarks
+- VS Code extension as `vscode-blz`

@@ -169,6 +169,20 @@ debug *args:
 trace *args:
     RUST_LOG=trace cargo run --bin blz -- {{args}}
 
+# Agent scripts: generate timestamps
+get-date *args:
+    # Call the UTC/local timestamp helper (YYYYMMDDHHmm)
+    ./.agents/scripts/get-date.sh {{args}}
+
+# Agent scripts: create a new log from template
+new-log *args:
+    # Forward arguments to the log generator
+    ./.agents/scripts/new-log.sh {{args}}
+
+# Branchwork helper
+branchwork *args:
+    ./.agents/scripts/branchwork.sh {{args}}
+
 # Check the codebase for common issues
 check:
     @echo "🔍 Checking for common issues..."
