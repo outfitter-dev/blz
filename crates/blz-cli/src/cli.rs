@@ -100,6 +100,7 @@ use crate::output::OutputFormat;
 #[command(version)]
 #[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
 #[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,

@@ -23,7 +23,8 @@ impl RegistryEntry {
         }
     }
 
-    pub fn with_aliases(mut self, aliases: Vec<&str>) -> Self {
+    #[must_use]
+    pub fn with_aliases(mut self, aliases: &[&str]) -> Self {
         self.aliases = aliases.iter().map(|s| (*s).to_string()).collect();
         self
     }
@@ -50,77 +51,77 @@ impl Registry {
                 "Fast all-in-one JavaScript runtime and package manager",
                 "https://bun.sh/docs/llms.txt",
             )
-            .with_aliases(vec!["bun", "bunjs"]),
+            .with_aliases(&["bun", "bunjs"]),
             RegistryEntry::new(
                 "Node.js",
                 "node",
                 "JavaScript runtime built on Chrome's V8 JavaScript engine",
                 "https://nodejs.org/docs/llms.txt",
             )
-            .with_aliases(vec!["node", "nodejs", "js"]),
+            .with_aliases(&["node", "nodejs", "js"]),
             RegistryEntry::new(
                 "Deno",
                 "deno",
                 "Modern runtime for JavaScript and TypeScript",
                 "https://docs.deno.com/llms.txt",
             )
-            .with_aliases(vec!["deno"]),
+            .with_aliases(&["deno"]),
             RegistryEntry::new(
                 "React",
                 "react",
                 "JavaScript library for building user interfaces",
                 "https://react.dev/llms.txt",
             )
-            .with_aliases(vec!["react", "reactjs"]),
+            .with_aliases(&["react", "reactjs"]),
             RegistryEntry::new(
                 "Vue.js",
                 "vue",
                 "Progressive JavaScript framework for building UIs",
                 "https://vuejs.org/llms.txt",
             )
-            .with_aliases(vec!["vue", "vuejs"]),
+            .with_aliases(&["vue", "vuejs"]),
             RegistryEntry::new(
                 "Next.js",
                 "nextjs",
                 "React framework for production with hybrid static & server rendering",
                 "https://nextjs.org/docs/llms.txt",
             )
-            .with_aliases(vec!["nextjs", "next"]),
+            .with_aliases(&["nextjs", "next"]),
             RegistryEntry::new(
                 "Claude Code",
                 "claude-code",
                 "Anthropic's AI coding assistant documentation",
                 "https://docs.anthropic.com/claude-code/llms.txt",
             )
-            .with_aliases(vec!["claude-code", "claude"]),
+            .with_aliases(&["claude-code", "claude"]),
             RegistryEntry::new(
                 "Pydantic",
                 "pydantic",
                 "Data validation library using Python type hints",
                 "https://docs.pydantic.dev/llms.txt",
             )
-            .with_aliases(vec!["pydantic"]),
+            .with_aliases(&["pydantic"]),
             RegistryEntry::new(
                 "Anthropic Claude API",
                 "anthropic",
                 "Claude API documentation and guides",
                 "https://docs.anthropic.com/llms.txt",
             )
-            .with_aliases(vec!["anthropic", "claude-api"]),
+            .with_aliases(&["anthropic", "claude-api"]),
             RegistryEntry::new(
                 "OpenAI API",
                 "openai",
                 "OpenAI API documentation and guides",
                 "https://platform.openai.com/docs/llms.txt",
             )
-            .with_aliases(vec!["openai", "gpt"]),
+            .with_aliases(&["openai", "gpt"]),
         ];
 
         Self { entries }
     }
 
     /// Create a new registry with custom entries
-    pub fn from_entries(entries: Vec<RegistryEntry>) -> Self {
+    pub const fn from_entries(entries: Vec<RegistryEntry>) -> Self {
         Self { entries }
     }
 
@@ -233,7 +234,7 @@ mod tests {
             "JavaScript runtime",
             "https://nodejs.org/llms.txt",
         )
-        .with_aliases(vec!["node", "nodejs", "js"]);
+        .with_aliases(&["node", "nodejs", "js"]);
 
         assert_eq!(entry.aliases, vec!["node", "nodejs", "js"]);
     }
@@ -354,7 +355,11 @@ mod tests {
                 entry.llms_url.starts_with("http://") || entry.llms_url.starts_with("https://")
             );
             // Check that URL ends with .txt
-            assert!(entry.llms_url.ends_with(".txt"));
+            assert!(
+                std::path::Path::new(&entry.llms_url)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("txt"))
+            );
             // Check that slug is kebab-case (no spaces, lowercase)
             assert!(!entry.slug.contains(' '));
             assert!(!entry.slug.chars().any(char::is_uppercase));
