@@ -1,6 +1,6 @@
-# blz Repository Instructions
+# blz Repository Instructions for AI Agents
 
-This file provides guidance to AI agents when working with code in this repository.
+This file provides comprehensive guidance to AI agents when working with Rust code in this repository.
 
 ## Important
 
@@ -10,6 +10,25 @@ This file provides guidance to AI agents when working with code in this reposito
   - Ensure it's got the correct information for the branch you're working on
   - Update it as you work, and use the command `.agents/scripts/branchwork.sh update` to do so
   - Use `.agents/scripts/branchwork.sh --help` to see all the options
+
+## 🚀 Quick Start for Agents
+
+### Before You Begin
+1. **Run the agent check script**: `./scripts/agent-check.sh` for compiler diagnostics and automated fixes
+2. **Check current build status**: `cargo check --message-format=json` for machine-readable errors
+3. **Review unsafe code policy**: See `.agents/rules/UNSAFE-POLICY.md` if working with unsafe blocks
+
+### Common Agent Pain Points & Solutions
+- **Async confusion**: Read `.agents/rules/ASYNC-PATTERNS.md` for correct async/await patterns
+- **Compiler errors**: Use `.agents/rules/COMPILER-LOOP.md` for JSON diagnostics and macro expansion
+- **Error handling**: Follow patterns in crate-specific CLAUDE.md files
+
+## 📂 Directory-Specific Guidance
+
+Each crate has its own CLAUDE.md with specialized patterns:
+- `crates/blz-core/CLAUDE.md` - Performance-critical library code, unsafe policy
+- `crates/blz-cli/CLAUDE.md` - User-facing CLI patterns, error messages  
+- `crates/blz-mcp/CLAUDE.md` - MCP protocol compliance, JSON-RPC handling
 
 ## Repository Overview
 
