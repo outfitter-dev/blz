@@ -2,7 +2,7 @@
 date: 2025-08-29 20:07 UTC
 slug: branchwork-08-29-chore-agents-get-date-sh-defaults-to-local-add-utc-flag
 status: in-review
-pr: # e.g. 47 / BLZ-42
+pr: 64
 branch:
   name: 08-29-chore_.agents_get-date.sh_defaults_to_local_add_--utc_flag
   base: main
@@ -13,10 +13,10 @@ dri: # e.g. claude
 scope: # e.g. indexer, storage
 risk: # low | medium | high
 backout_plan: # brief text
-last_updated: 2025-08-29 20:07 UTC
+last_updated: 2025-08-29 20:48 UTC
 ---
 
-# [WIP] `08-29-chore_.agents_get-date.sh_defaults_to_local_add_--utc_flag`
+# PR #64: docs(.agents): add use-branchwork guide; update README examples to use `just` form; add `branchwork log` subcommand
 
 ## PR Stack Context
 
@@ -66,6 +66,8 @@ last_updated: 2025-08-29 20:07 UTC
 - …
 
 ## Updates
+
+### 2025-08-29 20:48 UTC: [@codex] Submitted PR #64 via Graphite - comprehensive agent docs reorganization and branch workflow guide
 
 ### 2025-08-29 20:40 UTC: [@codex] Created RECAP log: [202508292040-recap-auto-log-into-branchwork.md](.agents/logs/202508292040-recap-auto-log-into-branchwork.md)
 
