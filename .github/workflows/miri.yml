@@ -1,0 +1,22 @@
+name: Miri (Unsafe Validation)
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 2 * * MON'
+
+jobs:
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nightly + miri
+        run: |
+          rustup toolchain install nightly --profile minimal --component miri
+          rustup default nightly
+      - name: Run miri tests (blz-core)
+        env:
+          RUSTFLAGS: "-A dead_code"
+        run: |
+          cargo miri test -p blz-core -- -q
+
