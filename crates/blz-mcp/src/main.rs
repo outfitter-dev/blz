@@ -28,31 +28,21 @@ fn main() -> Result<()> {
                 error!("Failed to create storage: {}", e);
                 return Err(RpcError {
                     code: ErrorCode::InternalError,
-                    message: format!("Failed to access storage: {}", e),
+                    message: format!("Failed to access storage: {e}"),
                     data: None,
                 });
             },
         };
 
-        let sources = match storage.list_sources() {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Failed to list sources: {}", e);
-                return Err(RpcError {
-                    code: ErrorCode::InternalError,
-                    message: format!("Failed to list sources: {}", e),
-                    data: None,
-                });
-            },
-        };
+        let sources = storage.list_sources();
 
         let mut result = Vec::new();
         for source in sources {
             if let Ok(llms_json) = storage.load_llms_json(&source) {
-                let path = storage
-                    .llms_txt_path(&source)
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| format!("~/.outfitter/blz/{}/llms.txt", source));
+                let path = storage.llms_txt_path(&source).map_or_else(
+                    |_| format!("~/.outfitter/blz/{source}/llms.txt"),
+                    |p| p.to_string_lossy().to_string(),
+                );
 
                 result.push(json!({
                     "alias": source,
@@ -73,7 +63,7 @@ fn main() -> Result<()> {
             Err(e) => {
                 return Err(RpcError {
                     code: ErrorCode::InvalidParams,
-                    message: format!("Invalid parameters: {}", e),
+                    message: format!("Invalid parameters: {e}"),
                     data: None,
                 });
             },
@@ -102,7 +92,7 @@ fn main() -> Result<()> {
                 error!("Failed to create storage: {}", e);
                 return Err(RpcError {
                     code: ErrorCode::InternalError,
-                    message: format!("Failed to access storage: {}", e),
+                    message: format!("Failed to access storage: {e}"),
                     data: None,
                 });
             },
@@ -111,17 +101,7 @@ fn main() -> Result<()> {
         let sources = if let Some(alias) = alias {
             vec![alias.to_string()]
         } else {
-            match storage.list_sources() {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Failed to list sources: {}", e);
-                    return Err(RpcError {
-                        code: ErrorCode::InternalError,
-                        message: format!("Failed to list sources: {}", e),
-                        data: None,
-                    });
-                },
-            }
+            storage.list_sources()
         };
 
         let mut all_hits = Vec::new();
@@ -178,7 +158,7 @@ fn main() -> Result<()> {
             Err(e) => {
                 return Err(RpcError {
                     code: ErrorCode::InvalidParams,
-                    message: format!("Invalid parameters: {}", e),
+                    message: format!("Invalid parameters: {e}"),
                     data: None,
                 });
             },
@@ -225,7 +205,7 @@ fn main() -> Result<()> {
         if start == 0 || start > end {
             return Err(RpcError {
                 code: ErrorCode::InvalidParams,
-                message: format!("Invalid line range: {}-{}", start, end),
+                message: format!("Invalid line range: {start}-{end}"),
                 data: None,
             });
         }
@@ -236,7 +216,7 @@ fn main() -> Result<()> {
                 error!("Failed to create storage: {}", e);
                 return Err(RpcError {
                     code: ErrorCode::InternalError,
-                    message: format!("Failed to access storage: {}", e),
+                    message: format!("Failed to access storage: {e}"),
                     data: None,
                 });
             },
@@ -248,7 +228,7 @@ fn main() -> Result<()> {
                 error!("Failed to load content for {}: {}", alias, e);
                 return Err(RpcError {
                     code: ErrorCode::InternalError,
-                    message: format!("Failed to load content: {}", e),
+                    message: format!("Failed to load content: {e}"),
                     data: None,
                 });
             },

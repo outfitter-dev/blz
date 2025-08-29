@@ -66,7 +66,7 @@ pub async fn handle_default(
     }
 
     let storage = Storage::new()?;
-    let sources = storage.list_sources()?;
+    let sources = storage.list_sources();
 
     if sources.is_empty() {
         println!("No sources found. Use 'blz add ALIAS URL' to add sources.");
@@ -122,7 +122,7 @@ async fn perform_search(
     let sources = if let Some(ref alias) = options.alias {
         vec![alias.clone()]
     } else {
-        storage.list_sources()?
+        storage.list_sources()
     };
 
     if sources.is_empty() {

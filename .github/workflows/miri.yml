@@ -1,0 +1,38 @@
+name: Miri (Unsafe Validation)
+
+on:
+  pull_request:
+    paths:
+      - 'crates/blz-core/**'
+      - '.github/workflows/miri.yml'
+  schedule:
+    - cron: '0 2 * * MON'  # Runs at 02:00 UTC every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miri-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  miri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: miri-nightly
+      
+      - name: Install nightly + miri + rust-src
+        run: |
+          rustup toolchain install nightly --profile minimal --component miri --component rust-src
+          cargo +nightly miri setup
+      
+      - name: Run miri tests (blz-core lib only)
+        run: |
+          test -f crates/blz-core/Cargo.toml || { echo "blz-core not found"; exit 78; }
+          cargo +nightly miri test -p blz-core --lib -- -q
