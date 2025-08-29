@@ -1,0 +1,46 @@
+name: Archive Branchwork on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  archive-branchwork:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Archive CURRENT branchwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+          CURRENT_TARGET=".agents/logs/branchwork/CURRENT-${SLUG}.md"
+          if [ ! -f "$CURRENT_TARGET" ]; then
+            echo "No branchwork CURRENT file for $BRANCH ($CURRENT_TARGET). Skipping."
+            exit 0
+          fi
+          TS=$(./.agents/scripts/get-date.sh)
+          DST=".agents/logs/branchwork/${TS}-${SLUG}.md"
+          git mv "$CURRENT_TARGET" "$DST"
+          # Remove symlink if it points to this file
+          if [ -L .agents/logs/CURRENT.md ]; then
+            rm .agents/logs/CURRENT.md
+          fi
+          git add -A
+          git commit -m "chore(branchwork): archive CURRENT for ${BRANCH} -> ${DST}"
+          git push
+
