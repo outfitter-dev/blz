@@ -4,7 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Important
 
-- Follow the @./.agent/rules/IMPORTANT.md rules
+- Follow the @./.agents/rules/IMPORTANT.md rules
 
 ## Repository Overview
 
