@@ -1,0 +1,31 @@
+name: Rust CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Format (check)
+        run: cargo fmt --all -- --check
+      - name: Clippy (deny clippy warnings; allow missing docs)
+        run: cargo clippy --workspace --all-features -- -D warnings -A missing_docs -A clippy::missing_errors_doc -A clippy::missing_panics_doc
+      - name: Build (no benches)
+        run: cargo build --workspace --all-features --bins --examples --tests
+      - name: Test
+        run: cargo test --workspace --all-features -- --nocapture
