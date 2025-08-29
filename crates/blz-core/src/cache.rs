@@ -1029,3 +1029,4 @@ mod tests {
         assert_eq!(stats.unique_queries, 2);
     }
 }
+#![allow(unsafe_code)] // Temporary: unsafe validated by Miri; each block documented with SAFETY

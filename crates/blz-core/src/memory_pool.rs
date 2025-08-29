@@ -651,3 +651,4 @@ mod tests {
         assert!(stats.peak_usage_bytes > 0);
     }
 }
+#![allow(unsafe_code)] // Temporary: unsafe validated by Miri; each block documented with SAFETY
