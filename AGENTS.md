@@ -2,6 +2,35 @@
 
 This file provides guidance to AI agents when working with code in this repository.
 
+## Agent Quick Start
+
+### First Steps for New Agents
+1. **Read Core Rules**: Follow @./.agents/rules/CORE.md for engineering principles
+2. **Check Async Patterns**: See @./.agents/rules/ASYNC-PATTERNS.md for common async/await pain points  
+3. **Use Compiler Loop**: Run `./scripts/agent-check.sh --fix` for automated diagnostics and fixes
+4. **Read Crate Context**: Check crate-specific AGENTS.md files for module guidance
+
+### Common Agent Pain Points & Solutions
+- **Send + Sync + 'static bounds**: See ASYNC-PATTERNS.md section 1
+- **Borrowing across .await**: See ASYNC-PATTERNS.md section 2  
+- **Compiler errors**: Use `./scripts/agent-check.sh --verbose` for JSON diagnostics
+- **Macro debugging**: Use `./scripts/agent-check.sh --expand` for macro expansion
+
+### Quick Development Loop
+```bash
+# 1. Check and fix common issues
+./scripts/agent-check.sh --fix
+
+# 2. Run tests
+cargo test --workspace
+
+# 3. Check performance (for blz-core changes)
+cargo bench -p blz-core
+
+# 4. Verify linting
+cargo clippy --workspace -- -D warnings
+```
+
 ## Important
 
 - Follow the @./.agents/rules/CORE.md rules
