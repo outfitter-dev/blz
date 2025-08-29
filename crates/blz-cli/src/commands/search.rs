@@ -1,12 +1,12 @@
 //! Search command implementation
 
 use anyhow::{Context, Result};
-use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Storage};
+use blz_core::{PerformanceMetrics, SearchHit, SearchIndex, Storage};
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::output::{OutputFormat, SearchResultFormatter};
+use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 
@@ -31,7 +31,6 @@ pub async fn execute(
     top_percentile: Option<u8>,
     output: OutputFormat,
     metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
     let options = SearchOptions {
         query: query.to_string(),
@@ -44,21 +43,13 @@ pub async fn execute(
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
-    format_and_display(results, &options)?;
-
-    if let Some(monitor) = resource_monitor {
-        monitor.print_resource_usage();
-    }
+    format_and_display(&results, &options)?;
 
     Ok(())
 }
 
 /// Handle default search from command line arguments
-pub async fn handle_default(
-    args: &[String],
-    metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
-) -> Result<()> {
+pub async fn handle_default(args: &[String], metrics: PerformanceMetrics) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
         println!("       blz search [OPTIONS] QUERY");
@@ -66,7 +57,7 @@ pub async fn handle_default(
     }
 
     let storage = Storage::new()?;
-    let sources = storage.list_sources()?;
+    let sources = storage.list_sources();
 
     if sources.is_empty() {
         println!("No sources found. Use 'blz add ALIAS URL' to add sources.");
@@ -83,7 +74,6 @@ pub async fn handle_default(
         None,
         OutputFormat::Text,
         metrics,
-        resource_monitor,
     )
     .await
 }
@@ -119,11 +109,10 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
 
-    let sources = if let Some(ref alias) = options.alias {
-        vec![alias.clone()]
-    } else {
-        storage.list_sources()?
-    };
+    let sources = options
+        .alias
+        .as_ref()
+        .map_or_else(|| storage.list_sources(), |alias| vec![alias.clone()]);
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -137,17 +126,12 @@ async fn perform_search(
     let effective_limit = if options.all {
         ALL_RESULTS_LIMIT
     } else {
-        ((options.limit * 3).min(1000)).max(1)
+        (options.limit * 3).clamp(1, 1000)
     };
 
     // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
-    fn get_max_concurrent_searches() -> usize {
-        match std::thread::available_parallelism() {
-            Ok(n) => (n.get().saturating_mul(2)).min(16),
-            Err(_) => 8,
-        }
-    }
-    let max_concurrent_searches = get_max_concurrent_searches();
+    let max_concurrent_searches =
+        std::thread::available_parallelism().map_or(8, |n| (n.get().saturating_mul(2)).min(16));
 
     // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
     let search_tasks = sources.into_iter().map(|source| {
@@ -163,16 +147,12 @@ async fn perform_search(
 
             let index = SearchIndex::open(&index_path)
                 .with_context(|| {
-                    format!(
-                        "open index for source={} at {}",
-                        source,
-                        index_path.display()
-                    )
+                    format!("open index for source={source} at {}", index_path.display())
                 })?
                 .with_metrics(metrics);
             let hits = index
                 .search(&query, Some(&source), effective_limit)
-                .with_context(|| format!("search failed for source={}", source))?;
+                .with_context(|| format!("search failed for source={source}"))?;
 
             // Count total lines for stats
             let total_lines = storage
@@ -231,7 +211,7 @@ fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
     hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
-fn sort_by_score(hits: &mut Vec<SearchHit>) {
+fn sort_by_score(hits: &mut [SearchHit]) {
     // Sort by score with deterministic tie-breakers
     hits.sort_by(|a, b| {
         // First by score (descending) with total ordering on floats
@@ -251,6 +231,11 @@ fn sort_by_score(hits: &mut Vec<SearchHit>) {
 
 fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>) {
     if let Some(percentile) = top_percentile {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
         let percentile_count =
             (hits.len() as f32 * (f32::from(percentile) / 100.0)).ceil() as usize;
         hits.truncate(percentile_count.max(1));
@@ -295,9 +280,9 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 /// };
 ///
 /// // This will not panic even with empty results due to .max(1) guard
-/// assert!(format_and_display(results, &options).is_ok());
+/// assert!(format_and_display(&results, &options).is_ok());
 /// ```
-fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result<()> {
+fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Result<()> {
     let total_results = results.hits.len();
 
     // Apply pagination
@@ -322,17 +307,18 @@ fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.output);
-    formatter.format(
-        page_hits,
-        &options.query,
+    let format_params = FormatParams {
+        hits: page_hits,
+        query: &options.query,
         total_results,
-        results.total_lines_searched,
-        results.search_time,
-        options.limit < ALL_RESULTS_LIMIT,
-        options.alias.is_some(),
-        &results.sources,
+        total_lines_searched: results.total_lines_searched,
+        search_time: results.search_time,
+        show_pagination: options.limit < ALL_RESULTS_LIMIT,
+        single_source: options.alias.is_some(),
+        sources: &results.sources,
         start_idx,
-    )?;
+    };
+    formatter.format(&format_params)?;
 
     Ok(())
 }
@@ -380,7 +366,7 @@ mod tests {
         };
 
         // Should not panic even with empty results
-        let result = format_and_display(results, &options);
+        let result = format_and_display(&results, &options);
         assert!(result.is_ok());
     }
 
@@ -398,7 +384,7 @@ mod tests {
             all: false,
         };
 
-        let result = format_and_display(results, &options);
+        let result = format_and_display(&results, &options);
         assert!(result.is_ok());
     }
 
@@ -418,7 +404,7 @@ mod tests {
         };
 
         // This should NOT panic even with empty results
-        let result = format_and_display(empty_results, &options_empty);
+        let result = format_and_display(&empty_results, &options_empty);
         assert!(result.is_ok(), "Should handle empty results without panic");
 
         // Test case 2: Normal results with high page number
@@ -433,7 +419,7 @@ mod tests {
             all: true,
         };
 
-        let result = format_and_display(results, &options_high_page);
+        let result = format_and_display(&results, &options_high_page);
         assert!(
             result.is_ok(),
             "Should handle page out of bounds without panic"
@@ -454,7 +440,7 @@ mod tests {
             all: false,
         };
 
-        let result = format_and_display(results, &options);
+        let result = format_and_display(&results, &options);
         assert!(result.is_ok()); // Should handle gracefully, not panic
     }
 
@@ -474,7 +460,7 @@ mod tests {
             all: false,
         };
 
-        let result = format_and_display(results, &options);
+        let result = format_and_display(&results, &options);
         assert!(result.is_ok());
 
         // Just beyond the boundary (page 3 with limit 5 for 10 results)
@@ -488,7 +474,7 @@ mod tests {
             all: false,
         };
 
-        let result_beyond = format_and_display(create_test_results(10), &options_beyond);
+        let result_beyond = format_and_display(&create_test_results(10), &options_beyond);
         assert!(result_beyond.is_ok());
     }
 

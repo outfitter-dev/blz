@@ -56,7 +56,7 @@ fn setup_index_with_blocks(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let index_path = temp_dir.path().join("bench_index");
 
-    let mut index = SearchIndex::create(&index_path)
+    let index = SearchIndex::create(&index_path)
         .expect("Failed to create index")
         .with_metrics(PerformanceMetrics::default());
 

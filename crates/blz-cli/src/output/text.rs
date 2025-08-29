@@ -1,10 +1,9 @@
 //! Text output formatting
 
-use anyhow::Result;
+use super::formatter::FormatParams;
 use blz_core::SearchHit;
 use colored::Colorize;
 use std::collections::HashMap;
-use std::time::Duration;
 
 use crate::utils::formatting::get_alias_color;
 
@@ -12,33 +11,27 @@ pub struct TextFormatter;
 
 impl TextFormatter {
     /// Format search results as pretty text
-    pub fn format_search_results(
-        hits: &[SearchHit],
-        query: &str,
-        total_results: usize,
-        total_lines_searched: usize,
-        search_time: Duration,
-        show_pagination: bool,
-        single_source: bool,
-        sources: &[String],
-        start_idx: usize,
-    ) -> Result<()> {
-        if hits.is_empty() {
-            println!("No results found for '{query}'");
-            return Ok(());
+    pub fn format_search_results(params: &FormatParams) {
+        if params.hits.is_empty() {
+            println!("No results found for '{}'", params.query);
+            return;
         }
 
         // Show pagination info if limited
-        if show_pagination && total_results > hits.len() {
-            println!("Showing {} of {} results\n", hits.len(), total_results);
+        if params.show_pagination && params.total_results > params.hits.len() {
+            println!(
+                "Showing {} of {} results\n",
+                params.hits.len(),
+                params.total_results
+            );
         }
 
         // Track unique aliases for color cycling
         let mut alias_colors = HashMap::new();
         let mut color_index = 0;
 
-        for (i, hit) in hits.iter().enumerate() {
-            let global_index = start_idx + i + 1;
+        for (i, hit) in params.hits.iter().enumerate() {
+            let global_index = params.start_idx + i + 1;
 
             // Get color for alias
             let alias_colored = if let Some(&idx) = alias_colors.get(&hit.alias) {
@@ -51,12 +44,18 @@ impl TextFormatter {
             };
 
             // Format result header
-            format_result_header(global_index, hit, alias_colored, single_source, sources);
+            format_result_header(
+                global_index,
+                hit,
+                &alias_colored,
+                params.single_source,
+                params.sources,
+            );
 
             // Format score and content
             format_result_content(hit);
 
-            if i < hits.len() - 1 {
+            if i < params.hits.len() - 1 {
                 println!();
             }
         }
@@ -66,36 +65,36 @@ impl TextFormatter {
             "\n{}",
             format!(
                 "Searched {} lines in {}ms • Found {} results",
-                total_lines_searched,
-                search_time.as_millis(),
-                total_results
+                params.total_lines_searched,
+                params.search_time.as_millis(),
+                params.total_results
             )
             .bright_black()
         );
-
-        Ok(())
     }
 }
 
 fn format_result_header(
     index: usize,
     hit: &SearchHit,
-    alias_colored: colored::ColoredString,
+    alias_colored: &colored::ColoredString,
     single_source: bool,
     sources: &[String],
 ) {
+    use std::fmt::Write;
     let mut header = format!("{index}. ");
 
     // Only show alias if not filtering by single source
     if !single_source || sources.len() > 1 {
-        header.push_str(&format!("{alias_colored} "));
+        let _ = write!(&mut header, "{alias_colored} ");
     }
 
-    header.push_str(&format!(
+    let _ = write!(
+        &mut header,
         "[{}] {}",
         hit.lines.bright_black(),
         hit.heading_path.join(" > ")
-    ));
+    );
 
     println!("{header}");
 }
