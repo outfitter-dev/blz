@@ -1,0 +1,40 @@
+name: Coverage
+
+on:
+  pull_request:
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+      - name: Build blz binary for test setup
+        run: cargo build --bin blz
+      - name: Set up test data
+        run: |
+          # Create test data directory
+          export BLZ_DATA_DIR="$PWD/test-data"
+          mkdir -p "$BLZ_DATA_DIR"
+          
+          # Download Turbo's llms-full.txt as test data
+          curl -sL https://turbo.build/llms-full.txt -o /tmp/turbo-llms.txt || echo "# Test Document" > /tmp/turbo-llms.txt
+          
+          # Add test source using the built binary
+          ./target/debug/blz add turbo file:///tmp/turbo-llms.txt || true
+          
+          # Export environment variable for tests
+          echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> $GITHUB_ENV
+      - name: Generate coverage
+        run: |
+          cargo llvm-cov --workspace --all-features \
+            --lcov --output-path lcov.info
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
