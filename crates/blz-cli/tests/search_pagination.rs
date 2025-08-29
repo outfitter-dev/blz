@@ -2,9 +2,32 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
+fn setup_test_data() {
+    INIT.call_once(|| {
+        // Set up test data once for all tests
+        let mut cmd = Command::cargo_bin("blz").unwrap();
+
+        // Create a minimal test source (using a local file)
+        let test_content = "# Test Document\n\nThis is test content for search pagination tests.";
+        let test_file = std::env::temp_dir().join("test-llms.txt");
+        std::fs::write(&test_file, test_content).unwrap();
+
+        // Add test source (ignore if it already exists)
+        cmd.arg("add")
+            .arg("test-source")
+            .arg(format!("file://{}", test_file.display()))
+            .assert();
+    });
+}
 
 #[test]
 fn test_zero_limit_does_not_panic() {
+    setup_test_data();
+
     // This test ensures that even if a limit of 0 is somehow passed,
     // the pagination logic doesn't panic with divide-by-zero
 
@@ -30,6 +53,8 @@ fn test_zero_limit_does_not_panic() {
 
 #[test]
 fn test_empty_results_pagination() {
+    setup_test_data();
+
     // Test that pagination handles empty results gracefully
     let mut cmd = Command::cargo_bin("blz").unwrap();
 
@@ -50,6 +75,8 @@ fn test_empty_results_pagination() {
 
 #[test]
 fn test_single_result_pagination() {
+    setup_test_data();
+
     // Test edge case where there's only one result
     // This ensures actual_limit calculation doesn't cause issues
 
@@ -72,6 +99,8 @@ fn test_single_result_pagination() {
 
 #[test]
 fn test_large_limit_with_small_results() {
+    setup_test_data();
+
     // Regression test: when limit >= ALL_RESULTS_LIMIT (10,000) and results are empty or small,
     // the actual_limit calculation should not cause divide-by-zero
     let mut cmd = Command::cargo_bin("blz").unwrap();
@@ -92,6 +121,8 @@ fn test_large_limit_with_small_results() {
 
 #[test]
 fn test_page_boundary_with_exact_division() {
+    setup_test_data();
+
     // Test when results divide exactly by limit
     let mut cmd = Command::cargo_bin("blz").unwrap();
 
@@ -109,6 +140,8 @@ fn test_page_boundary_with_exact_division() {
 
 #[test]
 fn test_minimum_limit_value() {
+    setup_test_data();
+
     // Test with the minimum valid limit (1)
     let mut cmd = Command::cargo_bin("blz").unwrap();
 
@@ -126,6 +159,8 @@ fn test_minimum_limit_value() {
 
 #[test]
 fn test_pagination_prevents_panic_on_edge_cases() {
+    setup_test_data();
+
     // Test multiple edge cases that could cause panics
     let edge_cases = vec![
         ("1", "1"),     // Minimum values

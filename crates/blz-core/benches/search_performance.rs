@@ -189,7 +189,7 @@ fn bench_index_building(c: &mut Criterion) {
                     let index = SearchIndex::create(&index_path).expect("Failed to create index");
                     (temp_dir, index)
                 },
-                |(temp_dir, mut index)| {
+                |(temp_dir, index)| {
                     index
                         .index_blocks("bench", "test.md", black_box(blocks))
                         .expect("Failed to index blocks");
