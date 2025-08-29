@@ -44,6 +44,8 @@ async fn main() -> Result<()> {
 fn initialize_logging(cli: &Cli) -> Result<()> {
     let level = if cli.verbose || cli.debug {
         Level::DEBUG
+    } else if cli.quiet {
+        Level::ERROR
     } else {
         Level::INFO
     };

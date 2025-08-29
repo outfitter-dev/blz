@@ -111,6 +111,10 @@ pub struct Cli {
     #[arg(short = 'v', long, global = true)]
     pub verbose: bool,
 
+    /// Suppress informational messages (only show errors)
+    #[arg(short = 'q', long, global = true)]
+    pub quiet: bool,
+
     /// Show detailed performance metrics
     #[arg(long, global = true)]
     pub debug: bool,
