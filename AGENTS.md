@@ -1,11 +1,30 @@
-# blz Repository Instructions
+# blz Repository Instructions for AI Agents
 
-This file provides guidance to AI agents when working with code in this repository.
+This file provides comprehensive guidance to AI agents when working with Rust code in this repository.
 
 ## Important
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
-- Always read the @./.agents/logs/CURRENT.md file before starting work, and maintain it as you work
+- Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
+
+## 🚀 Quick Start for Agents
+
+### Before You Begin
+1. **Run the agent check script**: `./scripts/agent-check.sh` for compiler diagnostics and automated fixes
+2. **Check current build status**: `cargo check --message-format=json` for machine-readable errors
+3. **Review unsafe code policy**: See `.agents/rules/conventions/rust/unsafe-policy.md` if working with unsafe blocks
+
+### Common Agent Pain Points & Solutions
+- **Async confusion**: Read `.agents/rules/conventions/rust/async-patterns.md` to learn correct async/await patterns
+- **Compiler errors**: Use `.agents/rules/conventions/rust/compiler-loop.md` for JSON diagnostics and macro expansion
+- **Error handling**: Follow patterns in crate-specific AGENTS.md files
+
+## 📂 Directory-Specific Guidance
+
+Each crate has its own AGENTS.md with specialized patterns:
+- `crates/blz-core/AGENTS.md` - Performance-critical library code, unsafe policy
+- `crates/blz-cli/AGENTS.md` - User-facing CLI patterns, error messages  
+- `crates/blz-mcp/AGENTS.md` - MCP protocol compliance, JSON-RPC handling
 
 ## Repository Overview
 
@@ -59,7 +78,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ./scripts/lint.sh
 
 # Auto-fix some Clippy issues
-cargo clippy --fix
+cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
 ```
 
 ### Performance Testing
@@ -105,14 +124,24 @@ blz completions zsh > ~/.zsh/completions/_blz
 ### Storage Layout
 
 ```text
-~/.outfitter/blz/
-  global.toml                 # Global configuration
-  <alias>/
-    llms.txt                  # Latest upstream text
-    llms.json                 # Parsed TOC + line map
-    .index/                   # Tantivy search index
-    .archive/                 # Historical snapshots
-    settings.toml             # Per-source overrides
+# Determined via directories::ProjectDirs::from("dev", "outfitter", "blz")
+# macOS:
+#   Data:     ~/Library/Application Support/dev/outfitter/blz/
+#   Config:   ~/Library/Preferences/dev/outfitter/blz/
+# Linux (XDG):
+#   Data:     ~/.local/share/dev/outfitter/blz/
+#   Config:   ~/.config/dev/outfitter/blz/
+# Windows:
+#   Data:     %APPDATA%/dev/outfitter/blz/data/
+#   Config:   %APPDATA%/dev/outfitter/blz/config/
+#
+# Within Data:
+<alias>/
+  llms.txt                  # Latest upstream text
+  llms.json                 # Parsed TOC + line map
+  .index/                   # Tantivy search index
+  .archive/                 # Historical snapshots
+  settings.toml             # Per-source overrides
 ```
 
 ### Testing Approach

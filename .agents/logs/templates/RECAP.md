@@ -39,7 +39,7 @@ Completed BLZ-23 agent documentation reorganization and started work on improvin
 
 ## Highlights
 
-- Successfully migrated from `.agent/` to `.agents/` directory structure
+- Successfully migrated from .agent to .agents directory structure
 - Standardized log naming conventions across all agent logs
 - Created comprehensive checkpoint template with examples
 

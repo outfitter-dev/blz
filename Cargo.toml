@@ -50,7 +50,7 @@ url = "2"
 blz-core = { path = "crates/blz-core" }
 
 [workspace.lints.rust]
-unsafe_code = "warn"
+unsafe_code = "deny"
 missing_docs = "warn"
 
 [workspace.lints.clippy]

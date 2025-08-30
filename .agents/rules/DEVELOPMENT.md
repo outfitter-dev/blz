@@ -10,7 +10,7 @@
 
 ## Conventions
 
-- @conventions/commits.md - Commit message guidelines
+- @SOURCE-CONTROL.md - Source control, commits, and PR guidelines
 - @conventions/cargo.md - Cargo workspace configuration
 - @conventions/rust.md - Rust coding standards
 - @conventions/tantivy.md - Search index best practices
