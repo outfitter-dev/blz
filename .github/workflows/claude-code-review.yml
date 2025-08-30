@@ -7,18 +7,30 @@ on:
     types: [created]
 
 jobs:
+  optimize_ci:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check_skip.outputs.skip }}
+    steps:
+      - name: Optimize CI
+        id: check_skip
+        uses: withgraphite/graphite-ci-action@main
+        continue-on-error: true
+        with:
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
   claude-review:
     # Run on PR events (open, ready_for_review, review_requested) OR when someone comments "@claude review"
     # Allow specific bots (@copilot[bot], @devin[bot], @coderabbitai[bot]) and all humans
+    needs: optimize_ci
     if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      needs.optimize_ci.outputs.skip == 'false' &&
+      ((github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        github.event.comment &&
        contains(github.event.comment.body, '@claude review') &&
        (github.event.comment.user.type != 'Bot' ||
-        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login)))
-
+        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login))))
     runs-on: ubuntu-latest
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}

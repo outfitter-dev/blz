@@ -60,6 +60,7 @@ allow = [
     "Zlib",             # zlib license (permissive)
     "0BSD",             # Zero-clause BSD
     "CDDL-1.0",         # Common Development and Distribution License (inferno profiling)
+    "CDLA-Permissive-2.0",  # Mozilla CA certificates data in webpki-roots
 ]
 
 # Copyleft licenses need explicit inclusion in allow list

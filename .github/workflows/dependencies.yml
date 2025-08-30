@@ -22,8 +22,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  optimize_ci:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check_skip.outputs.skip }}
+    steps:
+      - name: Optimize CI
+        id: check_skip
+        uses: withgraphite/graphite-ci-action@main
+        with:
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
   unused-deps:
     name: Check for unused dependencies
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +64,8 @@ jobs:
         
   cargo-deny:
     name: Dependency validation
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,6 +83,8 @@ jobs:
           
   security-audit:
     name: Security advisories (non-blocking)
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     runs-on: ubuntu-latest
     continue-on-error: true # Don't fail CI on new advisories
     steps:
@@ -87,10 +104,27 @@ jobs:
           path: |
             cargo-deny.log
             
+  ban-legacy-agent-path:
+    name: Ban legacy .agent path
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for legacy .agent references
+        run: |
+          if git grep -nE '\.agent(/|$)' -- ':!.agents/logs/.archive/*'; then
+            echo "❌ Error: Found legacy .agent path references"
+            echo "Please update all references from .agent to .agents"
+            exit 1
+          else
+            echo "✅ No legacy .agent path references found"
+          fi
+
   dependency-review:
     name: Dependency Review
+    needs: optimize_ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.optimize_ci.outputs.skip == 'false'
     steps:
       - uses: actions/checkout@v4
       
