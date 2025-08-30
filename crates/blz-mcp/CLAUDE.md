@@ -337,7 +337,11 @@ impl McpServer {
                 jsonrpc: "2.0".to_string(),
                 id,
                 result: None,
-                error: Some(JsonRpcError::invalid_request()),
+                error: Some(JsonRpcError {
+                    code: -32000,  // Server error range
+                    message: "Server not initialized".to_string(),
+                    data: Some(json!({"details": "Call initialize method first"})),
+                }),
             };
         }
         
@@ -452,6 +456,7 @@ impl McpServer {
 
 // Signal handling for graceful shutdown
 use tokio::signal;
+use std::time::Duration;
 
 // Signal handling version (single entry point)
 #[tokio::main] 
