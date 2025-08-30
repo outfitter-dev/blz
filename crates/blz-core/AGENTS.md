@@ -9,6 +9,6 @@
   - Avoid borrows across .await; use Arc + owned data.
   - Prefer `anyhow::Context` for error chains; `thiserror` for typed errors.
 - Quick checks:
-  - `./scripts/agent-check.sh`
+  - `./scripts/lint.sh`
   - `cargo miri test -p blz-core`
 
