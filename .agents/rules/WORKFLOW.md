@@ -35,7 +35,7 @@ gt log short
 gt sync
 
 # Create new branch in the stack
-gt create feat/your-feature-name -am "Initial implementation"
+gt create feat/your-feature-name -am "feat: initial implementation"
 
 # Or track existing branch
 gt track --parent main
@@ -105,7 +105,7 @@ make ci  # or: just ci
 # Or manually:
 cargo test --workspace
 cargo clippy --workspace -- -D warnings
-cargo fmt
+cargo fmt --check
 cargo deny check
 cargo shear
 ```
@@ -122,7 +122,7 @@ gt down      # Move down one branch
 gt top       # Jump to stack tip
 gt bottom    # Jump to stack base
 
-# Submit/update PRs for entire stack
+# Create or update PRs for the entire stack
 gt submit --stack
 ```
 
@@ -187,7 +187,7 @@ pub async fn search(&self, query: &str) -> Result<SearchResults> {
 
 ```rust
 // Use debug assertions in development
-debug_assert!(query.len() > 0, "Query cannot be empty");
+debug_assert!(!query.is_empty(), "Query cannot be empty");
 debug_assert!(limit <= MAX_RESULTS, "Limit exceeds maximum");
 
 // Conditional compilation for debug info
@@ -256,8 +256,8 @@ gt submit --stack
 
 # After merge via gt merge
 gt sync
-git tag -a v0.1.0 -m "Release version 0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.0 -m "Release version 0.1.0"   # or: -s if signing
+git push origin v0.1.0                         # or: git push --follow-tags
 ```
 
 ## Troubleshooting
@@ -300,6 +300,9 @@ cargo build --all-features
 **Stack out of sync:**
 
 ```bash
+# Dry run everything
+gt sync && gt restack --upstack --dry-run && gt restack --upstack && gt submit --stack
+
 # Fix everything
 gt sync && gt restack --upstack && gt submit --stack
 ```

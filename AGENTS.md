@@ -5,7 +5,7 @@ This file provides guidance to AI agents when working with code in this reposito
 ## Important
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
-- Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
+- Always read the @./.agents/logs/CURRENT.md file before starting work, and maintain it as you work
 
 ## Repository Overview
 

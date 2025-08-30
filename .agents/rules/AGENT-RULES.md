@@ -2,9 +2,7 @@
 
 ## Best Practices
 
-- Use "@path/to/file.md" for referencing documentation with the intent of embedding the file as context.
-- Use `[link text](path/to/file.md)` for inline links to documentation without resulting in embedding the context.
-- Use backticks `@path/to/file.md` for file mentions to indicate it's a reference.
+- Prefer `@path/to/file.md` to embed docs as context, `[text](path/to/file.md)` for inline links without embedding, backticks ``@path/to/file.md`` when merely mentioning a file path.
 - Keep your rules DRY
   - Smaller rules files
   - Embed or reference docs or other rules files as standard practice

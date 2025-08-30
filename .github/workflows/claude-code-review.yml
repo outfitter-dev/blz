@@ -47,7 +47,7 @@ jobs:
 
           # Direct prompt for automated review (no @claude mention needed)
           direct_prompt: |
-            ${{ contains(github.event.comment.body, '@claude review latest') || contains(github.event.comment.body, '@claude review recent') &&
+            ${{ (contains(github.event.comment.body || '', '@claude review latest') || contains(github.event.comment.body || '', '@claude review recent')) &&
             'Please perform an incremental review focusing ONLY on the changes made since your last review. Look at the most recent commits and provide feedback specifically on what has changed.' ||
             'Please review this Rust pull request and provide feedback on:
             - Rust idioms and best practices

@@ -24,10 +24,15 @@
 
 ## Quick Start
 
+First, run `just --list` or `make help` to discover available targets
+
 ```bash
 # Setup environment (see @ENVIRONMENT.md for details)
 rustup default stable
 cargo install cargo-deny cargo-shear
+
+# Coverage tooling
+cargo install cargo-llvm-cov --locked
 
 # Daily workflow (see @WORKFLOW.md for details)
 cargo test --workspace

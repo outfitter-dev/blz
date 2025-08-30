@@ -29,7 +29,7 @@ Based on recent research on LLM/agent challenges with Rust development and an au
    - CI workflows for validation
 
 4. **Documentation**
-   - Extensive `.agents/rules/` directory with clear guidelines
+   - Extensive [`.agents/rules/`](../rules/) directory with clear guidelines
    - Detailed STYLEGUIDE.md and development practices
    - Well-organized docs/development/ structure
 
@@ -168,7 +168,7 @@ Based on recent research on LLM/agent challenges with Rust development and an au
 ## References
 
 - Research document on LLM/agent Rust challenges
-- Current `.agents/rules/` guidelines
+- Current guidelines: see [`.agents/rules/`](../rules/)
 - Rust 2024 edition features and async improvements
 
 ## Labels

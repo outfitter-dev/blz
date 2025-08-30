@@ -2,6 +2,10 @@
 
 This repository uses Graphite for source control. In many cases, `gt` commands and workflows replace typical git commands and operations. It's critical to use the `gt` commands to keep things properly maintained.
 
+## Important
+
+- ALWAYS: Run `gt sync` after making changes, such as with `gt modify`, `gt create`, etc.
+
 ## Requirements
 
 - Graphite CLI (`gt`) must be installed
@@ -28,8 +32,8 @@ Graphite provides safe, stack-aware operations that maintain these relationships
 
 ```bash
 gt log              # Visualize stacks with full branch info
-gt log short        # Compact stack visualization (alias: gt ls)
-gt log long         # Full commit ancestry graph (alias: gt ll)
+gt log short        # Compact stack visualization (alias: gt ls, if configured)
+gt log long         # Full commit ancestry graph (alias: gt ll, if configured)
 gt log --stack      # Show only current stack (ancestors + descendants)
 gt checkout         # Interactive branch selector
 gt up [n]           # Move up the stack n steps (default: 1)
@@ -162,7 +166,7 @@ gt submit --stack
 **NEVER:** `git branch -m` on branches with PRs
 **ALWAYS:** `gt rename`
 **WHY:** Updates Graphite metadata. Note: GitHub PR branch names are immutable—renaming removes the PR association
-**WARNING:** If you have an open PR, avoid renaming the branch entirely—it will break the PR link and you'll need to recreate the PR
+**WARNING:** If you have an open PR, avoid renaming the branch entirely—it will break the PR link, and you'll need to recreate the PR.
 
 **NEVER:** `git branch -D` on tracked branches
 **ALWAYS:** `gt delete` or `gt untrack`
@@ -294,7 +298,7 @@ if [[ -n "${trunk}" && "${current}" == "${trunk}" ]]; then exit 0; fi
 
 # if current branch is tracked (has a parent), block raw push
 if gt parent >/dev/null 2>&1; then
-  echo "[Guardrail] Tracked Graphite branch detected: '${current}'. Use 'gt submit --stack' instead of 'git push'." >&2
+  echo "[Guardrail] Remote '${1:-origin}': tracked Graphite branch '${current}'. Use 'gt submit --stack' instead of 'git push'." >&2
   echo "           (Set GT_BYPASS_GUARD=1 to bypass once.)" >&2
   exit 1
 fi
@@ -320,7 +324,7 @@ gt checkout
 
 ## Command Aliases & Shortcuts
 
-Common aliases configured by default:
+Common aliases (if configured in this repo):
 
 - `gt ss` → `gt submit --stack`
 - `gt ls` → `gt log short`
@@ -336,6 +340,7 @@ Common aliases configured by default:
 4. **Prefer `gt modify` over `gt modify -c`** for cleaner history
 5. **Run `gt sync` at the start** of any work session
 6. **Use `--force` flags sparingly** and only when certain
+   - RATIONALE: Force-pushing can desynchronize the dependency graph and break stack ordering.
 
 ### Error Handling
 

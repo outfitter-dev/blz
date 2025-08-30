@@ -91,7 +91,9 @@ To test these workflows locally before pushing:
 
 ```bash
 # Install act (GitHub Actions local runner)
-brew install act  # macOS
+brew install act  # macOS (or Linux if Homebrew is installed)
+# OR download a release: https://github.com/nektos/act/releases
+# Prerequisite: Docker must be running
 # or
 sudo apt install act  # Linux
 
@@ -110,6 +112,20 @@ When updating workflows:
 2. Create a PR to test the workflow changes
 3. Monitor the Actions tab for any failures
 4. Check workflow permissions are appropriate
+5. Lint workflows with `actionlint` locally and in CI
+
+Example CI job:
+
+```yaml
+name: workflow-lint
+on: pull_request
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: raven-actions/actionlint@v1
+```
 
 ## Notes
 

@@ -18,7 +18,7 @@ These rules are language-agnostic and apply equally to Rust projects:
 
 #### Version Control & Git
 
-- **create-pr.mdc** (rulesets) - PR creation workflow
+- **create-pr.md** (rulesets) - PR creation workflow
 - **commits.md** (carabiner) - Conventional commits standard
 - Git workflow patterns (branch naming, commit messages)
 
@@ -150,7 +150,7 @@ Areas where we need Rust-specific rules:
 ### Phase 1: Direct Copies
 Copy these files as-is:
 
-- create-pr.mdc → cache/.agents/rules/version-control/create-pr.md
+- create-pr.md → cache/.agents/rules/version-control/create-pr.md
 - commits.md → cache/.agents/rules/conventions/commits.md
 - GREPABLE.md → cache/.agents/rules/conventions/grepable.md
 
