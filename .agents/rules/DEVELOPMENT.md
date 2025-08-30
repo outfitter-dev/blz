@@ -2,39 +2,39 @@
 
 ## Core Rules
 
-### Standards & Conventions
-- **@PERFORMANCE.md** - Performance requirements and benchmarking
-- **@SECURITY.md** - Security practices and dependency management  
-- **@TESTING.md** - Testing standards and coverage requirements
-- **@conventions/** - Language and tool-specific conventions
-  - `commits.md` - Git commit message format
-  - `cargo.md` - Cargo workspace configuration
-  - `rust.md` - Rust coding standards
-  - `tantivy.md` - Search index best practices
+### Standards
+
+- @PERFORMANCE.md - Performance requirements and benchmarking
+- @SECURITY.md - Security practices and dependency management
+- @TESTING.md - Testing standards and coverage requirements
+
+## Conventions
+
+- @conventions/commits.md - Commit message guidelines
+- @conventions/cargo.md - Cargo workspace configuration
+- @conventions/rust.md - Rust coding standards
+- @conventions/tantivy.md - Search index best practices
 
 ### Development Guides
-- **@ENVIRONMENT.md** - Development environment setup and tools
-- **@WORKFLOW.md** - Development workflow and processes
-- **@CODE-ORGANIZATION.md** - Module structure and code organization
-- **@QUALITY.md** - Quality assurance and review practices
 
-## Documentation Maintenance
-
-### Keep AGENTS.md/CLAUDE.md in sync
-
-When making significant changes:
-1. Update `./AGENTS.md` with new patterns or architecture changes
-2. Run `./.agent/scripts/sync-agents-md.sh` to sync to CLAUDE.md files
-3. AGENTS.md is the source of truth - always edit it, not CLAUDE.md
+- @ENVIRONMENT.md - Development environment setup and tools
+- @WORKFLOW.md - Development workflow and processes
+- @CODE-ORGANIZATION.md - Module structure and code organization
+- @QUALITY.md - Quality assurance and review practices
 
 ## Quick Start
+
+First, run `just --list` or `make help` to discover available targets
 
 ```bash
 # Setup environment (see @ENVIRONMENT.md for details)
 rustup default stable
 cargo install cargo-deny cargo-shear
 
-# Daily workflow (see @WORKFLOW.md for details) 
+# Coverage tooling
+cargo install cargo-llvm-cov --locked
+
+# Daily workflow (see @WORKFLOW.md for details)
 cargo test --workspace
 cargo clippy -- -D warnings
 cargo fmt

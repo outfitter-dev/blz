@@ -17,26 +17,31 @@ This document audits existing rules from TypeScript/JavaScript projects (ruleset
 These rules are language-agnostic and apply equally to Rust projects:
 
 #### Version Control & Git
-- **create-pr.mdc** (rulesets) - PR creation workflow
+
+- **create-pr.md** (rulesets) - PR creation workflow
 - **commits.md** (carabiner) - Conventional commits standard
 - Git workflow patterns (branch naming, commit messages)
 
 #### Development Philosophy
+
 - **CORE.md** (carabiner) - Engineering principles (Claude's identity)
 - **mode-max-eng.md** (monorepo) - Max's engineering principles
 - **IMPORTANT.md** (carabiner) - Priority rules aggregator
 
 #### Project Organization
+
 - **MONOREPO.md** (carabiner) - Monorepo structure concepts
 - **preferred-tech-stack.md** (monorepo) - Tech stack philosophy (needs adaptation)
 - Directory structure patterns (though specific to language)
 
 #### Documentation Standards
+
 - **GREPABLE.md** (rulesets) - Version markers strategy (mixd-*)
 - README structure and documentation patterns
 - Changelog conventions
 
 #### CI/CD & DevOps
+
 - GitHub Actions patterns
 - Quality gates philosophy
 - Testing pipeline structure (adapt for Rust)
@@ -46,36 +51,43 @@ These rules are language-agnostic and apply equally to Rust projects:
 These rules contain valuable principles but need significant translation:
 
 #### Code Quality & Linting
+
 - **ultracite.md** (monorepo/carabiner) - TypeScript linting rules
   - Needs: Rust clippy rules, rustfmt configuration
   - Principles: Zero-tolerance for warnings, strict checking
 
 #### Testing
+
 - **TESTING.md** (carabiner) - Comprehensive testing strategy
   - Needs: Rust test framework (built-in), criterion for benchmarks
   - Keep: Coverage targets, test categories, performance requirements
 
 #### Type Safety
+
 - **typescript.md** (carabiner) - TypeScript conventions
   - Needs: Rust type system patterns, Result<T, E>, Option<T>
   - Keep: Make illegal states unrepresentable
 
 #### Error Handling
+
 - **ERRORS.md** (carabiner) - Error handling patterns
   - Needs: Rust Result pattern, thiserror/anyhow crates
   - Keep: Structured errors, error codes, logging
 
 #### Security
+
 - **SECURITY.md** (carabiner) - Security practices
   - Needs: Rust-specific security (memory safety, unsafe blocks)
   - Keep: Environment variables, dependency auditing, input validation
 
 #### Performance
+
 - **PERFORMANCE.md** (carabiner) - Performance optimization
   - Needs: Rust profiling tools (perf, flamegraph), cargo bench
   - Keep: Benchmarking philosophy, caching strategies
 
 #### Architecture
+
 - **ARCHITECTURE.md** (carabiner) - System architecture
   - Needs: Rust module system, workspace structure
   - Keep: Separation of concerns, dependency management
@@ -95,6 +107,7 @@ These rules don't translate to Rust:
 Areas where we need Rust-specific rules:
 
 #### Rust Language Conventions
+
 - Ownership and borrowing patterns
 - Lifetime annotations best practices
 - Safe vs unsafe code guidelines
@@ -102,6 +115,7 @@ Areas where we need Rust-specific rules:
 - Module organization (mod.rs vs named files)
 
 #### Rust Toolchain
+
 - Cargo workspace configuration
 - Cargo features and conditional compilation
 - Cross-compilation targets
@@ -109,12 +123,14 @@ Areas where we need Rust-specific rules:
 - rustup toolchain management
 
 #### Tantivy-Specific (Search Engine)
+
 - Index configuration patterns
 - Query building best practices
 - Schema design principles
 - Performance tuning for search
 
 #### Rust Testing
+
 - Unit tests in same file vs separate
 - Integration tests structure
 - Documentation tests
@@ -122,6 +138,7 @@ Areas where we need Rust-specific rules:
 - Benchmark with criterion
 
 #### Rust Performance
+
 - Zero-copy patterns
 - SIMD optimizations
 - Memory pool strategies
@@ -132,27 +149,31 @@ Areas where we need Rust-specific rules:
 
 ### Phase 1: Direct Copies
 Copy these files as-is:
-- create-pr.mdc → cache/.agent/rules/version-control/create-pr.md
-- commits.md → cache/.agent/rules/conventions/commits.md
-- GREPABLE.md → cache/.agent/rules/conventions/grepable.md
+
+- create-pr.md → cache/.agents/rules/version-control/create-pr.md
+- commits.md → cache/.agents/rules/conventions/commits.md
+- GREPABLE.md → cache/.agents/rules/conventions/grepable.md
 
 ### Phase 2: Core Philosophy
 Adapt engineering principles:
-- CORE.md + mode-max-eng.md → cache/.agent/rules/CORE.md (merged and adapted)
+
+- CORE.md + mode-max-eng.md → cache/.agents/rules/CORE.md (merged and adapted)
 
 ### Phase 3: Rust-Specific Conventions
 Create new with AI assistance:
-- cache/.agent/rules/conventions/rust.md (language conventions)
-- cache/.agent/rules/conventions/cargo.md (build system)
-- cache/.agent/rules/conventions/tantivy.md (search engine)
-- cache/.agent/rules/conventions/clippy.md (linting)
+
+- cache/.agents/rules/conventions/rust.md (language conventions)
+- cache/.agents/rules/conventions/cargo.md (build system)
+- cache/.agents/rules/conventions/tantivy.md (search engine)
+- cache/.agents/rules/conventions/clippy.md (linting)
 
 ### Phase 4: Adapted Rules
 Transform TypeScript rules to Rust:
-- TESTING.md → cache/.agent/rules/TESTING.md (Rust testing)
-- ERRORS.md → cache/.agent/rules/ERRORS.md (Result pattern)
-- SECURITY.md → cache/.agent/rules/SECURITY.md (Rust security)
-- PERFORMANCE.md → cache/.agent/rules/PERFORMANCE.md (Rust perf)
+
+- TESTING.md → cache/.agents/rules/TESTING.md (Rust testing)
+- ERRORS.md → cache/.agents/rules/ERRORS.md (Result pattern)
+- SECURITY.md → cache/.agents/rules/SECURITY.md (Rust security)
+- PERFORMANCE.md → cache/.agents/rules/PERFORMANCE.md (Rust perf)
 
 ## Key Principles to Maintain
 
@@ -179,6 +200,7 @@ Regardless of language, these principles remain:
 ## Notes for Subagents
 
 When working on adaptations, reference this audit to understand:
+
 - Which principles to preserve from TypeScript world
 - What needs Rust-specific implementation
 - Where to find original examples for reference

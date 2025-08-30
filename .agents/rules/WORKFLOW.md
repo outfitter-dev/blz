@@ -5,6 +5,9 @@
 ### Start of Day
 
 ```bash
+# Sync with trunk and prune merged branches
+gt sync
+
 # Update dependencies and tools
 rustup update
 cargo update
@@ -18,22 +21,38 @@ cargo test --workspace
 # Check code quality
 cargo clippy --workspace -- -D warnings
 cargo fmt --check
+
+# Check your current stack state
+gt log short
 ```
 
 ## Feature Development Process
 
-### 1. Branch Creation
+### 1. Stack Creation & Management
 
 ```bash
-git checkout -b feature/your-feature-name
+# Always start by syncing
+gt sync
+
+# Create new branch in the stack
+gt create feat/your-feature-name -am "feat: initial implementation"
+
+# Or track existing branch
+gt track --parent main
 ```
 
 Follow branch naming conventions:
-- `feature/` - New features
+
+- `feature/` or `feat/` - New features
 - `fix/` - Bug fixes
 - `refactor/` - Code refactoring
 - `docs/` - Documentation updates
 - `perf/` - Performance improvements
+- `chore/` - Miscellaneous tasks
+- `test/` - Testing changes
+- `build/` - Build system changes
+- `ci/` - Continuous integration changes
+- `ops/` - Operations changes
 
 ### 2. Write Tests First (TDD)
 
@@ -57,7 +76,18 @@ mod tests {
 - Don't optimize prematurely
 - Focus on correctness first
 
-### 4. Refactor
+### 4. Update & Refactor
+
+```bash
+# Amend current branch commit
+gt modify -am "Updated implementation"
+
+# Or create new commit on current branch
+gt modify -cam "Additional changes"
+
+# Fix the right commit in the stack
+gt absorb -a
+```
 
 - Improve code structure
 - Add error handling
@@ -75,9 +105,25 @@ make ci  # or: just ci
 # Or manually:
 cargo test --workspace
 cargo clippy --workspace -- -D warnings
-cargo fmt
+cargo fmt --check
 cargo deny check
 cargo shear
+```
+
+### 6. Stack Operations
+
+```bash
+# Restack after changes
+gt restack --upstack
+
+# Navigate the stack
+gt up        # Move up one branch
+gt down      # Move down one branch
+gt top       # Jump to stack tip
+gt bottom    # Jump to stack base
+
+# Create or update PRs for the entire stack
+gt submit --stack
 ```
 
 ## Code Review Process
@@ -95,14 +141,22 @@ cargo shear
 
 ### Commit Guidelines
 
-Follow conventional commits (see @conventions/commits.md):
+Follow conventional commits (see @conventions/commits.md) with Graphite:
 
 ```bash
-# Good commit messages
-git commit -m "feat: add search result caching"
-git commit -m "fix: resolve index corruption on concurrent writes"
-git commit -m "perf: optimize search query parsing"
-git commit -m "docs: update API documentation for search module"
+# Create commits with Graphite (preferred)
+gt create feat/cache -am "feat: add search result caching"
+gt create fix/index -am "fix: resolve index corruption on concurrent writes"
+gt create perf/parser -am "perf: optimize search query parsing"
+gt create docs/api -am "docs: update API documentation for search module"
+
+# Modify existing commits
+gt modify -am "fix: address review feedback"
+gt modify -cam "feat: add additional functionality"
+
+# Never use raw git commands on tracked branches
+# ❌ git commit -m "message"
+# ✅ gt create -am "message" or gt modify -am "message"
 ```
 
 ## Debugging Practices
@@ -115,7 +169,7 @@ use tracing::{debug, info, warn, error, instrument};
 #[instrument(skip(self), fields(query_len = query.len()))]
 pub async fn search(&self, query: &str) -> Result<SearchResults> {
     debug!("Starting search operation");
-    
+
     match self.execute_search(query).await {
         Ok(results) => {
             info!(result_count = results.len(), "Search completed");
@@ -133,7 +187,7 @@ pub async fn search(&self, query: &str) -> Result<SearchResults> {
 
 ```rust
 // Use debug assertions in development
-debug_assert!(query.len() > 0, "Query cannot be empty");
+debug_assert!(!query.is_empty(), "Query cannot be empty");
 debug_assert!(limit <= MAX_RESULTS, "Limit exceeds maximum");
 
 // Conditional compilation for debug info
@@ -170,17 +224,40 @@ make ci
 just ci
 ```
 
+### Working with PRs
+
+```bash
+# Submit entire stack as PRs
+gt submit --stack
+
+# Merge PRs in correct order (trunk → tip)
+gt merge
+
+# Preview merge order
+gt merge --dry-run
+
+# After PRs are merged
+gt sync  # Prune merged branches and update
+```
+
 ## Release Process
 
 1. Update version in Cargo.toml files
 2. Update CHANGELOG.md
 3. Run full test suite
-4. Create release PR
-5. After merge, tag release:
+4. Create release stack:
 
 ```bash
-git tag -a v0.1.0 -m "Release version 0.1.0"
-git push origin v0.1.0
+# Create release preparation branch
+gt create release/v0.1.0 -am "chore: prepare release v0.1.0"
+
+# Submit for review
+gt submit --stack
+
+# After merge via gt merge
+gt sync
+git tag -a v0.1.0 -m "Release version 0.1.0"   # or: -s if signing
+git push origin v0.1.0                         # or: git push --follow-tags
 ```
 
 ## Troubleshooting
@@ -188,6 +265,7 @@ git push origin v0.1.0
 ### Common Issues
 
 **Clippy failures:**
+
 ```bash
 # Auto-fix some issues
 cargo clippy --fix
@@ -197,6 +275,7 @@ cargo clippy -p blz-core
 ```
 
 **Test failures:**
+
 ```bash
 # Run tests with output
 cargo test -- --nocapture
@@ -206,6 +285,7 @@ cargo test test_name -- --exact
 ```
 
 **Compilation errors:**
+
 ```bash
 # Clean build
 cargo clean
@@ -213,4 +293,62 @@ cargo build
 
 # Check for feature flag issues
 cargo build --all-features
+```
+
+### Graphite-Specific Issues
+
+**Stack out of sync:**
+
+```bash
+# Dry run everything
+gt sync && gt restack --upstack --dry-run && gt restack --upstack && gt submit --stack
+
+# Fix everything
+gt sync && gt restack --upstack && gt submit --stack
+```
+
+**Untracked branch created with git:**
+
+```bash
+# Track existing branch
+gt track --parent main
+gt restack --only
+gt submit --stack
+```
+
+**Merge conflicts during restack:**
+
+```bash
+# Resolve conflicts in files
+# Stage resolved files
+git add <resolved-files>
+
+# Continue Graphite operation
+gt continue
+
+# Or abort if needed
+gt abort
+```
+
+**PRs out of sync:**
+
+```bash
+# Normal update
+gt submit --stack
+
+# Force sync if severely desynced
+gt submit --always --stack
+```
+
+**Need to check Graphite state:**
+
+```bash
+# View current stack
+gt log --stack
+
+# Interactive branch switch
+gt checkout
+
+# Show diagnostic info
+gt log short && git status
 ```

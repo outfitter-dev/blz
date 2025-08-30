@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, ready_for_review, review_requested]  # Trigger on open, draft→ready, or review request
+    types: [opened, ready_for_review, review_requested] # Trigger on open, draft→ready, or review request
   issue_comment:
     types: [created]
 
@@ -18,7 +18,7 @@ jobs:
        contains(github.event.comment.body, '@claude review') &&
        (github.event.comment.user.type != 'Bot' ||
         contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login)))
-    
+
     runs-on: ubuntu-latest
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
@@ -28,8 +28,8 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: read  # Required for Claude to read CI results
-    
+      actions: read # Required for Claude to read CI results
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
 
           # Direct prompt for automated review (no @claude mention needed)
           direct_prompt: |
-            ${{ contains(github.event.comment.body, '@claude review latest') || contains(github.event.comment.body, '@claude review recent') && 
+            ${{ (contains(github.event.comment.body || '', '@claude review latest') || contains(github.event.comment.body || '', '@claude review recent')) &&
             'Please perform an incremental review focusing ONLY on the changes made since your last review. Look at the most recent commits and provide feedback specifically on what has changed.' ||
             'Please review this Rust pull request and provide feedback on:
             - Rust idioms and best practices
@@ -56,23 +56,23 @@ jobs:
             - Clippy warnings and code quality
             - Test coverage for new functionality
             - Documentation for public APIs
-            - Compliance with rules in .agent/rules/
+            - Compliance with rules in .agents/rules/
             - Updates to AGENTS.md if architecture changed
-            
+
             Be constructive and specific in your feedback. Give inline comments where applicable.
             Focus on Rust-specific concerns like ownership, borrowing, and trait implementations.
-            
+
             ---
             💡 **For future reviews on this PR**, you can request:
             - `@claude review` - Full review of all changes
             - `@claude review latest` or `@claude review recent` - Incremental review of only the newest changes since last review' }}
-          
+
           # MCP tools for creating proper GitHub PR reviews with inline comments
-          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+          allowed_tools: 'mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff'
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           # use_sticky_comment: true
-          
+
           # Optional: Customize review based on file types
           # direct_prompt: |
           #   Review this PR focusing on:
@@ -80,21 +80,20 @@ jobs:
           #   - For Cargo.toml: Dependency versions and security
           #   - For benchmarks: Performance regression checks
           #   - For tests: Coverage, edge cases, and proptest usage
-          
+
           # Optional: Different prompts for different authors
           # direct_prompt: |
-          #   ${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' && 
+          #   ${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' &&
           #   'Welcome! Please review this PR from a first-time contributor. Be encouraging and provide detailed explanations for any suggestions.' ||
           #   'Please provide a thorough code review focusing on our coding standards and best practices.' }}
-          
+
           # Optional: Add specific tools for running tests or linting
           # allowed_tools: "Bash(cargo test),Bash(cargo clippy),Bash(cargo fmt --check)"
-          
+
           # Optional: Skip review for certain conditions
           # if: |
           #   !contains(github.event.pull_request.title, '[skip-review]') &&
           #   !contains(github.event.pull_request.title, '[WIP]')
-
 # This workflow runs automatically when:
 # 1. A PR is first opened (not draft)
 # 2. A draft PR is marked as ready for review

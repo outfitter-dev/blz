@@ -1,3 +1,3 @@
 # Agent Development Instructions
 
-- Follow the @./.agents/rules/DEVELOPMENT.md rules
+- Always follow @./.agents/rules/DEVELOPMENT.md

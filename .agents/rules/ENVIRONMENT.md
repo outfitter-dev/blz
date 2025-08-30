@@ -31,10 +31,12 @@ cargo install cargo-llvm-cov  # Code coverage with LLVM
 ### Editor Setup
 
 **Required:**
+
 - **rust-analyzer**: Language server for IDE support
 - **Rust syntax highlighting**: For your preferred editor
 
 **Recommended:**
+
 - **CodeLLDB** or **GDB**: Debugging support
 - **Even Better TOML**: TOML file support
 - **Markdown linting**: For documentation
@@ -50,10 +52,10 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/outfitter-dev/blz"
-rust-version = "1.75.0"
+rust-version = "1.85.0"
 
 [workspace.dependencies]
 # Core dependencies shared across crates
@@ -147,6 +149,7 @@ winget install LLVM.LLVM
 See `.vscode/settings.json` for project-specific settings.
 
 Key configurations:
+
 - Rust analyzer with Clippy integration
 - Format on save enabled
 - Recommended extensions in `.vscode/extensions.json`

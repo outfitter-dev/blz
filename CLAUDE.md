@@ -6,10 +6,6 @@ This file provides guidance to AI agents when working with code in this reposito
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
 - Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
-  - If the file is empty, use the command `.agents/scripts/branchwork.sh create` to create it
-  - Ensure it's got the correct information for the branch you're working on
-  - Update it as you work, and use the command `.agents/scripts/branchwork.sh update` to do so
-  - Use `.agents/scripts/branchwork.sh --help` to see all the options
 
 ## Repository Overview
 
