@@ -74,4 +74,3 @@ expect_used = "warn"
 panic = "warn"
 unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
-

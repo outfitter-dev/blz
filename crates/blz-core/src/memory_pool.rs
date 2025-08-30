@@ -1,3 +1,4 @@
+#![allow(unsafe_code)] // Core module requires unsafe for performance-critical arena allocations
 // Memory pool for efficient buffer reuse and allocation management
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -437,6 +438,11 @@ impl Arena {
         let layout = std::alloc::Layout::new::<T>();
         let ptr = self.alloc_raw(layout);
         
+        // SAFETY: ptr is valid because:
+        // 1. alloc_raw returned a properly aligned pointer with enough space for T
+        // 2. The memory is within our managed arena buffer
+        // 3. We write the value before creating the reference
+        // 4. The returned reference has the same lifetime as the arena (&mut self)
         unsafe {
             let typed_ptr = ptr as *mut T;
             std::ptr::write(typed_ptr, value);
@@ -469,6 +475,7 @@ impl Arena {
         }
 
         // Allocate from current buffer
+        // SAFETY: aligned_pos is calculated to be within buffer bounds and properly aligned
         let ptr = unsafe {
             self.current_buffer.as_mut_ptr().add(aligned_pos)
         };
@@ -477,6 +484,8 @@ impl Arena {
         
         // Update buffer length if needed
         if self.position > self.current_buffer.len() {
+            // SAFETY: self.position is calculated to be within buffer capacity
+            // and all memory up to self.position has been allocated/initialized
             unsafe {
                 self.current_buffer.set_len(self.position);
             }
