@@ -23,8 +23,7 @@ impl RegistryEntry {
         }
     }
 
-    #[must_use]
-    pub fn with_aliases(mut self, aliases: &[&str]) -> Self {
+    pub fn with_aliases(mut self, aliases: Vec<&str>) -> Self {
         self.aliases = aliases.iter().map(|s| (*s).to_string()).collect();
         self
     }
@@ -51,77 +50,77 @@ impl Registry {
                 "Fast all-in-one JavaScript runtime and package manager",
                 "https://bun.sh/docs/llms.txt",
             )
-            .with_aliases(&["bun", "bunjs"]),
+            .with_aliases(vec!["bun", "bunjs"]),
             RegistryEntry::new(
                 "Node.js",
                 "node",
                 "JavaScript runtime built on Chrome's V8 JavaScript engine",
                 "https://nodejs.org/docs/llms.txt",
             )
-            .with_aliases(&["node", "nodejs", "js"]),
+            .with_aliases(vec!["node", "nodejs", "js"]),
             RegistryEntry::new(
                 "Deno",
                 "deno",
                 "Modern runtime for JavaScript and TypeScript",
                 "https://docs.deno.com/llms.txt",
             )
-            .with_aliases(&["deno"]),
+            .with_aliases(vec!["deno"]),
             RegistryEntry::new(
                 "React",
                 "react",
                 "JavaScript library for building user interfaces",
                 "https://react.dev/llms.txt",
             )
-            .with_aliases(&["react", "reactjs"]),
+            .with_aliases(vec!["react", "reactjs"]),
             RegistryEntry::new(
                 "Vue.js",
                 "vue",
                 "Progressive JavaScript framework for building UIs",
                 "https://vuejs.org/llms.txt",
             )
-            .with_aliases(&["vue", "vuejs"]),
+            .with_aliases(vec!["vue", "vuejs"]),
             RegistryEntry::new(
                 "Next.js",
                 "nextjs",
                 "React framework for production with hybrid static & server rendering",
                 "https://nextjs.org/docs/llms.txt",
             )
-            .with_aliases(&["nextjs", "next"]),
+            .with_aliases(vec!["nextjs", "next"]),
             RegistryEntry::new(
                 "Claude Code",
                 "claude-code",
                 "Anthropic's AI coding assistant documentation",
                 "https://docs.anthropic.com/claude-code/llms.txt",
             )
-            .with_aliases(&["claude-code", "claude"]),
+            .with_aliases(vec!["claude-code", "claude"]),
             RegistryEntry::new(
                 "Pydantic",
                 "pydantic",
                 "Data validation library using Python type hints",
                 "https://docs.pydantic.dev/llms.txt",
             )
-            .with_aliases(&["pydantic"]),
+            .with_aliases(vec!["pydantic"]),
             RegistryEntry::new(
                 "Anthropic Claude API",
                 "anthropic",
                 "Claude API documentation and guides",
                 "https://docs.anthropic.com/llms.txt",
             )
-            .with_aliases(&["anthropic", "claude-api"]),
+            .with_aliases(vec!["anthropic", "claude-api"]),
             RegistryEntry::new(
                 "OpenAI API",
                 "openai",
                 "OpenAI API documentation and guides",
                 "https://platform.openai.com/docs/llms.txt",
             )
-            .with_aliases(&["openai", "gpt"]),
+            .with_aliases(vec!["openai", "gpt"]),
         ];
 
         Self { entries }
     }
 
     /// Create a new registry with custom entries
-    pub const fn from_entries(entries: Vec<RegistryEntry>) -> Self {
+    pub fn from_entries(entries: Vec<RegistryEntry>) -> Self {
         Self { entries }
     }
 
@@ -234,7 +233,7 @@ mod tests {
             "JavaScript runtime",
             "https://nodejs.org/llms.txt",
         )
-        .with_aliases(&["node", "nodejs", "js"]);
+        .with_aliases(vec!["node", "nodejs", "js"]);
 
         assert_eq!(entry.aliases, vec!["node", "nodejs", "js"]);
     }

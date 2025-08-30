@@ -27,7 +27,7 @@ impl Storage {
 
     pub fn tool_dir(&self, alias: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks
-        Self::validate_alias(alias)?;
+        self.validate_alias(alias)?;
         Ok(self.root_dir.join(alias))
     }
 
@@ -39,7 +39,7 @@ impl Storage {
     }
 
     /// Validate that an alias is safe to use as a directory name
-    fn validate_alias(alias: &str) -> Result<()> {
+    fn validate_alias(&self, alias: &str) -> Result<()> {
         // Check for empty alias
         if alias.is_empty() {
             return Err(Error::Storage("Alias cannot be empty".into()));
@@ -188,7 +188,7 @@ impl Storage {
             .unwrap_or(false)
     }
 
-    pub fn list_sources(&self) -> Vec<String> {
+    pub fn list_sources(&self) -> Result<Vec<String>> {
         let mut sources = Vec::new();
 
         if let Ok(entries) = fs::read_dir(&self.root_dir) {
@@ -204,7 +204,7 @@ impl Storage {
         }
 
         sources.sort();
-        sources
+        Ok(sources)
     }
 
     pub fn archive(&self, alias: &str) -> Result<()> {
@@ -426,7 +426,7 @@ mod tests {
     fn test_list_sources_empty() {
         let (storage, _temp_dir) = create_test_storage();
 
-        let sources = storage.list_sources();
+        let sources = storage.list_sources().expect("Should list sources");
         assert!(sources.is_empty());
     }
 
@@ -443,7 +443,7 @@ mod tests {
                 .expect("Should save");
         }
 
-        let sources = storage.list_sources();
+        let sources = storage.list_sources().expect("Should list sources");
         assert_eq!(sources.len(), 3);
 
         // Should be sorted
@@ -464,7 +464,7 @@ mod tests {
             .save_llms_json("react", &llms_json)
             .expect("Should save");
 
-        let sources = storage.list_sources();
+        let sources = storage.list_sources().expect("Should list sources");
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0], "react");
     }
@@ -489,7 +489,7 @@ mod tests {
             .save_llms_json("complete", &llms_json)
             .expect("Should save json");
 
-        let sources = storage.list_sources();
+        let sources = storage.list_sources().expect("Should list sources");
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0], "complete");
     }

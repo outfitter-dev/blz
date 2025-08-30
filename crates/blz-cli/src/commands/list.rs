@@ -10,7 +10,7 @@ use crate::utils::formatting::get_alias_color;
 /// Execute the list command to show all cached sources
 pub async fn execute(output: OutputFormat) -> Result<()> {
     let storage = Storage::new()?;
-    let sources = storage.list_sources();
+    let sources = storage.list_sources()?;
 
     if sources.is_empty() {
         println!("No sources found. Use 'blz add' to add sources.");

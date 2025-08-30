@@ -23,9 +23,10 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Format (check)
         run: cargo fmt --all -- --check
-      - name: Clippy (deny clippy warnings; allow missing docs)
-        run: cargo clippy --workspace --all-features -- -D warnings -A missing_docs -A clippy::missing_errors_doc -A clippy::missing_panics_doc
-      - name: Build (no benches)
-        run: cargo build --workspace --all-features --bins --examples --tests
+      - name: Clippy (deny warnings)
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Build
+        run: cargo build --locked --workspace --all-targets --all-features
       - name: Test
-        run: cargo test --workspace --all-features -- --nocapture
+        run: cargo test --locked --workspace --all-features -- --nocapture
+

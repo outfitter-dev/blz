@@ -163,7 +163,7 @@ async fn fetch_and_index(
     storage.save_source_metadata(alias, &metadata)?;
 
     let index_path = storage.index_dir(alias)?;
-    let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
+    let mut index = SearchIndex::create(&index_path)?.with_metrics(metrics);
     index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
 
     pb.finish_with_message(format!(

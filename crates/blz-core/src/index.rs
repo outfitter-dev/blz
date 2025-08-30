@@ -118,7 +118,7 @@ impl SearchIndex {
     }
 
     pub fn index_blocks(
-        &self,
+        &mut self,
         alias: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
@@ -472,7 +472,7 @@ mod tests {
         let index_path = temp_dir.path().join("test_index");
 
         // Create index and add blocks
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
         let blocks = create_test_blocks();
 
         index
@@ -498,7 +498,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
 
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
         let blocks = create_test_blocks();
 
         index
@@ -519,7 +519,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
 
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
         let blocks = create_test_blocks();
 
         index
@@ -542,7 +542,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
 
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
 
         // Create many blocks for performance testing
         let mut blocks = Vec::new();
@@ -579,7 +579,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
 
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
 
         let blocks = vec![
             HeadingBlock {
@@ -632,7 +632,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
 
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
 
         let blocks = vec![HeadingBlock {
             path: vec![
@@ -663,7 +663,7 @@ mod tests {
     fn test_unicode_snippet_extraction() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
 
         // Test with various Unicode content
         let unicode_blocks = vec![
@@ -716,7 +716,7 @@ mod tests {
     fn test_edge_case_unicode_truncation() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let index_path = temp_dir.path().join("test_index");
-        let index = SearchIndex::create(&index_path).expect("Should create index");
+        let mut index = SearchIndex::create(&index_path).expect("Should create index");
 
         // Create content where truncation would happen in middle of multi-byte chars
         let mut long_content = String::new();
