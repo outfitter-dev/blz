@@ -111,7 +111,8 @@ impl SearchCache {
         // Collect results...
         let mut results = Vec::new();
         for handle in handles {
-            results.push(handle.await.unwrap());
+            // JoinError -> anyhow::Error, then inner Result
+            results.push(handle.await??);
         }
         results
     }
@@ -249,7 +250,7 @@ mod tests {
 
 ## Integration with Other Crates
 - **blz-cli**: Provides high-level user-facing APIs using anyhow errors
-- **blz-mcp**: Uses structured JSON responses, needs Serialize/Deserialize
+- **blz-mcp**: Uses structured JSON responses, needs Serialize and Deserialize
 - **External**: tantivy for search, tree-sitter for parsing
 
 ## Debugging Tips

@@ -255,13 +255,13 @@ impl McpServer {
             };
             
             // Handle request
-            let response = self.handle_request(request).await;
-            
-            // Send response
-            let response_json = serde_json::to_string(&response)?;
-            writer.write_all(response_json.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-            writer.flush().await?;
+            if let Some(response) = self.handle_request(request).await {
+                // Send response
+                let response_json = serde_json::to_string(&response)?;
+                writer.write_all(response_json.as_bytes()).await?;
+                writer.write_all(b"\n").await?;
+                writer.flush().await?;
+            }
             
             line.clear();
         }
@@ -269,20 +269,20 @@ impl McpServer {
         Ok(())
     }
     
-    async fn handle_request(&mut self, request: JsonRpcRequest) -> JsonRpcResponse {
+    async fn handle_request(&mut self, request: JsonRpcRequest) -> Option<JsonRpcResponse> {
         let id = request.id.clone();
         
         match request.method.as_str() {
-            "initialize" => self.handle_initialize(request).await,
-            "notifications/initialized" => self.handle_initialized(),
-            "tools/list" => self.handle_list_tools(),
-            "tools/call" => self.handle_tool_call(request).await,
-            _ => JsonRpcResponse {
+            "initialize" => Some(self.handle_initialize(request).await),
+            "notifications/initialized" => { self.handle_initialized(); None }
+            "tools/list" => Some(self.handle_list_tools(id)),
+            "tools/call" => Some(self.handle_tool_call(request).await),
+            _ => Some(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id,
                 result: None,
                 error: Some(JsonRpcError::method_not_found(&request.method)),
-            },
+            }),
         }
     }
     
@@ -291,31 +291,26 @@ impl McpServer {
             jsonrpc: "2.0".to_string(),
             id: request.id,
             result: Some(json!({
-                "protocolVersion": "0.1.0",
+                "protocolVersion": "2024-11-05",
                 "serverInfo": {
                     "name": "blz-mcp",
                     "version": env!("CARGO_PKG_VERSION")
                 },
                 "capabilities": {
-                    "tools": {}
+                    "tools": {
+                        "listChanged": false
+                    }
                 }
             })),
             error: None,
         }
     }
     
-    fn handle_initialized(&mut self) -> JsonRpcResponse {
+    fn handle_initialized(&mut self) {
         self.initialized = true;
-        
-        JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id: None, // This is a notification
-            result: Some(json!({})),
-            error: None,
-        }
     }
     
-    fn handle_list_tools(&self) -> JsonRpcResponse {
+    fn handle_list_tools(&self, id: Option<Value>) -> JsonRpcResponse {
         let tools: Vec<Value> = self.tools.values()
             .map(|tool| json!({
                 "name": tool.name(),
@@ -326,7 +321,7 @@ impl McpServer {
         
         JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
-            id: None,
+            id,
             result: Some(json!({
                 "tools": tools
             })),
@@ -342,9 +337,7 @@ impl McpServer {
                 jsonrpc: "2.0".to_string(),
                 id,
                 result: None,
-                error: Some(JsonRpcError::internal_error(
-                    "Server not initialized".to_string()
-                )),
+                error: Some(JsonRpcError::invalid_request()),
             };
         }
         
@@ -378,7 +371,7 @@ impl McpServer {
             },
         };
         
-        let args = params["arguments"].clone();
+        let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
         
         match tool.call(args).await {
             Ok(result) => JsonRpcResponse {
@@ -427,10 +420,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 // Clone server state for this connection
                 // Note: In production, you might want connection pooling
-                match server.handle_connection(stream).await {
-                    Ok(()) => info!("Connection {} closed", addr),
-                    Err(e) => error!("Error handling connection {}: {}", addr, e),
-                }
+                let server_handle = server.clone(); // Assume server implements Clone or use Arc
+                tokio::spawn(async move {
+                    if let Err(e) = server_handle.handle_connection(stream).await {
+                        error!("Error handling connection {}: {}", addr, e);
+                    } else {
+                        info!("Connection {} closed", addr);
+                    }
+                });
             }
             Err(e) => {
                 error!("Failed to accept connection: {}", e);

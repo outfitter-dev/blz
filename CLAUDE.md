@@ -19,7 +19,7 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 3. **Review unsafe code policy**: See `.agents/rules/UNSAFE-POLICY.md` if working with unsafe blocks
 
 ### Common Agent Pain Points & Solutions
-- **Async confusion**: Read `.agents/rules/ASYNC-PATTERNS.md` for correct async/await patterns
+- **Async confusion**: Read `.agents/rules/ASYNC-PATTERNS.md` to learn correct async/await patterns
 - **Compiler errors**: Use `.agents/rules/COMPILER-LOOP.md` for JSON diagnostics and macro expansion
 - **Error handling**: Follow patterns in crate-specific CLAUDE.md files
 
@@ -128,14 +128,24 @@ blz completions zsh > ~/.zsh/completions/_blz
 ### Storage Layout
 
 ```text
-~/.outfitter/blz/
-  global.toml                 # Global configuration
-  <alias>/
-    llms.txt                  # Latest upstream text
-    llms.json                 # Parsed TOC + line map
-    .index/                   # Tantivy search index
-    .archive/                 # Historical snapshots
-    settings.toml             # Per-source overrides
+# Determined via directories::ProjectDirs::from("dev", "outfitter", "blz")
+# macOS:
+#   Data:     ~/Library/Application Support/dev.outfitter.blz/
+#   Config:   ~/Library/Preferences/dev.outfitter.blz/
+# Linux (XDG):
+#   Data:     ~/.local/share/dev.outfitter.blz/
+#   Config:   ~/.config/dev.outfitter.blz/
+# Windows:
+#   Data:     %APPDATA%/dev.outfitter.blz/data/
+#   Config:   %APPDATA%/dev.outfitter.blz/config/
+#
+# Within Data:
+<alias>/
+  llms.txt                  # Latest upstream text
+  llms.json                 # Parsed TOC + line map
+  .index/                   # Tantivy search index
+  .archive/                 # Historical snapshots
+  settings.toml             # Per-source overrides
 ```
 
 ### Testing Approach

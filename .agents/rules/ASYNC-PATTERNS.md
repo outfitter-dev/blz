@@ -23,7 +23,7 @@ async fn process_files(files: Vec<String>) -> Result<()> {
     
     // Wait for all tasks
     for handle in handles {
-        handle.await??;
+        handle.await?;
     }
     
     Ok(())
@@ -36,7 +36,7 @@ async fn process_files(files: Vec<String>) -> Result<()> {
 use std::sync::Arc;
 use tokio::spawn;
 
-async fn concurrent_search(queries: Vec<String>, index: SearchIndex) -> Vec<Results> {
+async fn concurrent_search(queries: Vec<String>, index: SearchIndex) -> Result<Vec<Results>, Box<dyn std::error::Error>> {
     let shared_index = Arc::new(index);
     let mut handles = Vec::new();
     
@@ -52,10 +52,10 @@ async fn concurrent_search(queries: Vec<String>, index: SearchIndex) -> Vec<Resu
     // Collect results
     let mut results = Vec::new();
     for handle in handles {
-        results.push(handle.await?);
+        results.push(handle.await??);
     }
     
-    results
+    Ok(results)
 }
 ```
 
@@ -91,7 +91,7 @@ async fn process_with_config(items: Vec<Item>, config: Config) -> Vec<Result<Out
 ### Anti-Pattern: Borrowing Across Await
 ```rust
 // ❌ This won't compile - borrowed data doesn't live long enough
-async fn bad_example(data: &Vec<String>) -> String {
+async fn bad_example(data: &[String]) -> String {
     let first = &data[0];  // Borrow from data
     
     some_async_operation().await;  // Await point - borrow checker can't guarantee first is still valid
@@ -100,7 +100,7 @@ async fn bad_example(data: &Vec<String>) -> String {
 }
 
 // ✅ Fix 1: Don't hold borrows across await points
-async fn good_example_1(data: &Vec<String>) -> String {
+async fn good_example_1(data: &[String]) -> String {
     let result = data[0].clone();  // Clone before await
     
     some_async_operation().await;
