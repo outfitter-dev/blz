@@ -31,10 +31,12 @@ cargo install cargo-llvm-cov  # Code coverage with LLVM
 ### Editor Setup
 
 **Required:**
+
 - **rust-analyzer**: Language server for IDE support
 - **Rust syntax highlighting**: For your preferred editor
 
 **Recommended:**
+
 - **CodeLLDB** or **GDB**: Debugging support
 - **Even Better TOML**: TOML file support
 - **Markdown linting**: For documentation
@@ -147,6 +149,7 @@ winget install LLVM.LLVM
 See `.vscode/settings.json` for project-specific settings.
 
 Key configurations:
+
 - Rust analyzer with Clippy integration
 - Format on save enabled
 - Recommended extensions in `.vscode/extensions.json`
