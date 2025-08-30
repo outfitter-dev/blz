@@ -2,8 +2,8 @@ use crate::{Error, LlmsJson, Result, Source};
 use chrono::Utc;
 use directories::ProjectDirs;
 use std::fs;
-use std::path::PathBuf;
-use tracing::{debug, info};
+use std::path::{Path, PathBuf};
+use tracing::{debug, info, warn};
 
 pub struct Storage {
     root_dir: PathBuf,
@@ -11,10 +11,14 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
 
         let root_dir = project_dirs.data_dir().to_path_buf();
+
+        // Check for migration from old cache directory
+        Self::check_and_migrate_old_cache(&root_dir)?;
+
         Self::with_root(root_dir)
     }
 
@@ -120,8 +124,16 @@ impl Storage {
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_txt_path(alias)?;
-        fs::write(&path, content)
+
+        // Write to temporary file first for atomic operation
+        let tmp_path = path.with_extension("txt.tmp");
+        fs::write(&tmp_path, content)
             .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {e}")))?;
+
+        // Atomically rename temp file to final location
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to commit llms.txt: {e}")))?;
+
         debug!("Saved llms.txt for {}", alias);
         Ok(())
     }
@@ -137,8 +149,16 @@ impl Storage {
         let path = self.llms_json_path(alias)?;
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| Error::Storage(format!("Failed to serialize JSON: {e}")))?;
-        fs::write(&path, json)
+
+        // Write to temporary file first for atomic operation
+        let tmp_path = path.with_extension("json.tmp");
+        fs::write(&tmp_path, json)
             .map_err(|e| Error::Storage(format!("Failed to write llms.json: {e}")))?;
+
+        // Atomically rename temp file to final location
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to commit llms.json: {e}")))?;
+
         debug!("Saved llms.json for {}", alias);
         Ok(())
     }
@@ -230,6 +250,107 @@ impl Storage {
         }
 
         info!("Archived {} at {}", alias, timestamp);
+        Ok(())
+    }
+
+    /// Check for old cache directory and migrate if needed
+    fn check_and_migrate_old_cache(new_root: &Path) -> Result<()> {
+        // Try to find the old cache directory
+        let old_project_dirs = ProjectDirs::from("dev", "outfitter", "cache");
+
+        if let Some(old_dirs) = old_project_dirs {
+            let old_root = old_dirs.data_dir();
+
+            // Check if old directory exists and has content
+            if old_root.exists() && old_root.is_dir() {
+                // Check if there's actually content to migrate (look for llms.json files)
+                let has_content = fs::read_dir(old_root)
+                    .map(|entries| {
+                        entries
+                            .filter_map(std::result::Result::ok)
+                            .any(|entry| {
+                                let path = entry.path();
+                                if !path.is_dir() {
+                                    return false;
+                                }
+                                let has_llms_json = path.join("llms.json").exists();
+                                let has_llms_txt = path.join("llms.txt").exists();
+                                let has_metadata = path.join("metadata.json").exists();
+                                has_llms_json || has_llms_txt || has_metadata
+                            })
+                    })
+                    .unwrap_or(false);
+                if has_content {
+                    // Check if new directory already exists with content
+                    if new_root.exists()
+                        && fs::read_dir(new_root)
+                            .map(|mut e| e.next().is_some())
+                            .unwrap_or(false)
+                    {
+                        // New directory already has content, just log a warning
+                        warn!(
+                            "Found old cache at {} but new cache at {} already exists. \
+                             Manual migration may be needed if you want to preserve old data.",
+                            old_root.display(),
+                            new_root.display()
+                        );
+                    } else {
+                        // Attempt migration
+                        info!(
+                            "Migrating cache from old location {} to new location {}",
+                            old_root.display(),
+                            new_root.display()
+                        );
+
+                        if let Err(e) = Self::migrate_directory(old_root, new_root) {
+                            // Log warning but don't fail - let the user continue with fresh cache
+                            warn!(
+                                "Could not automatically migrate cache: {}. \
+                                 Starting with fresh cache at {}. \
+                                 To manually migrate, copy contents from {} to {}",
+                                e,
+                                new_root.display(),
+                                old_root.display(),
+                                new_root.display()
+                            );
+                        } else {
+                            info!("Successfully migrated cache to new location");
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Recursively copy directory contents from old to new location
+    fn migrate_directory(from: &Path, to: &Path) -> Result<()> {
+        // Create target directory if it doesn't exist
+        fs::create_dir_all(to)
+            .map_err(|e| Error::Storage(format!("Failed to create migration target: {e}")))?;
+
+        // Copy all entries
+        for entry in fs::read_dir(from)
+            .map_err(|e| Error::Storage(format!("Failed to read migration source: {e}")))?
+        {
+            let entry = entry
+                .map_err(|e| Error::Storage(format!("Failed to read directory entry: {e}")))?;
+            let path = entry.path();
+            let file_name = entry.file_name();
+            let target_path = to.join(&file_name);
+
+            if path.is_dir() {
+                // Recursively copy subdirectory
+                Self::migrate_directory(&path, &target_path)?;
+            } else {
+                // Copy file
+                fs::copy(&path, &target_path).map_err(|e| {
+                    Error::Storage(format!("Failed to copy file during migration: {e}"))
+                })?;
+            }
+        }
+
         Ok(())
     }
 }
