@@ -82,7 +82,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ./scripts/lint.sh
 
 # Auto-fix some Clippy issues
-cargo clippy --fix
+cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
 ```
 
 ### Performance Testing

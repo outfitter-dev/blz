@@ -8,7 +8,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # 1. Initial check with JSON diagnostics
 echo "📋 Collecting diagnostics..."
-cargo check --message-format=json 2>/dev/null > "$TEMP_DIR/diagnostics.json" || true
+cargo check --workspace --all-targets --message-format=json 2>/dev/null > "$TEMP_DIR/diagnostics.json" || true
 
 # 2. Count errors and warnings
 if command -v jq >/dev/null; then
@@ -105,7 +105,7 @@ if command -v jq >/dev/null; then
 else
     echo "⚠️  jq not found - install for better diagnostics parsing"
     echo "Running basic checks..."
-    cargo check
+    cargo check --workspace --all-targets
 fi
 
 echo "✅ Agent check complete"

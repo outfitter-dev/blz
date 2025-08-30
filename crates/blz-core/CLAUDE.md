@@ -111,7 +111,7 @@ impl SearchCache {
         // Collect results...
         let mut results = Vec::new();
         for handle in handles {
-            // JoinError -> anyhow::Error, then inner Result
+            // JoinError -> anyhow::Error, then inner Result  
             results.push(handle.await??);
         }
         results

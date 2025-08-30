@@ -6,14 +6,14 @@ This project forbids unsafe code by default:
 
 ```toml
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 ```
 
 ## When Unsafe Might Be Needed
 
 Unsafe code should only be considered in extreme circumstances:
 
-1. **Performance-critical paths** where profiling shows unsafe provides >2x improvement
+1. **Performance-critical paths** where profiling shows unsafe provides a >2x improvement
 2. **FFI requirements** for C library integration
 3. **Platform-specific operations** not available through safe Rust
 
@@ -52,7 +52,8 @@ Always prefer safe alternatives:
 unsafe { std::slice::from_raw_parts(ptr, len) }
 
 // ✅ Safe slice operations
-buffer.get(offset..offset + len).ok_or(Error::BufferOverflow)?
+let end = offset.checked_add(len).ok_or(Error::BufferOverflow)?;
+buffer.get(offset..end).ok_or(Error::BufferOverflow)?
 ```
 
 ## Current Status

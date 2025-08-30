@@ -396,43 +396,20 @@ impl McpServer {
 use tokio::net::TcpListener;
 use tracing::{info, error};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-    
-    let host = std::env::var("MCP_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = std::env::var("MCP_PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse::<u16>()?;
-    
-    let listener = TcpListener::bind(format!("{}:{}", host, port)).await?;
-    info!("MCP Server listening on {}:{}", host, port);
-    
-    let mut server = McpServer::new();
-    
+async fn run_server(listener: TcpListener, mut server: McpServer) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        match listener.accept().await {
-            Ok((stream, addr)) => {
-                info!("New connection from: {}", addr);
-                
-                // Clone server state for this connection
-                // Note: In production, you might want connection pooling
-                let server_handle = server.clone(); // Assume server implements Clone or use Arc
-                tokio::spawn(async move {
-                    if let Err(e) = server_handle.handle_connection(stream).await {
-                        error!("Error handling connection {}: {}", addr, e);
-                    } else {
-                        info!("Connection {} closed", addr);
-                    }
-                });
+        let (stream, addr) = listener.accept().await?;
+        info!("New connection from: {}", addr);
+        
+        // Clone server state for this connection  
+        let server_handle = server.clone(); // Assume server implements Clone or use Arc
+        tokio::spawn(async move {
+            if let Err(e) = server_handle.handle_connection(stream).await {
+                error!("Error handling connection {}: {}", addr, e);
+            } else {
+                info!("Connection {} closed", addr);
             }
-            Err(e) => {
-                error!("Failed to accept connection: {}", e);
-            }
-        }
+        });
     }
 }
 ```
@@ -476,18 +453,32 @@ impl McpServer {
 // Signal handling for graceful shutdown
 use tokio::signal;
 
-#[tokio::main]
+// Signal handling version (single entry point)
+#[tokio::main] 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut server = McpServer::new();
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+    
+    let host = std::env::var("MCP_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("MCP_PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse::<u16>()?;
+    
+    let listener = TcpListener::bind(format!("{}:{}", host, port)).await?;
+    info!("MCP Server listening on {}:{}", host, port);
+    
+    let server = McpServer::new();
     
     // Set up signal handling
     tokio::select! {
-        _ = run_server(&mut server) => {
+        _ = run_server(listener, server) => {
             info!("Server stopped");
         }
         _ = signal::ctrl_c() => {
             info!("Received Ctrl+C, shutting down...");
-            server.shutdown().await;
+            // Graceful shutdown would be handled in run_server
         }
     }
     
@@ -569,7 +560,7 @@ mod tests {
         assert!(response.result.is_some());
         
         let result = response.result.unwrap();
-        assert_eq!(result["protocolVersion"], "0.1.0");
+        assert_eq!(result["protocolVersion"], "2024-11-05");
         assert!(result["capabilities"]["tools"].is_object());
     }
 }
