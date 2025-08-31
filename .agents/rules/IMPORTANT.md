@@ -6,5 +6,5 @@ Core rules for blz (Rust-based local search for llms.txt documentation).
 
 - @CORE.md - Engineering principles and identity
 - @STYLEGUIDE.md - Writing tone, voice, and documentation standards
-- @GRAPHITE.md - Source control guidelines
+- @SOURCE-CONTROL.md - Source control guidelines
 - @WORKLOGS.md - Work logging and tracking

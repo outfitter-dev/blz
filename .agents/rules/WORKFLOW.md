@@ -141,7 +141,7 @@ gt submit --stack
 
 ### Commit Guidelines
 
-Follow conventional commits (see @conventions/commits.md) with Graphite:
+Follow conventional commits (see @SOURCE-CONTROL.md) with Graphite:
 
 ```bash
 # Create commits with Graphite (preferred)

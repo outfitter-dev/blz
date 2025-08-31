@@ -10,7 +10,7 @@
 
 ## Conventions
 
-- @conventions/commits.md - Commit message guidelines
+- @SOURCE-CONTROL.md - Source control, commits, and PR guidelines
 - @conventions/cargo.md - Cargo workspace configuration
 - @conventions/rust.md - Rust coding standards
 - @conventions/tantivy.md - Search index best practices
@@ -21,6 +21,15 @@
 - @WORKFLOW.md - Development workflow and processes
 - @CODE-ORGANIZATION.md - Module structure and code organization
 - @QUALITY.md - Quality assurance and review practices
+
+## Documentation Maintenance
+
+### Keep AGENTS.md/CLAUDE.md in sync
+
+When making significant changes:
+1. Update `./AGENTS.md` with new patterns or architecture changes
+2. Run `./.agents/scripts/sync-agents-md.sh` to sync to CLAUDE.md files
+3. AGENTS.md is the source of truth - always edit it, not CLAUDE.md
 
 ## Quick Start
 

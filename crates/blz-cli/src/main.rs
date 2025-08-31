@@ -44,6 +44,8 @@ async fn main() -> Result<()> {
 fn initialize_logging(cli: &Cli) -> Result<()> {
     let level = if cli.verbose || cli.debug {
         Level::DEBUG
+    } else if cli.quiet {
+        Level::ERROR
     } else {
         Level::INFO
     };
@@ -182,7 +184,7 @@ fn print_diagnostics(
     }
 
     if cli.profile {
-        if let Some(ref mut monitor) = resource_monitor {
+        if let Some(monitor) = resource_monitor {
             monitor.print_resource_usage();
         }
     }
@@ -192,7 +194,7 @@ fn print_diagnostics(
 mod tests {
     use super::*;
     use crate::utils::constants::RESERVED_KEYWORDS;
-    use crate::utils::parsing::{parse_line_ranges, LineRange};
+    use crate::utils::parsing::{LineRange, parse_line_ranges};
     use crate::utils::validation::validate_alias;
     use std::collections::HashSet;
 

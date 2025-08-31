@@ -1,8 +1,8 @@
 # Rust formatting configuration for blz
 # Only stable features to avoid warnings
 
-# Use the 2021 edition style
-edition = "2021"
+# Use the 2024 edition style
+edition = "2024"
 
 # Line width
 max_width = 100

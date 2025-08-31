@@ -1,15 +1,15 @@
 //! Comprehensive benchmarks for performance optimizations
 
 use blz_core::{
+    HeadingBlock, PerformanceMetrics, SearchIndex,
     cache::{CacheConfig, MultiLevelCache, SearchCache},
     memory_pool::MemoryPool,
     optimized_index::OptimizedSearchIndex,
     string_pool::StringPool,
-    HeadingBlock, PerformanceMetrics, SearchIndex,
 };
 use criterion::{
-    black_box, criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId,
-    Criterion, Throughput,
+    BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
+    measurement::WallTime,
 };
 use std::time::Duration;
 use tempfile::TempDir;

@@ -18,77 +18,75 @@
 
 ## Examples
 
-- `202508291015-recap-daily.md`
-- `202508291020-checkpoint-session.md`
-- `202508291030-review-pr-58-followups.md`
-- `202508291040-debug-indexer-deadlock-investigation.md`
-- `202508291050-refactor-storage-paths.md`
-- `202508291100-feature-mcp-server-stub.md`
-- `202508291110-migration-config-layout-v2.md`
+### Checkpoint Session
+```bash
+.agents/scripts/new-log.sh --type checkpoint --desc "coderabbit fixes implementation"
+# Creates: 202508291345-checkpoint-coderabbit-fixes-implementation.md
+```
+
+### Daily Recap
+```bash
+.agents/scripts/new-log.sh --type recap --desc "daily development"
+# Creates: 202508291800-recap-daily-development.md
+```
 
 ## Templates
 
-Available templates in `.agents/logs/templates/`:
+### Checkpoint Template
+```markdown
+# Checkpoint: [Brief Description]
 
-- [`CHECKPOINT.md`](templates/CHECKPOINT.md) - Session checkpoints with comprehensive state tracking
-- [`RECAP.md`](templates/RECAP.md) - Daily development recaps
-- [`REVIEW.md`](templates/REVIEW.md) - PR review notes and fixes
-- [`DEBUG.md`](templates/DEBUG.md) - Debugging sessions and investigations
-- [`REFACTOR.md`](templates/REFACTOR.md) - Major refactoring sessions
-- [`FEATURE.md`](templates/FEATURE.md) - Feature implementation logs
-- [`MIGRATION.md`](templates/MIGRATION.md) - Migrations or upgrades
-- [`BRANCHWORK.md`](templates/BRANCHWORK.md) - Branch lifecycle tracking (PR creation through merge)
+## Session Summary
+[2-3 sentences about what was accomplished]
 
-## Scripts & Automation
+## Files Changed
+- `path/file.rs` - [Brief description]
 
-### Creating New Logs
+## Key Decisions
+1. [Decision and rationale]
 
-Use `.agents/scripts/new-log.sh` to create logs from templates:
+## Current State
+- [Status of main features/work]
+- [Any blocking issues]
 
-```bash
-# Basic usage
-./agents/scripts/new-log.sh --type checkpoint --desc "session-summary"
+## Next Steps
+1. [Priority task]
 
-# With PR and Linear ticket
-./agents/scripts/new-log.sh --type review --desc "pr-fixes" --pr 61 --linear BLZ-23
-
-# With local timezone
-./agents/scripts/new-log.sh --type debug --desc "indexer-deadlock" --local
+## Notes for Next Agent
+[Important context or warnings]
 ```
 
-**What it does:**
+### Recap Template
+```markdown
+# Daily Recap: [Date]
 
-- Creates file: `YYYYMMDDHHmm-[type]-[slug].md` in `.agents/logs/`
-- Auto-fills frontmatter: `date`, `branch`, `slug`, `pr`/`issue` (when present)
-- Auto-detects PR number via `gh` or `gt` if not provided
-- Strips example sections from templates
+## Summary
+[Overall progress]
 
-**Options:**
+## Completed
+- [ ] Task 1
+- [ ] Task 2
 
-- `--type <type>` - One of: checkpoint, review, debug, feature, migration, recap, refactor
-- `--desc "description"` - Short description for filename and slug
-- `--pr <number>` - GitHub PR number (auto-detected if omitted)
-- `--linear <id>` - Linear ticket ID (e.g., BLZ-23)
-- `--local` - Use local timezone (default: UTC)
+## In Progress
+- [ ] Task with status
 
-### Getting Timestamps
+## Blockers
+- [Any blocking issues]
 
-Use `.agents/scripts/get-date.sh` for consistent timestamps:
-
-```bash
-# Current UTC timestamp
-./agents/scripts/get-date.sh  # → 202508291830
-
-# Current local timestamp
-./agents/scripts/get-date.sh --local  # → 202508291030
-
-# From file metadata (creation → first commit → now)
-./agents/scripts/get-date.sh --file README.md
+## Tomorrow's Priorities
+1. [Priority 1]
 ```
 
-- ### Branchwork (Per-Branch Worklog)
+## Branchwork (Per-Branch Worklog)
 
-- Live file (not tracked): `.agents/logs/CURRENT.md` symlink → `branchwork/CURRENT-<branch>.md`
+Per-branch worklog that all agents use. Lives at `.agents/logs/CURRENT.md` (symlink).
+
+### Auto-features
+- Auto-creates on first use
+- Auto-archives on PR merge via CI
+- Tracks branch, PR stack position, issues
+
+### Commands
 - Create: `.agents/scripts/branchwork.sh create` (sets date, branch, PR, stack pos)
 - Update items/blocks/log entries:
   - `.agents/scripts/branchwork.sh update --section "Merge Checklist" --item "Squash commits"`

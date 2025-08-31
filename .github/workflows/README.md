@@ -24,7 +24,6 @@ This directory contains automated workflows for the blz Rust project.
 - `just *` - Justfile commands
 
 **Custom Instructions**:
-
 - Follows `.agents/rules/DEVELOPMENT.md`
 - Ensures clippy compliance
 - Requires tests for new functionality

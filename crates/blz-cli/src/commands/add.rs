@@ -129,7 +129,10 @@ async fn fetch_and_index(
         } => (content, sha256, etag, last_modified),
         blz_core::FetchResult::NotModified { .. } => {
             // Defensive: should not happen on initial fetch, but handle gracefully
-            anyhow::bail!("Server returned 304 Not Modified on initial fetch for '{}'; please retry or verify the URL", url)
+            anyhow::bail!(
+                "Server returned 304 Not Modified on initial fetch for '{}'; please retry or verify the URL",
+                url
+            )
         },
     };
     pb.set_message("Parsing markdown");
