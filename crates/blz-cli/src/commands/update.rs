@@ -1,6 +1,6 @@
 //! Update command implementation
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use blz_core::{
     FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser, PerformanceMetrics, ResourceMonitor,
     SearchIndex, Source, Storage,

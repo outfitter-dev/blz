@@ -2,11 +2,11 @@
 #![allow(clippy::cast_possible_wrap)] // Wrapping is acceptable for memory delta calculations
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use sysinfo::System;
-use tracing::{debug, info, span, Level};
+use tracing::{Level, debug, info, span};
 
 /// Global performance metrics collector
 #[derive(Debug, Clone)]

@@ -6,9 +6,9 @@
 //! - Fuzzy matching performance
 //! - Concurrent search operations
 
-use blz_core::registry::RegistryEntry;
 use blz_core::Registry;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use blz_core::registry::RegistryEntry;
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -120,8 +120,14 @@ fn bench_search_query_sizes(c: &mut Criterion) {
         (5, "react"),
         (10, "javascript"),
         (20, "javascript framework"),
-        (50, "modern javascript framework for building user interfaces"),
-        (100, "a very long search query that contains many words to test the performance of the fuzzy matching algorithm when dealing with large query strings that might be encountered in real world usage"),
+        (
+            50,
+            "modern javascript framework for building user interfaces",
+        ),
+        (
+            100,
+            "a very long search query that contains many words to test the performance of the fuzzy matching algorithm when dealing with large query strings that might be encountered in real world usage",
+        ),
     ];
 
     for (size, query) in query_sizes {

@@ -981,14 +981,18 @@ mod tests {
 
         // Then: Unicode should be preserved correctly
         assert_eq!(deserialized.defaults.allowlist.len(), 4);
-        assert!(deserialized
-            .defaults
-            .allowlist
-            .contains(&"例え.com".to_string()));
-        assert!(deserialized
-            .defaults
-            .allowlist
-            .contains(&"🚀.test.com".to_string()));
+        assert!(
+            deserialized
+                .defaults
+                .allowlist
+                .contains(&"例え.com".to_string())
+        );
+        assert!(
+            deserialized
+                .defaults
+                .allowlist
+                .contains(&"🚀.test.com".to_string())
+        );
         assert_eq!(deserialized.paths.root, PathBuf::from("/tmp/测试"));
 
         Ok(())

@@ -1,5 +1,5 @@
 use crate::{Error, Result};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use reqwest::header::{CONTENT_LENGTH, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use reqwest::{Client, StatusCode};
 use sha2::{Digest, Sha256};
@@ -304,8 +304,8 @@ mod tests {
     use super::*;
     use std::time::Duration;
     use wiremock::{
-        matchers::{header, method, path},
         Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path},
     };
 
     #[test]

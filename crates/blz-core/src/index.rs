@@ -3,9 +3,9 @@ use crate::{Error, HeadingBlock, Result, SearchHit};
 use std::path::Path;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, Value, STORED, STRING, TEXT};
-use tantivy::{doc, Index, IndexReader};
-use tracing::{debug, info, Level};
+use tantivy::schema::{Field, STORED, STRING, Schema, TEXT, Value};
+use tantivy::{Index, IndexReader, doc};
+use tracing::{Level, debug, info};
 
 pub struct SearchIndex {
     index: Index,

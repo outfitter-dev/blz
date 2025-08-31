@@ -5,7 +5,7 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
-use crate::utils::parsing::{parse_line_ranges, LineRange};
+use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
 pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result<()> {

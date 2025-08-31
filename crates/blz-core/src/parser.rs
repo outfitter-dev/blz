@@ -791,9 +791,11 @@ Unclosed code block
         // Verify TOC structure
         assert!(!result.toc.is_empty());
         let top_level = &result.toc[0];
-        assert!(top_level
-            .heading_path
-            .contains(&"Getting Started".to_string()));
+        assert!(
+            top_level
+                .heading_path
+                .contains(&"Getting Started".to_string())
+        );
 
         Ok(())
     }
@@ -828,11 +830,13 @@ Unclosed code block
         // Then: Should handle gracefully
         assert_eq!(result.line_count, 0);
         assert!(result.heading_blocks.len() <= 1); // May have default "Document" block
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("No headings found")
-                || d.severity == DiagnosticSeverity::Warn));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("No headings found")
+                    || d.severity == DiagnosticSeverity::Warn)
+        );
 
         Ok(())
     }
@@ -860,10 +864,12 @@ But no headings at all.
         assert_eq!(block.content.trim(), no_headings.trim());
 
         // Should have diagnostic warning
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("No headings found")));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("No headings found"))
+        );
 
         Ok(())
     }
@@ -976,9 +982,11 @@ Different content for section B.
             .find(|block| block.path.contains(&"Section B".to_string()))
             .expect("Section B should be found");
 
-        assert!(section_b
-            .content
-            .contains("Different content for section B"));
+        assert!(
+            section_b
+                .content
+                .contains("Different content for section B")
+        );
 
         Ok(())
     }

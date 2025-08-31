@@ -365,10 +365,12 @@ mod tests {
             .expect("Should save llms.txt");
 
         // Verify file exists
-        assert!(storage
-            .llms_txt_path("react")
-            .expect("Should get path")
-            .exists());
+        assert!(
+            storage
+                .llms_txt_path("react")
+                .expect("Should get path")
+                .exists()
+        );
 
         // Load content
         let loaded_content = storage
@@ -389,10 +391,12 @@ mod tests {
             .expect("Should save llms.json");
 
         // Verify file exists
-        assert!(storage
-            .llms_json_path("react")
-            .expect("Should get path")
-            .exists());
+        assert!(
+            storage
+                .llms_json_path("react")
+                .expect("Should get path")
+                .exists()
+        );
 
         // Load JSON
         let loaded_json = storage
