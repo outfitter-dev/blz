@@ -55,14 +55,6 @@ Use `.agents/scripts/get-date.sh` for consistent timestamps:
 ./.agents/scripts/get-date.sh --file README.md
 ```
 
-### Branchwork (Per-Branch Tracking)
-
-For tracking work across a branch's lifecycle (not yet scripted):
-
-1. Create `.agents/logs/CURRENT.md` from `BRANCHWORK.md` template when starting branch
-2. Append updates chronologically throughout development
-3. After merge, archive to `.agents/logs/branchwork/YYYYMMDDHHmm-branch-name.md`
-
 ## Templates
 
 - [`CHECKPOINT.md`](./.agents/logs/templates/CHECKPOINT.md): Session checkpoints with comprehensive state tracking
@@ -72,4 +64,3 @@ For tracking work across a branch's lifecycle (not yet scripted):
 - [`REFACTOR.md`](./.agents/logs/templates/REFACTOR.md): Major refactoring sessions
 - [`FEATURE.md`](./.agents/logs/templates/FEATURE.md): Feature implementation logs
 - [`MIGRATION.md`](./.agents/logs/templates/MIGRATION.md): Migrations or upgrades
-- [`BRANCHWORK.md`](./.agents/logs/templates/BRANCHWORK.md): Branch lifecycle tracking (PR creation through merge)

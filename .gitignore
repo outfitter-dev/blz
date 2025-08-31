@@ -67,3 +67,6 @@ coverage/
 
 # Branchwork live symlink (not tracked)
 .agents/logs/CURRENT.md
+
+# Branchwork directory (temporary location for branchwork docs)
+.branchwork

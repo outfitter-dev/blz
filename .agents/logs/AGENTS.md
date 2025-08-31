@@ -77,21 +77,3 @@
 1. [Priority 1]
 ```
 
-## Branchwork (Per-Branch Worklog)
-
-Per-branch worklog that all agents use. Lives at `.agents/logs/CURRENT.md` (symlink).
-
-### Auto-features
-- Auto-creates on first use
-- Auto-archives on PR merge via CI
-- Tracks branch, PR stack position, issues
-
-### Commands
-- Create: `.agents/scripts/branchwork.sh create` (sets date, branch, PR, stack pos)
-- Update items/blocks/log entries:
-  - `.agents/scripts/branchwork.sh update --section "Merge Checklist" --item "Squash commits"`
-  - `.agents/scripts/branchwork.sh update --section "Decisions" --code ./notes.md --lang markdown`
-  - `.agents/scripts/branchwork.sh update --log "Addressed review: fixed deadlock ordering"`
-- Refresh PR stack context from Graphite (compact): `.agents/scripts/branchwork.sh refresh`
-- Archive manually: `.agents/scripts/branchwork.sh archive`
-- CI auto-archives on PR merge to `branchwork/YYYYMMDDHHmm-<branch>.md`
