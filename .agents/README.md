@@ -32,18 +32,6 @@ Purpose: Centralized, maintainable structure for agent-generated documentation a
 - Session summary: use `checkpoint-` (replaces `handoff-`)
 - Archive old/obsolete logs to `logs/.archive/` (keep `.gitkeep`)
 
-## Branchwork (Per-Branch Worklog)
-- Create or update the branch worklog that all agents use on a feature branch.
-- Live file (not tracked): `.agents/logs/CURRENT.md` symlink → `.agents/logs/branchwork/CURRENT-<branch>.md`
-- On merge, CI archives to `.agents/logs/branchwork/YYYYMMDDHHmm-<branch>.md` automatically.
-
-Commands:
-- Create: `just branchwork create` (or `.agents/scripts/branchwork.sh create`)
-- Update items: `just branchwork update --section "Merge Checklist" --item "Squash commits"`
-- Add code block: `just branchwork update --section "Decisions" --code ./notes.md --lang markdown`
-- Log an update: `just branchwork log "Addressed review: fixed deadlock ordering"`
-- Refresh PR stack: `just branchwork refresh`
-- Archive (manual): `just branchwork archive`
 
 ## Git Tracking
 - `.agents` is tracked
