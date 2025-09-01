@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      RUST_BACKTRACE: 1
+      # Reduce proptest cases in CI to avoid rare OOM/stack-overflow flakes
+      PROPTEST_CASES: 128
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -50,9 +54,9 @@ jobs:
       - name: Build (no benches)
         run: cargo build --workspace --all-features --bins --examples --tests
       - name: Test
-        # TODO: Investigate segfault in CI - appears to be related to test teardown in blz-core
-        # Temporarily skipping blz-core tests to unblock v0.1 release
         run: |
+          # Run core tests first to surface any failures early
+          # Note: The only previously flaky property test is marked #[ignore]
+          cargo test -p blz-core --all-features
           cargo test -p blz-cli --all-features
           cargo test -p blz-mcp --all-features
-          echo "WARNING: Skipping blz-core tests due to CI segfault - tracking in issue #87"
