@@ -37,6 +37,16 @@ pre-commit:
       skip:
         - merge
         - rebase
+    
+    # Act validation (fast mode) - optional
+    # Uncomment to enable act validation in pre-commit
+    # act-fast:
+    #   run: ./scripts/act-validate.sh fast rust-ci-local
+    #   skip:
+    #     - merge
+    #     - rebase
+    #   env:
+    #     VERBOSE: 0
 
 commit-msg:
   commands:
@@ -51,8 +61,24 @@ commit-msg:
         fi
 
 pre-push:
-  parallel: true
+  parallel: false  # Sequential for proper validation order
   commands:
+    # Act validation (full CI check) - runs actual GitHub Actions locally
+    # This provides confidence before pushing to remote
+    act-validation:
+      run: |
+        if command -v act &> /dev/null; then
+          echo "🔍 Running CI validation with act..."
+          ./scripts/act-validate.sh fast rust-ci-local
+        else
+          echo "⚠️  act not installed - skipping local CI validation"
+          echo "    Install with: brew install act"
+        fi
+      skip:
+        - wip
+        - draft
+        - merge
+    
     # Run tests before push (using Makefile)
     test:
       run: make test

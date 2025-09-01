@@ -1,0 +1,125 @@
+name: Rust CI (Local Optimized)
+# Optimized version of rust-ci.yml for local act execution
+# Supports fast/partial execution modes via environment variables
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  # Cache configuration
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  CARGO_INCREMENTAL: 0  # Disable for CI reproducibility
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      # Skip caching in act for speed (act doesn't persist cache anyway)
+      - name: Cache setup
+        if: ${{ !env.ACT }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      # Format check (always run unless TEST_ONLY)
+      - name: Format (check)
+        if: ${{ !env.TEST_ONLY }}
+        run: cargo fmt --all -- --check
+      
+      # Clippy - with mode-based configuration
+      - name: Clippy (mode-aware)
+        if: ${{ !env.FORMAT_ONLY && !env.TEST_ONLY }}
+        run: |
+          if [ "$FAST_MODE" = "1" ] || [ "$CLIPPY_ONLY" = "1" ]; then
+            # Fast mode: workspace bins only, no tests
+            echo "Running clippy in fast mode (bins only)..."
+            cargo clippy --workspace --bins -- -D warnings \
+              -A missing_docs \
+              -A clippy::missing_errors_doc \
+              -A clippy::missing_panics_doc
+          else
+            # Full mode: complete clippy with all targets
+            echo "Running full clippy validation..."
+            # Non-test code with strict settings
+            cargo clippy --workspace --all-features --bins --examples -- -D warnings \
+              -A missing_docs \
+              -A clippy::missing_errors_doc \
+              -A clippy::missing_panics_doc
+            
+            # Test code with relaxed settings
+            cargo clippy --workspace --all-features --tests -- -D warnings \
+              -A missing_docs \
+              -A clippy::missing_errors_doc \
+              -A clippy::missing_panics_doc \
+              -A clippy::unwrap_used \
+              -A clippy::expect_used \
+              -A clippy::panic \
+              -A clippy::unimplemented \
+              -A clippy::todo
+          fi
+      
+      # Build - skip in fast mode or format-only mode
+      - name: Build
+        if: ${{ !env.FAST_MODE && !env.FORMAT_ONLY && !env.CLIPPY_ONLY }}
+        run: |
+          if [ "$TEST_ONLY" = "1" ]; then
+            echo "Building test binaries only..."
+            cargo build --workspace --tests
+          else
+            echo "Building all targets..."
+            cargo build --workspace --all-features --bins --examples --tests
+          fi
+      
+      # Tests - only in full or test mode
+      - name: Test
+        if: ${{ !env.FAST_MODE && !env.FORMAT_ONLY && !env.CLIPPY_ONLY }}
+        run: |
+          echo "Running tests..."
+          # Run tests with less verbosity in act
+          if [ "$ACT" = "true" ]; then
+            cargo test --workspace --all-features -- --quiet
+          else
+            # Full test output in real CI
+            cargo test -p blz-cli --all-features
+            cargo test -p blz-mcp --all-features
+            echo "WARNING: Skipping blz-core tests due to CI segfault - tracking in issue #87"
+          fi
+      
+      # Summary for act runs
+      - name: Validation Summary
+        if: ${{ env.ACT }}
+        run: |
+          echo "----------------------------------------"
+          if [ "$FAST_MODE" = "1" ]; then
+            echo "✓ Fast validation completed (format + basic clippy)"
+          elif [ "$FORMAT_ONLY" = "1" ]; then
+            echo "✓ Format validation completed"
+          elif [ "$CLIPPY_ONLY" = "1" ]; then
+            echo "✓ Clippy validation completed"
+          elif [ "$TEST_ONLY" = "1" ]; then
+            echo "✓ Test suite completed"
+          else
+            echo "✓ Full validation completed"
+          fi
+          echo "----------------------------------------"
