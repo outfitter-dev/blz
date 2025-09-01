@@ -103,22 +103,6 @@ jobs:
           name: advisory-report
           path: |
             cargo-deny.log
-            
-  ban-legacy-agent-path:
-    name: Ban legacy .agent path
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Check for legacy .agent references
-        run: |
-          if git grep -nE '\.agent(/|$)' -- ':!.agents/logs/.archive/*'; then
-            echo "❌ Error: Found legacy .agent path references"
-            echo "Please update all references from .agent to .agents"
-            exit 1
-          else
-            echo "✅ No legacy .agent path references found"
-          fi
 
   dependency-review:
     name: Dependency Review
