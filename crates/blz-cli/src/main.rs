@@ -4,7 +4,7 @@
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
 use anyhow::Result;
-use blz_core::{PerformanceMetrics, ResourceMonitor};
+use blz_core::PerformanceMetrics;
 use clap::Parser;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -26,17 +26,16 @@ async fn main() -> Result<()> {
     initialize_logging(&cli)?;
 
     let metrics = PerformanceMetrics::default();
-    let mut resource_monitor = create_resource_monitor(&cli);
 
     #[cfg(feature = "flamegraph")]
     let profiler_guard = start_flamegraph_if_requested(&cli);
 
-    execute_command(cli.clone(), metrics.clone(), resource_monitor.as_mut()).await?;
+    execute_command(cli.clone(), metrics.clone()).await?;
 
     #[cfg(feature = "flamegraph")]
     stop_flamegraph_if_started(profiler_guard);
 
-    print_diagnostics(&cli, &metrics, &mut resource_monitor);
+    print_diagnostics(&cli, &metrics);
 
     Ok(())
 }
@@ -61,14 +60,6 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn create_resource_monitor(cli: &Cli) -> Option<ResourceMonitor> {
-    if cli.profile {
-        Some(ResourceMonitor::new())
-    } else {
-        None
-    }
-}
-
 #[cfg(feature = "flamegraph")]
 fn start_flamegraph_if_requested(cli: &Cli) -> Option<pprof::ProfilerGuard<'static>> {
     if cli.flamegraph {
@@ -90,28 +81,24 @@ fn start_flamegraph_if_requested(cli: &Cli) -> Option<pprof::ProfilerGuard<'stat
 #[cfg(feature = "flamegraph")]
 fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     if let Some(guard) = guard {
-        if let Err(e) = stop_profiling_and_report(guard) {
+        if let Err(e) = stop_profiling_and_report(&guard) {
             eprintln!("Failed to generate flamegraph: {e}");
         }
     }
 }
 
-async fn execute_command(
-    cli: Cli,
-    metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
-) -> Result<()> {
+async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
     match cli.command {
         Some(Commands::Completions { shell }) => {
             commands::generate(shell);
         },
 
         Some(Commands::Add { alias, url, yes }) => {
-            commands::add_source(&alias, &url, yes, metrics, resource_monitor).await?;
+            commands::add_source(&alias, &url, yes, metrics).await?;
         },
 
         Some(Commands::Lookup { query }) => {
-            commands::lookup_registry(&query, metrics, resource_monitor).await?;
+            commands::lookup_registry(&query, metrics).await?;
         },
 
         Some(Commands::Search {
@@ -132,7 +119,7 @@ async fn execute_command(
                 top,
                 output,
                 metrics,
-                resource_monitor,
+                None,
             )
             .await?;
         },
@@ -151,9 +138,9 @@ async fn execute_command(
 
         Some(Commands::Update { alias, all }) => {
             if all || alias.is_none() {
-                commands::update_all(metrics, resource_monitor).await?;
+                commands::update_all(metrics).await?;
             } else if let Some(alias) = alias {
-                commands::update_source(&alias, metrics, resource_monitor).await?;
+                commands::update_source(&alias, metrics).await?;
             }
         },
 
@@ -167,26 +154,16 @@ async fn execute_command(
 
         None => {
             // Default search command
-            commands::handle_default_search(&cli.args, metrics, resource_monitor).await?;
+            commands::handle_default_search(&cli.args, metrics, None).await?;
         },
     }
 
     Ok(())
 }
 
-fn print_diagnostics(
-    cli: &Cli,
-    metrics: &PerformanceMetrics,
-    resource_monitor: &mut Option<ResourceMonitor>,
-) {
+fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
     if cli.debug {
         metrics.print_summary();
-    }
-
-    if cli.profile {
-        if let Some(monitor) = resource_monitor {
-            monitor.print_resource_usage();
-        }
     }
 }
 
