@@ -1,7 +1,7 @@
 //! Lookup command implementation for searching registries
 
 use anyhow::Result;
-use blz_core::{PerformanceMetrics, Registry, ResourceMonitor};
+use blz_core::{PerformanceMetrics, Registry};
 use colored::Colorize;
 use dialoguer::{Input, Select};
 use std::io::IsTerminal;
@@ -10,11 +10,7 @@ use crate::commands::add_source;
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
-pub async fn execute(
-    query: &str,
-    metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
-) -> Result<()> {
+pub async fn execute(query: &str, metrics: PerformanceMetrics) -> Result<()> {
     let registry = Registry::new();
 
     println!("Searching registries...");
@@ -28,9 +24,7 @@ pub async fn execute(
     display_results(&results);
 
     // Try interactive selection
-    let selected_entry = if let Ok(entry) = try_interactive_selection(&results) {
-        entry
-    } else {
+    let Some(selected_entry) = try_interactive_selection(&results).ok() else {
         // Not interactive, show instructions
         display_manual_instructions(&results);
         return Ok(());
@@ -38,12 +32,10 @@ pub async fn execute(
 
     // Prompt for alias
     let default_alias = selected_entry.slug.clone();
-    let alias = if let Ok(alias) = try_interactive_alias_input(&default_alias) {
-        alias
-    } else {
+    let alias = try_interactive_alias_input(&default_alias).unwrap_or_else(|_| {
         println!("Using default alias: {}", default_alias.green());
-        default_alias
-    };
+        default_alias.clone()
+    });
 
     let final_alias = alias.trim();
     validate_alias(final_alias)?;
@@ -54,14 +46,7 @@ pub async fn execute(
         selected_entry.llms_url.bright_black()
     );
 
-    add_source(
-        final_alias,
-        &selected_entry.llms_url,
-        false,
-        metrics,
-        resource_monitor,
-    )
-    .await
+    add_source(final_alias, &selected_entry.llms_url, false, metrics).await
 }
 
 fn display_results(results: &[blz_core::registry::RegistrySearchResult]) {
