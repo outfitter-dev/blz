@@ -1,0 +1,5 @@
+error[E0425]: cannot find function `this_function_does_not_exist` in crate `blz_core`
+ --> tests/compile-fail/invalid_api.rs:2:23
+  |
+2 |     let _ = blz_core::this_function_does_not_exist();
+  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in `blz_core`
