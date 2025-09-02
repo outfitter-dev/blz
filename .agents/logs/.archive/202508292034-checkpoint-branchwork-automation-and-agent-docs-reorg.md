@@ -12,7 +12,7 @@ agent: # e.g. claude, codex, cursor, etc.
 
 Implemented a robust agent documentation and worklog workflow:
 
-- Reorganized `.agent` → `.agents` with updated references and docs
+- Reorganized `.agents` → `.agents` with updated references and docs
 - Added log utilities (`get-date.sh`, `new-log.sh`) and branchwork automation
 - Introduced compact, deterministic PR stack context via `gt log`
 - Added CI to archive branchwork docs on PR merge
@@ -25,7 +25,7 @@ Implemented a robust agent documentation and worklog workflow:
 
 ### Done
 
-- Reorganize `.agent` → `.agents`; update references across repo
+- Reorganize `.agents` → `.agents`; update references across repo
 - Migrate memory/docs and logs; standardize filenames (`YYYYMMDDHHmm-[type]-desc.md`)
 - Add `.agents/logs/AGENTS.md` and `CLAUDE.md`; update `.agents/README.md`
 - Add `.agents/scripts/get-date.sh` (UTC default; `--local` flag)
