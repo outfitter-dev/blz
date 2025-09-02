@@ -12,6 +12,9 @@ install-tools:
     echo "Installing dependency management tools..."
     command -v cargo-deny >/dev/null 2>&1 || cargo install cargo-deny
     command -v cargo-shear >/dev/null 2>&1 || cargo install cargo-shear
+    command -v cargo-nextest >/dev/null 2>&1 || cargo install cargo-nextest
+    command -v sccache >/dev/null 2>&1 || cargo install sccache
+    command -v commitlint >/dev/null 2>&1 || cargo install commitlint-rs
     echo "✅ Tools installed successfully"
 
 # Run all dependency checks
@@ -203,3 +206,11 @@ release-prep version:
     fi
     cargo release version {{version}}
     cargo release changes
+
+# Fast bootstrap: install tools, enable sccache, install hooks
+bootstrap-fast:
+    scripts/bootstrap-fast.sh
+
+# Control strict push bypass
+strict-bypass action="status":
+    scripts/hooks-bypass.sh {{action}}

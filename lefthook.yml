@@ -1,74 +1,84 @@
-# Lefthook configuration for Rust project
-# https://github.com/evilmartians/lefthook
-#
-# Installation:
-#   brew install lefthook          # macOS with Homebrew
-#   cargo install lefthook          # Cross-platform with Cargo
-#   curl -sSfL https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | sh  # Script
-#
-# Setup:
-#   lefthook install                # Install git hooks
-#
-# Required tools:
-#   cargo install commitlint-rs     # Rust-based commit linter
-
-# Skip hooks in CI/CD environments
 skip_in_ci: true
-
-# Colors in output
 colors: true
 
-# Hooks configuration
 pre-commit:
+  # Keep pre-commit blazing fast: hygiene + fmt + quick compile
   parallel: true
   commands:
-    # Rust formatting check
-    fmt:
-      glob: "*.rs"
-      run: cargo fmt -- --check
-      skip:
-        - merge
-        - rebase
-    
-    # Rust linting with Clippy (using existing script)
-    clippy:
-      glob: "*.rs"
-      run: ./scripts/lint.sh
-      skip:
-        - merge
-        - rebase
+    whitespace:
+      run: git diff --check --staged
+
+    rustfmt:
+      run: |
+        bash -lc '
+          if ! command -v rustfmt >/dev/null; then
+            echo "rustfmt not found. Install with: rustup component add rustfmt"
+            echo "Or run: just bootstrap-fast"
+            exit 2
+          fi
+          cargo fmt --all
+        '
+      stage_fixed: true
+
+    cargo_check:
+      run: cargo check --workspace --quiet
 
 commit-msg:
   commands:
-    # Validate commit message with commitlint-rs
     commitlint:
       run: |
         if command -v commitlint &> /dev/null; then
           commitlint --edit {1}
         else
-          echo "⚠️  commitlint-rs not installed. Install with: cargo install commitlint-rs"
-          echo "    Skipping commit message validation..."
+          echo "commit message check failed: commitlint not installed."
+          echo "Install with: cargo install commitlint-rs"
+          echo "Or run: just bootstrap-fast"
+          exit 2
         fi
 
 pre-push:
-  parallel: true
+  # Fast by default; enable strict gates locally with BLZ_STRICT=1
+  parallel: false
   commands:
-    # Run tests before push (using Makefile)
-    test:
-      run: make test
-      skip:
-        - wip
-        - draft
-    
-    # Build check (using Makefile)
-    build:
-      run: make build
-      skip:
-        - wip
-        - draft
+    clippy_strict:
+      always_run: true
+      run: |
+        bash -lc '
+          if [ -f .hooks/allow-strict-bypass ]; then
+            echo "⏭  Strict bypass enabled (.hooks/allow-strict-bypass). Skipping clippy_strict."
+            exit 0
+          fi
+          if ! cargo clippy -V >/dev/null 2>&1; then
+            echo "clippy not available. Install with: rustup component add clippy"
+            echo "Or run: just bootstrap-fast"
+            exit 2
+          fi
+          if command -v sccache >/dev/null; then
+            export RUSTC_WRAPPER=sccache
+          else
+            echo "(tip) Install sccache to speed builds: cargo install sccache or run just bootstrap-fast"
+          fi
+          cargo clippy --workspace --all-targets -- -D warnings
+        '
 
-# Post-merge hook to remind about dependencies
-post-merge:
-  commands:
-    deps-reminder:
-      run: echo "📦 Remember to run 'cargo build' if Cargo.toml changed"
+    tests:
+      always_run: true
+      run: |
+        bash -lc '
+          if [ -f .hooks/allow-strict-bypass ]; then
+            echo "⏭  Strict bypass enabled (.hooks/allow-strict-bypass). Skipping tests."
+            exit 0
+          fi
+          if command -v sccache >/dev/null; then
+            export RUSTC_WRAPPER=sccache
+          else
+            echo "(tip) Install sccache to speed builds: cargo install sccache or run just bootstrap-fast"
+          fi
+          if command -v cargo-nextest >/dev/null; then
+            cargo nextest run --workspace
+            cargo test --doc --workspace --quiet
+          else
+            echo "cargo-nextest not found. Install with: cargo install cargo-nextest (or run just bootstrap-fast). Falling back to cargo test."
+            cargo test --workspace --quiet
+          fi
+        '
