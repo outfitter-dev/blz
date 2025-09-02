@@ -36,7 +36,7 @@ fn create_large_registry() -> Registry {
             ),
             &format!("https://framework-{}.com/llms.txt", i),
         )
-        .with_aliases(vec![
+        .with_aliases(&[
             &format!("framework-{}", i),
             &format!("fw{}", i),
             &format!("f{}", i),
@@ -102,7 +102,7 @@ fn create_large_registry() -> Registry {
             &format!("Similar name testing framework: {}", name),
             &format!("https://{}.example.com/llms.txt", name),
         )
-        .with_aliases(vec![name, alt_name.as_str()]);
+        .with_aliases(&[name, alt_name.as_str()]);
         entries.push(entry);
     }
 
