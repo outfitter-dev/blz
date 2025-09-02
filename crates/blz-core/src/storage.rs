@@ -27,7 +27,7 @@ impl Storage {
 
     pub fn tool_dir(&self, alias: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks
-        self.validate_alias(alias)?;
+        Self::validate_alias(alias)?;
         Ok(self.root_dir.join(alias))
     }
 
@@ -39,7 +39,7 @@ impl Storage {
     }
 
     /// Validate that an alias is safe to use as a directory name
-    fn validate_alias(&self, alias: &str) -> Result<()> {
+    fn validate_alias(alias: &str) -> Result<()> {
         // Check for empty alias
         if alias.is_empty() {
             return Err(Error::Storage("Alias cannot be empty".into()));
@@ -191,13 +191,15 @@ impl Storage {
     pub fn list_sources(&self) -> Result<Vec<String>> {
         let mut sources = Vec::new();
 
-        if let Ok(entries) = fs::read_dir(&self.root_dir) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    if let Some(name) = entry.file_name().to_str() {
-                        if !name.starts_with('.') && self.exists(name) {
-                            sources.push(name.to_string());
-                        }
+        let entries = fs::read_dir(&self.root_dir)
+            .map_err(|e| Error::Storage(format!("Failed to read root directory: {e}")))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| Error::Storage(format!("Failed to read entry: {e}")))?;
+            if entry.path().is_dir() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if !name.starts_with('.') && self.exists(name) {
+                        sources.push(name.to_string());
                     }
                 }
             }
