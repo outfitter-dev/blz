@@ -118,7 +118,7 @@ impl SearchIndex {
     }
 
     pub fn index_blocks(
-        &mut self,
+        &self,
         alias: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
