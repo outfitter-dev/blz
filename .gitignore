@@ -29,6 +29,11 @@ bun.lockb
 .DS_Store
 Thumbs.db
 
+# Act (GitHub Actions local runner)
+.secrets
+.act/
+act_logs/
+
 # Profiling
 *.pb
 *.svg
