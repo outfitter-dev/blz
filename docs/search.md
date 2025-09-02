@@ -111,7 +111,7 @@ Search results for 'test':
 Machine-readable for scripting:
 
 ```bash
-blz search "test" --format json
+blz search "test" --output json
 ```
 
 Output:
@@ -245,7 +245,7 @@ blz node "file system"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(blz search "test runner" --limit 1 --format json)
+result=$(blz search "test runner" --limit 1 --output json)
 alias=$(echo "$result" | jq -r '.hits[0].alias')
 lines=$(echo "$result" | jq -r '.hits[0].lines')
 
@@ -260,7 +260,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -280,7 +280,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(blz search "$query" --limit 5 --format json)
+results=$(blz search "$query" --limit 5 --output json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.hits[] |
