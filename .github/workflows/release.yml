@@ -5,12 +5,16 @@ on:
     branches:
       - main
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# Prevent concurrent releases
+concurrency: 
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel release jobs
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -20,43 +24,62 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      # Optimized caching with Swatinem
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          cache-on-failure: true
+          prefix-key: "v2-release"
 
+      # Build and test in release mode with optimizations
       - name: Build release binary
-        run: cargo build --release
+        run: |
+          export CARGO_PROFILE_RELEASE_LTO=true
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+          cargo build --release --locked
 
-      - name: Run tests
-        run: cargo test --release
+      - name: Run release tests
+        run: cargo test --release --locked
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
+      # Cache bun dependencies
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: bun run release && cargo build --release
+          publish: bun run release && cargo build --release --locked
           version: bun run version
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Create checksums for release binaries
+      - name: Create checksums
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          cd target/release
+          sha256sum blz blz-mcp > checksums.txt
+          cd ../..
 
       - name: Upload Release Assets
         if: steps.changesets.outputs.published == 'true'
@@ -66,4 +89,7 @@ jobs:
           files: |
             target/release/blz
             target/release/blz-mcp
+            target/release/checksums.txt
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          make_latest: true

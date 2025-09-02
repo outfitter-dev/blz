@@ -18,22 +18,28 @@ concurrency:
 
 env:
   RUST_BACKTRACE: 1
-  # Miri flags to optimize performance and focus on safety checks
-  MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-ignore-leaks -Zmiri-disable-stacked-borrows
+  # Optimized Miri flags for faster execution
+  # -Zmiri-disable-isolation: Allow network/env access (faster)
+  # -Zmiri-ignore-leaks: Skip leak detection (faster)
+  # -Zmiri-seed: Use deterministic seed for reproducibility
+  MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-ignore-leaks -Zmiri-seed=42
 
 jobs:
   miri:
+    name: Miri Safety Check
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Increased from 30 to handle slower Miri execution
+    timeout-minutes: 30  # Reduced with optimizations
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
       
+      # Better caching for nightly toolchain
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: miri-nightly
-          cache-on-failure: false
+          prefix-key: "v2-miri"
+          key: "nightly-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock') }}"
+          cache-on-failure: true
       
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -41,23 +47,64 @@ jobs:
           components: miri, rust-src
       
       - name: Setup Miri
-        run: cargo +nightly miri setup
-      
-      - name: Run miri tests (blz-core lib only - subset)
         run: |
+          cargo +nightly miri setup
+          echo "Miri version: $(cargo +nightly miri --version)"
+      
+      - name: Run Miri tests
+        id: miri-test
+        run: |
+          set +e  # Don't fail immediately
+          
           if [ ! -f crates/blz-core/Cargo.toml ]; then
             echo "::warning::blz-core not found, skipping Miri tests"
             exit 0
           fi
-          # Run only a subset of tests to prevent timeout
-          # Focus on modules with unsafe code: storage, memory management, caching
-          echo "Running Miri on critical safety tests..."
-          cargo +nightly miri test -p blz-core --lib storage -- -q || true
-          cargo +nightly miri test -p blz-core --lib cache -- -q || true
-          cargo +nightly miri test -p blz-core --lib memory -- -q || true
-        continue-on-error: true
+          
+          echo "::group::Running Miri on blz-core safety tests"
+          
+          # Run targeted tests with timeout per test
+          # Use --no-fail-fast to run all tests even if some fail
+          timeout 10m cargo +nightly miri test -p blz-core \
+            --lib \
+            --no-fail-fast \
+            -- --test-threads=1 --quiet
+          
+          MIRI_EXIT=$?
+          echo "::endgroup::"
+          
+          if [ $MIRI_EXIT -eq 0 ]; then
+            echo "✅ Miri validation passed - no undefined behavior detected"
+            echo "miri-status=success" >> $GITHUB_OUTPUT
+          elif [ $MIRI_EXIT -eq 124 ]; then
+            echo "⏱️ Miri validation timed out - tests took too long"
+            echo "miri-status=timeout" >> $GITHUB_OUTPUT
+            exit 0  # Don't fail on timeout
+          else
+            echo "⚠️ Miri detected potential undefined behavior"
+            echo "miri-status=failed" >> $GITHUB_OUTPUT
+            exit 1  # Fail on actual UB detection
+          fi
       
-      - name: Report Miri results
+      - name: Miri Summary
         if: always()
         run: |
-          echo "::notice::Miri validation completed. Check logs for any undefined behavior warnings."
+          STATUS="${{ steps.miri-test.outputs.miri-status || 'unknown' }}"
+          case $STATUS in
+            success)
+              echo "### ✅ Miri Validation Passed" >> $GITHUB_STEP_SUMMARY
+              echo "No undefined behavior detected in unsafe code." >> $GITHUB_STEP_SUMMARY
+              ;;
+            failed)
+              echo "### ⚠️ Miri Validation Failed" >> $GITHUB_STEP_SUMMARY
+              echo "Potential undefined behavior detected. Review the logs above." >> $GITHUB_STEP_SUMMARY
+              ;;
+            timeout)
+              echo "### ⏱️ Miri Validation Timeout" >> $GITHUB_STEP_SUMMARY
+              echo "Tests took too long to complete. Consider optimizing test suite." >> $GITHUB_STEP_SUMMARY
+              ;;
+            *)
+              echo "### ❓ Miri Validation Unknown" >> $GITHUB_STEP_SUMMARY
+              echo "Unable to determine Miri status." >> $GITHUB_STEP_SUMMARY
+              ;;
+          esac

@@ -4,9 +4,16 @@ on:
   release:
     types: [published]
 
+# Prevent concurrent npm publishes
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel publish jobs
+
 jobs:
   publish-npm:
+    name: Publish to npm Registry
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -19,8 +26,17 @@ jobs:
         with:
           bun-version: latest
 
+      # Cache bun dependencies
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Download release assets
         uses: dsaltares/fetch-gh-release-asset@master
@@ -29,13 +45,37 @@ jobs:
           regex: true
           file: "blz-.*"
           target: "./npm/binaries/"
+        continue-on-error: false  # Fail if assets not found
+
+      # Verify binaries exist before publishing
+      - name: Verify release assets
+        run: |
+          if [ ! -d "./npm/binaries" ]; then
+            echo "Error: Binaries directory not found"
+            exit 1
+          fi
+          ls -la ./npm/binaries/
+          echo "Release assets downloaded successfully"
 
       - name: Configure npm authentication
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
           echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
 
-      - name: Publish to npm with Bun
-        run: bun publish --access public
+      - name: Publish to npm with provenance
+        run: |
+          # Dry run first to verify
+          bun publish --access public --dry-run
+          # Actual publish with provenance
+          bun publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm publish
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Verifying $PKG_NAME@$PKG_VERSION is published..."
+          npm view "$PKG_NAME@$PKG_VERSION" version || exit 1
+          echo "✅ Successfully published to npm"

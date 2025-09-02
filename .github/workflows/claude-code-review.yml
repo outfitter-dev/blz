@@ -9,6 +9,7 @@ on:
 jobs:
   optimize_ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     outputs:
       skip: ${{ steps.check_skip.outputs.skip }}
     steps:
@@ -32,6 +33,7 @@ jobs:
        (github.event.comment.user.type != 'Bot' ||
         contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login))))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
       cancel-in-progress: true
