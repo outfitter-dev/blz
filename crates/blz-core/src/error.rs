@@ -512,7 +512,7 @@ mod tests {
                 Error::Io(inner) => {
                     assert!(!inner.to_string().is_empty());
                 },
-                _ => panic!("Expected IO error variant"),
+                _ => unreachable!("Expected IO error variant"),
             }
         }
     }

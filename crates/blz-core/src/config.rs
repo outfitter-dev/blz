@@ -694,7 +694,7 @@ mod tests {
         assert!(result.is_err());
         match result {
             Err(Error::Config(msg)) => assert!(msg.contains("Failed to read config")),
-            _ => assert!(false, "Expected Config error"),
+            _ => unreachable!("Expected Config error"),
         }
     }
 
@@ -718,7 +718,7 @@ mod tests {
         if let Err(Error::Config(msg)) = result {
             assert!(msg.contains("Failed to parse config"));
         } else {
-            panic!("Expected Config parse error");
+            unreachable!("Expected Config parse error");
         }
     }
 
@@ -805,7 +805,7 @@ mod tests {
         if let Err(Error::Config(msg)) = result {
             assert!(msg.contains("Failed to read tool config"));
         } else {
-            panic!("Expected Config error");
+            unreachable!("Expected Config error");
         }
     }
 
@@ -872,218 +872,225 @@ mod tests {
     }
 
     // Property-based tests
-    proptest! {
-        #[test]
-        fn test_config_refresh_hours_roundtrip(refresh_hours in 1u32..=365*24) {
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours,
-                    max_archives: 10,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::FirstParty,
-                    allowlist: vec![],
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from("/tmp"),
-                },
-            };
+    mod proptest_tests {
+        use super::*;
+        use proptest::prelude::*;
 
-            let serialized = toml::to_string_pretty(&config).expect("should serialize");
-            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
+        #[allow(clippy::disallowed_macros)] // proptest macros are allowed in tests
+        #[allow(clippy::panic)] // proptest uses panic internally for property failures
+        proptest! {
+            #[test]
+            fn test_config_refresh_hours_roundtrip(refresh_hours in 1u32..=365*24) {
+                let config = Config {
+                    defaults: DefaultsConfig {
+                        refresh_hours,
+                        max_archives: 10,
+                        fetch_enabled: true,
+                        follow_links: FollowLinks::FirstParty,
+                        allowlist: vec![],
+                    },
+                    paths: PathsConfig {
+                        root: PathBuf::from("/tmp"),
+                    },
+                };
 
-            prop_assert_eq!(deserialized.defaults.refresh_hours, refresh_hours);
-        }
+                let serialized = toml::to_string_pretty(&config).expect("should serialize");
+                let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
-        #[test]
-        fn test_config_max_archives_roundtrip(max_archives in 1usize..=1000) {
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours: 24,
-                    max_archives,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::FirstParty,
-                    allowlist: vec![],
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from("/tmp"),
-                },
-            };
+                prop_assert_eq!(deserialized.defaults.refresh_hours, refresh_hours);
+            }
 
-            let serialized = toml::to_string_pretty(&config).expect("should serialize");
-            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
+            #[test]
+            fn test_config_max_archives_roundtrip(max_archives in 1usize..=1000) {
+                let config = Config {
+                    defaults: DefaultsConfig {
+                        refresh_hours: 24,
+                        max_archives,
+                        fetch_enabled: true,
+                        follow_links: FollowLinks::FirstParty,
+                        allowlist: vec![],
+                    },
+                    paths: PathsConfig {
+                        root: PathBuf::from("/tmp"),
+                    },
+                };
 
-            prop_assert_eq!(deserialized.defaults.max_archives, max_archives);
-        }
+                let serialized = toml::to_string_pretty(&config).expect("should serialize");
+                let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
-        #[test]
-        fn test_config_allowlist_roundtrip(allowlist in prop::collection::vec(r"[a-z0-9\.-]+", 0..=10)) {
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours: 24,
-                    max_archives: 10,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::Allowlist,
-                    allowlist: allowlist.clone(),
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from("/tmp"),
-                },
-            };
+                prop_assert_eq!(deserialized.defaults.max_archives, max_archives);
+            }
 
-            let serialized = toml::to_string_pretty(&config).expect("should serialize");
-            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
+            #[test]
+            fn test_config_allowlist_roundtrip(allowlist in prop::collection::vec(r"[a-z0-9\.-]+", 0..=10)) {
+                let config = Config {
+                    defaults: DefaultsConfig {
+                        refresh_hours: 24,
+                        max_archives: 10,
+                        fetch_enabled: true,
+                        follow_links: FollowLinks::Allowlist,
+                        allowlist: allowlist.clone(),
+                    },
+                    paths: PathsConfig {
+                        root: PathBuf::from("/tmp"),
+                    },
+                };
 
-            prop_assert_eq!(deserialized.defaults.allowlist, allowlist);
-        }
-    }
+                let serialized = toml::to_string_pretty(&config).expect("should serialize");
+                let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
-    // Security-focused tests
-    #[test]
-    fn test_config_path_traversal_prevention() {
-        // Given: Config with potentially malicious paths
-        let malicious_paths = vec![
-            "../../../etc/passwd",
-            "..\\..\\..\\windows\\system32",
-            "/etc/shadow",
-            "../../.ssh/id_rsa",
-        ];
-
-        for malicious_path in malicious_paths {
-            // When: Creating config with malicious path
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours: 24,
-                    max_archives: 10,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::FirstParty,
-                    allowlist: vec![],
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from(malicious_path),
-                },
-            };
-
-            // Then: Should still serialize/deserialize (path validation is separate)
-            let serialized = toml::to_string_pretty(&config).expect("should serialize");
-            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
-            assert_eq!(deserialized.paths.root, PathBuf::from(malicious_path));
-        }
-    }
-
-    #[test]
-    fn test_config_malicious_toml_injection() {
-        // Given: Potentially malicious TOML strings that could break parsing
-        let malicious_strings = vec![
-            "\n[malicious]\nkey = \"value\"",
-            "\"quotes\"in\"weird\"places",
-            "key = \"value\"\n[new_section]",
-            "unicode = \"\\u0000\\u0001\\u0002\"",
-        ];
-
-        for malicious_string in malicious_strings {
-            // When: Setting allowlist with potentially malicious content
-            let config = Config {
-                defaults: DefaultsConfig {
-                    refresh_hours: 24,
-                    max_archives: 10,
-                    fetch_enabled: true,
-                    follow_links: FollowLinks::Allowlist,
-                    allowlist: vec![malicious_string.to_string()],
-                },
-                paths: PathsConfig {
-                    root: PathBuf::from("/tmp"),
-                },
-            };
-
-            // Then: Should serialize safely (TOML library handles escaping)
-            let result = toml::to_string_pretty(&config);
-            assert!(
-                result.is_ok(),
-                "Failed to serialize config with: {malicious_string}"
-            );
-
-            if let Ok(serialized) = result {
-                let deserialized_result: std::result::Result<Config, _> =
-                    toml::from_str(&serialized);
-                assert!(
-                    deserialized_result.is_ok(),
-                    "Failed to deserialize config with: {malicious_string}"
-                );
+                prop_assert_eq!(deserialized.defaults.allowlist, allowlist);
             }
         }
-    }
 
-    #[test]
-    fn test_config_unicode_handling() -> Result<()> {
-        // Given: Configuration with Unicode content
-        let unicode_config = Config {
-            defaults: DefaultsConfig {
-                refresh_hours: 24,
-                max_archives: 10,
-                fetch_enabled: true,
-                follow_links: FollowLinks::Allowlist,
-                allowlist: vec![
-                    "例え.com".to_string(),    // Japanese
-                    "مثال.com".to_string(),    // Arabic
-                    "пример.com".to_string(),  // Cyrillic
-                    "🚀.test.com".to_string(), // Emoji
-                ],
-            },
-            paths: PathsConfig {
-                root: PathBuf::from("/tmp/测试"), // Chinese characters
-            },
-        };
+        // Security-focused tests
+        #[test]
+        fn test_config_path_traversal_prevention() {
+            // Given: Config with potentially malicious paths
+            let malicious_paths = vec![
+                "../../../etc/passwd",
+                "..\\..\\..\\windows\\system32",
+                "/etc/shadow",
+                "../../.ssh/id_rsa",
+            ];
 
-        // When: Serializing and deserializing
-        let serialized = toml::to_string_pretty(&unicode_config)?;
-        let deserialized: Config = toml::from_str(&serialized)?;
+            for malicious_path in malicious_paths {
+                // When: Creating config with malicious path
+                let config = Config {
+                    defaults: DefaultsConfig {
+                        refresh_hours: 24,
+                        max_archives: 10,
+                        fetch_enabled: true,
+                        follow_links: FollowLinks::FirstParty,
+                        allowlist: vec![],
+                    },
+                    paths: PathsConfig {
+                        root: PathBuf::from(malicious_path),
+                    },
+                };
 
-        // Then: Unicode should be preserved correctly
-        assert_eq!(deserialized.defaults.allowlist.len(), 4);
-        assert!(
-            deserialized
-                .defaults
-                .allowlist
-                .contains(&"例え.com".to_string())
-        );
-        assert!(
-            deserialized
-                .defaults
-                .allowlist
-                .contains(&"🚀.test.com".to_string())
-        );
-        assert_eq!(deserialized.paths.root, PathBuf::from("/tmp/测试"));
+                // Then: Should still serialize/deserialize (path validation is separate)
+                let serialized = toml::to_string_pretty(&config).expect("should serialize");
+                let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
+                assert_eq!(deserialized.paths.root, PathBuf::from(malicious_path));
+            }
+        }
 
-        Ok(())
-    }
+        #[test]
+        fn test_config_malicious_toml_injection() {
+            // Given: Potentially malicious TOML strings that could break parsing
+            let malicious_strings = vec![
+                "\n[malicious]\nkey = \"value\"",
+                "\"quotes\"in\"weird\"places",
+                "key = \"value\"\n[new_section]",
+                "unicode = \"\\u0000\\u0001\\u0002\"",
+            ];
 
-    #[test]
-    fn test_config_edge_case_empty_values() -> Result<()> {
-        // Given: Configuration with empty values
-        let empty_config = Config {
-            defaults: DefaultsConfig {
-                refresh_hours: 0, // Edge case: zero refresh
-                max_archives: 0,  // Edge case: no archives
-                fetch_enabled: false,
-                follow_links: FollowLinks::None,
-                allowlist: vec![String::new()], // Empty string in allowlist
-            },
-            paths: PathsConfig {
-                root: PathBuf::from(""), // Empty path
-            },
-        };
+            for malicious_string in malicious_strings {
+                // When: Setting allowlist with potentially malicious content
+                let config = Config {
+                    defaults: DefaultsConfig {
+                        refresh_hours: 24,
+                        max_archives: 10,
+                        fetch_enabled: true,
+                        follow_links: FollowLinks::Allowlist,
+                        allowlist: vec![malicious_string.to_string()],
+                    },
+                    paths: PathsConfig {
+                        root: PathBuf::from("/tmp"),
+                    },
+                };
 
-        // When: Serializing and deserializing
-        let serialized = toml::to_string_pretty(&empty_config)?;
-        let deserialized: Config = toml::from_str(&serialized)?;
+                // Then: Should serialize safely (TOML library handles escaping)
+                let result = toml::to_string_pretty(&config);
+                assert!(
+                    result.is_ok(),
+                    "Failed to serialize config with: {malicious_string}"
+                );
 
-        // Then: Empty/zero values should be handled correctly
-        assert_eq!(deserialized.defaults.refresh_hours, 0);
-        assert_eq!(deserialized.defaults.max_archives, 0);
-        assert_eq!(deserialized.defaults.allowlist.len(), 1);
-        assert_eq!(deserialized.defaults.allowlist[0], "");
-        assert_eq!(deserialized.paths.root, PathBuf::from(""));
+                if let Ok(serialized) = result {
+                    let deserialized_result: std::result::Result<Config, _> =
+                        toml::from_str(&serialized);
+                    assert!(
+                        deserialized_result.is_ok(),
+                        "Failed to deserialize config with: {malicious_string}"
+                    );
+                }
+            }
+        }
 
-        Ok(())
+        #[test]
+        fn test_config_unicode_handling() -> Result<()> {
+            // Given: Configuration with Unicode content
+            let unicode_config = Config {
+                defaults: DefaultsConfig {
+                    refresh_hours: 24,
+                    max_archives: 10,
+                    fetch_enabled: true,
+                    follow_links: FollowLinks::Allowlist,
+                    allowlist: vec![
+                        "例え.com".to_string(),    // Japanese
+                        "مثال.com".to_string(),    // Arabic
+                        "пример.com".to_string(),  // Cyrillic
+                        "🚀.test.com".to_string(), // Emoji
+                    ],
+                },
+                paths: PathsConfig {
+                    root: PathBuf::from("/tmp/测试"), // Chinese characters
+                },
+            };
+
+            // When: Serializing and deserializing
+            let serialized = toml::to_string_pretty(&unicode_config)?;
+            let deserialized: Config = toml::from_str(&serialized)?;
+
+            // Then: Unicode should be preserved correctly
+            assert_eq!(deserialized.defaults.allowlist.len(), 4);
+            assert!(
+                deserialized
+                    .defaults
+                    .allowlist
+                    .contains(&"例え.com".to_string())
+            );
+            assert!(
+                deserialized
+                    .defaults
+                    .allowlist
+                    .contains(&"🚀.test.com".to_string())
+            );
+            assert_eq!(deserialized.paths.root, PathBuf::from("/tmp/测试"));
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_config_edge_case_empty_values() -> Result<()> {
+            // Given: Configuration with empty values
+            let empty_config = Config {
+                defaults: DefaultsConfig {
+                    refresh_hours: 0, // Edge case: zero refresh
+                    max_archives: 0,  // Edge case: no archives
+                    fetch_enabled: false,
+                    follow_links: FollowLinks::None,
+                    allowlist: vec![String::new()], // Empty string in allowlist
+                },
+                paths: PathsConfig {
+                    root: PathBuf::from(""), // Empty path
+                },
+            };
+
+            // When: Serializing and deserializing
+            let serialized = toml::to_string_pretty(&empty_config)?;
+            let deserialized: Config = toml::from_str(&serialized)?;
+
+            // Then: Empty/zero values should be handled correctly
+            assert_eq!(deserialized.defaults.refresh_hours, 0);
+            assert_eq!(deserialized.defaults.max_archives, 0);
+            assert_eq!(deserialized.defaults.allowlist.len(), 1);
+            assert_eq!(deserialized.defaults.allowlist[0], "");
+            assert_eq!(deserialized.paths.root, PathBuf::from(""));
+
+            Ok(())
+        }
     }
 }
