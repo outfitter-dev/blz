@@ -552,7 +552,7 @@ mod tests {
 
         match deserialized.severity {
             DiagnosticSeverity::Error => {},
-            _ => panic!("Expected Error severity"),
+            _ => unreachable!("Expected Error severity"),
         }
         assert_eq!(deserialized.message, "Missing heading");
         assert_eq!(deserialized.line, Some(42));
