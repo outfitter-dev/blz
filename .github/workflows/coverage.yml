@@ -82,23 +82,22 @@ jobs:
       - name: Generate coverage
         run: |
           echo "::group::Preparing coverage instrumentation"
-          cargo llvm-cov --workspace --all-features \
-            --no-run --no-report
+          cargo llvm-cov clean --workspace
           echo "::endgroup::"
           
           echo "::group::Running tests with coverage (blz-core)"
-          cargo llvm-cov run --no-report -p blz-core --all-features -- \
+          cargo llvm-cov test --no-report -p blz-core --all-features -- \
             --skip test_parser_never_panics_on_arbitrary_input \
             --test-threads=2 --quiet
           echo "::endgroup::"
           
           echo "::group::Running tests with coverage (blz-cli)"
-          cargo llvm-cov run --no-report -p blz-cli --all-features -- \
+          cargo llvm-cov test --no-report -p blz-cli --all-features -- \
             --test-threads=2 --quiet
           echo "::endgroup::"
           
           echo "::group::Running tests with coverage (blz-mcp)"
-          cargo llvm-cov run --no-report -p blz-mcp --all-features -- \
+          cargo llvm-cov test --no-report -p blz-mcp --all-features -- \
             --test-threads=2 --quiet
           echo "::endgroup::"
           
