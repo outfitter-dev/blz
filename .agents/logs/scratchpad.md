@@ -100,7 +100,7 @@
 │ 8d13156 - docs: add checkpoint for agent directory reorganization
 │ 4b3e9d8 - chore: move misplaced pr-review-fixes.md to archive with proper naming
 │ d70ab8f - chore: update references for reorganized .agents directory
-│ d20439e - chore: reorganize .agent directory structure for clarity
+│ d20439e - chore: reorganize .agents directory structure for clarity
 │ 4716593 - feat: improve lefthook configuration for draft PR workflows
 │ 9c9b21b - Update storage.rs
 │ 9aa35b7 - fix: address CodeRabbit review comments on PR #44
@@ -143,7 +143,7 @@
 │  │  │  ◯ 08-29-docs_add_development_and_ci_cd_documentation
 │  │  │  │ 3 hours ago
 │  │  │  │
-│  │  │  │ 8032d14 - chore: reorganize .agent to .agents with clearer structure
+│  │  │  │ 8032d14 - chore: reorganize .agents to .agents with clearer structure
 │  │  │  │ eab8c6f - docs: add comprehensive development documentation
 │  │  │  │
 │  │  │  │  ◉ 08-29-chore_.agents_get-date.sh_defaults_to_local_add_--utc_flag (current)
