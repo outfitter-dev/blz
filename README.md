@@ -234,7 +234,8 @@ cd blz
 cargo build --release
 
 # Run tests
-cargo test
+# Fast local test run (nextest)
+cargo nextest run --workspace
 
 # Install locally
 cargo install --path .

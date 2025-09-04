@@ -68,7 +68,7 @@ Welcome to the blz development documentation. This guide covers our development 
 - **Version Control**: Git with Graphite for stacked PRs
 - **CI/CD**: GitHub Actions with Graphite optimization
 - **Code Quality**: Clippy, rustfmt, cargo-deny
-- **Git Hooks**: Lefthook for pre-commit checks
+- **Git Hooks**: Lefthook for pre-commit checks (see “Local Hooks + Nextest” in docs/development/ci-cd.md; quick start: `just bootstrap-fast`)
 - **AI Assistance**: Claude for code reviews and development
 
 ## 📋 Project Structure
