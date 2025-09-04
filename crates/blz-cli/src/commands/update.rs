@@ -125,7 +125,7 @@ async fn update_source(
             etag: new_etag,
             last_modified: new_last_modified,
         } => {
-            pb.finish_with_message(format!("{}: Up-to-date", alias));
+            pb.finish_with_message(format!("{alias}: Up-to-date"));
             info!("{} is up to date", alias);
 
             // Update metadata timestamp and any new validator values
@@ -154,7 +154,7 @@ async fn update_source(
 
             // Check if content actually changed (SHA256 comparison)
             if existing_json.source.sha256 == sha256 {
-                pb.finish_with_message(format!("{}: Content unchanged", alias));
+                pb.finish_with_message(format!("{alias}: Content unchanged"));
 
                 // Update metadata even if content hasn't changed (server headers might have)
                 let new_metadata = Source {
@@ -226,7 +226,7 @@ async fn update_source(
                     .map_err(|e| anyhow!("Failed to clean temp index: {}", e))?;
             }
 
-            let mut index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
+            let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
             index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
 
             // Swap in the new index
