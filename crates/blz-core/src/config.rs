@@ -268,7 +268,7 @@ impl Config {
     /// Returns an error if the system config directory cannot be determined,
     /// which may happen on unsupported platforms or in sandboxed environments.
     fn config_path() -> Result<PathBuf> {
-        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
 
         Ok(project_dirs.config_dir().join("global.toml"))
@@ -286,8 +286,8 @@ impl Default for Config {
                 allowlist: Vec::new(),
             },
             paths: PathsConfig {
-                root: directories::ProjectDirs::from("dev", "outfitter", "cache").map_or_else(
-                    || PathBuf::from("~/.outfitter/cache"),
+                root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
+                    || PathBuf::from("~/.outfitter/blz"),
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),
             },

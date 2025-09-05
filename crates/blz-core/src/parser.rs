@@ -1740,7 +1740,7 @@ After deep nesting";
         let deep_block = result
             .heading_blocks
             .iter()
-            .find(|b| b.path.last().map_or(false, |p| p.contains("Fifth Level")))
+            .find(|b| b.path.last().is_some_and(|p| p.contains("Fifth Level")))
             .expect("Should find Fifth Level heading");
         assert!(
             deep_block.path.len() >= 5,
@@ -1751,11 +1751,7 @@ After deep nesting";
         let back_block = result
             .heading_blocks
             .iter()
-            .find(|b| {
-                b.path
-                    .last()
-                    .map_or(false, |p| p.contains("Back to Level 3"))
-            })
+            .find(|b| b.path.last().is_some_and(|p| p.contains("Back to Level 3")))
             .expect("Should find Back to Level 3 heading");
         assert_eq!(
             back_block.path.len(),

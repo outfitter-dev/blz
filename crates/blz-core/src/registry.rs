@@ -355,7 +355,7 @@ mod tests {
                 entry.llms_url.starts_with("http://") || entry.llms_url.starts_with("https://")
             );
             // Check that URL ends with .txt (case-insensitive)
-            use std::path::Path as _;
+
             assert!(
                 std::path::Path::new(&entry.llms_url)
                     .extension()
