@@ -10,7 +10,7 @@ use serde_json::json;
 use tracing::{error, info};
 use tracing_subscriber::FmtSubscriber;
 
-/// Handle the list_sources RPC method
+/// Handle the `list_sources` RPC method
 async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -62,7 +62,9 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     let limit = params
         .get("limit")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(10) as usize;
+        .unwrap_or(10)
+        .min(100) // Reasonable limit for search results
+        as usize;
 
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -73,11 +75,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
         }
     })?;
 
-    let sources = if let Some(alias) = alias {
-        vec![alias.to_string()]
-    } else {
-        storage.list_sources()
-    };
+    let sources = alias.map_or_else(|| storage.list_sources(), |a| vec![a.to_string()]);
 
     let mut all_hits = Vec::new();
 
@@ -127,7 +125,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     }))
 }
 
-/// Handle the get_lines RPC method
+/// Handle the `get_lines` RPC method
 async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let params = params.parse::<serde_json::Value>().map_err(|e| RpcError {
         code: ErrorCode::InvalidParams,

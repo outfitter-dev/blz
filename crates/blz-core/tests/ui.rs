@@ -1,3 +1,5 @@
+//! Compile-time UI tests for verifying error messages and type safety
+
 #[test]
 fn compile_fail_ui() {
     let t = trybuild::TestCases::new();

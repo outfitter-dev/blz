@@ -1,4 +1,5 @@
 //! Tests for search pagination edge cases including divide-by-zero prevention
+#![allow(clippy::unwrap_used)] // Test code can panic on setup failures
 
 use assert_cmd::Command;
 use predicates::prelude::*;

@@ -872,12 +872,14 @@ mod tests {
     }
 
     // Property-based tests
+    #[cfg(all(test, not(target_family = "wasm")))]
+    #[allow(clippy::disallowed_macros)] // proptest macros are allowed in tests
+    #[allow(clippy::panic)] // proptest uses panic internally for property failures
+    #[allow(unused_imports)] // proptest prelude import may appear unused
     mod proptest_tests {
         use super::*;
         use proptest::prelude::*;
 
-        #[allow(clippy::disallowed_macros)] // proptest macros are allowed in tests
-        #[allow(clippy::panic)] // proptest uses panic internally for property failures
         proptest! {
             #[test]
             fn test_config_refresh_hours_roundtrip(refresh_hours in 1u32..=365*24) {
