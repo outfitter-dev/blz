@@ -2,6 +2,8 @@
 //!
 //! Provides a JSON-RPC interface for AI assistants to search cached llms.txt documentation.
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 use anyhow::Result;
 use blz_core::{SearchIndex, Storage};
 use jsonrpc_core::{Error as RpcError, ErrorCode, IoHandler, Params, Value};
@@ -63,8 +65,9 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
         .get("limit")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(10)
-        .min(100) // Reasonable limit for search results
-        as usize;
+        .min(100)
+        .try_into()
+        .unwrap_or(10);
 
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -75,7 +78,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
         }
     })?;
 
-    let sources = alias.map_or_else(|| storage.list_sources(), |a| vec![a.to_string()]);
+    let sources = alias.map_or_else(|| storage.list_sources(), |alias| vec![alias.to_string()]);
 
     let mut all_hits = Vec::new();
 

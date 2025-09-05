@@ -317,6 +317,10 @@ fn format_size(bytes: u64) -> String {
 // Use Fetcher::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::panic)]
+#[allow(clippy::disallowed_macros)]
 mod tests {
     use super::*;
     use std::time::Duration;
@@ -480,7 +484,7 @@ mod tests {
             FetchResult::NotModified { .. } => {
                 // Expected result
             },
-            _ => panic!("Expected NotModified result for matching ETag"),
+            FetchResult::Modified { .. } => panic!("Expected NotModified result for matching ETag"),
         }
 
         Ok(())
@@ -529,7 +533,9 @@ mod tests {
                 );
                 assert!(!sha256.is_empty(), "SHA256 should be computed");
             },
-            _ => panic!("Expected Modified result for non-matching ETag"),
+            FetchResult::NotModified { .. } => {
+                panic!("Expected Modified result for non-matching ETag")
+            },
         }
 
         Ok(())
@@ -562,7 +568,9 @@ mod tests {
             FetchResult::NotModified { .. } => {
                 // Expected result
             },
-            _ => panic!("Expected NotModified result for matching Last-Modified"),
+            FetchResult::Modified { .. } => {
+                panic!("Expected NotModified result for matching Last-Modified")
+            },
         }
 
         Ok(())
@@ -725,7 +733,9 @@ mod tests {
             FetchResult::NotModified { .. } => {
                 // Expected result
             },
-            _ => panic!("Expected NotModified result for matching cache headers"),
+            FetchResult::Modified { .. } => {
+                panic!("Expected NotModified result for matching cache headers")
+            },
         }
 
         Ok(())

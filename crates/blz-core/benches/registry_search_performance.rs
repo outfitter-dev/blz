@@ -6,6 +6,11 @@
 //! - Fuzzy matching performance
 //! - Concurrent search operations
 
+#![allow(missing_docs)]
+#![allow(clippy::semicolon_if_nothing_returned)]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::useless_vec)]
+
 use blz_core::Registry;
 use blz_core::registry::RegistryEntry;
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
@@ -92,12 +97,12 @@ fn create_large_registry() -> Registry {
     ];
 
     for (i, name) in similar_names.iter().enumerate() {
-        let alt_name = format!("{}-alt", name);
+        let alt_name = format!("{name}-alt");
         let entry = RegistryEntry::new(
             &format!("{} Framework", name.to_uppercase()),
-            &format!("similar-{}", i),
-            &format!("Similar name testing framework: {}", name),
-            &format!("https://{}.example.com/llms.txt", name),
+            &format!("similar-{i}"),
+            &format!("Similar name testing framework: {name}"),
+            &format!("https://{name}.example.com/llms.txt"),
         )
         .with_aliases(&[name, alt_name.as_str()]);
         entries.push(entry);

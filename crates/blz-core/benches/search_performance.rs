@@ -3,6 +3,7 @@
 #![allow(clippy::cast_precision_loss)] // Allow precision loss in benchmark metrics
 #![allow(clippy::cast_possible_truncation)] // Allow truncation in benchmark display
 #![allow(clippy::cast_sign_loss)] // Allow sign loss in benchmark calculations
+#![allow(missing_docs)] // Allow missing docs in benchmark code
 
 use blz_core::{HeadingBlock, PerformanceMetrics, SearchIndex};
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};

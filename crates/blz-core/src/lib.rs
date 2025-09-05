@@ -1,6 +1,16 @@
 //! # blz-core
 //!
 //! Core functionality for blz - a fast, local search cache for llms.txt documentation.
+
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unnecessary_wraps
+    )
+)]
 //!
 //! This crate provides the foundational components for parsing, storing, and searching
 //! llms.txt documentation files locally. It's designed for speed (sub-10ms search latency),
