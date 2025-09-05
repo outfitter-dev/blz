@@ -146,17 +146,27 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
         .and_then(|v| v.as_str())
         .unwrap_or("llms.txt");
 
-    let start = params["start"].as_u64().ok_or_else(|| RpcError {
+    let start = usize::try_from(params["start"].as_u64().ok_or_else(|| RpcError {
         code: ErrorCode::InvalidParams,
         message: "Missing required parameter 'start'".to_string(),
         data: None,
-    })? as usize;
+    })?)
+    .map_err(|_| RpcError {
+        code: ErrorCode::InvalidParams,
+        message: "Invalid start value: too large for platform".to_string(),
+        data: None,
+    })?;
 
-    let end = params["end"].as_u64().ok_or_else(|| RpcError {
+    let end = usize::try_from(params["end"].as_u64().ok_or_else(|| RpcError {
         code: ErrorCode::InvalidParams,
         message: "Missing required parameter 'end'".to_string(),
         data: None,
-    })? as usize;
+    })?)
+    .map_err(|_| RpcError {
+        code: ErrorCode::InvalidParams,
+        message: "Invalid end value: too large for platform".to_string(),
+        data: None,
+    })?;
 
     if start == 0 || start > end {
         return Err(RpcError {
@@ -187,8 +197,9 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let lines: Vec<&str> = content.lines().collect();
 
     let mut result = String::new();
-    for i in (start - 1)..end.min(lines.len()) {
-        result.push_str(lines[i]);
+    let end_line = end.min(lines.len());
+    for line in lines.iter().skip(start - 1).take(end_line - (start - 1)) {
+        result.push_str(line);
         result.push('\n');
     }
 

@@ -3,6 +3,7 @@
 use blz_core::{
     HeadingBlock,
     PerformanceMetrics,
+    SearchHit,
     SearchIndex,
     // Future optimizations - modules not yet implemented:
     // cache::{CacheConfig, MultiLevelCache, SearchCache},
@@ -104,7 +105,7 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
 
 /// Benchmark search performance: Original vs Optimized
 fn bench_search_performance_comparison(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
 
     let block_counts = [100, 500, 1000, 2000];
     let content_size = 800;
@@ -208,7 +209,7 @@ fn bench_string_operations(c: &mut Criterion) {
 
 /// Benchmark memory pool vs regular allocation
 fn bench_memory_pool(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("memory_allocation");
 
     let buffer_sizes = [64, 256, 1024, 4096, 16384];
@@ -254,7 +255,7 @@ fn bench_memory_pool(c: &mut Criterion) {
 
 /// Benchmark string interning performance
 fn bench_string_interning(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("string_interning");
 
     let test_strings = vec![
@@ -318,7 +319,7 @@ fn bench_string_interning(c: &mut Criterion) {
 
 /// Benchmark caching strategies
 fn bench_caching_strategies(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("caching_strategies");
     group.measurement_time(Duration::from_secs(10));
 
@@ -341,33 +342,33 @@ fn bench_caching_strategies(c: &mut Criterion) {
     let result_counts = [10, 50, 100];
 
     for &count in &result_counts {
-        let results = create_search_results(count);
+        let _results: Vec<SearchHit> = create_search_results(count);
 
         // No caching - always recreate results
         group.bench_with_input(BenchmarkId::new("no_cache", count), &count, |b, &count| {
             b.iter(|| {
-                let results = create_search_results(count);
+                let results: Vec<SearchHit> = create_search_results(count);
                 black_box(results)
             });
         });
 
-        // Multi-level cache
-        let cache = SearchCache::new_search_cache();
-        group.bench_with_input(
-            BenchmarkId::new("multi_level_cache", count),
-            &results,
-            |b, results| {
-                b.to_async(&rt).iter(|| async {
-                    // Cache results
-                    cache
-                        .cache_search_results("test_query", Some("test"), results.clone())
-                        .await;
-                    // Retrieve from cache
-                    let cached = cache.get_cached_results("test_query", Some("test")).await;
-                    black_box(cached)
-                });
-            },
-        );
+        // Multi-level cache - commented out until SearchCache is implemented
+        // let cache = SearchCache::new_search_cache();
+        // group.bench_with_input(
+        //     BenchmarkId::new("multi_level_cache", count),
+        //     &results,
+        //     |b, results| {
+        //         b.to_async(&rt).iter(|| async {
+        //             // Cache results
+        //             cache
+        //                 .cache_search_results("test_query", Some("test"), results.clone())
+        //                 .await;
+        //             // Retrieve from cache
+        //             let cached = cache.get_cached_results("test_query", Some("test")).await;
+        //             black_box(cached)
+        //         });
+        //     },
+        // );
     }
 
     group.finish();
@@ -380,7 +381,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(20));
 
     let blocks = create_realistic_blocks(500, 1000);
-    let (_temp_dir, optimized_index) = rt.block_on(setup_optimized_index(&blocks));
+    let (_temp_dir, optimized_index) = setup_original_index(&blocks);
 
     let concurrent_levels = [1, 2, 4, 8, 16];
 
@@ -403,10 +404,13 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                         })
                         .collect();
 
-                    let results = optimized_index
-                        .search_multiple(queries)
-                        .await
-                        .expect("Search failed");
+                    let mut results = Vec::new();
+                    for (query, alias, limit) in queries {
+                        let result = optimized_index
+                            .search(&query, alias.as_deref(), limit)
+                            .expect("Search failed");
+                        results.push(result);
+                    }
                     black_box(results)
                 });
             },
@@ -418,7 +422,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
 
 /// Benchmark indexing performance: Original vs Optimized
 fn bench_indexing_performance(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
 
     let block_counts = [50, 100, 250, 500];
     let content_size = 1000;
@@ -449,26 +453,26 @@ fn bench_indexing_performance(c: &mut Criterion) {
             );
         });
 
-        // Optimized indexing
-        group.bench_function("optimized_indexing", |b| {
-            b.to_async(&rt).iter_with_setup(
-                || async {
-                    let temp_dir = TempDir::new().expect("Failed to create temp dir");
-                    let index_path = temp_dir.path().join("optimized_index");
-                    let index = OptimizedSearchIndex::create(&index_path)
-                        .await
-                        .expect("Failed to create index");
-                    (temp_dir, index)
-                },
-                |(temp_dir, index)| async move {
-                    index
-                        .index_blocks_optimized("bench", "test.md", black_box(&blocks))
-                        .await
-                        .expect("Failed to index blocks");
-                    drop(temp_dir);
-                },
-            );
-        });
+        // Optimized indexing - commented out until OptimizedSearchIndex is implemented
+        // group.bench_function("optimized_indexing", |b| {
+        //     b.to_async(&rt).iter_with_setup(
+        //         || async {
+        //             let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        //             let index_path = temp_dir.path().join("optimized_index");
+        //             let index = OptimizedSearchIndex::create(&index_path)
+        //                 .await
+        //                 .expect("Failed to create index");
+        //             (temp_dir, index)
+        //         },
+        //         |(temp_dir, index)| async move {
+        //             index
+        //                 .index_blocks_optimized("bench", "test.md", black_box(&blocks))
+        //                 .await
+        //                 .expect("Failed to index blocks");
+        //             drop(temp_dir);
+        //         },
+        //     );
+        // });
 
         group.finish();
     }
@@ -561,7 +565,7 @@ fn bench_cache_effectiveness(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(15));
 
     let blocks = create_realistic_blocks(200, 800);
-    let (_temp_dir, optimized_index) = rt.block_on(setup_optimized_index(&blocks));
+    let (_temp_dir, optimized_index) = setup_original_index(&blocks);
 
     // Simulate realistic query patterns with repetition
     let query_patterns = vec![
@@ -586,8 +590,7 @@ fn bench_cache_effectiveness(c: &mut Criterion) {
             for query in &query_patterns {
                 let start = std::time::Instant::now();
                 let _results = optimized_index
-                    .search_optimized(query, Some("bench"), 10)
-                    .await
+                    .search(query, Some("bench"), 10)
                     .expect("Search failed");
                 total_time += start.elapsed();
             }
