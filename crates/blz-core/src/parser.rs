@@ -627,6 +627,11 @@ pub struct ParseResult {
 // Use MarkdownParser::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::panic)]
+#[allow(clippy::disallowed_macros)]
+#[allow(clippy::format_push_string)]
 mod tests {
     use super::*;
     use proptest::prelude::*;

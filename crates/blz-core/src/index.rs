@@ -422,6 +422,10 @@ impl SearchIndex {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::panic)]
+#[allow(clippy::disallowed_macros)]
 mod tests {
     use super::*;
     use crate::HeadingBlock;

@@ -168,6 +168,11 @@ fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::panic)]
+#[allow(clippy::needless_collect)]
+#[allow(clippy::disallowed_macros)]
 mod tests {
     use super::*;
     use crate::utils::constants::RESERVED_KEYWORDS;

@@ -1,6 +1,15 @@
 //! Comprehensive benchmarks for performance optimizations
 #![allow(clippy::expect_used)] // Benchmarks can panic on setup failures
 #![allow(clippy::uninlined_format_args)] // Performance benchmark, format style not critical
+#![allow(missing_docs)]
+#![allow(clippy::semicolon_if_nothing_returned)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::suboptimal_flops)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::option_if_let_else)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
 
 use blz_core::{
     HeadingBlock,
@@ -122,7 +131,7 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
         // TODO: Uncomment when optimized implementation is ready
         // let (_temp_dir_opt, optimized_index) = rt.block_on(setup_optimized_index(&blocks));
 
-        let mut group = c.benchmark_group(format!("search_performance_{}_docs", count));
+        let mut group = c.benchmark_group(format!("search_performance_{count}_docs"));
         group.throughput(Throughput::Bytes(total_bytes as u64));
         group.measurement_time(Duration::from_secs(15));
 
@@ -226,8 +235,7 @@ fn bench_memory_pool(c: &mut Criterion) {
             &size,
             |b, &size| {
                 b.iter(|| {
-                    let mut buffer = Vec::with_capacity(size);
-                    buffer.resize(size, 0u8);
+                    let mut buffer = vec![0u8; size];
                     buffer.clear();
                     black_box(buffer)
                 });
@@ -284,7 +292,7 @@ fn bench_string_interning(c: &mut Criterion) {
         b.iter(|| {
             let mut stored_strings = Vec::new();
             for s in &test_strings {
-                stored_strings.push(s.to_string()); // Always allocate new string
+                stored_strings.push((*s).to_string()); // Always allocate new string
             }
             black_box(stored_strings)
         });
@@ -332,12 +340,12 @@ fn bench_caching_strategies(c: &mut Criterion) {
             .map(|i| blz_core::SearchHit {
                 alias: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
-                heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
+                heading_path: vec![format!("Section_{i}"), format!("Subsection_{i}")],
                 lines: format!("{}-{}", i * 10, i * 10 + 5),
-                snippet: format!("This is test content for result {}", i),
+                snippet: format!("This is test content for result {i}"),
                 score: 0.95 - (i as f32 * 0.01),
-                source_url: Some(format!("https://example.com/{}", i)),
-                checksum: format!("checksum_{}", i),
+                source_url: Some(format!("https://example.com/{i}")),
+                checksum: format!("checksum_{i}"),
             })
             .collect()
     };
@@ -399,7 +407,9 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                 b.to_async(&rt).iter(move || {
                     let index = std::sync::Arc::clone(&index);
                     async move {
-                        let queries: Vec<_> = (0..concurrency)
+                        // Create concurrent search tasks using spawn_blocking
+                        // This provides true concurrency since search() is a blocking operation
+                        let tasks: Vec<_> = (0..concurrency)
                             .map(|i| {
                                 let query = match i % 4 {
                                     0 => "React hooks",
@@ -410,12 +420,6 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                                 };
                                 (query.to_string(), Some("bench".to_string()), 10)
                             })
-                            .collect();
-
-                        // Create concurrent search tasks using spawn_blocking
-                        // This provides true concurrency since search() is a blocking operation
-                        let tasks: Vec<_> = queries
-                            .into_iter()
                             .map(|(query, alias, limit)| {
                                 let index = std::sync::Arc::clone(&index);
                                 tokio::task::spawn_blocking(move || {
@@ -451,7 +455,7 @@ fn bench_indexing_performance(c: &mut Criterion) {
         let blocks = create_realistic_blocks(count, content_size);
         let total_bytes = blocks.iter().map(|b| b.content.len()).sum::<usize>();
 
-        let mut group = c.benchmark_group(format!("indexing_performance_{}_docs", count));
+        let mut group = c.benchmark_group(format!("indexing_performance_{count}_docs"));
         group.throughput(Throughput::Bytes(total_bytes as u64));
         group.measurement_time(Duration::from_secs(15));
 

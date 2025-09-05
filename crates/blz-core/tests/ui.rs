@@ -1,4 +1,4 @@
-//! Compile-time UI tests for verifying error messages and type safety
+//! UI tests for compile-time error checking
 
 #[test]
 fn compile_fail_ui() {

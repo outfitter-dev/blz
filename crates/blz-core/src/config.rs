@@ -872,12 +872,10 @@ mod tests {
     }
 
     // Property-based tests
-    #[cfg(all(test, not(target_family = "wasm")))]
-    #[allow(clippy::disallowed_macros)] // proptest macros are allowed in tests
-    #[allow(clippy::panic)] // proptest uses panic internally for property failures
-    #[allow(unused_imports)] // proptest prelude import may appear unused
+    #[allow(clippy::disallowed_macros)] // proptest uses panic internally
     mod proptest_tests {
         use super::*;
+        #[allow(unused_imports)] // Used within proptest! macro
         use proptest::prelude::*;
 
         proptest! {
