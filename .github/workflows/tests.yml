@@ -1,0 +1,46 @@
+name: Rust CI (tests + clippy)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo/target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+      - name: Clippy (strict correctness/suspicious/perf)
+        run: |
+          cargo clippy --workspace -- \
+            -D clippy::correctness \
+            -D clippy::suspicious \
+            -D clippy::perf \
+            -A missing-docs \
+            -A clippy::missing-errors-doc \
+            -A clippy::missing-panics-doc \
+            -A clippy::must-use-candidate
+
+      - name: Install nextest
+        run: |
+          if ! command -v cargo-nextest >/dev/null 2>&1; then
+            cargo install cargo-nextest
+          fi
+
+      - name: Tests (nextest)
+        run: cargo nextest run --workspace --status-level slow
+
+      - name: Doc tests
+        run: cargo test --doc --workspace --quiet
