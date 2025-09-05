@@ -149,39 +149,46 @@ async fn perform_search(
     }
     let max_concurrent_searches = get_max_concurrent_searches();
 
-    // Create blocking tasks for parallel search across sources (avoid blocking the async runtime)
+    // Create futures that spawn blocking tasks for parallel search across sources
+    // This ensures bounded concurrency by only spawning tasks when polled
     let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
         let query = options.query.clone();
 
-        tokio::task::spawn_blocking(move || -> anyhow::Result<(Vec<SearchHit>, usize, String)> {
-            let index_path = storage.index_dir(&source)?;
-            if !index_path.exists() {
-                return Ok((Vec::new(), 0, source));
-            }
+        async move {
+            tokio::task::spawn_blocking(
+                move || -> anyhow::Result<(Vec<SearchHit>, usize, String)> {
+                    let index_path = storage.index_dir(&source)?;
+                    if !index_path.exists() {
+                        return Ok((Vec::new(), 0, source));
+                    }
 
-            let index = SearchIndex::open(&index_path)
-                .with_context(|| {
-                    format!(
-                        "open index for source={} at {}",
-                        source,
-                        index_path.display()
-                    )
-                })?
-                .with_metrics(metrics);
-            let hits = index
-                .search(&query, Some(&source), effective_limit)
-                .with_context(|| format!("search failed for source={}", source))?;
+                    let index = SearchIndex::open(&index_path)
+                        .with_context(|| {
+                            format!(
+                                "open index for source={} at {}",
+                                source,
+                                index_path.display()
+                            )
+                        })?
+                        .with_metrics(metrics);
+                    let hits = index
+                        .search(&query, Some(&source), effective_limit)
+                        .with_context(|| format!("search failed for source={source}"))?;
 
-            // Count total lines for stats
-            let total_lines = storage
-                .load_llms_json(&source)
-                .map(|json| json.line_index.total_lines)
-                .unwrap_or(0);
+                    // Count total lines for stats
+                    let total_lines = storage
+                        .load_llms_json(&source)
+                        .map(|json| json.line_index.total_lines)
+                        .unwrap_or(0);
 
-            Ok((hits, total_lines, source))
-        })
+                    Ok((hits, total_lines, source))
+                },
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("search task panicked: {}", e))?
+        }
     });
 
     // Execute searches with bounded concurrency
@@ -192,9 +199,9 @@ async fn perform_search(
     let mut sources_searched = Vec::new();
 
     // Collect results from the stream
-    while let Some(join_res) = search_stream.next().await {
-        match join_res {
-            Ok(Ok((hits, lines, source))) => {
+    while let Some(res) = search_stream.next().await {
+        match res {
+            Ok((hits, lines, source)) => {
                 let has_hits = !hits.is_empty();
                 all_hits.extend(hits);
                 total_lines_searched += lines;
@@ -202,11 +209,8 @@ async fn perform_search(
                     sources_searched.push(source);
                 }
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 tracing::warn!("Search failed: {}", e);
-            },
-            Err(join_err) => {
-                tracing::warn!("Search task panicked: {}", join_err);
             },
         }
     }

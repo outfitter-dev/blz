@@ -5,13 +5,16 @@ use std::fs;
 use std::path::PathBuf;
 use tracing::{debug, info};
 
+/// Maximum allowed alias length to match CLI constraints
+const MAX_ALIAS_LEN: usize = 64;
+
 pub struct Storage {
     root_dir: PathBuf,
 }
 
 impl Storage {
     pub fn new() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("dev", "outfitter", "cache")
+        let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
 
         let root_dir = project_dirs.data_dir().to_path_buf();
@@ -39,10 +42,20 @@ impl Storage {
     }
 
     /// Validate that an alias is safe to use as a directory name
+    ///
+    /// This validation is unified with CLI constraints to prevent inconsistencies
+    /// between what the CLI accepts and what storage can handle.
     fn validate_alias(alias: &str) -> Result<()> {
         // Check for empty alias
         if alias.is_empty() {
             return Err(Error::Storage("Alias cannot be empty".into()));
+        }
+
+        // Disallow leading hyphen to avoid CLI parsing ambiguities
+        if alias.starts_with('-') {
+            return Err(Error::Storage(format!(
+                "Invalid alias '{alias}': cannot start with '-'"
+            )));
         }
 
         // Check for path traversal attempts
@@ -77,20 +90,20 @@ impl Storage {
             }
         }
 
-        // Check length (reasonable limit for filesystem compatibility)
-        if alias.len() > 255 {
+        // Check length (keep consistent with CLI policy)
+        if alias.len() > MAX_ALIAS_LEN {
             return Err(Error::Storage(format!(
-                "Invalid alias '{alias}': exceeds maximum length of 255 characters"
+                "Invalid alias '{alias}': exceeds maximum length of {MAX_ALIAS_LEN} characters"
             )));
         }
 
-        // Only allow alphanumeric, dash, underscore for safety
+        // Only allow ASCII alphanumeric, dash, underscore
         if !alias
             .chars()
-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
             return Err(Error::Storage(format!(
-                "Invalid alias '{alias}': only alphanumeric characters, dashes, and underscores are allowed"
+                "Invalid alias '{alias}': only [A-Za-z0-9_-] are allowed"
             )));
         }
 
