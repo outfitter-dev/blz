@@ -1,4 +1,6 @@
 //! Comprehensive benchmarks for performance optimizations
+#![allow(clippy::expect_used)] // Benchmarks can panic on setup failures
+#![allow(clippy::uninlined_format_args)] // Performance benchmark, format style not critical
 
 use blz_core::{
     HeadingBlock,
@@ -12,6 +14,7 @@ use blz_core::{
     // string_pool::StringPool,
 };
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use futures::future;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
@@ -57,7 +60,7 @@ fn create_realistic_blocks(count: usize, content_size: usize) -> Vec<HeadingBloc
         content.truncate(content_size);
 
         let section = format!("Section_{}", i / 10);
-        let subsection = format!("Subsection_{}", i);
+        let subsection = format!("Subsection_{i}");
 
         blocks.push(HeadingBlock {
             path: vec![section, subsection],
@@ -381,7 +384,9 @@ fn bench_concurrent_operations(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(20));
 
     let blocks = create_realistic_blocks(500, 1000);
-    let (_temp_dir, optimized_index) = setup_original_index(&blocks);
+    let (_temp_dir, index) = setup_original_index(&blocks);
+    // Wrap the index in Arc to share it across concurrent tasks
+    let shared_index = std::sync::Arc::new(index);
 
     let concurrent_levels = [1, 2, 4, 8, 16];
 
@@ -390,28 +395,43 @@ fn bench_concurrent_operations(c: &mut Criterion) {
             BenchmarkId::new("concurrent_searches", concurrency),
             &concurrency,
             |b, &concurrency| {
-                b.to_async(&rt).iter(|| async {
-                    let queries: Vec<_> = (0..concurrency)
-                        .map(|i| {
-                            let query = match i % 4 {
-                                0 => "React hooks",
-                                1 => "TypeScript interfaces",
-                                2 => "performance optimization",
-                                3 => "testing strategies",
-                                _ => unreachable!(),
-                            };
-                            (query.to_string(), Some("bench".to_string()), 10)
-                        })
-                        .collect();
+                let index = std::sync::Arc::clone(&shared_index);
+                b.to_async(&rt).iter(move || {
+                    let index = std::sync::Arc::clone(&index);
+                    async move {
+                        let queries: Vec<_> = (0..concurrency)
+                            .map(|i| {
+                                let query = match i % 4 {
+                                    0 => "React hooks",
+                                    1 => "TypeScript interfaces",
+                                    2 => "performance optimization",
+                                    3 => "testing strategies",
+                                    _ => unreachable!(),
+                                };
+                                (query.to_string(), Some("bench".to_string()), 10)
+                            })
+                            .collect();
 
-                    let mut results = Vec::new();
-                    for (query, alias, limit) in queries {
-                        let result = optimized_index
-                            .search(&query, alias.as_deref(), limit)
-                            .expect("Search failed");
-                        results.push(result);
+                        // Create concurrent search tasks using spawn_blocking
+                        // This provides true concurrency since search() is a blocking operation
+                        let tasks: Vec<_> = queries
+                            .into_iter()
+                            .map(|(query, alias, limit)| {
+                                let index = std::sync::Arc::clone(&index);
+                                tokio::task::spawn_blocking(move || {
+                                    index.search(&query, alias.as_deref(), limit)
+                                })
+                            })
+                            .collect();
+
+                        let results: Vec<_> = future::join_all(tasks)
+                            .await
+                            .into_iter()
+                            .map(|result| result.expect("Task panicked").expect("Search failed"))
+                            .collect();
+
+                        black_box(results)
                     }
-                    black_box(results)
                 });
             },
         );

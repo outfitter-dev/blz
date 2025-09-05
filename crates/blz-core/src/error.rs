@@ -426,6 +426,9 @@ impl Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
+#[allow(clippy::unnecessary_wraps)] // Test helper functions may wrap results for consistency
+#[allow(clippy::disallowed_macros)] // Tests use panic! for assertions
+#[allow(clippy::panic)] // Tests use panic for property testing
 mod tests {
     use super::*;
     use proptest::prelude::*;
@@ -525,16 +528,15 @@ mod tests {
 
         // This test ensures the From implementation exists and compiles
         // In practice, reqwest errors would come from actual HTTP operations
-        fn create_network_error_result() -> Result<()> {
+        fn create_network_error_result() {
             // This would typically come from reqwest operations
             let _client = reqwest::Client::new();
             // We can't easily trigger a reqwest error in tests without network calls
             // but we can verify the error type conversion works by checking the variant
-            Ok(())
         }
 
         // When/Then: The conversion should compile and work (tested implicitly)
-        assert!(create_network_error_result().is_ok());
+        create_network_error_result();
     }
 
     #[test]
@@ -628,7 +630,7 @@ mod tests {
 
         // Then: Should maintain the source chain
         assert!(source.is_some());
-        let source_str = source.unwrap().to_string();
+        let source_str = source.expect("source should exist").to_string();
         assert!(source_str.contains("access denied"));
     }
 
@@ -649,13 +651,13 @@ mod tests {
 
         // Then: Should work as expected
         assert!(ok_result.is_ok());
-        assert_eq!(ok_result.unwrap(), 42);
+        assert_eq!(ok_result.expect("ok result should be ok"), 42);
 
         assert!(err_result.is_err());
         if let Err(Error::Other(msg)) = err_result {
             assert_eq!(msg, "test error");
         } else {
-            panic!("Expected Other error");
+            unreachable!("Expected Other error");
         }
     }
 
