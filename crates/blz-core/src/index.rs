@@ -7,6 +7,7 @@ use tantivy::schema::{Field, STORED, STRING, Schema, TEXT, Value};
 use tantivy::{Index, IndexReader, doc};
 use tracing::{Level, debug, info};
 
+/// Tantivy-based search index for llms.txt documentation
 pub struct SearchIndex {
     index: Index,
     #[allow(dead_code)]
@@ -32,6 +33,7 @@ impl SearchIndex {
     pub const fn metrics(&self) -> Option<&PerformanceMetrics> {
         self.metrics.as_ref()
     }
+    /// Creates a new search index at the specified path
     pub fn create(index_path: &Path) -> Result<Self> {
         let mut schema_builder = Schema::builder();
 
@@ -68,6 +70,7 @@ impl SearchIndex {
         })
     }
 
+    /// Creates a new search index or opens an existing one at the specified path
     pub fn create_or_open(index_path: &Path) -> Result<Self> {
         if index_path.exists() {
             Self::open(index_path)
@@ -76,6 +79,7 @@ impl SearchIndex {
         }
     }
 
+    /// Opens an existing search index at the specified path
     pub fn open(index_path: &Path) -> Result<Self> {
         let index = Index::open_in_dir(index_path)
             .map_err(|e| Error::Index(format!("Failed to open index: {e}")))?;
@@ -117,6 +121,7 @@ impl SearchIndex {
         })
     }
 
+    /// Indexes a collection of heading blocks for a given alias
     pub fn index_blocks(
         &self,
         alias: &str,
@@ -193,6 +198,7 @@ impl SearchIndex {
         Ok(())
     }
 
+    /// Searches the index with optional alias filtering
     #[allow(clippy::too_many_lines)] // Complex search logic requires detailed implementation
     pub fn search(
         &self,
