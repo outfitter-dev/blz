@@ -235,7 +235,11 @@ cargo build --release
 
 # Run tests
 # Fast local test run (nextest)
+# If you don't have nextest installed:
+#   cargo install cargo-nextest
 cargo nextest run --workspace
+# Or use standard cargo test as fallback:
+#   cargo test --workspace
 
 # Install locally
 cargo install --path .
