@@ -48,6 +48,7 @@ wiremock = "0.6"
 name = "search_performance"
 harness = false
 
-[[bench]]
-name = "performance_optimizations"
-harness = false
+# [[bench]]
+# name = "performance_optimizations"
+# harness = false
+# Note: Disabled until cache/memory_pool modules are implemented

@@ -8,11 +8,13 @@ use tracing::{debug, info};
 /// Maximum allowed alias length to match CLI constraints
 const MAX_ALIAS_LEN: usize = 64;
 
+/// Local filesystem storage for cached llms.txt documentation
 pub struct Storage {
     root_dir: PathBuf,
 }
 
 impl Storage {
+    /// Creates a new storage instance with the default root directory
     pub fn new() -> Result<Self> {
         let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
@@ -21,6 +23,7 @@ impl Storage {
         Self::with_root(root_dir)
     }
 
+    /// Creates a new storage instance with a custom root directory
     pub fn with_root(root_dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root_dir)
             .map_err(|e| Error::Storage(format!("Failed to create root directory: {e}")))?;
@@ -28,12 +31,14 @@ impl Storage {
         Ok(Self { root_dir })
     }
 
+    /// Returns the directory path for a given alias
     pub fn tool_dir(&self, alias: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks
         Self::validate_alias(alias)?;
         Ok(self.root_dir.join(alias))
     }
 
+    /// Ensures the directory for an alias exists and returns its path
     pub fn ensure_tool_dir(&self, alias: &str) -> Result<PathBuf> {
         let dir = self.tool_dir(alias)?;
         fs::create_dir_all(&dir)
@@ -110,26 +115,32 @@ impl Storage {
         Ok(())
     }
 
+    /// Returns the path to the llms.txt file for an alias
     pub fn llms_txt_path(&self, alias: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(alias)?.join("llms.txt"))
     }
 
+    /// Returns the path to the llms.json file for an alias
     pub fn llms_json_path(&self, alias: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(alias)?.join("llms.json"))
     }
 
+    /// Returns the path to the search index directory for an alias
     pub fn index_dir(&self, alias: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(alias)?.join(".index"))
     }
 
+    /// Returns the path to the archive directory for an alias
     pub fn archive_dir(&self, alias: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(alias)?.join(".archive"))
     }
 
+    /// Returns the path to the metadata file for an alias
     pub fn metadata_path(&self, alias: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(alias)?.join("metadata.json"))
     }
 
+    /// Saves the llms.txt content for an alias
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_txt_path(alias)?;
@@ -139,12 +150,14 @@ impl Storage {
         Ok(())
     }
 
+    /// Loads the llms.txt content for an alias
     pub fn load_llms_txt(&self, alias: &str) -> Result<String> {
         let path = self.llms_txt_path(alias)?;
         fs::read_to_string(&path)
             .map_err(|e| Error::Storage(format!("Failed to read llms.txt: {e}")))
     }
 
+    /// Saves the parsed llms.json data for an alias
     pub fn save_llms_json(&self, alias: &str, data: &LlmsJson) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.llms_json_path(alias)?;
@@ -156,6 +169,7 @@ impl Storage {
         Ok(())
     }
 
+    /// Loads the parsed llms.json data for an alias
     pub fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
         let path = self.llms_json_path(alias)?;
         let json = fs::read_to_string(&path)
@@ -164,6 +178,7 @@ impl Storage {
             .map_err(|e| Error::Storage(format!("Failed to parse JSON: {e}")))
     }
 
+    /// Saves source metadata for an alias
     pub fn save_source_metadata(&self, alias: &str, source: &Source) -> Result<()> {
         self.ensure_tool_dir(alias)?;
         let path = self.metadata_path(alias)?;
@@ -183,6 +198,7 @@ impl Storage {
         Ok(())
     }
 
+    /// Loads source metadata for an alias if it exists
     pub fn load_source_metadata(&self, alias: &str) -> Result<Option<Source>> {
         let path = self.metadata_path(alias)?;
         if !path.exists() {
@@ -195,12 +211,14 @@ impl Storage {
         Ok(Some(source))
     }
 
+    /// Checks if an alias exists in storage
     pub fn exists(&self, alias: &str) -> bool {
         self.llms_json_path(alias)
             .map(|path| path.exists())
             .unwrap_or(false)
     }
 
+    /// Lists all cached source aliases
     pub fn list_sources(&self) -> Result<Vec<String>> {
         let mut sources = Vec::new();
 
@@ -222,6 +240,7 @@ impl Storage {
         Ok(sources)
     }
 
+    /// Archives the current version of an alias
     pub fn archive(&self, alias: &str) -> Result<()> {
         let archive_dir = self.archive_dir(alias)?;
         fs::create_dir_all(&archive_dir)

@@ -637,19 +637,18 @@ mod tests {
 
         // Then: Should return appropriate error
         assert!(result.is_err());
-        if let Err(Error::Config(msg)) = result {
-            assert!(msg.contains("Failed to read config"));
-        } else {
-            panic!("Expected Config error");
+        match result {
+            Err(Error::Config(msg)) => assert!(msg.contains("Failed to read config")),
+            _ => assert!(false, "Expected Config error"),
         }
     }
 
     #[test]
     fn test_config_parse_invalid_toml() {
         // Given: Invalid TOML content
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("invalid.toml");
-        fs::write(&config_path, "this is not valid toml [[[").unwrap();
+        fs::write(&config_path, "this is not valid toml [[[").expect("Failed to write test file");
 
         // When: Attempting to parse
         let result = (|| -> Result<Config> {
@@ -693,7 +692,12 @@ mod tests {
 
         // Then: Directory should be created and file should exist
         assert!(nested_path.exists());
-        assert!(nested_path.parent().unwrap().exists());
+        assert!(
+            nested_path
+                .parent()
+                .expect("path should have parent")
+                .exists()
+        );
 
         Ok(())
     }
@@ -829,8 +833,8 @@ mod tests {
                 },
             };
 
-            let serialized = toml::to_string_pretty(&config).unwrap();
-            let deserialized: Config = toml::from_str(&serialized).unwrap();
+            let serialized = toml::to_string_pretty(&config).expect("should serialize");
+            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
             prop_assert_eq!(deserialized.defaults.refresh_hours, refresh_hours);
         }
@@ -850,8 +854,8 @@ mod tests {
                 },
             };
 
-            let serialized = toml::to_string_pretty(&config).unwrap();
-            let deserialized: Config = toml::from_str(&serialized).unwrap();
+            let serialized = toml::to_string_pretty(&config).expect("should serialize");
+            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
             prop_assert_eq!(deserialized.defaults.max_archives, max_archives);
         }
@@ -871,8 +875,8 @@ mod tests {
                 },
             };
 
-            let serialized = toml::to_string_pretty(&config).unwrap();
-            let deserialized: Config = toml::from_str(&serialized).unwrap();
+            let serialized = toml::to_string_pretty(&config).expect("should serialize");
+            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
 
             prop_assert_eq!(deserialized.defaults.allowlist, allowlist);
         }
@@ -905,8 +909,8 @@ mod tests {
             };
 
             // Then: Should still serialize/deserialize (path validation is separate)
-            let serialized = toml::to_string_pretty(&config).unwrap();
-            let deserialized: Config = toml::from_str(&serialized).unwrap();
+            let serialized = toml::to_string_pretty(&config).expect("should serialize");
+            let deserialized: Config = toml::from_str(&serialized).expect("should deserialize");
             assert_eq!(deserialized.paths.root, PathBuf::from(malicious_path));
         }
     }
