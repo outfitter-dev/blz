@@ -1,52 +1,66 @@
-#!/usr/bin/env node
+#!/bin/sh
 
-/**
- * Blaze (blz) - Blazingly fast documentation cache
- * 
- * This is the npm wrapper for the Rust binary.
- * The actual binary is downloaded during postinstall.
- */
+# Wrapper script for the blz binary
+# This script finds and runs the appropriate platform-specific binary
 
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { existsSync } from 'fs';
-import { platform, arch } from 'os';
+set -eu
+# Enable pipefail where supported (bash/zsh); ignore if unsupported
+if (set -o pipefail) 2>/dev/null; then :; fi
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+# Detect platform
+OS="$(uname -s)"
+ARCH="$(uname -m)"
 
-// Determine the binary name based on platform
-const getBinaryName = () => {
-  const p = platform();
-  const a = arch();
-  
-  if (p === 'win32') {
-    return 'blz.exe';
-  }
-  
-  return `blz-${p}-${a}`;
-};
+case "$OS" in
+  Darwin)
+    case "$ARCH" in
+      x86_64) PLATFORM="darwin-x64" ;;
+      arm64) PLATFORM="darwin-arm64" ;;
+      *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+    esac
+    BINARY="blz"
+    ;;
+  Linux)
+    case "$ARCH" in
+      x86_64) PLATFORM="linux-x64" ;;
+      aarch64) PLATFORM="linux-arm64" ;;
+      *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+    esac
+    BINARY="blz"
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    PLATFORM="win32-x64"
+    BINARY="blz.exe"
+    ;;
+  *)
+    echo "Unsupported OS: $OS" >&2
+    echo "Please install blz using: cargo install blz-cli" >&2
+    exit 1
+    ;;
+esac
 
-const binaryPath = join(__dirname, 'bin', getBinaryName());
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-if (!existsSync(binaryPath)) {
-  console.error('Error: Blaze binary not found.');
-  console.error('Please run: npm install outfitter-blaze');
-  process.exit(1);
-}
+# Look for the binary in the platform-specific package
+# When installed via npm, platform packages are in node_modules/@outfitter/blz-{platform}
+NODE_MODULES="$SCRIPT_DIR/../node_modules"
+if [ -d "$NODE_MODULES/@outfitter/blz-$PLATFORM" ]; then
+  BINARY_PATH="$NODE_MODULES/@outfitter/blz-$PLATFORM/$BINARY"
+elif [ -d "$SCRIPT_DIR/../@outfitter/blz-$PLATFORM" ]; then
+  # Alternative when optional deps are hoisted beside the main package
+  BINARY_PATH="$SCRIPT_DIR/../@outfitter/blz-$PLATFORM/$BINARY"
+else
+  echo "Error: blz binary package not found for $PLATFORM" >&2
+  echo "Please reinstall with: npm install -g @outfitter/blz" >&2
+  exit 1
+fi
 
-// Spawn the binary with all arguments
-const child = spawn(binaryPath, process.argv.slice(2), {
-  stdio: 'inherit',
-  env: process.env,
-});
+if [ ! -x "$BINARY_PATH" ]; then
+  echo "Error: blz binary not executable at: $BINARY_PATH" >&2
+  echo "Please reinstall with: npm install -g @outfitter/blz" >&2
+  exit 1
+fi
 
-child.on('exit', (code) => {
-  process.exit(code || 0);
-});
-
-child.on('error', (err) => {
-  console.error('Failed to start Blaze:', err);
-  process.exit(1);
-});
+# Execute the binary with all arguments
+exec "$BINARY_PATH" "$@"

@@ -1,0 +1,37 @@
+# Configuration for release-plz
+# https://release-plz.ieni.dev/docs/config
+
+[workspace]
+# Enable changelog generation from conventional commits
+changelog_update = true
+
+# Use git-cliff for changelog generation
+changelog_config = "cliff.toml"
+
+# Don't publish to crates.io automatically (let CI handle it)
+publish = false
+
+# Allow dirty working directory during local runs
+allow_dirty = true
+
+# Dependencies update strategy
+dependencies_update = true
+
+# Customize the release PR
+pr_name = "chore: release {{version}}"
+pr_labels = ["release"]
+
+[[package]]
+name = "blz-core"
+# Publish handled by CI (cargo publish). release-plz: do not publish.
+publish = false
+
+[[package]]
+name = "blz-cli"
+# Publish handled by CI (cargo publish). release-plz: do not publish.
+publish = false
+
+[[package]]
+name = "blz-mcp"
+# MCP server may be published later
+publish = false
