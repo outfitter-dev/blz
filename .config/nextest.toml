@@ -1,3 +1,45 @@
+# Nextest configuration for blz
+# https://nexte.st/book/configuration.html
+
 [profile.default]
-# Basic workspace-wide test configuration for nextest
-# Auto-discovers all workspace members
+# Run tests in parallel using all available cores
+test-threads = "num-cpus"
+
+# Retry flaky tests once
+retries = { backoff = "fixed", count = 1, delay = "1s" }
+
+# Fail fast on first test failure
+fail-fast = false
+
+# Status output during test runs
+status-level = "pass"
+
+# Slow test threshold (warn if test takes longer)
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[profile.default.junit]
+# Store JUnit results for CI reporting
+path = "target/nextest/junit.xml"
+
+[profile.ci]
+# CI-specific settings
+# More conservative parallelism for CI runners
+test-threads = 4
+
+# No retries in CI - we want to know about flakes
+retries = { backoff = "fixed", count = 0 }
+
+# More detailed output in CI
+status-level = "all"
+final-status-level = "all"
+
+[profile.ci.junit]
+path = "target/nextest/ci/junit.xml"
+
+# Quick profile for local development
+[profile.quick]
+# Only run non-ignored tests
+test-threads = "num-cpus"
+retries = { backoff = "fixed", count = 0 }
+fail-fast = true
+status-level = "fail"
