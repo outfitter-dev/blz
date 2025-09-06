@@ -8,7 +8,6 @@
 #![allow(clippy::useless_vec)]
 #![allow(clippy::map_unwrap_or)]
 #![allow(clippy::option_if_let_else)]
-#![allow(clippy::expect_used)]
 #![allow(clippy::unwrap_used)]
 
 use blz_core::{
