@@ -10,7 +10,7 @@ use serde_json::json;
 use tracing::{error, info};
 use tracing_subscriber::FmtSubscriber;
 
-/// Handle the list_sources RPC method
+/// Handle the `list_sources` RPC method
 async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -69,7 +69,9 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     let limit = params
         .get("limit")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(10) as usize;
+        .map_or(10, |v| {
+            usize::try_from(v.min(usize::MAX as u64)).unwrap_or(usize::MAX)
+        });
 
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -141,7 +143,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     }))
 }
 
-/// Handle the get_lines RPC method
+/// Handle the `get_lines` RPC method
 async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let params = params.parse::<serde_json::Value>().map_err(|e| RpcError {
         code: ErrorCode::InvalidParams,
@@ -160,17 +162,35 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
         .and_then(|v| v.as_str())
         .unwrap_or("llms.txt");
 
-    let start = params["start"].as_u64().ok_or_else(|| RpcError {
-        code: ErrorCode::InvalidParams,
-        message: "Missing required parameter 'start'".to_string(),
-        data: None,
-    })? as usize;
+    let start = params["start"]
+        .as_u64()
+        .ok_or_else(|| RpcError {
+            code: ErrorCode::InvalidParams,
+            message: "Missing required parameter 'start'".to_string(),
+            data: None,
+        })
+        .and_then(|v| {
+            usize::try_from(v).map_err(|_| RpcError {
+                code: ErrorCode::InvalidParams,
+                message: "Start value too large for platform".to_string(),
+                data: None,
+            })
+        })?;
 
-    let end = params["end"].as_u64().ok_or_else(|| RpcError {
-        code: ErrorCode::InvalidParams,
-        message: "Missing required parameter 'end'".to_string(),
-        data: None,
-    })? as usize;
+    let end = params["end"]
+        .as_u64()
+        .ok_or_else(|| RpcError {
+            code: ErrorCode::InvalidParams,
+            message: "Missing required parameter 'end'".to_string(),
+            data: None,
+        })
+        .and_then(|v| {
+            usize::try_from(v).map_err(|_| RpcError {
+                code: ErrorCode::InvalidParams,
+                message: "End value too large for platform".to_string(),
+                data: None,
+            })
+        })?;
 
     if start == 0 || start > end {
         return Err(RpcError {
@@ -201,8 +221,8 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let lines: Vec<&str> = content.lines().collect();
 
     let mut result = String::new();
-    for i in (start - 1)..end.min(lines.len()) {
-        result.push_str(lines[i]);
+    for line in lines.iter().skip(start - 1).take(end - start + 1) {
+        result.push_str(line);
         result.push('\n');
     }
 

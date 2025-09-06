@@ -1,0 +1,261 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release-plz
+        uses: MarcoIeni/release-plz-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release:
+    name: Release to crates.io and npm
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-binaries]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # Publish to crates.io
+      - name: Publish blz-core to crates.io
+        run: cargo publish -p blz-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish blz-cli to crates.io
+        run: cargo publish -p blz-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      # Download built binaries
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Create GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Prepare npm packages
+      - name: Prepare npm packages
+        run: |
+          # Create npm package structure
+          mkdir -p npm-packages/blz
+
+          # Create main package.json from Cargo.toml version
+          cat > npm-packages/blz/package.json << EOF
+          {
+            "name": "@outfitter/blz",
+            "version": "${{ steps.version.outputs.version }}",
+            "description": "Fast local llms.txt search for agents",
+            "keywords": ["llms", "llms.txt", "documentation", "search", "rust", "cli"],
+            "homepage": "https://github.com/outfitter-dev/blz",
+            "repository": {
+              "type": "git",
+              "url": "git+https://github.com/outfitter-dev/blz.git"
+            },
+            "license": "MIT",
+            "author": "Outfitter",
+            "type": "module",
+            "bin": {
+              "blz": "./bin/blz"
+            },
+            "files": ["bin/", "README.md", "LICENSE"],
+            "engines": {
+              "node": ">=18.0.0"
+            },
+            "os": ["darwin", "linux", "win32"],
+            "cpu": ["x64", "arm64"],
+            "optionalDependencies": {
+              "@outfitter/blz-darwin-x64": "${{ steps.version.outputs.version }}",
+              "@outfitter/blz-darwin-arm64": "${{ steps.version.outputs.version }}",
+              "@outfitter/blz-linux-x64": "${{ steps.version.outputs.version }}",
+              "@outfitter/blz-linux-arm64": "${{ steps.version.outputs.version }}",
+              "@outfitter/blz-win32-x64": "${{ steps.version.outputs.version }}"
+            },
+            "publishConfig": {
+              "access": "public",
+              "registry": "https://registry.npmjs.org/"
+            }
+          }
+          EOF
+
+          # Create platform packages from artifacts
+          for platform in darwin-x64 darwin-arm64 linux-x64 linux-arm64 win32-x64; do
+            # Extract binary from artifact
+            if [[ "$platform" == win32-* ]]; then
+              ext="zip"
+              binary="blz.exe"
+            else
+              ext="tar.gz"
+              binary="blz"
+            fi
+
+            # Artifacts are downloaded into artifacts/blz-$platform/ directory
+            artifact_dir="artifacts/blz-$platform"
+            artifact_file="$artifact_dir/blz-$platform.$ext"
+
+            # Check if artifact exists and extract it
+            if [ -f "$artifact_file" ]; then
+              mkdir -p "npm-packages/blz-$platform"
+              if [[ "$ext" == "tar.gz" ]]; then
+                tar -xzf "$artifact_file" -C "npm-packages/blz-$platform"
+              else
+                unzip -q "$artifact_file" -d "npm-packages/blz-$platform"
+              fi
+
+              # Create platform package.json
+              cat > "npm-packages/blz-$platform/package.json" << EOF
+              {
+                "name": "@outfitter/blz-$platform",
+                "version": "${{ steps.version.outputs.version }}",
+                "description": "blz binary for $platform",
+                "repository": "outfitter-dev/blz",
+                "license": "MIT",
+                "author": "Outfitter",
+                "main": "$binary",
+                "files": ["$binary"],
+                "os": ["${platform%%-*}"],
+                "cpu": ["${platform##*-}"],
+                "publishConfig": {
+                  "access": "public"
+                }
+              }
+          EOF
+            else
+              echo "Warning: Artifact not found at $artifact_file"
+            fi
+          done
+
+          # Wire the main package's bin wrapper
+          mkdir -p npm-packages/blz/bin
+          cp npm/blz npm-packages/blz/bin/blz
+          chmod +x npm-packages/blz/bin/blz
+
+          # Copy README and LICENSE
+          cp README.md npm-packages/blz/
+          cp LICENSE npm-packages/blz/
+
+      # Publish to npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish platform packages to npm
+        run: |
+          # Publish platform-specific packages first
+          for platform in darwin-x64 darwin-arm64 linux-x64 linux-arm64 win32-x64; do
+            if [ -f "npm-packages/blz-$platform/package.json" ]; then
+              cd npm-packages/blz-$platform
+              npm publish
+              cd ../..
+            fi
+          done
+
+          # Then publish main package
+          cd npm-packages/blz
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  build-binaries:
+    name: Build binaries
+    runs-on: ${{ matrix.os }}
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            npm_platform: linux-x64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            npm_platform: linux-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            npm_platform: darwin-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            npm_platform: darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            npm_platform: win32-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }} --package blz-cli
+
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf blz-${{ matrix.npm_platform }}.tar.gz blz
+          mv blz-${{ matrix.npm_platform }}.tar.gz ../../../
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a -tzip blz-${{ matrix.npm_platform }}.zip blz.exe
+          mv blz-${{ matrix.npm_platform }}.zip ../../../
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blz-${{ matrix.npm_platform }}
+          path: blz-${{ matrix.npm_platform }}.*
