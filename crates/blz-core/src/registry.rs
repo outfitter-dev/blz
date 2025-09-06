@@ -5,14 +5,20 @@ use serde::{Deserialize, Serialize};
 /// Registry entry representing a documented tool/package
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryEntry {
+    /// Display name of the tool/package
     pub name: String,
-    pub slug: String, // kebab-case identifier
+    /// Kebab-case identifier for the entry
+    pub slug: String,
+    /// Alternative names and common abbreviations
     pub aliases: Vec<String>,
+    /// Brief description of the tool/package
     pub description: String,
+    /// URL to the llms.txt documentation file
     pub llms_url: String,
 }
 
 impl RegistryEntry {
+    /// Creates a new registry entry
     pub fn new(name: &str, slug: &str, description: &str, llms_url: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -23,6 +29,7 @@ impl RegistryEntry {
         }
     }
 
+    /// Sets the aliases for this registry entry
     #[must_use]
     pub fn with_aliases(mut self, aliases: &[&str]) -> Self {
         self.aliases = aliases.iter().map(|s| (*s).to_string()).collect();
@@ -38,11 +45,13 @@ impl std::fmt::Display for RegistryEntry {
 
 /// Registry for looking up documentation sources
 pub struct Registry {
+    /// List of all registered documentation sources
     entries: Vec<RegistryEntry>,
 }
 
 impl Registry {
     /// Create a new registry with hardcoded entries
+    /// Creates a new registry with built-in entries
     pub fn new() -> Self {
         let entries = vec![
             RegistryEntry::new(
@@ -121,11 +130,12 @@ impl Registry {
     }
 
     /// Create a new registry with custom entries
+    #[must_use]
     pub const fn from_entries(entries: Vec<RegistryEntry>) -> Self {
         Self { entries }
     }
 
-    /// Search for registry entries using fuzzy matching
+    /// Searches the registry for matching entries using fuzzy matching
     pub fn search(&self, query: &str) -> Vec<RegistrySearchResult> {
         let matcher = SkimMatcherV2::default();
         let query = query.trim().to_lowercase();
@@ -187,6 +197,7 @@ impl Registry {
     }
 
     /// Get all registry entries
+    /// Returns all entries in the registry
     pub fn all_entries(&self) -> &[RegistryEntry] {
         &self.entries
     }
@@ -201,8 +212,11 @@ impl Default for Registry {
 /// Search result from registry
 #[derive(Debug, Clone)]
 pub struct RegistrySearchResult {
+    /// The matched registry entry
     pub entry: RegistryEntry,
+    /// Fuzzy matching score (higher is better)
     pub score: i64,
+    /// Field that matched the search query (name, slug, or alias)
     pub match_field: String,
 }
 

@@ -55,14 +55,23 @@
 //! # Ok::<(), blz_core::Error>(())
 //! ```
 
+/// Configuration management for global and per-source settings
 pub mod config;
+/// Error types and result aliases
 pub mod error;
+/// HTTP fetching with conditional requests support
 pub mod fetcher;
+/// Search index implementation using Tantivy
 pub mod index;
+/// Tree-sitter based markdown parser
 pub mod parser;
+/// Performance profiling utilities
 pub mod profiling;
+/// Built-in registry of known documentation sources
 pub mod registry;
+/// Local filesystem storage for cached documentation
 pub mod storage;
+/// Core data types and structures
 pub mod types;
 
 // Re-export commonly used types

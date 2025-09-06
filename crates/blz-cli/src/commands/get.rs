@@ -16,8 +16,8 @@ pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result
         return Ok(());
     }
 
-    let content = storage.load_llms_txt(alias)?;
-    let all_lines: Vec<&str> = content.lines().collect();
+    let file_content = storage.load_llms_txt(alias)?;
+    let all_lines: Vec<&str> = file_content.lines().collect();
 
     let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
     display_lines(&line_numbers, &all_lines);

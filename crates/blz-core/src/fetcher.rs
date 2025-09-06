@@ -6,11 +6,13 @@ use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tracing::{debug, info};
 
+/// HTTP client for fetching llms.txt documentation with conditional request support
 pub struct Fetcher {
     client: Client,
 }
 
 impl Fetcher {
+    /// Creates a new fetcher with configured HTTP client
     pub fn new() -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
@@ -23,6 +25,7 @@ impl Fetcher {
         Ok(Self { client })
     }
 
+    /// Fetches a URL with conditional request support using `ETag` and `Last-Modified` headers
     pub async fn fetch_with_cache(
         &self,
         url: &str,
@@ -106,6 +109,7 @@ impl Fetcher {
         })
     }
 
+    /// Fetches a URL without conditional request support, returning content and `SHA256` hash
     pub async fn fetch(&self, url: &str) -> Result<(String, String)> {
         let response = self.client.get(url).send().await?;
         let status = response.status();
@@ -226,23 +230,36 @@ impl Fetcher {
     }
 }
 
+/// Result of a conditional HTTP fetch operation
 pub enum FetchResult {
+    /// Resource has not been modified since last fetch
     NotModified {
+        /// `ETag` header value if present
         etag: Option<String>,
+        /// `Last-Modified` header value if present
         last_modified: Option<String>,
     },
+    /// Resource has been modified and new content was fetched
     Modified {
+        /// The fetched content
         content: String,
+        /// `ETag` header value if present
         etag: Option<String>,
+        /// `Last-Modified` header value if present
         last_modified: Option<String>,
+        /// `SHA256` hash of the content
         sha256: String,
     },
 }
 
+/// Information about an available llms.txt flavor/variant
 #[derive(Debug, Clone)]
 pub struct FlavorInfo {
+    /// Name of the flavor (e.g., "llms-full.txt", "llms.txt")
     pub name: String,
+    /// Size in bytes if available from `Content-Length` header
     pub size: Option<u64>,
+    /// Full URL to fetch this flavor
     pub url: String,
 }
 
