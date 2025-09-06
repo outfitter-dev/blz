@@ -1,0 +1,48 @@
+{
+  "pull_request": {
+    "number": 999,
+    "draft": false,
+    "state": "open",
+    "locked": false,
+    "title": "Local act validation",
+    "body": "Testing with act locally",
+    "head": {
+      "ref": "act-local-test",
+      "sha": "0000000000000000000000000000000000000000",
+      "repo": {
+        "name": "blz",
+        "owner": {
+          "login": "outfitter-dev"
+        }
+      }
+    },
+    "base": {
+      "ref": "main",
+      "sha": "1111111111111111111111111111111111111111",
+      "repo": {
+        "name": "blz",
+        "owner": {
+          "login": "outfitter-dev"
+        }
+      }
+    },
+    "user": {
+      "login": "act-user",
+      "type": "User"
+    }
+  },
+  "repository": {
+    "name": "blz",
+    "full_name": "outfitter-dev/blz",
+    "owner": {
+      "login": "outfitter-dev",
+      "type": "Organization"
+    },
+    "private": false,
+    "default_branch": "main"
+  },
+  "sender": {
+    "login": "act-user",
+    "type": "User"
+  }
+}
