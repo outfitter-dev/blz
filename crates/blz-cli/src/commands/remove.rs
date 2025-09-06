@@ -14,7 +14,7 @@ pub async fn execute(alias: &str) -> Result<()> {
         return Ok(());
     }
 
-    display_removal_info(&storage, alias)?;
+    display_removal_info(&storage, alias);
 
     // Remove the entire source directory and all its contents
     let source_dir = storage.tool_dir(alias)?;
@@ -38,7 +38,7 @@ pub async fn execute(alias: &str) -> Result<()> {
     Ok(())
 }
 
-fn display_removal_info(storage: &Storage, alias: &str) -> Result<()> {
+fn display_removal_info(storage: &Storage, alias: &str) {
     if let Ok(llms_json) = storage.load_llms_json(alias) {
         println!(
             "Removing source '{}' ({})",
@@ -51,5 +51,4 @@ fn display_removal_info(storage: &Storage, alias: &str) -> Result<()> {
             llms_json.source.fetched_at.format("%Y-%m-%d %H:%M:%S")
         );
     }
-    Ok(())
 }

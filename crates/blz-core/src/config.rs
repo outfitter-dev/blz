@@ -5,7 +5,7 @@
 //!
 //! ## Configuration Hierarchy
 //!
-//! 1. **Global config**: `~/.config/outfitter/cache/global.toml`
+//! 1. **Global config**: Platform-specific config directory (see `GlobalConfig` docs)
 //! 2. **Per-source config**: `<source_dir>/settings.toml`
 //! 3. **Environment variables**: `CACHE_*` prefix
 //!
@@ -64,8 +64,8 @@ use std::path::{Path, PathBuf};
 /// ## File Location
 ///
 /// The configuration file is stored at:
-/// - Linux: `~/.config/outfitter/cache/global.toml`
-/// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`  
+/// - Linux: `~/.config/outfitter/blz/global.toml`
+/// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`  
 /// - Windows: `%APPDATA%\outfitter\cache\global.toml`
 ///
 /// ## Example Configuration File
@@ -163,8 +163,8 @@ pub struct PathsConfig {
     /// structure is: `root/<source_alias>/`
     ///
     /// Default locations:
-    /// - Linux: `~/.local/share/outfitter/cache`
-    /// - macOS: `~/Library/Application Support/outfitter.cache`
+    /// - Linux: `~/.local/share/outfitter/blz`
+    /// - macOS: `~/Library/Application Support/outfitter.blz`
     /// - Windows: `%APPDATA%\outfitter\cache`
     pub root: PathBuf,
 }
@@ -259,9 +259,9 @@ impl Config {
     /// Get the path where the global configuration file is stored.
     ///
     /// Uses the system-appropriate config directory based on the platform:
-    /// - Linux: `~/.config/outfitter/cache/global.toml`
-    /// - macOS: `~/Library/Application Support/outfitter.cache/global.toml`
-    /// - Windows: `%APPDATA%\outfitter\cache\global.toml`
+    /// - Linux: `~/.config/outfitter/blz/global.toml`
+    /// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`
+    /// - Windows: `%APPDATA%\outfitter\blz\global.toml`
     ///
     /// # Errors
     ///
@@ -271,7 +271,56 @@ impl Config {
         let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
 
-        Ok(project_dirs.config_dir().join("global.toml"))
+        let config_path = project_dirs.config_dir().join("global.toml");
+
+        // Check for migration from old cache directory
+        Self::check_and_migrate_old_config(&config_path)?;
+
+        Ok(config_path)
+    }
+
+    /// Check if we need to migrate from the old cache config
+    fn check_and_migrate_old_config(new_config_path: &Path) -> Result<()> {
+        // Only migrate if new config doesn't exist
+        if new_config_path.exists() {
+            return Ok(());
+        }
+
+        // Try to find the old cache config
+        if let Some(old_project_dirs) = directories::ProjectDirs::from("dev", "outfitter", "cache")
+        {
+            let old_config_path = old_project_dirs.config_dir().join("global.toml");
+
+            if old_config_path.exists() {
+                // Create parent directory if needed
+                if let Some(parent) = new_config_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        Error::Config(format!("Failed to create config directory: {e}"))
+                    })?;
+                }
+
+                // Attempt to copy the old config
+                match std::fs::copy(&old_config_path, new_config_path) {
+                    Ok(_) => {
+                        tracing::info!(
+                            "Migrated config from {} to {}",
+                            old_config_path.display(),
+                            new_config_path.display()
+                        );
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to migrate config from {} to {}: {}",
+                            old_config_path.display(),
+                            new_config_path.display(),
+                            e
+                        );
+                    },
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -287,7 +336,13 @@ impl Default for Config {
             },
             paths: PathsConfig {
                 root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
-                    || PathBuf::from("~/.outfitter/blz"),
+                    || {
+                        // Expand home directory properly
+                        directories::BaseDirs::new().map_or_else(
+                            || PathBuf::from(".outfitter/blz"),
+                            |base| base.home_dir().join(".outfitter").join("blz"),
+                        )
+                    },
                     |dirs| dirs.data_dir().to_path_buf(),
                 ),
             },

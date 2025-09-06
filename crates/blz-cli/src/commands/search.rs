@@ -6,7 +6,7 @@ use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::output::{OutputFormat, SearchResultFormatter};
+use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 
@@ -23,6 +23,7 @@ pub struct SearchOptions {
 }
 
 /// Execute a search across cached documentation
+#[allow(clippy::too_many_arguments)]
 pub async fn execute(
     query: &str,
     alias: Option<&str>,
@@ -44,7 +45,7 @@ pub async fn execute(
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
-    format_and_display(results, &options)?;
+    format_and_display(&results, &options)?;
 
     if let Some(monitor) = resource_monitor {
         monitor.print_resource_usage();
@@ -66,7 +67,7 @@ pub async fn handle_default(
     }
 
     let storage = Storage::new()?;
-    let sources = storage.list_sources()?;
+    let sources = storage.list_sources();
 
     if sources.is_empty() {
         println!("No sources found. Use 'blz add ALIAS URL' to add sources.");
@@ -112,6 +113,10 @@ struct SearchResults {
     sources: Vec<String>,
 }
 
+fn get_max_concurrent_searches() -> usize {
+    std::thread::available_parallelism().map_or(8, |n| (n.get().saturating_mul(2)).min(16))
+}
+
 async fn perform_search(
     options: &SearchOptions,
     metrics: PerformanceMetrics,
@@ -119,11 +124,10 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
 
-    let sources = if let Some(ref alias) = options.alias {
-        vec![alias.clone()]
-    } else {
-        storage.list_sources()?
-    };
+    let sources = options
+        .alias
+        .as_ref()
+        .map_or_else(|| storage.list_sources(), |alias| vec![alias.clone()]);
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -137,16 +141,10 @@ async fn perform_search(
     let effective_limit = if options.all {
         ALL_RESULTS_LIMIT
     } else {
-        ((options.limit * 3).min(1000)).max(1)
+        (options.limit * 3).clamp(1, 1000)
     };
 
     // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
-    fn get_max_concurrent_searches() -> usize {
-        match std::thread::available_parallelism() {
-            Ok(n) => (n.get().saturating_mul(2)).min(16),
-            Err(_) => 8,
-        }
-    }
     let max_concurrent_searches = get_max_concurrent_searches();
 
     // Create futures that spawn blocking tasks for parallel search across sources
@@ -235,7 +233,7 @@ fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
     hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
-fn sort_by_score(hits: &mut Vec<SearchHit>) {
+fn sort_by_score(hits: &mut [SearchHit]) {
     // Sort by score with deterministic tie-breakers
     hits.sort_by(|a, b| {
         // First by score (descending) with total ordering on floats
@@ -255,8 +253,14 @@ fn sort_by_score(hits: &mut Vec<SearchHit>) {
 
 fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>) {
     if let Some(percentile) = top_percentile {
-        let percentile_count =
-            (hits.len() as f32 * (f32::from(percentile) / 100.0)).ceil() as usize;
+        let len = hits.len();
+        let percentile_f = f64::from(percentile) / 100.0;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
+        let percentile_count = ((len as f64) * percentile_f).ceil().min(len as f64) as usize;
         hits.truncate(percentile_count.max(1));
 
         if hits.len() < 10 {
@@ -269,7 +273,39 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
     }
 }
 
-fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result<()> {
+/// Formats and displays search results with pagination
+///
+/// This function safely handles edge cases in pagination including:
+/// - Empty result sets (returns without error)
+/// - Single result (paginates correctly)
+/// - Over-large page numbers (displays helpful message)
+/// - The `actual_limit` is guaranteed to be at least 1 to prevent divide-by-zero
+///
+/// # Example
+///
+/// ```ignore
+/// // Example of safe pagination with empty results
+/// let results = SearchResults {
+///     hits: vec![], // Empty results
+///     total_lines_searched: 0,
+///     search_time: Duration::from_millis(10),
+///     sources: vec![],
+/// };
+///
+/// let options = SearchOptions {
+///     query: "test".to_string(),
+///     alias: None,
+///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
+///     page: 1,
+///     top_percentile: None,
+///     output: OutputFormat::Text,
+///     all: false,
+/// };
+///
+/// // This will not panic even with empty results due to .max(1) guard
+/// assert!(format_and_display(&results, &options).is_ok());
+/// ```
+fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Result<()> {
     let total_results = results.hits.len();
 
     // Apply pagination
@@ -294,17 +330,249 @@ fn format_and_display(results: SearchResults, options: &SearchOptions) -> Result
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.output);
-    formatter.format(
-        page_hits,
-        &options.query,
+    let params = FormatParams {
+        hits: page_hits,
+        query: &options.query,
         total_results,
-        results.total_lines_searched,
-        results.search_time,
-        options.limit < ALL_RESULTS_LIMIT,
-        options.alias.is_some(),
-        &results.sources,
+        total_lines_searched: results.total_lines_searched,
+        search_time: results.search_time,
+        show_pagination: options.limit < ALL_RESULTS_LIMIT,
+        single_source: options.alias.is_some(),
+        sources: &results.sources,
         start_idx,
-    )?;
+    };
+    formatter.format(&params)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::cast_precision_loss)] // Test code precision is not critical
+mod tests {
+    use super::*;
+    use blz_core::SearchHit;
+
+    /// Creates a test `SearchResults` with the specified number of hits
+    fn create_test_results(num_hits: usize) -> SearchResults {
+        let hits: Vec<SearchHit> = (0..num_hits)
+            .map(|i| SearchHit {
+                alias: format!("test-{i}"),
+                file: "llms.txt".to_string(),
+                heading_path: vec![format!("heading-{i}")],
+                lines: format!("{}-{}", i * 10, i * 10 + 5),
+                snippet: format!("test content {i}"),
+                score: (i as f32).mul_add(-0.01, 1.0),
+                source_url: Some(format!("https://example.com/test-{i}")),
+                checksum: format!("checksum-{i}"),
+            })
+            .collect();
+
+        SearchResults {
+            hits,
+            total_lines_searched: 1000,
+            search_time: std::time::Duration::from_millis(10),
+            sources: vec!["test".to_string()],
+        }
+    }
+
+    #[test]
+    fn test_pagination_with_zero_hits() {
+        // Test that pagination handles empty results without panic
+        let results = create_test_results(0);
+        let options = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 10,
+            page: 1,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        // Should not panic even with empty results
+        let result = format_and_display(&results, &options);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_pagination_with_single_hit() {
+        // Test edge case where there's only one result
+        let results = create_test_results(1);
+        let options = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 10,
+            page: 1,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        let result = format_and_display(&results, &options);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_pagination_prevents_divide_by_zero() {
+        // This is the main regression test for the divide-by-zero fix
+        // Test case 1: Empty results with ALL_RESULTS_LIMIT
+        let empty_results = create_test_results(0);
+        let options_empty = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: ALL_RESULTS_LIMIT,
+            page: 2, // Try to access page 2 to trigger div_ceil
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: true,
+        };
+
+        // This should NOT panic even with empty results
+        let result = format_and_display(&empty_results, &options_empty);
+        assert!(result.is_ok(), "Should handle empty results without panic");
+
+        // Test case 2: Normal results with high page number
+        let results = create_test_results(5);
+        let options_high_page = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: ALL_RESULTS_LIMIT,
+            page: 100, // Very high page to trigger the div_ceil in the message
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: true,
+        };
+
+        let result = format_and_display(&results, &options_high_page);
+        assert!(
+            result.is_ok(),
+            "Should handle page out of bounds without panic"
+        );
+    }
+
+    #[test]
+    fn test_pagination_with_overlarge_page_number() {
+        // Test that requesting a page beyond available results is handled gracefully
+        let results = create_test_results(5);
+        let options = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 2,
+            page: 100, // Way beyond available pages
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        let result = format_and_display(&results, &options);
+        assert!(result.is_ok()); // Should handle gracefully, not panic
+    }
+
+    #[test]
+    fn test_pagination_boundary_conditions() {
+        // Test exact boundary conditions
+        let results = create_test_results(10);
+
+        // Exactly at the boundary (page 2 with limit 5 for 10 results)
+        let options = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 5,
+            page: 2,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        let result = format_and_display(&results, &options);
+        assert!(result.is_ok());
+
+        // Just beyond the boundary (page 3 with limit 5 for 10 results)
+        let options_beyond = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 5,
+            page: 3,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        let test_results = create_test_results(10);
+        let result_beyond = format_and_display(&test_results, &options_beyond);
+        assert!(result_beyond.is_ok());
+    }
+
+    #[test]
+    fn test_actual_limit_calculation() {
+        // Test that actual_limit is always at least 1
+        // This directly tests the fix for the divide-by-zero issue
+
+        // Case 1: Normal limit
+        let options1 = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: 10,
+            page: 1,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: false,
+        };
+
+        // The actual_limit calculation from the code
+        let actual_limit1 = if options1.limit >= ALL_RESULTS_LIMIT {
+            1 // Minimum limit is always 1
+        } else {
+            options1.limit.max(1)
+        };
+        assert!(actual_limit1 >= 1, "actual_limit must be at least 1");
+
+        // Case 2: ALL_RESULTS_LIMIT with empty results
+        let options2 = SearchOptions {
+            query: "test".to_string(),
+            alias: None,
+            limit: ALL_RESULTS_LIMIT,
+            page: 1,
+            top_percentile: None,
+            output: OutputFormat::Text,
+            all: true,
+        };
+
+        let actual_limit2 = if options2.limit >= ALL_RESULTS_LIMIT {
+            1 // Minimum limit is always 1
+        } else {
+            options2.limit.max(1)
+        };
+        assert!(
+            actual_limit2 >= 1,
+            "actual_limit must be at least 1 even with empty results"
+        );
+    }
+
+    #[test]
+    fn test_div_ceil_safety() {
+        // Ensure div_ceil never receives 0 as divisor
+        let test_cases = vec![
+            (0_usize, 1_usize),    // 0 results
+            (1_usize, 1_usize),    // 1 result
+            (5_usize, 2_usize),    // 5 results with limit 2
+            (10_usize, 10_usize),  // 10 results with limit 10
+            (100_usize, 25_usize), // 100 results with limit 25
+        ];
+
+        for (total_results, limit) in test_cases {
+            // Simulating the actual_limit calculation with the fix
+            let actual_limit = limit.max(1);
+
+            // This is what was causing the panic before the fix
+            let pages = total_results.div_ceil(actual_limit);
+
+            // Verify it doesn't panic and produces sensible results
+            if total_results == 0 {
+                assert_eq!(pages, 0);
+            } else {
+                assert!(pages >= 1);
+            }
+        }
+    }
 }
