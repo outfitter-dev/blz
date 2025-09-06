@@ -10,7 +10,7 @@ use serde_json::json;
 use tracing::{error, info};
 use tracing_subscriber::FmtSubscriber;
 
-/// Handle the list_sources RPC method
+/// Handle the `list_sources` RPC method
 async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -69,7 +69,8 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     let limit = params
         .get("limit")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(10) as usize;
+        .map(|v| v.min(usize::MAX as u64) as usize)
+        .unwrap_or(10);
 
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);

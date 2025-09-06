@@ -392,7 +392,7 @@ pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::e
 /// Stop profiling and generate flamegraph
 #[cfg(feature = "flamegraph")]
 pub fn stop_profiling_and_report(
-    guard: pprof::ProfilerGuard,
+    guard: &pprof::ProfilerGuard,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match guard.report().build() {
         Ok(report) => {
