@@ -29,7 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get <reference>` - Retrieve specific content from documentation
   - `completions <shell>` - Generate shell completions (fish, bash, zsh, elvish, powershell)
 
-
 - **Storage & Configuration**
   - Platform-specific data directories using OS conventions
   - Per-source data organization with metadata tracking
