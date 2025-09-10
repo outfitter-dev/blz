@@ -25,18 +25,26 @@ jobs:
   optimize_ci:
     runs-on: ubuntu-latest
     outputs:
-      skip: ${{ steps.check_skip.outputs.skip }}
+      # Default to skip=false if Graphite is not configured or action fails
+      skip: ${{ steps.check_skip.outputs.skip || steps.default_skip.outputs.skip || 'false' }}
     steps:
       - name: Optimize CI
         id: check_skip
         uses: withgraphite/graphite-ci-action@main
         with:
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+        continue-on-error: true
+
+      - name: Default skip to false when unset
+        id: default_skip
+        if: always() && (steps.check_skip.outputs.skip == '' || steps.check_skip.outcome == 'failure')
+        run: echo "skip=false" >> "$GITHUB_OUTPUT"
 
   unused-deps:
     name: Check for unused dependencies
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    # Run unless explicitly skipped by Graphite action
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +73,7 @@ jobs:
   cargo-deny:
     name: Dependency validation
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -84,7 +92,7 @@ jobs:
   security-audit:
     name: Security advisories (non-blocking)
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
     continue-on-error: true # Don't fail CI on new advisories
     steps:
@@ -108,7 +116,7 @@ jobs:
     name: Dependency Review
     needs: optimize_ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.optimize_ci.outputs.skip == 'false'
+    if: github.event_name == 'pull_request' && needs.optimize_ci.outputs.skip != 'true'
     steps:
       - uses: actions/checkout@v4
       
