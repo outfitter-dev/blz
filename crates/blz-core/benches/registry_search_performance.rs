@@ -230,28 +230,26 @@ fn bench_concurrent_searches(c: &mut Criterion) {
             |b, &concurrency| {
                 let rt = tokio::runtime::Runtime::new().unwrap();
 
-                b.iter(|| {
-                    rt.block_on(async {
-                        let registry = Arc::clone(&registry);
-                        let mut handles = Vec::new();
+                b.to_async(&rt).iter(|| async {
+                    let registry = Arc::clone(&registry);
+                    let mut handles = Vec::new();
 
-                        for i in 0..concurrency {
-                            let query = queries[i % queries.len()];
-                            let registry_clone = Arc::clone(&registry);
+                    for i in 0..concurrency {
+                        let query = queries[i % queries.len()];
+                        let registry_clone = Arc::clone(&registry);
 
-                            handles.push(tokio::spawn(async move {
-                                registry_clone.search(black_box(query))
-                            }));
-                        }
+                        handles.push(tokio::spawn(async move {
+                            registry_clone.search(black_box(query))
+                        }));
+                    }
 
-                        let results: Vec<_> = futures::future::join_all(handles)
-                            .await
-                            .into_iter()
-                            .map(|r| r.unwrap())
-                            .collect();
+                    let results: Vec<_> = futures::future::join_all(handles)
+                        .await
+                        .into_iter()
+                        .map(|r| r.unwrap())
+                        .collect();
 
-                        black_box(results)
-                    })
+                    black_box(results)
                 })
             },
         );

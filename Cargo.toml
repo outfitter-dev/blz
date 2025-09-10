@@ -40,7 +40,7 @@ fuzzy-matcher = "0.3"
 # rmcp = "0.4"  # Will uncomment when available
 
 # Performance & profiling
-criterion = { version = "0.5", features = ["async_tokio"] }
+criterion = { version = "0.7", features = ["async_tokio"] }
 pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"] }
 sysinfo = "0.32"
 tempfile = "3"

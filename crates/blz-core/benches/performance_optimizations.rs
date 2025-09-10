@@ -1,4 +1,5 @@
 //! Comprehensive benchmarks for performance optimizations
+#![cfg(feature = "experimental_benches")]
 
 use blz_core::{
     HeadingBlock,
