@@ -70,8 +70,8 @@ blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 blz add bun https://bun.sh/llms.txt
 
 # Search across docs
-blz search "test runner"
-blz search "concurrency" --alias bun
+blz "test runner"                 # default search without subcommand
+blz search "concurrency" -s bun  # focus on a single source
 
 # Get exact lines
 blz get bun --lines 120-142
@@ -119,14 +119,14 @@ blz list
 IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
-# Search for documentation
-blz search "test runner" --alias bun --output json
+# Search for documentation (JSON for scripts)
+blz search "test runner" -s bun --json
 
 # Get exact line ranges
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --output json | jq '.sources | length'
+blz list --json | jq '. | length'
 ```
 
 The JSON output is designed for easy parsing by agents:

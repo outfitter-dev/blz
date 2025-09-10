@@ -41,6 +41,11 @@ pub async fn execute(output: OutputFormat) -> Result<()> {
                 println!("{}", serde_json::to_string(&info)?);
             }
         },
+        OutputFormat::JsonFull => {
+            // For list, JsonFull behaves like Json
+            let json = serde_json::to_string_pretty(&source_info)?;
+            println!("{json}");
+        },
         OutputFormat::Text => {
             display_sources_text(&sources, &storage);
         },

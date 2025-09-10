@@ -75,3 +75,6 @@ coverage/
 
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
+
+# Local agent scratchpad (ignore)
+.agents/scratchpad.md

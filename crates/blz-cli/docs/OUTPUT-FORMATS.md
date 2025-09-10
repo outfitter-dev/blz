@@ -1,115 +1,124 @@
 # Output Formats
 
-The blz CLI supports multiple output formats to suit different use cases and integrations.
+The `blz` CLI supports multiple output formats optimized for both human use and automation.
 
-## Available Formats
+## Text (default)
 
-### Text (Default)
-Human-readable colored output optimized for terminal display.
+Human-friendly “brief” layout that’s fast to scan. Colors use ANSI when writing to a TTY (values only in the summary line).
 
 ```bash
-blz search "async rust"
+❯ blz search "async rust"
+rust:123-145 (score: 9)
+Async > Futures
+... async/await lets you write asynchronous code that looks synchronous ...
+
+50/150 results shown, 57325 lines searched, took 5ms
+Tip: use "blz search --next" to see the next page (or "--page 2" in a full query)
 ```
 
-Features:
-- Colored aliases for visual distinction
-- Hierarchical heading paths
-- Score display
-- Content snippets with ellipsis for long results
-- Search performance statistics
-
-### JSON
-Machine-readable JSON output for programmatic consumption.
+Text modifiers are provided via `--output`:
 
 ```bash
+# Default brief layout
+blz search "async rust" --output text
+
+# Brief + rank numbers + URL lines header
+blz search "async rust" --output text,rank,url
+```
+
+Notes:
+- Shows a header `<alias>:<start-end> (score: N)`
+- Heading path on its own line (links and markdown stripped)
+- Three-line snippet: one line before, match line, one line after
+- Query matches highlighted in red (bold red for exact phrase, dim red for token matches)
+- When results are paginated, summary shows `shown/total`; otherwise `total results found`
+- When `url` modifier is present, prints a page sources header above results:
+
+```
+Results 50/150:
+[rust] https://doc.rust-lang.org/llms.txt
+[node] https://nodejs.org/llms.txt
+```
+
+## JSON and JSONL
+
+For programmatic use:
+
+```bash
+# JSON array of hits (shortcut)
+blz search "async rust" --json
+
+# NDJSON (one hit per line)
+blz search "async rust" --jsonl
+
+# Equivalent long-form
 blz search "async rust" --output json
+blz search "async rust" --output jsonl
 ```
 
-Output structure:
+Each hit has the structure:
+
+```json
+{
+  "alias": "rust",
+  "file": "llms.txt",
+  "heading_path": ["Async", "Futures"],
+  "lines": "123-145",
+  "snippet": "...",
+  "score": 0.95,
+  "source_url": null,
+  "checksum": ""
+}
+```
+
+## JSON Full (Envelope)
+
+For scripts that want metadata and hits together:
+
+```bash
+blz search "async rust" --output json-full
+```
+
+Example structure:
+
 ```json
 {
   "query": "async rust",
   "total_results": 42,
   "search_time_ms": 6,
+  "sources": ["rust"],
   "hits": [
-    {
-      "alias": "rust",
-      "file": "llms.txt",
-      "heading_path": ["Async", "Futures"],
-      "lines": "123-145",
-      "snippet": "...",
-      "score": 0.95,
-      "source_url": "https://...",
-      "checksum": "..."
-    }
+    { "alias": "rust", "file": "llms.txt", "heading_path": ["Async", "Futures"], "lines": "123-145", "snippet": "...", "score": 0.95, "source_url": null, "checksum": "" }
   ]
 }
 ```
 
-### Compact
-Minimal output showing only essential information.
-
-```bash
-blz search "async rust" --output compact
-```
-
-Format: `<alias>:<lines> <heading_path>`
-
-### Markdown (Planned)
-Formatted markdown output suitable for documentation.
-
-```bash
-blz search "async rust" --output markdown
-```
-
-## Environment Detection
-
-The CLI automatically detects the output context:
-- TTY: Uses colored text output
-- Pipe: Uses plain text without colors
-- CI: Adjusts formatting for CI environments
-
-## Custom Formatting
-
-Override automatic detection:
-```bash
-# Force colors even when piping
-blz search "async rust" --color always
-
-# Disable colors for TTY
-blz search "async rust" --color never
-
-# Let CLI decide (default)
-blz search "async rust" --color auto
-```
-
 ## Pagination
 
-Control result pagination:
 ```bash
-# Show first 5 results
-blz search "async rust" --limit 5
+# Limit and page
+blz search "async rust" --limit 5 --page 2
 
-# Show results 10-20
-blz search "async rust" --offset 10 --limit 10
+# Show all results (up to 10k)
+blz search "async rust" --all
+
+# Continue to next/previous page using history
+blz search --next
+blz search --prev
+
+## Options that affect text output
+
+```bash
+# Suppress bottom summary stats
+blz search "rust" --output text --no-stats
 ```
 
-## Integration Examples
-
-### With jq
-```bash
-blz search "async rust" --output json | jq '.hits[0]'
+Notes:
+- Results are grouped by section to avoid duplicated headers; gaps are indicated as `... N more lines`.
+- When `--output text,rank` is used, each group is prefixed with an ordinal.
 ```
 
-### With fzf
-```bash
-blz search "async rust" --output compact | fzf
-```
+## Tips
 
-### In scripts
-```bash
-#!/bin/bash
-results=$(blz search "$1" --output json)
-count=$(echo "$results" | jq '.total_results')
-echo "Found $count results"
-```
+- Use `-s, --source` to focus on one source: `blz search "async" -s rust`
+- Use `--json` or `--jsonl` for scripting with `jq`/pipes

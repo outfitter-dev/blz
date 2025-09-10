@@ -59,10 +59,12 @@ pub struct FormatParams<'a> {
     pub total_results: usize,
     pub total_lines_searched: usize,
     pub search_time: Duration,
-    pub show_pagination: bool,
-    pub single_source: bool,
     pub sources: &'a [String],
     pub start_idx: usize,
+    pub page: usize,
+    pub show_rank: bool,
+    pub show_url: bool,
+    pub no_stats: bool,
 }
 
 /// Output format options supported by the CLI
@@ -105,6 +107,9 @@ pub enum OutputFormat {
     Json,
     /// Newline-delimited JSON
     Ndjson,
+    /// Full JSON envelope with metadata
+    #[value(name = "json-full")]
+    JsonFull,
 }
 
 /// Formatter for search results with multiple output format support
@@ -239,6 +244,9 @@ impl SearchResultFormatter {
             OutputFormat::Ndjson => {
                 JsonFormatter::format_search_results_ndjson(params.hits)?;
             },
+            OutputFormat::JsonFull => {
+                JsonFormatter::format_search_results_full(params)?;
+            },
             OutputFormat::Text => {
                 TextFormatter::format_search_results(params);
             },
@@ -360,6 +368,10 @@ impl SourceInfoFormatter {
                 for info in source_info {
                     println!("{}", serde_json::to_string(info)?);
                 }
+            },
+            OutputFormat::JsonFull => {
+                let json = serde_json::to_string_pretty(source_info)?;
+                println!("{json}");
             },
             OutputFormat::Text => {
                 // Text formatting is handled in the list command

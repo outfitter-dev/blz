@@ -1,3 +1,7 @@
+#![cfg_attr(
+    test,
+    allow(clippy::panic, clippy::unwrap_used, clippy::disallowed_macros)
+)]
 //! Configuration management for blz cache system.
 //!
 //! This module provides hierarchical configuration with global defaults and per-source overrides.

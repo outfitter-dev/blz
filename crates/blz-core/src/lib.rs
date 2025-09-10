@@ -1,3 +1,14 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::disallowed_macros,
+        clippy::match_wildcard_for_single_variants,
+        clippy::unnecessary_wraps,
+        clippy::format_push_string
+    )
+)]
 //! # blz-core
 //!
 //! Core functionality for blz - a fast, local search cache for llms.txt documentation.

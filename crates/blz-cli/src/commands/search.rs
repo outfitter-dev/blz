@@ -7,11 +7,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
+use crate::utils::history::{SearchHistoryEntry, append_history_entry};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
+/// Buffer multiplier for better result quality after deduplication/sorting
+const LIMIT_MULTIPLIER: usize = 3;
+/// Maximum effective limit to prevent memory exhaustion
+const MAX_EFFECTIVE_LIMIT: usize = 1000;
 
 /// Search options
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
     pub alias: Option<String>,
@@ -20,6 +26,9 @@ pub struct SearchOptions {
     pub top_percentile: Option<u8>,
     pub output: OutputFormat,
     pub(crate) all: bool,
+    pub show_rank: bool,
+    pub show_url: bool,
+    pub no_stats: bool,
 }
 
 /// Execute a search across cached documentation
@@ -33,6 +42,9 @@ pub async fn execute(
     output: OutputFormat,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
+    show_rank: bool,
+    show_url: bool,
+    no_stats: bool,
 ) -> Result<()> {
     let options = SearchOptions {
         query: query.to_string(),
@@ -42,10 +54,43 @@ pub async fn execute(
         top_percentile,
         output,
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
+        show_rank,
+        show_url,
+        no_stats,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
     format_and_display(&results, &options)?;
+
+    // Append to history (best-effort)
+    if let Err(e) = append_history_entry(&SearchHistoryEntry {
+        ts: chrono::Utc::now(),
+        query: options.query.clone(),
+        source: options.alias.clone(),
+        limit: options.limit,
+        page: options.page,
+        top: options.top_percentile,
+        output_format: match options.output {
+            OutputFormat::Text => "text",
+            OutputFormat::Json => "json",
+            OutputFormat::Ndjson => "jsonl",
+            OutputFormat::JsonFull => "json-full",
+        }
+        .to_string(),
+        output_modifiers: {
+            let mut v = Vec::new();
+            if options.show_rank {
+                v.push("rank".to_string());
+            }
+            if options.show_url {
+                v.push("url".to_string());
+            }
+            v
+        },
+        total_results: results.hits.len(),
+    }) {
+        tracing::debug!("Failed to write search history: {}", e);
+    }
 
     if let Some(monitor) = resource_monitor {
         monitor.print_resource_usage();
@@ -85,6 +130,9 @@ pub async fn handle_default(
         OutputFormat::Text,
         metrics,
         resource_monitor,
+        false,
+        false,
+        false,
     )
     .await
 }
@@ -136,23 +184,25 @@ async fn perform_search(
     }
 
     // Calculate effective limit to prevent over-fetching
-    // If we want all results, use 10k limit. Otherwise, use (limit * 3) capped at 1000
-    // The 3x multiplier provides buffer for good results after deduplication/sorting
+    // If we want all results, use configured limit. Otherwise, use multiplier with cap
     let effective_limit = if options.all {
         ALL_RESULTS_LIMIT
     } else {
-        (options.limit * 3).clamp(1, 1000)
+        (options.limit * LIMIT_MULTIPLIER).clamp(1, MAX_EFFECTIVE_LIMIT)
     };
 
     // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
     let max_concurrent_searches = get_max_concurrent_searches();
+
+    // Share query string across all concurrent tasks to avoid cloning
+    let shared_query = Arc::<str>::from(options.query.as_str());
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
     let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
-        let query = options.query.clone();
+        let query = Arc::clone(&shared_query);
 
         async move {
             tokio::task::spawn_blocking(
@@ -215,7 +265,7 @@ async fn perform_search(
 
     // Process results
     deduplicate_hits(&mut all_hits);
-    sort_by_score(&mut all_hits);
+    sort_by_score(&mut all_hits, &options.query);
     apply_percentile_filter(&mut all_hits, options.top_percentile);
 
     sources_searched.sort();
@@ -233,21 +283,41 @@ fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
     hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
-fn sort_by_score(hits: &mut [SearchHit]) {
-    // Sort by score with deterministic tie-breakers
+fn sort_by_score(hits: &mut [SearchHit], query: &str) {
+    let q_lower = query.to_lowercase();
     hits.sort_by(|a, b| {
-        // First by score (descending) with total ordering on floats
-        match b.score.total_cmp(&a.score) {
-            std::cmp::Ordering::Equal => {
-                // Then by alias (ascending)
-                a.alias.cmp(&b.alias)
-                    // Then by line number (ascending)
-                    .then(a.lines.cmp(&b.lines))
-                    // Finally by heading path (ascending)
-                    .then(a.heading_path.cmp(&b.heading_path))
-            },
-            ordering => ordering,
+        // Prefer higher score
+        let mut ord = b.score.total_cmp(&a.score);
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
         }
+
+        // Boost if snippet or heading path contains the full query phrase
+        let a_phrase = a.snippet.to_lowercase().contains(&q_lower)
+            || a.heading_path.join(" ").to_lowercase().contains(&q_lower);
+        let b_phrase = b.snippet.to_lowercase().contains(&q_lower)
+            || b.heading_path.join(" ").to_lowercase().contains(&q_lower);
+        ord = b_phrase.cmp(&a_phrase);
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+
+        // Penalize URL-heavy snippets
+        let urlish = |s: &str| {
+            let s = s.trim();
+            (s.contains("http://") || s.contains("https://"))
+                && s.chars().filter(|c| c.is_alphabetic()).count() < s.len().saturating_div(4)
+        };
+        ord = (urlish(&a.snippet)).cmp(&urlish(&b.snippet)); // false < true
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+
+        // Deterministic tie-breakers
+        a.alias
+            .cmp(&b.alias)
+            .then(a.lines.cmp(&b.lines))
+            .then(a.heading_path.cmp(&b.heading_path))
     });
 }
 
@@ -319,11 +389,8 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
     if start_idx >= results.hits.len() {
-        println!(
-            "Page {} is beyond available results (only {} pages available)",
-            options.page,
-            total_results.div_ceil(actual_limit)
-        );
+        // Nothing to show on this page
+        println!("0 results found");
         return Ok(());
     }
 
@@ -336,10 +403,12 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         total_results,
         total_lines_searched: results.total_lines_searched,
         search_time: results.search_time,
-        show_pagination: options.limit < ALL_RESULTS_LIMIT,
-        single_source: options.alias.is_some(),
         sources: &results.sources,
         start_idx,
+        page: options.page,
+        show_rank: options.show_rank,
+        show_url: options.show_url,
+        no_stats: options.no_stats,
     };
     formatter.format(&params)?;
 
@@ -387,6 +456,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         // Should not panic even with empty results
@@ -406,6 +478,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -425,6 +500,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: true,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         // This should NOT panic even with empty results
@@ -441,6 +519,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: true,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -462,6 +543,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -482,6 +566,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -496,6 +583,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let test_results = create_test_results(10);
@@ -517,6 +607,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: false,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         // The actual_limit calculation from the code
@@ -536,6 +629,9 @@ mod tests {
             top_percentile: None,
             output: OutputFormat::Text,
             all: true,
+            show_rank: false,
+            show_url: false,
+            no_stats: false,
         };
 
         let actual_limit2 = if options2.limit >= ALL_RESULTS_LIMIT {

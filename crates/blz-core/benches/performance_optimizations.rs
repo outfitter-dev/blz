@@ -1,5 +1,14 @@
 //! Comprehensive benchmarks for performance optimizations
-#![cfg(feature = "experimental_benches")]
+#![cfg(all(feature = "experimental_benches", target_os = "none"))]
+#![allow(
+    deprecated,
+    clippy::semicolon_if_nothing_returned,
+    clippy::useless_vec,
+    clippy::unused_self,
+    clippy::unused_io_amount,
+    clippy::unused_unit,
+    clippy::redundant_clone
+)]
 
 use blz_core::{
     HeadingBlock,
@@ -11,7 +20,8 @@ use blz_core::{
     // optimized_index::OptimizedSearchIndex,
     // string_pool::StringPool,
 };
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;

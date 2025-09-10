@@ -318,6 +318,12 @@ fn format_size(bytes: u64) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::disallowed_macros,
+        clippy::match_wildcard_for_single_variants
+    )]
     use super::*;
     use std::time::Duration;
     use wiremock::{

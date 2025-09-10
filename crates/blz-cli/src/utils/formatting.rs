@@ -2,11 +2,13 @@
 
 use colored::Colorize;
 
-/// Color cycling functions for aliases
+/// ANSI-only color cycling functions for aliases (exclude red)
+/// Order: blue → cyan → green → yellow → magenta
 pub const ALIAS_COLORS: &[fn(&str) -> colored::ColoredString] = &[
-    |s| s.green(),
     |s| s.blue(),
-    |s| s.truecolor(0, 150, 136), // teal
+    |s| s.cyan(),
+    |s| s.green(),
+    |s| s.yellow(),
     |s| s.magenta(),
 ];
 

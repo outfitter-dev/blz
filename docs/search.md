@@ -31,7 +31,7 @@ For more control, use the explicit `search` command:
 
 ```bash
 blz search "your query"
-blz search "test" --alias bun
+blz search "test" --source bun
 ```
 
 ### Pattern Summary
@@ -44,7 +44,7 @@ blz QUERY SOURCE            # Source-specific (source last)
 
 # Explicit command (more options)
 blz search QUERY
-blz search QUERY --alias SOURCE
+blz search QUERY --source SOURCE
 ```
 
 ## Search Syntax
@@ -82,68 +82,51 @@ blz search '"test runner"'  # Exact phrase (not yet implemented)
 Control how many results you get:
 
 ```bash
-blz search "test" --limit 5    # Default: 10
+blz search "test" --limit 5
 blz search "test" --limit 20   # Get more results
 blz search "test" --limit 1    # Just the best match
 ```
 
 ### Output Format
 
-#### Pretty (Default)
-Human-readable output with colors:
+#### Text (Default)
+Brief, human-readable output with colors:
 
 ```bash
 blz search "test"
 ```
 
-Output:
+Example:
 
 ```
-Search results for 'test':
+bun:304-324 (score: 4), from bun.sh
+Bun Documentation > Guides > Test runner
+... Test runner integrates with Bun's toolchain ...
 
-1. bun (score: 4.09)
-   Path: Bun Documentation > Guides > Test runner
-   Lines: L304-324
-   Snippet: ### Guides: Test runner...
+50/150 results shown, 57325 lines searched, took 5ms
+Tip: use "blz search --next" to see the next page (or "--page 2" in a full query)
 ```
 
-#### JSON
+#### JSON / JSONL / JSON Full
 Machine-readable for scripting:
 
 ```bash
-blz search "test" --output json
-```
-
-Output:
-
-```json
-{
-  "hits": [
-    {
-      "alias": "bun",
-      "file": "llms.txt",
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
-      "lines": "304-324",
-      "snippet": "### Guides: Test runner...",
-      "score": 4.09,
-      "source_url": null,
-      "checksum": ""
-    }
-  ]
-}
+blz search "test" --json      # JSON array of hits
+blz search "test" --jsonl     # NDJSON / one hit per line
+blz search "test" --output json-full  # Envelope with metadata and hits
 ```
 
 ## Understanding Results
 
 ### Result Structure
 
-Each result contains:
+Text output shows:
 
-- **Alias** - Which source it's from
-- **Score** - Relevance score (higher is better)
-- **Path** - Heading hierarchy to the content
-- **Lines** - Exact line range in the source
-- **Snippet** - Preview of the content
+- **Header** - `<alias>:<range> (score: N), from <host>`
+- **Path** - Heading hierarchy to the content (final segment colored to match alias)
+- **Snippet** - Three lines: one before, matching line, one after
+  - Exact phrase in bold red; token matches in dim red
+  - Groups multiple hits per section and merges snippet lines (shows `... N more lines` for gaps)
 
 ### Relevance Scoring
 
@@ -162,6 +145,19 @@ Shows the document structure:
 Path: Bun Documentation > Guides > Test runner
       ^-- Top level     ^-- Section  ^-- Subsection
 ```
+
+## Paging via History
+
+Continue from your last search without retyping the query:
+
+```bash
+blz search "http server" --limit 10
+blz search --next    # goes to next page of the last search
+blz search --prev    # previous page
+blz search --page 3  # set page (when no query present)
+```
+
+Each search is appended to `~/.config/dev/outfitter/blz/history.json` as JSONL.
 
 ## Advanced Patterns
 
@@ -223,11 +219,11 @@ blz node "file system"
 
 ### Performance Tips
 
-1. **Use aliases** - Searching one source is faster
+1. **Use --source** - Searching one source is faster
    ```bash
    blz bun "test"                 # Fastest - quick pattern
-   blz search "test" --alias bun  # Fast - explicit command
-   blz "test"                     # Slower - searches all
+   blz search "test" --source bun # Fast - explicit command
+   blz "test"                    # Slower - searches all
    ```
 
 2. **Limit results** - Get results faster
@@ -245,7 +241,7 @@ blz node "file system"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(blz search "test runner" --limit 1 --output json)
+result=$(blz search "test runner" --limit 1 --json)
 alias=$(echo "$result" | jq -r '.hits[0].alias')
 lines=$(echo "$result" | jq -r '.hits[0].lines')
 
@@ -260,7 +256,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --json | jq -r '.hits[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -280,7 +276,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(blz search "$query" --limit 5 --output json)
+results=$(blz search "$query" --limit 5 --json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.hits[] |
@@ -346,7 +342,7 @@ If search returns nothing:
 
 If overwhelmed with results:
 
-1. Use `--alias` to focus on one source
+1. Use `--source` to focus on one source
 2. Use more specific terms
 3. Reduce `--limit`
 

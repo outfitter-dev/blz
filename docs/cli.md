@@ -94,12 +94,21 @@ blz search <QUERY> [OPTIONS]
 
 **Options:**
 
-- `--alias <ALIAS>` - Filter results to specific source
+- `-s, --source <SOURCE>` - Filter results to specific source
 - `-n, --limit <N>` - Maximum results to show (default: 50)
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
-- `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+- `-o, --output <SPEC>` - Output spec. Examples:
+  - `text` (default brief style)
+  - `text,rank,url` (brief + rank + page sources header)
+  - `json` (JSON array)
+  - `jsonl` (NDJSON)
+  - `json-full` (metadata envelope)
+- `--json` - Shortcut for `--output json`
+- `--jsonl` - Shortcut for `--output jsonl`
+ - `--no-stats` - Suppress bottom summary stats in text output
+ - `--next` / `--prev` - Use last search to go to the next/previous page
 
 **Examples:**
 
@@ -108,13 +117,13 @@ blz search <QUERY> [OPTIONS]
 blz search "test runner"
 
 # Search only in Bun docs
-blz search "bundler" --alias bun
+blz search "bundler" --source bun
 
 # Get more results
 blz search "performance" --limit 100
 
 # JSON output for scripting
-blz search "async" --output json
+blz search "async" --json
 
 # Top 10% of results only
 blz search "database" --top 10
@@ -176,7 +185,7 @@ blz list [OPTIONS]
 blz list
 
 # JSON output for scripting
-blz list --output json
+blz list --json
 ```
 
 ### `blz update`
@@ -291,36 +300,26 @@ blz search "test runner"
 
 ### Text Format (Default)
 
-Human-readable output with colors and formatting:
+Brief output with heading path and contextual snippet:
 
 ```
-Search results for 'test runner':
+bun:304-324 (score: 4), from bun.sh
+Bun Documentation > Guides > Test runner
+... Test runner integrates with Bun's toolchain ...
 
-1. bun (score: 4.09)
-   Path: Bun Documentation > Guides > Test runner
-   Lines: L304-324
-   Snippet: ### Guides: Test runner...
+50/150 results shown, 57325 lines searched, took 5ms
+Tip: use "blz search --next" to see the next page (or "--page 2" in a full query)
 ```
 
-### JSON Format
+### JSON / JSONL / JSON Full
 
 Machine-readable JSON for scripting and integration:
 
-```json
-{
-  "hits": [
-    {
-      "alias": "bun",
-      "lines": "304-324",
-      "score": 4.09,
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
-      "content": "### Guides: Test runner..."
-    }
-  ],
-  "total": 1,
-  "query": "test runner"
-}
-```
+Each hit is an object like:
+
+- `--json` or `--output json`: array of hits
+- `--jsonl` or `--output jsonl`: one hit per line
+- `--output json-full`: envelope with metadata and hits
 
 ## Performance Profiling
 

@@ -57,6 +57,7 @@
 
 pub mod constants;
 pub mod formatting;
+pub mod history;
 pub mod parsing;
 pub mod validation;
 

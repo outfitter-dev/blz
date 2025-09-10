@@ -45,7 +45,7 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 blz add bun https://bun.sh/llms.txt
 
 # Search instantly (6ms!)
-blz search "test concurrency" --alias bun
+blz search "test concurrency" --source bun
 
 # Get specific lines
 blz get bun --lines 304-324

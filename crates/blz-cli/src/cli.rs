@@ -201,11 +201,11 @@ pub enum Commands {
 
     /// Search across cached docs
     Search {
-        /// Search query
-        query: String,
-        /// Filter by alias
-        #[arg(long)]
-        alias: Option<String>,
+        /// Search query (omit with --next/--prev to reuse last search)
+        query: Option<String>,
+        /// Filter by source
+        #[arg(short = 's', long = "source")]
+        source: Option<String>,
         /// Maximum number of results
         #[arg(short = 'n', long, default_value = "50")]
         limit: usize,
@@ -218,9 +218,24 @@ pub enum Commands {
         /// Show only top N percentile of results (1-100)
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
-        /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
-        output: OutputFormat,
+        /// Output spec (format and modifiers). Examples: text, text,rank,url, json, jsonl
+        #[arg(short = 'o', long)]
+        output: Option<String>,
+        /// Shortcut for JSON array output
+        #[arg(long, conflicts_with = "output")]
+        json: bool,
+        /// Shortcut for NDJSON output
+        #[arg(long, conflicts_with = "output")]
+        jsonl: bool,
+        /// Continue to next page using last search
+        #[arg(long)]
+        next: bool,
+        /// Go to previous page using last search
+        #[arg(long)]
+        prev: bool,
+        /// Suppress bottom summary stats
+        #[arg(long = "no-stats")]
+        no_stats: bool,
     },
 
     /// Get exact lines from a source

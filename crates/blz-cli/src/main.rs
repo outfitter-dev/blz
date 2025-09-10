@@ -14,6 +14,7 @@ mod commands;
 mod output;
 mod utils;
 
+use crate::utils::history::read_last_search;
 use cli::{Cli, Commands};
 
 #[cfg(feature = "flamegraph")]
@@ -46,7 +47,8 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     } else if cli.quiet {
         Level::ERROR
     } else {
-        Level::INFO
+        // Default: suppress INFO noise in normal usage
+        Level::WARN
     };
 
     let subscriber = FmtSubscriber::builder()
@@ -87,6 +89,7 @@ fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
     match cli.command {
         Some(Commands::Completions { shell }) => {
@@ -103,23 +106,85 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
 
         Some(Commands::Search {
             query,
-            alias,
+            source,
             limit,
             all,
             page,
             top,
             output,
+            json,
+            jsonl,
+            next,
+            prev,
+            no_stats,
         }) => {
-            let actual_limit = if all { 10000 } else { limit };
+            // Determine effective query + options (history-backed for --next/--prev or page w/o query)
+            let mut query_val = query;
+            let mut source_val = source;
+            let mut page_val = page;
+            let mut limit_val = limit;
+            let mut top_val = top;
+
+            if query_val.is_none() && (next || prev || page_val > 1) {
+                if let Some(hist) = read_last_search()? {
+                    query_val = Some(hist.query);
+                    if source_val.is_none() {
+                        source_val = hist.source;
+                    }
+                    if top_val.is_none() {
+                        top_val = hist.top;
+                    }
+                    if all {
+                        // keep all
+                    } else {
+                        limit_val = hist.limit.max(1);
+                    }
+                    if next {
+                        page_val = hist.page.saturating_add(1);
+                    } else if prev {
+                        page_val = hist.page.saturating_sub(1).max(1);
+                    }
+                } else {
+                    println!("No previous search found. Run a search first.");
+                    return Ok(());
+                }
+            }
+
+            let query = match query_val {
+                Some(q) if !q.trim().is_empty() => q,
+                _ => {
+                    println!(
+                        "Please provide a query (e.g., blz \"react hooks\") or use --next/--prev after a search."
+                    );
+                    return Ok(());
+                },
+            };
+
+            // Parse output spec
+            let (out_format, show_rank, show_url) = match (jsonl, json, output) {
+                (true, _, _) => (crate::output::OutputFormat::Ndjson, false, false),
+                (_, true, _) => (crate::output::OutputFormat::Json, false, false),
+                (_, _, Some(spec)) => parse_output_spec(&spec),
+                _ => (crate::output::OutputFormat::Text, false, false),
+            };
+
+            // If --all, show everything and default top to 100 if not specified
+            if all && top_val.is_none() {
+                top_val = Some(100);
+            }
+            let actual_limit = if all { 10000 } else { limit_val };
             commands::search(
                 &query,
-                alias.as_deref(),
+                source_val.as_deref(),
                 actual_limit,
-                page,
-                top,
-                output,
-                metrics,
+                page_val,
+                top_val,
+                out_format,
+                metrics.clone(),
                 None,
+                show_rank,
+                show_url,
+                no_stats,
             )
             .await?;
         },
@@ -167,8 +232,32 @@ fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
     }
 }
 
+fn parse_output_spec(spec: &str) -> (crate::output::OutputFormat, bool, bool) {
+    let mut format = crate::output::OutputFormat::Text;
+    let mut show_rank = false;
+    let mut show_url = false;
+    for part in spec.split(',').map(|s| s.trim().to_lowercase()) {
+        match part.as_str() {
+            "text" => format = crate::output::OutputFormat::Text,
+            "json" => format = crate::output::OutputFormat::Json,
+            "jsonl" | "ndjson" => format = crate::output::OutputFormat::Ndjson,
+            "json-full" => format = crate::output::OutputFormat::JsonFull,
+            "rank" => show_rank = true,
+            "url" => show_url = true,
+            _ => {},
+        }
+    }
+    (format, show_rank, show_url)
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::disallowed_macros,
+        clippy::needless_collect
+    )]
     use super::*;
     use crate::utils::constants::RESERVED_KEYWORDS;
     use crate::utils::parsing::{LineRange, parse_line_ranges};
@@ -308,7 +397,7 @@ mod tests {
         // Test valid flag combinations
         let valid_combinations = vec![
             vec!["blz", "search", "rust", "--limit", "20"],
-            vec!["blz", "search", "rust", "--alias", "node", "--limit", "10"],
+            vec!["blz", "search", "rust", "--source", "node", "--limit", "10"],
             vec!["blz", "search", "rust", "--all"],
             vec!["blz", "add", "test", "https://example.com/llms.txt"],
             vec!["blz", "list", "--output", "json"],
@@ -336,7 +425,6 @@ mod tests {
             // Missing required arguments
             vec!["blz", "add", "alias"], // Missing URL
             vec!["blz", "get", "alias"], // Missing --lines argument
-            vec!["blz", "search"],       // Missing query
             vec!["blz", "lookup"],       // Missing query
             // Invalid flag values
             vec!["blz", "search", "rust", "--limit", "-5"], // Negative limit
@@ -421,17 +509,16 @@ mod tests {
             page,
             all,
             output,
+            json,
+            jsonl,
             ..
         }) = cli.command
         {
             assert_eq!(limit, 50, "Default limit should be 50");
             assert_eq!(page, 1, "Default page should be 1");
             assert!(!all, "Default all should be false");
-            assert_eq!(
-                output,
-                crate::output::OutputFormat::Text,
-                "Default output should be text"
-            );
+            assert!(output.is_none());
+            assert!(!json && !jsonl);
         } else {
             panic!("Expected search command");
         }
@@ -585,25 +672,25 @@ mod tests {
 
         // Test search-specific flags
         let cli = Cli::try_parse_from(vec![
-            "blz", "search", "rust", "--alias", "node", "--limit", "20", "--page", "2", "--top",
-            "10", "--output", "json",
+            "blz", "search", "rust", "--source", "node", "--limit", "20", "--page", "2", "--top",
+            "10", "--json",
         ])
         .unwrap();
 
         if let Some(Commands::Search {
-            alias,
+            source,
             limit,
             page,
             top,
-            output,
+            json,
             ..
         }) = cli.command
         {
-            assert_eq!(alias, Some("node".to_string()));
+            assert_eq!(source, Some("node".to_string()));
             assert_eq!(limit, 20);
             assert_eq!(page, 2);
             assert!(top.is_some());
-            assert_eq!(output, crate::output::OutputFormat::Json);
+            assert!(json);
         } else {
             panic!("Expected search command");
         }
@@ -695,7 +782,6 @@ mod tests {
         let error_cases = vec![
             // Missing required arguments
             (vec!["blz", "add"], "missing"),
-            (vec!["blz", "search"], "required"),
             (vec!["blz", "get", "alias"], "required"),
             // Invalid values
             (vec!["blz", "list", "--output", "invalid"], "invalid"),
@@ -814,9 +900,8 @@ mod tests {
             .find(|sub| sub.get_name() == "list")
             .expect("Should have list command");
 
-        let aliases: Vec<&str> = list_cmd.get_all_aliases().collect();
         assert!(
-            aliases.contains(&"sources"),
+            list_cmd.get_all_aliases().any(|a| a == "sources"),
             "List command should have 'sources' alias"
         );
 
@@ -825,13 +910,12 @@ mod tests {
             .find(|sub| sub.get_name() == "remove")
             .expect("Should have remove command");
 
-        let remove_aliases: Vec<&str> = remove_cmd.get_all_aliases().collect();
         assert!(
-            remove_aliases.contains(&"rm"),
+            remove_cmd.get_all_aliases().any(|a| a == "rm"),
             "Remove command should have 'rm' alias"
         );
         assert!(
-            remove_aliases.contains(&"delete"),
+            remove_cmd.get_all_aliases().any(|a| a == "delete"),
             "Remove command should have 'delete' alias"
         );
     }
@@ -896,7 +980,9 @@ mod tests {
             .map(|arg| arg.get_id().as_str())
             .collect();
 
-        let expected_search_flags = vec!["alias", "limit", "all", "page", "top", "output"];
+        let expected_search_flags = vec![
+            "source", "limit", "all", "page", "top", "output", "json", "jsonl", "next", "prev",
+        ];
         for expected_flag in expected_search_flags {
             assert!(
                 search_args.contains(&expected_flag),
@@ -940,16 +1026,7 @@ mod tests {
             "Get command should have 'context' flag"
         );
 
-        // Check that output argument has value_enum (which provides completion values)
-        let output_arg = search_cmd
-            .get_arguments()
-            .find(|arg| arg.get_id().as_str() == "output")
-            .expect("Search should have output argument");
-
-        assert!(
-            !output_arg.get_possible_values().is_empty(),
-            "Output argument should have possible values for completion"
-        );
+        // Output is a free-form spec now; no possible-values enumeration
     }
 
     #[test]

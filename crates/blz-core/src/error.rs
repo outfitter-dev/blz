@@ -1,3 +1,12 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::disallowed_macros,
+        clippy::unnecessary_wraps
+    )
+)]
 //! Error types and handling for blz-core operations.
 //!
 //! This module provides a comprehensive error type that covers all possible failures
