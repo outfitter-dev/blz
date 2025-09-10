@@ -1,4 +1,6 @@
 name: Homebrew Tap Bump
+permissions:
+  contents: read
 
 on:
   release:
