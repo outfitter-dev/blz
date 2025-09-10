@@ -23,6 +23,16 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap outfitter-dev/homebrew-tap
+brew install outfitter-dev/tap/blz
+
+# Upgrade later
+brew upgrade outfitter-dev/tap/blz
+```
+
 ### From Source
 
 ```bash
@@ -275,6 +285,7 @@ MIT
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - [Getting Started](docs/getting-started.md) - Installation and first steps
+- [Homebrew Install](docs/homebrew.md) - Tap + install via Homebrew
 - [Managing Sources](docs/sources.md) - Adding and organizing documentation
 - [Search Guide](docs/search.md) - Search syntax and advanced patterns
 - [Shell Integration](docs/shell-integration.md) - Completions for Fish, Bash, Zsh
