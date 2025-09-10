@@ -26,7 +26,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `list` | `sources` | List all indexed sources |
 | `update` | | Update indexed sources |
 | `remove` | `rm`, `delete` | Remove an indexed source |
-| `diff` | | View changes in sources (Coming Soon) |
+| `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |
 
 ## Command Reference
@@ -228,11 +228,11 @@ blz rm bun
 blz delete bun
 ```
 
-### `blz diff` (Coming Soon)
+### `blz diff` (Hidden/Experimental)
 
 View changes in indexed sources.
 
-**Note**: This command is currently experimental and disabled in v0.1. It will be available in a future release.
+**Note**: This command is experimental and hidden from help output. Its output format may change in future releases.
 
 **Arguments:**
 

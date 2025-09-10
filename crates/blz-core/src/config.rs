@@ -66,7 +66,7 @@ use std::path::{Path, PathBuf};
 /// The configuration file is stored at:
 /// - Linux: `~/.config/outfitter/blz/global.toml`
 /// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`  
-/// - Windows: `%APPDATA%\outfitter\cache\global.toml`
+/// - Windows: `%APPDATA%\outfitter\blz\global.toml`
 ///
 /// ## Example Configuration File
 ///
@@ -79,7 +79,7 @@ use std::path::{Path, PathBuf};
 /// allowlist = ["docs.rs", "developer.mozilla.org"]
 ///
 /// [paths]
-/// root = "/home/user/.outfitter/cache"
+/// root = "/home/user/.outfitter/blz"
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -165,7 +165,7 @@ pub struct PathsConfig {
     /// Default locations:
     /// - Linux: `~/.local/share/outfitter/blz`
     /// - macOS: `~/Library/Application Support/outfitter.blz`
-    /// - Windows: `%APPDATA%\outfitter\cache`
+    /// - Windows: `%APPDATA%\outfitter\blz`
     pub root: PathBuf,
 }
 
@@ -250,8 +250,18 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .map_err(|e| Error::Config(format!("Failed to serialize config: {e}")))?;
 
-        fs::write(&config_path, content)
-            .map_err(|e| Error::Config(format!("Failed to write config: {e}")))?;
+        let tmp = parent.join("global.toml.tmp");
+        fs::write(&tmp, &content)
+            .map_err(|e| Error::Config(format!("Failed to write temp config: {e}")))?;
+        // Best-effort atomic replace; on Windows, rename() replaces if target does not exist.
+        // SAFETY: global.toml write is replaced in one step to avoid torn files.
+        #[cfg(target_os = "windows")]
+        if config_path.exists() {
+            fs::remove_file(&config_path)
+                .map_err(|e| Error::Config(format!("Failed to remove existing config: {e}")))?;
+        }
+        std::fs::rename(&tmp, &config_path)
+            .map_err(|e| Error::Config(format!("Failed to replace config: {e}")))?;
 
         Ok(())
     }

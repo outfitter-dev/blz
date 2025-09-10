@@ -20,7 +20,9 @@ gh issue list --repo "${repo}" --label enhancement --state open --limit 50 || tr
 echo
 
 echo "Unlabeled issues:" && echo "------------------"
-gh issue list --repo "${repo}" --state open --limit 50 --label 'no:bug,enhancement,release' || true
+# Issues without bug/enhancement/release labels
+gh issue list --repo "${repo}" --state open --limit 50 \
+  --search 'no:label:bug no:label:enhancement no:label:release' || true
 echo
 
 echo "Recent PRs:" && echo "-----------"

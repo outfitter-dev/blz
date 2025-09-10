@@ -1,4 +1,7 @@
 #![allow(unsafe_code)] // Core module requires unsafe for performance-critical LRU cache operations
+#![deny(unsafe_op_in_unsafe_fn)]
+// SAFETY: This module follows the project unsafe policy:
+// .agents/rules/conventions/rust/unsafe-policy.md
 // Advanced caching strategies with LRU, TTL, and multi-level caching
 use crate::{Error, Result, SearchHit};
 use std::borrow::Cow;
@@ -186,16 +189,16 @@ where
             }
         }
 
-        // Try L2 cache
-        {
+        // Avoid holding the RwLock guard across .await
+        let l2_value = {
             let l2 = self.l2_cache.read().await;
-            if let Some(value) = l2.get(key) {
-                self.stats.l2_hits.fetch_add(1, Ordering::Relaxed);
-                
-                // Promote to L1 cache
-                self.promote_to_l1(key.clone(), value.clone()).await;
-                return Some(value);
-            }
+            l2.get(key)
+        };
+        if let Some(value) = l2_value {
+            self.stats.l2_hits.fetch_add(1, Ordering::Relaxed);
+            // Promote to L1 cache
+            self.promote_to_l1(key.clone(), value.clone()).await;
+            return Some(value);
         }
 
         self.stats.misses.fetch_add(1, Ordering::Relaxed);
@@ -340,7 +343,7 @@ where
 
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         if let Some(&node_ptr) = self.map.get(key) {
-            self.move_to_front(node_ptr);
+           unsafe { self.move_to_front(node_ptr) };
             // SAFETY: node_ptr is valid because:
             // 1. It came from self.map which only stores valid NonNull<Node<K, V>>
             // 2. The node is owned by this cache and its lifetime is managed by the HashMap
@@ -352,9 +355,7 @@ where
     }
 
     fn put(&mut self, key: K, value: V) {
-        let memory_size = std::mem::size_of::<Node<K, V>>() + 
-                         std::mem::size_of::<K>() + 
-                         std::mem::size_of::<V>();
+        let memory_size = std::mem::size_of::<Node<K, V>>();
 
         if let Some(&existing_ptr) = self.map.get(&key) {
             // SAFETY: existing_ptr is valid because:
@@ -364,7 +365,7 @@ where
             unsafe {
                 (*existing_ptr.as_ptr()).value = value;
             }
-            self.move_to_front(existing_ptr);
+            unsafe { self.move_to_front(existing_ptr); }
             return;
         }
 
@@ -386,7 +387,7 @@ where
         let node_ptr = NonNull::new(Box::into_raw(node)).unwrap();
         self.map.insert(key, node_ptr);
         self.current_memory += memory_size;
-        self.add_to_front(node_ptr);
+        unsafe { self.add_to_front(node_ptr); }
     }
 
     fn remove(&mut self, key: &K) -> Option<V> {
@@ -400,9 +401,7 @@ where
                 self.remove_node(node_ptr);
                 self.map.remove(key);
                 self.current_memory = self.current_memory.saturating_sub(
-                    std::mem::size_of::<Node<K, V>>() + 
-                    std::mem::size_of::<K>() + 
-                    std::mem::size_of::<V>()
+                    std::mem::size_of::<Node<K, V>>()
                 );
                 Some(node.value)
             }

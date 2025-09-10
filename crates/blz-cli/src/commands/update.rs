@@ -234,7 +234,10 @@ fn handle_modified(
     };
     storage.save_llms_json(alias, &new_json)?;
 
-    // Save metadata separately for efficient checking
+    // Rebuild search index
+    rebuild_index(storage, alias, &parse_result, metrics, pb)?;
+
+    // Save metadata only after a successful index rebuild
     let metadata = Source {
         url: url.to_string(),
         etag: new_etag,
@@ -243,9 +246,6 @@ fn handle_modified(
         sha256,
     };
     storage.save_source_metadata(alias, &metadata)?;
-
-    // Rebuild search index
-    rebuild_index(storage, alias, &parse_result, metrics, pb)?;
 
     let elapsed = start.elapsed();
     pb.finish_with_message(format!(
@@ -285,6 +285,9 @@ fn rebuild_index(
 
     let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
     index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+
+    // Ensure no open handles before swapping on Windows
+    drop(index);
 
     // Swap in the new index
     if index_path.exists() {

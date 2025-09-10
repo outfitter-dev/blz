@@ -17,21 +17,11 @@ Local-first search for `llms.txt` ecosystems. Returns exact line citations in mi
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Planned diff journal with unified diffs and changed sections
+- **Change Tracking**: Coming in v0.2 – diff journal with unified diffs and changed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
 ## Installation
-
-### Homebrew (macOS/Linux)
-
-```bash
-brew tap outfitter-dev/homebrew-tap
-brew install outfitter-dev/tap/blz
-
-# Upgrade later
-brew upgrade outfitter-dev/tap/blz
-```
 
 ### From Source
 
@@ -70,7 +60,7 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 blz completions zsh > ~/.zsh/completions/_blz
 
 # Install completions (Elvish)
-blz completions elvish > ~/.elvish/lib/blz.elv
+blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ```
 
 ## Quick Start
@@ -90,12 +80,12 @@ blz get bun --lines 120-142 --context 3
 # List all sources
 blz list
 
-# Update sources (coming soon)
-# blz update bun
-# blz update --all
+# Update sources (coming in v0.2)
+#   blz update bun
+#   blz update --all
 
 # View changes (coming soon in v0.2)
-# blz diff bun --since "2025-08-20"
+# blz diff bun --since "2025-08-20"   # YYYY-MM-DD (RFC 3339 timestamps also supported)
 ```
 
 ## Architecture
@@ -110,12 +100,12 @@ blz list
 │ - Fetcher (ETag)    │      └─────────────────┘
 │ - Parser (tree-sitter)
 │ - Search (BM25)     │
-│ - Diff (experimental)│
+│ - Diff (coming in v0.2)│
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
 │ Storage             │
-│ Platform-specific   │
+│ Platform-specific (see "Storage Layout" paths note) │
 │ - llms.txt/json     │
 │ - .index/           │
 │ - .archive/         │
@@ -136,7 +126,7 @@ blz search "test runner" --alias bun --output json
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --output json
+blz list --output json | jq '.sources | length'
 ```
 
 The JSON output is designed for easy parsing by agents:
@@ -156,22 +146,22 @@ The JSON output is designed for easy parsing by agents:
 
 ### MCP Server (Coming Soon)
 
-For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get_lines`, `update`, and `diff` via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get`, `update`, and `diff` (MCP protocol 2024-11-05) via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
 ## Storage Layout
 
 Example showing Linux default paths. See CLI docs for platform-specific locations.
 
 ```
-~/.local/share/outfitter/blz/
+~/.local/share/dev.outfitter.blz/
   global.toml                 # Global configuration
   bun/
     llms.txt                  # Latest upstream text
     llms.json                 # Parsed TOC + line map
     .index/                   # Tantivy search index
     .archive/                 # Historical snapshots
-      2025-08-22T12-01Z-llms.txt
-      2025-08-22T12-01Z.diff
+      2025-08-22T12-01-07Z-llms.txt
+      2025-08-22T12-01-07Z.diff   # unified diff vs previous snapshot
     settings.toml             # Per-source configuration
 ```
 
@@ -187,7 +177,10 @@ fetch_enabled = true
 follow_links = "first_party"  # none|first_party|allowlist
 
 [paths]
-# Platform-specific path used by default
+# Platform-specific defaults (examples):
+# Linux (XDG):     ~/.local/share/dev.outfitter.blz/
+# macOS (AppData): ~/Library/Application Support/dev.outfitter.blz/
+# Windows:         %APPDATA%\dev.outfitter.blz\
 ```
 
 ### Per-Source Settings (`<alias>/settings.toml`)
@@ -285,10 +278,9 @@ MIT
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - [Getting Started](docs/getting-started.md) - Installation and first steps
-- [Homebrew Install](docs/homebrew.md) - Tap + install via Homebrew
 - [Managing Sources](docs/sources.md) - Adding and organizing documentation
 - [Search Guide](docs/search.md) - Search syntax and advanced patterns
-- [Shell Integration](docs/shell-integration.md) - Completions for Fish, Bash, Zsh
+- [Shell Integration](docs/shell-integration.md) - Completions for Fish, Bash, Zsh, Elvish
 - [Architecture](docs/architecture.md) - Technical deep dive
 
 ## Contributing
@@ -297,8 +289,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Roadmap
 
-- [x] MVP: Core CLI with search and retrieval
-- [x] v0.1: Core CLI with search and retrieval
+- [x] v0.1: Core CLI with search and retrieval (MVP)
 - [ ] v0.2: Diff tracking and change journal
 - [ ] v0.3: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching

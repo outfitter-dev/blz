@@ -154,7 +154,12 @@ impl Storage {
         fs::write(&tmp_path, content)
             .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {e}")))?;
 
-        // Atomically rename temp file to final location
+        // Atomically rename temp file to final location (handle Windows overwrite)
+        #[cfg(target_os = "windows")]
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| Error::Storage(format!("Failed to remove existing llms.txt: {e}")))?;
+        }
         fs::rename(&tmp_path, &path)
             .map_err(|e| Error::Storage(format!("Failed to commit llms.txt: {e}")))?;
 
@@ -181,7 +186,12 @@ impl Storage {
         fs::write(&tmp_path, json)
             .map_err(|e| Error::Storage(format!("Failed to write llms.json: {e}")))?;
 
-        // Atomically rename temp file to final location
+        // Atomically rename temp file to final location (handle Windows overwrite)
+        #[cfg(target_os = "windows")]
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| Error::Storage(format!("Failed to remove existing llms.json: {e}")))?;
+        }
         fs::rename(&tmp_path, &path)
             .map_err(|e| Error::Storage(format!("Failed to commit llms.json: {e}")))?;
 
@@ -210,7 +220,12 @@ impl Storage {
         fs::write(&tmp_path, &json)
             .map_err(|e| Error::Storage(format!("Failed to write temp metadata: {e}")))?;
 
-        // Atomically rename temp file to final path
+        // Atomically rename temp file to final path (handle Windows overwrite)
+        #[cfg(target_os = "windows")]
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| Error::Storage(format!("Failed to remove existing metadata: {e}")))?;
+        }
         fs::rename(&tmp_path, &path)
             .map_err(|e| Error::Storage(format!("Failed to persist metadata: {e}")))?;
 
