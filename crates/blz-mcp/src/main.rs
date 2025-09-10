@@ -21,14 +21,7 @@ async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
         }
     })?;
 
-    let sources = storage.list_sources().map_err(|e| {
-        error!("Failed to list sources: {}", e);
-        RpcError {
-            code: ErrorCode::InternalError,
-            message: format!("Failed to list sources: {e}"),
-            data: None,
-        }
-    })?;
+    let sources = storage.list_sources();
 
     let mut result = Vec::new();
     for source in sources {
@@ -83,14 +76,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     let sources = if let Some(alias) = alias {
         vec![alias.to_string()]
     } else {
-        storage.list_sources().map_err(|e| {
-            error!("Failed to list sources: {}", e);
-            RpcError {
-                code: ErrorCode::InternalError,
-                message: format!("Failed to list sources: {e}"),
-                data: None,
-            }
-        })?
+        storage.list_sources()
     };
 
     let mut all_hits = Vec::new();
@@ -99,7 +85,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
         let index_path = match storage.index_dir(&source) {
             Ok(p) => p,
             Err(e) => {
-                error!("Failed to get index dir for {}: {}", source, e);
+                error!(%source, error = %e, "Failed to get index dir");
                 continue;
             },
         };
@@ -108,7 +94,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
             let index = match SearchIndex::open(&index_path) {
                 Ok(i) => i,
                 Err(e) => {
-                    error!("Failed to open index for {}: {}", source, e);
+                    error!(%source, error = %e, "Failed to open index");
                     continue;
                 },
             };
@@ -116,7 +102,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
             let hits = match index.search(query, Some(&source), limit) {
                 Ok(h) => h,
                 Err(e) => {
-                    error!("Search failed for {}: {}", source, e);
+                    error!(%source, error = %e, "Search failed");
                     continue;
                 },
             };
