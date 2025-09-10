@@ -694,7 +694,7 @@ mod tests {
         assert!(result.is_err());
         match result {
             Err(Error::Config(msg)) => assert!(msg.contains("Failed to read config")),
-            _ => assert!(false, "Expected Config error"),
+            _ => unreachable!("Expected Config error"),
         }
     }
 
