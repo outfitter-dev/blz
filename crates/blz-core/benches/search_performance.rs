@@ -5,7 +5,8 @@
 #![allow(clippy::cast_sign_loss)] // Allow sign loss in benchmark calculations
 
 use blz_core::{HeadingBlock, PerformanceMetrics, SearchIndex};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use std::time::Duration;
 use tempfile::TempDir;
 

@@ -8,7 +8,8 @@
 
 use blz_core::Registry;
 use blz_core::registry::RegistryEntry;
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use std::sync::Arc;
 // use std::time::Duration;  // Unused import
 

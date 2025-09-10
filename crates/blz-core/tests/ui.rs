@@ -1,3 +1,5 @@
+//! UI compile-fail test harness for blz-core
+
 #[test]
 fn compile_fail_ui() {
     let t = trybuild::TestCases::new();

@@ -10,7 +10,7 @@ use serde_json::json;
 use tracing::{error, info};
 use tracing_subscriber::FmtSubscriber;
 
-/// Handle the list_sources RPC method
+/// Handle the `list_sources` RPC method
 async fn handle_list_sources(_params: Params) -> Result<Value, RpcError> {
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -62,7 +62,8 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     let limit = params
         .get("limit")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(10) as usize;
+        .and_then(|v| usize::try_from(v).ok())
+        .unwrap_or(10);
 
     let storage = Storage::new().map_err(|e| {
         error!("Failed to create storage: {}", e);
@@ -73,11 +74,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
         }
     })?;
 
-    let sources = if let Some(alias) = alias {
-        vec![alias.to_string()]
-    } else {
-        storage.list_sources()
-    };
+    let sources = alias.map_or_else(|| storage.list_sources(), |a| vec![a.to_string()]);
 
     let mut all_hits = Vec::new();
 
@@ -127,7 +124,7 @@ async fn handle_search(params: Params) -> Result<Value, RpcError> {
     }))
 }
 
-/// Handle the get_lines RPC method
+/// Handle the `get_lines` RPC method
 async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let params = params.parse::<serde_json::Value>().map_err(|e| RpcError {
         code: ErrorCode::InvalidParams,
@@ -146,17 +143,27 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
         .and_then(|v| v.as_str())
         .unwrap_or("llms.txt");
 
-    let start = params["start"].as_u64().ok_or_else(|| RpcError {
+    let start = usize::try_from(params["start"].as_u64().ok_or_else(|| RpcError {
         code: ErrorCode::InvalidParams,
         message: "Missing required parameter 'start'".to_string(),
         data: None,
-    })? as usize;
+    })?)
+    .map_err(|_| RpcError {
+        code: ErrorCode::InvalidParams,
+        message: "Invalid 'start' value".to_string(),
+        data: None,
+    })?;
 
-    let end = params["end"].as_u64().ok_or_else(|| RpcError {
+    let end = usize::try_from(params["end"].as_u64().ok_or_else(|| RpcError {
         code: ErrorCode::InvalidParams,
         message: "Missing required parameter 'end'".to_string(),
         data: None,
-    })? as usize;
+    })?)
+    .map_err(|_| RpcError {
+        code: ErrorCode::InvalidParams,
+        message: "Invalid 'end' value".to_string(),
+        data: None,
+    })?;
 
     if start == 0 || start > end {
         return Err(RpcError {
@@ -187,8 +194,12 @@ async fn handle_get_lines(params: Params) -> Result<Value, RpcError> {
     let lines: Vec<&str> = content.lines().collect();
 
     let mut result = String::new();
-    for i in (start - 1)..end.min(lines.len()) {
-        result.push_str(lines[i]);
+    for line in lines
+        .iter()
+        .take(end.min(lines.len()))
+        .skip(start.saturating_sub(1))
+    {
+        result.push_str(line);
         result.push('\n');
     }
 
