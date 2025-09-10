@@ -52,6 +52,19 @@ use std::time::Duration;
 
 use super::{json::JsonFormatter, text::TextFormatter};
 
+/// Parameters for formatting search results
+pub struct FormatParams<'a> {
+    pub hits: &'a [SearchHit],
+    pub query: &'a str,
+    pub total_results: usize,
+    pub total_lines_searched: usize,
+    pub search_time: Duration,
+    pub show_pagination: bool,
+    pub single_source: bool,
+    pub sources: &'a [String],
+    pub start_idx: usize,
+}
+
 /// Output format options supported by the CLI
 ///
 /// This enum defines the available output formats for various commands.
@@ -218,37 +231,16 @@ impl SearchResultFormatter {
     ///     20,                     // Start at result #20
     /// )?;
     /// ```
-    pub fn format(
-        &self,
-        hits: &[SearchHit],
-        query: &str,
-        total_results: usize,
-        total_lines_searched: usize,
-        search_time: Duration,
-        show_pagination: bool,
-        single_source: bool,
-        sources: &[String],
-        start_idx: usize,
-    ) -> Result<()> {
+    pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
             OutputFormat::Json => {
-                JsonFormatter::format_search_results(hits)?;
+                JsonFormatter::format_search_results(params.hits)?;
             },
             OutputFormat::Ndjson => {
-                JsonFormatter::format_search_results_ndjson(hits)?;
+                JsonFormatter::format_search_results_ndjson(params.hits)?;
             },
             OutputFormat::Text => {
-                TextFormatter::format_search_results(
-                    hits,
-                    query,
-                    total_results,
-                    total_lines_searched,
-                    search_time,
-                    show_pagination,
-                    single_source,
-                    sources,
-                    start_idx,
-                )?;
+                TextFormatter::format_search_results(params);
             },
         }
         Ok(())
@@ -299,6 +291,7 @@ impl SearchResultFormatter {
 ///   }
 /// ]
 /// ```
+#[allow(dead_code)]
 pub struct SourceInfoFormatter;
 
 impl SourceInfoFormatter {
@@ -356,6 +349,7 @@ impl SourceInfoFormatter {
     /// // Output as streaming NDJSON
     /// SourceInfoFormatter::format(&sources, OutputFormat::Ndjson)?;
     /// ```
+    #[allow(dead_code)]
     pub fn format(source_info: &[serde_json::Value], format: OutputFormat) -> Result<()> {
         match format {
             OutputFormat::Json => {

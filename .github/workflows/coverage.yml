@@ -1,0 +1,140 @@
+name: Coverage
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * MON'
+  workflow_dispatch:
+
+# Cancel previous coverage runs for the same PR
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Critical: Set environment variables to prevent segfaults and OOM
+      RUST_BACKTRACE: 1
+      # Reduce proptest cases to prevent memory issues with coverage instrumentation
+      PROPTEST_CASES: 32
+      # Limit test threads to reduce memory pressure during coverage collection
+      RUST_TEST_THREADS: 2
+      # Set explicit memory limits for LLVM coverage
+      LLVM_COV_FLAGS: "--ignore-filename-regex='tests?/|benches/|examples/'"
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      
+      # Use Swatinem cache for better performance
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          prefix-key: "v2-coverage"
+      
+      # Cache cargo-llvm-cov to speed up workflow
+      - name: Cache cargo-llvm-cov
+        id: cache-llvm-cov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: cargo-llvm-cov-0.6.13
+      
+      - name: Install cargo-llvm-cov
+        if: steps.cache-llvm-cov.outputs.cache-hit != 'true'
+        run: cargo install cargo-llvm-cov --version 0.6.13 --locked
+      
+      - name: Build blz binary for test setup
+        run: cargo build --bin blz
+      
+      - name: Set up test data
+        run: |
+          # Create test data directory
+          export BLZ_DATA_DIR="$PWD/test-data"
+          mkdir -p "$BLZ_DATA_DIR"
+          
+          # Cache test data
+          TEST_DATA_CACHE="/tmp/test-data-cache"
+          mkdir -p "$TEST_DATA_CACHE"
+          
+          if [ -f "$TEST_DATA_CACHE/turbo-llms.txt" ]; then
+            echo "Using cached test data"
+            cp "$TEST_DATA_CACHE/turbo-llms.txt" /tmp/turbo-llms.txt
+          else
+            echo "Downloading test data"
+            curl -sL https://turbo.build/llms-full.txt -o /tmp/turbo-llms.txt || echo "# Test Document" > /tmp/turbo-llms.txt
+            cp /tmp/turbo-llms.txt "$TEST_DATA_CACHE/turbo-llms.txt"
+          fi
+          
+          # Add test source using the built binary
+          ./target/debug/blz add turbo file:///tmp/turbo-llms.txt || true
+          
+          # Export environment variable for tests
+          echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> $GITHUB_ENV
+      
+      - name: Generate coverage
+        run: |
+          echo "::group::Preparing coverage instrumentation"
+          cargo llvm-cov clean --workspace
+          echo "::endgroup::"
+          
+          echo "::group::Running tests with coverage (blz-core)"
+          cargo llvm-cov test --no-report -p blz-core --all-features -- \
+            --skip test_parser_never_panics_on_arbitrary_input \
+            --test-threads=2 --quiet
+          echo "::endgroup::"
+          
+          echo "::group::Running tests with coverage (blz-cli)"
+          cargo llvm-cov test --no-report -p blz-cli --all-features -- \
+            --test-threads=2 --quiet
+          echo "::endgroup::"
+          
+          echo "::group::Running tests with coverage (blz-mcp)"
+          cargo llvm-cov test --no-report -p blz-mcp --all-features -- \
+            --test-threads=2 --quiet
+          echo "::endgroup::"
+          
+          echo "::group::Generating LCOV report"
+          cargo llvm-cov report --lcov --output-path lcov.info
+          echo "::endgroup:"
+      
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+          retention-days: 7
+      
+      # Generate coverage summary for PR
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f lcov.info ]; then
+            echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract coverage percentage from lcov.info
+            TOTAL_LINES=$(grep -c "^DA:" lcov.info || echo "0")
+            COVERED_LINES=$(grep "^DA:" lcov.info | grep -v ",0$" | wc -l || echo "0")
+            
+            if [ "$TOTAL_LINES" -gt 0 ]; then
+              COVERAGE=$((COVERED_LINES * 100 / TOTAL_LINES))
+              echo "**Coverage:** ${COVERAGE}% (${COVERED_LINES}/${TOTAL_LINES} lines)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**Coverage:** Unable to calculate" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Report size:** $(du -h lcov.info | cut -f1)" >> $GITHUB_STEP_SUMMARY
+            echo "**Total entries:** $(wc -l < lcov.info)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Coverage Report Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Unable to generate coverage report. Check logs for details." >> $GITHUB_STEP_SUMMARY
+          fi

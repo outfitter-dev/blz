@@ -3,7 +3,7 @@
 use anyhow::Result;
 use blz_core::{
     Fetcher, FileInfo, FlavorInfo, LineIndex, LlmsJson, MarkdownParser, PerformanceMetrics,
-    ResourceMonitor, SearchIndex, Source, Storage,
+    SearchIndex, Source, Storage,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -20,28 +20,25 @@ use crate::utils::validation::validate_alias;
 /// * `url` - URL to fetch llms.txt from
 /// * `auto_yes` - Auto-select the best flavor without prompts
 /// * `metrics` - Performance metrics collector
-/// * `resource_monitor` - Optional resource usage monitor
 pub async fn execute(
     alias: &str,
     url: &str,
     auto_yes: bool,
     metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
     validate_alias(alias)?;
 
     let fetcher = Fetcher::new()?;
     let final_url = select_flavor(&fetcher, url, auto_yes).await?;
 
-    fetch_and_index(alias, &final_url, fetcher, metrics, resource_monitor).await
+    fetch_and_index(alias, &final_url, fetcher, metrics).await
 }
 
 async fn select_flavor(fetcher: &Fetcher, url: &str, auto_yes: bool) -> Result<String> {
     // Check if the user specified an exact llms.txt variant
-    let is_exact_file = url
-        .split('/')
-        .next_back()
-        .is_some_and(|filename| filename.starts_with("llms") && filename.ends_with(".txt"));
+    let is_exact_file = url.split('/').next_back().is_some_and(|filename| {
+        filename.starts_with("llms") && filename.to_lowercase().ends_with(".txt")
+    });
 
     if is_exact_file {
         return Ok(url.to_string());
@@ -72,10 +69,10 @@ async fn select_flavor(fetcher: &Fetcher, url: &str, auto_yes: bool) -> Result<S
 
     pb.finish();
 
-    select_from_flavors(flavors, auto_yes)
+    select_from_flavors(&flavors, auto_yes)
 }
 
-fn select_from_flavors(flavors: Vec<FlavorInfo>, auto_yes: bool) -> Result<String> {
+fn select_from_flavors(flavors: &[FlavorInfo], auto_yes: bool) -> Result<String> {
     if flavors.len() == 1 {
         return Ok(flavors[0].url.clone());
     }
@@ -114,7 +111,6 @@ async fn fetch_and_index(
     url: &str,
     fetcher: Fetcher,
     metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
     let pb = create_spinner(format!("Fetching {url}").as_str());
 
@@ -175,10 +171,6 @@ async fn fetch_and_index(
         llms_json.toc.len(),
         llms_json.line_index.total_lines
     ));
-
-    if let Some(monitor) = resource_monitor {
-        monitor.print_resource_usage();
-    }
 
     Ok(())
 }

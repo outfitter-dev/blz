@@ -1,16 +1,17 @@
 //! Comprehensive benchmarks for performance optimizations
+#![cfg(feature = "experimental_benches")]
 
 use blz_core::{
-    HeadingBlock, PerformanceMetrics, SearchIndex,
-    cache::{CacheConfig, MultiLevelCache, SearchCache},
-    memory_pool::MemoryPool,
-    optimized_index::OptimizedSearchIndex,
-    string_pool::StringPool,
+    HeadingBlock,
+    PerformanceMetrics,
+    SearchIndex,
+    // Future optimizations - modules not yet implemented:
+    // cache::{CacheConfig, MultiLevelCache, SearchCache},
+    // memory_pool::MemoryPool,
+    // optimized_index::OptimizedSearchIndex,
+    // string_pool::StringPool,
 };
-use criterion::{
-    BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
-    measurement::WallTime,
-};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
@@ -74,7 +75,7 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let index_path = temp_dir.path().join("original_index");
 
-    let mut index = SearchIndex::create(&index_path)
+    let index = SearchIndex::create(&index_path)
         .expect("Failed to create original index")
         .with_metrics(PerformanceMetrics::default());
 
@@ -85,22 +86,22 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
     (temp_dir, index)
 }
 
-/// Set up optimized search index
-async fn setup_optimized_index(blocks: &[HeadingBlock]) -> (TempDir, OptimizedSearchIndex) {
-    let temp_dir = TempDir::new().expect("Failed to create temp dir");
-    let index_path = temp_dir.path().join("optimized_index");
-
-    let index = OptimizedSearchIndex::create(&index_path)
-        .await
-        .expect("Failed to create optimized index");
-
-    index
-        .index_blocks_optimized("bench", "test.md", blocks)
-        .await
-        .expect("Failed to index blocks");
-
-    (temp_dir, index)
-}
+// /// Set up optimized search index
+// async fn setup_optimized_index(blocks: &[HeadingBlock]) -> (TempDir, OptimizedSearchIndex) {
+//     let temp_dir = TempDir::new().expect("Failed to create temp dir");
+//     let index_path = temp_dir.path().join("optimized_index");
+//
+//     let index = OptimizedSearchIndex::create(&index_path)
+//         .await
+//         .expect("Failed to create optimized index");
+//
+//     index
+//         .index_blocks_optimized("bench", "test.md", blocks)
+//         .await
+//         .expect("Failed to index blocks");
+//
+//     (temp_dir, index)
+// }
 
 /// Benchmark search performance: Original vs Optimized
 fn bench_search_performance_comparison(c: &mut Criterion) {
@@ -115,7 +116,8 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
 
         // Setup indices
         let (_temp_dir_orig, original_index) = setup_original_index(&blocks);
-        let (_temp_dir_opt, optimized_index) = rt.block_on(setup_optimized_index(&blocks));
+        // TODO: Uncomment when optimized implementation is ready
+        // let (_temp_dir_opt, optimized_index) = rt.block_on(setup_optimized_index(&blocks));
 
         let mut group = c.benchmark_group(format!("search_performance_{}_docs", count));
         group.throughput(Throughput::Bytes(total_bytes as u64));
@@ -131,16 +133,19 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
             });
         });
 
-        // Benchmark optimized implementation
-        group.bench_function("optimized", |b| {
-            b.to_async(&rt).iter(|| async {
-                let query = black_box("React hooks");
-                optimized_index
-                    .search_optimized(query, Some("bench"), 10)
-                    .await
-                    .expect("Search failed")
-            });
-        });
+        // TODO: Uncomment when optimized implementation is ready
+        // // Benchmark optimized implementation
+        // group.bench_function("optimized", |b| {
+        //     b.iter(|| {
+        //         rt.block_on(async {
+        //             let query = black_box("React hooks");
+        //             optimized_index
+        //                 .search_optimized(query, Some("bench"), 10)
+        //                 .await
+        //                 .expect("Search failed")
+        //         })
+        //     });
+        // });
 
         group.finish();
     }
@@ -190,8 +195,10 @@ fn bench_string_operations(c: &mut Criterion) {
             test_str,
             |b, &test_str| {
                 b.iter(|| {
-                    use blz_core::string_pool::ZeroCopyStrings;
-                    black_box(ZeroCopyStrings::sanitize_query_single_pass(test_str))
+                    // TODO: Uncomment when string_pool module is implemented
+                    // use blz_core::string_pool::ZeroCopyStrings;
+                    // black_box(ZeroCopyStrings::sanitize_query_single_pass(test_str))
+                    black_box(test_str)
                 });
             },
         );
@@ -225,19 +232,22 @@ fn bench_memory_pool(c: &mut Criterion) {
         );
 
         // Memory pool allocation
-        let pool = MemoryPool::default();
-        group.bench_with_input(
+        // TODO: Uncomment when MemoryPool is implemented
+        // let pool = MemoryPool::default();
+        /* group.bench_with_input(
             BenchmarkId::new("pool_allocation", size),
             &size,
             |b, &size| {
-                b.to_async(&rt).iter(|| async {
-                    let mut buffer = pool.get_buffer(size).await;
-                    buffer.as_mut().resize(size, 0u8);
-                    buffer.as_mut().clear();
-                    black_box(())
+                b.iter(|| {
+                    rt.block_on(async {
+                        let mut buffer = pool.get_buffer(size).await;
+                        buffer.as_mut().resize(size, 0u8);
+                        buffer.as_mut().clear();
+                        black_box(())
+                    })
                 });
             },
-        );
+        ); */
     }
 
     group.finish();
@@ -278,25 +288,31 @@ fn bench_string_interning(c: &mut Criterion) {
     });
 
     // String interning
-    let pool = StringPool::default();
-    group.bench_function("interned_strings", |b| {
-        b.to_async(&rt).iter(|| async {
-            let mut interned_strings = Vec::new();
-            for s in &test_strings {
-                interned_strings.push(pool.intern(s).await);
-            }
-            black_box(interned_strings)
-        });
-    });
+    // TODO: Uncomment when StringPool is implemented
+    // let pool = StringPool::default();
+    // group.bench_function("interned_strings", |b| {
+    //     b.iter(|| {
+    //         rt.block_on(async {
+    //             let mut interned_strings = Vec::new();
+    //             for s in &test_strings {
+    //                 interned_strings.push(pool.intern(s).await);
+    //             }
+    //             black_box(interned_strings)
+    //         })
+    //     });
+    // });
 
     // Batch interning
-    group.bench_function("batch_interned_strings", |b| {
-        b.to_async(&rt).iter(|| async {
-            let string_refs: Vec<&str> = test_strings.iter().copied().collect();
-            let interned = pool.intern_batch(&string_refs).await;
-            black_box(interned)
-        });
-    });
+    // TODO: Uncomment when StringPool is implemented
+    // group.bench_function("batch_interned_strings", |b| {
+    //     b.iter(|| {
+    //         rt.block_on(async {
+    //             let string_refs: Vec<&str> = test_strings.iter().copied().collect();
+    //             let interned = pool.intern_batch(&string_refs).await;
+    //             black_box(interned)
+    //         })
+    //     });
+    // });
 
     group.finish();
 }
@@ -425,7 +441,7 @@ fn bench_indexing_performance(c: &mut Criterion) {
                     let index = SearchIndex::create(&index_path).expect("Failed to create index");
                     (temp_dir, index)
                 },
-                |(temp_dir, mut index)| {
+                |(temp_dir, index)| {
                     index
                         .index_blocks("bench", "test.md", black_box(&blocks))
                         .expect("Failed to index blocks");
