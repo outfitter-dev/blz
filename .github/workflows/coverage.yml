@@ -1,7 +1,11 @@
 name: Coverage
 
 on:
-  pull_request:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * MON'
+  workflow_dispatch:
 
 # Cancel previous coverage runs for the same PR
 concurrency:

@@ -91,6 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: format
     timeout-minutes: 10
+    # Only run benchmark compilation on pushes to main (skip for PRs)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

@@ -1,7 +1,8 @@
 name: Miri (Unsafe Validation)
 
 on:
-  pull_request:
+  push:
+    branches: [ main ]
     paths:
       - 'crates/blz-core/**'
       - '.github/workflows/miri.yml'
