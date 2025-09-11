@@ -6,7 +6,7 @@ msrv = "1.85.0"
 # Cognitive complexity threshold
 cognitive-complexity-threshold = 30
 
-# Maximum number of single char bindings  
+# Maximum number of single char bindings
 single-char-binding-names-threshold = 4
 
 # Type complexity threshold
@@ -34,7 +34,7 @@ avoid-breaking-exported-api = false
 # Allow dbg! in tests
 allow-dbg-in-tests = true
 
-# Allow print macros in tests  
+# Allow print macros in tests
 allow-print-in-tests = true
 
 # Allow expect in tests

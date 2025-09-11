@@ -31,19 +31,19 @@
 //! use std::time::Duration;
 //!
 //! let formatter = SearchResultFormatter::new(OutputFormat::Text);
-//! let hits = vec![/* search hits */];
-//!
-//! formatter.format(
-//!     &hits,
-//!     "useEffect",
-//!     100,           // total results
-//!     50000,         // lines searched
-//!     Duration::from_millis(5), // search time
-//!     true,          // show pagination
-//!     false,         // single source
-//!     &["react".to_string()], // sources
-//!     0,             // start index
-//! )?;
+//! let hits: Vec<SearchHit> = vec![/* search hits */];
+//! let params = FormatParams {
+//!     hits: &hits[0..10],
+//!     query: "useEffect",
+//!     total_results: 100,
+//!     total_lines_searched: 50_000,
+//!     search_time: Duration::from_millis(5),
+//!     show_pagination: true,
+//!     single_source: false,
+//!     sources: &["react".to_string()],
+//!     start_idx: 0,
+//! };
+//! formatter.format(&params)?;
 //! ```
 
 use anyhow::Result;
@@ -51,6 +51,19 @@ use blz_core::SearchHit;
 use std::time::Duration;
 
 use super::{json::JsonFormatter, text::TextFormatter};
+
+/// Parameters for formatting search results
+pub struct FormatParams<'a> {
+    pub hits: &'a [SearchHit],
+    pub query: &'a str,
+    pub total_results: usize,
+    pub total_lines_searched: usize,
+    pub search_time: Duration,
+    pub show_pagination: bool,
+    pub single_source: bool,
+    pub sources: &'a [String],
+    pub start_idx: usize,
+}
 
 /// Output format options supported by the CLI
 ///
@@ -193,62 +206,43 @@ impl SearchResultFormatter {
     /// let search_time = Duration::from_millis(12);
     ///
     /// // Display first page of results
-    /// formatter.format(
-    ///     &hits[0..10],           // First 10 results
-    ///     "useEffect cleanup",    // Original query
-    ///     156,                    // Total matches found
-    ///     38000,                  // Lines searched
+    /// let p1 = FormatParams {
+    ///     hits: &hits[0..10],
+    ///     query: "useEffect cleanup",
+    ///     total_results: 156,
+    ///     total_lines_searched: 38_000,
     ///     search_time,
-    ///     true,                   // Show "Page 1 of 16" etc.
-    ///     false,                  // Multiple sources
-    ///     &["react".to_string(), "next".to_string()],
-    ///     0,                      // First page (start at 0)
-    /// )?;
+    ///     show_pagination: true,
+    ///     single_source: false,
+    ///     sources: &["react".to_string(), "next".to_string()],
+    ///     start_idx: 0,
+    /// };
+    /// formatter.format(&p1)?;
     ///
-    /// // Display specific page
-    /// formatter.format(
-    ///     &hits[20..30],          // Third page of results
-    ///     "useEffect cleanup",
-    ///     156,
-    ///     38000,
+    /// // Display a later page
+    /// let p3 = FormatParams {
+    ///     hits: &hits[20..30],
+    ///     query: "useEffect cleanup",
+    ///     total_results: 156,
+    ///     total_lines_searched: 38_000,
     ///     search_time,
-    ///     true,
-    ///     false,
-    ///     &["react".to_string(), "next".to_string()],
-    ///     20,                     // Start at result #20
-    /// )?;
+    ///     show_pagination: true,
+    ///     single_source: false,
+    ///     sources: &["react".to_string(), "next".to_string()],
+    ///     start_idx: 20,
+    /// };
+    /// formatter.format(&p3)?;
     /// ```
-    pub fn format(
-        &self,
-        hits: &[SearchHit],
-        query: &str,
-        total_results: usize,
-        total_lines_searched: usize,
-        search_time: Duration,
-        show_pagination: bool,
-        single_source: bool,
-        sources: &[String],
-        start_idx: usize,
-    ) -> Result<()> {
+    pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
             OutputFormat::Json => {
-                JsonFormatter::format_search_results(hits)?;
+                JsonFormatter::format_search_results(params.hits)?;
             },
             OutputFormat::Ndjson => {
-                JsonFormatter::format_search_results_ndjson(hits)?;
+                JsonFormatter::format_search_results_ndjson(params.hits)?;
             },
             OutputFormat::Text => {
-                TextFormatter::format_search_results(
-                    hits,
-                    query,
-                    total_results,
-                    total_lines_searched,
-                    search_time,
-                    show_pagination,
-                    single_source,
-                    sources,
-                    start_idx,
-                )?;
+                TextFormatter::format_search_results(params);
             },
         }
         Ok(())
@@ -299,6 +293,7 @@ impl SearchResultFormatter {
 ///   }
 /// ]
 /// ```
+#[allow(dead_code)]
 pub struct SourceInfoFormatter;
 
 impl SourceInfoFormatter {
@@ -356,6 +351,7 @@ impl SourceInfoFormatter {
     /// // Output as streaming NDJSON
     /// SourceInfoFormatter::format(&sources, OutputFormat::Ndjson)?;
     /// ```
+    #[allow(dead_code)]
     pub fn format(source_info: &[serde_json::Value], format: OutputFormat) -> Result<()> {
         match format {
             OutputFormat::Json => {

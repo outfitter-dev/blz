@@ -75,7 +75,7 @@ Cached sources:
 For scripting and automation:
 
 ```bash
-blz list --format json
+blz list --output json
 ```
 
 Output:
@@ -122,31 +122,37 @@ Sources are stored in platform-specific directories:
 ### macOS
 
 ```text
-~/Library/Application Support/outfitter.cache/
+~/Library/Application Support/dev.outfitter.blz/
   bun/
-    llms.txt        # Raw content
-    llms.json       # Parsed metadata
-    .index/         # Search index
+    llms.txt        # Latest upstream text
+    llms.json       # Parsed TOC + line map
+    .index/         # Search index (Tantivy)
+    .archive/       # Historical snapshots
+    settings.toml   # Per-source configuration
 ```
 
 ### Linux
 
 ```text
-~/.local/share/outfitter.cache/
+~/.local/share/dev.outfitter.blz/
   bun/
     llms.txt
     llms.json
     .index/
+    .archive/
+    settings.toml
 ```
 
 ### Windows
 
 ```text
-%APPDATA%\outfitter\cache\
+%APPDATA%\dev.outfitter.blz\
   bun\
     llms.txt
     llms.json
     .index\
+    .archive\
+    settings.toml
 ```
 
 ## Source Metadata
@@ -178,7 +184,7 @@ Each source stores metadata in `llms.json`:
 
 ```bash
 # macOS/Linux
-du -sh ~/Library/Application\ Support/outfitter.cache/*
+du -sh ~/Library/Application\ Support/dev.outfitter.blz/*
 
 # Example output:
 # 128K    bun
@@ -192,10 +198,10 @@ Currently manual - delete the directory:
 
 ```bash
 # macOS
-rm -rf ~/Library/Application\ Support/outfitter.cache/bun
+rm -rf ~/Library/Application\ Support/dev.outfitter.blz/bun
 
 # Linux
-rm -rf ~/.local/share/outfitter.cache/bun
+rm -rf ~/.local/share/dev.outfitter.blz/bun
 ```
 
 ## Source Types
@@ -286,7 +292,7 @@ Check your internet connection and try again.
 blz handles malformed documents gracefully, but check diagnostics in the JSON:
 
 ```bash
-cat ~/Library/Application\ Support/outfitter.cache/bun/llms.json | jq .diagnostics
+cat ~/Library/Application\ Support/dev.outfitter.blz/bun/llms.json | jq .diagnostics
 ```
 
 ## Advanced Usage

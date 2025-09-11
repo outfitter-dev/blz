@@ -8,9 +8,10 @@
 
 use blz_core::Registry;
 use blz_core::registry::RegistryEntry;
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use std::sync::Arc;
-use std::time::Duration;
+// use std::time::Duration;  // Unused import
 
 /// Create a small test registry matching the default size
 fn create_small_registry() -> Registry {
@@ -28,18 +29,15 @@ fn create_large_registry() -> Registry {
     // Add many synthetic entries to test performance
     for i in 0..1000 {
         let entry = RegistryEntry::new(
-            &format!("Framework {}", i),
-            &format!("framework-{}", i),
-            &format!(
-                "A synthetic framework for testing performance - entry {}",
-                i
-            ),
-            &format!("https://framework-{}.com/llms.txt", i),
+            &format!("Framework {i}"),
+            &format!("framework-{i}"),
+            &format!("A synthetic framework for testing performance - entry {i}"),
+            &format!("https://framework-{i}.com/llms.txt"),
         )
         .with_aliases(&[
-            &format!("framework-{}", i),
-            &format!("fw{}", i),
-            &format!("f{}", i),
+            &format!("framework-{i}"),
+            &format!("fw{i}"),
+            &format!("f{i}"),
         ]);
         entries.push(entry);
     }

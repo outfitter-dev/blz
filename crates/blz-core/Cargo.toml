@@ -10,6 +10,7 @@ workspace = true
 
 [features]
 flamegraph = ["pprof/flamegraph"]
+experimental_benches = []
 
 [dependencies]
 anyhow.workspace = true
@@ -40,6 +41,7 @@ sysinfo.workspace = true
 
 [dev-dependencies]
 proptest = "1"
+trybuild = "1"
 criterion.workspace = true
 tempfile.workspace = true
 wiremock = "0.6"
@@ -48,6 +50,7 @@ wiremock = "0.6"
 name = "search_performance"
 harness = false
 
-[[bench]]
-name = "performance_optimizations"
-harness = false
+# [[bench]]
+# name = "performance_optimizations"
+# harness = false
+# Note: Disabled until cache/memory_pool modules are implemented

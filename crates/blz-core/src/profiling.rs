@@ -11,11 +11,17 @@ use tracing::{Level, debug, info, span};
 /// Global performance metrics collector
 #[derive(Debug, Clone)]
 pub struct PerformanceMetrics {
+    /// Number of search operations performed
     pub search_count: Arc<AtomicU64>,
+    /// Total time spent in search operations (in microseconds)
     pub total_search_time: Arc<AtomicU64>,
+    /// Number of index build operations performed
     pub index_build_count: Arc<AtomicU64>,
+    /// Total time spent in index build operations (in microseconds)
     pub total_index_time: Arc<AtomicU64>,
+    /// Total bytes processed during indexing
     pub bytes_processed: Arc<AtomicU64>,
+    /// Total lines searched across all operations
     pub lines_searched: Arc<AtomicU64>,
 }
 
@@ -147,12 +153,16 @@ impl PerformanceMetrics {
 
 /// Timer for measuring operation duration with automatic metrics recording
 pub struct OperationTimer {
+    /// Start time of the operation
     start: Instant,
+    /// Name or description of the operation being timed
     operation: String,
+    /// Optional metrics collector for recording results
     metrics: Option<PerformanceMetrics>,
 }
 
 impl OperationTimer {
+    /// Creates a new operation timer with basic logging
     pub fn new(operation: &str) -> Self {
         info!("Starting operation: {}", operation);
         Self {
@@ -162,6 +172,7 @@ impl OperationTimer {
         }
     }
 
+    /// Creates a new operation timer with metrics collection
     pub fn with_metrics(operation: &str, metrics: PerformanceMetrics) -> Self {
         info!("Starting operation with metrics: {}", operation);
         Self {
@@ -218,14 +229,17 @@ impl OperationTimer {
 /// Component-level timing breakdown for detailed analysis
 #[derive(Debug, Default)]
 pub struct ComponentTimings {
+    /// Map of component names to their cumulative durations
     timings: HashMap<String, Duration>,
 }
 
 impl ComponentTimings {
+    /// Creates a new component timings tracker
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Times an operation and records it under the given component name
     pub fn time<T, F>(&mut self, component: &str, operation: F) -> T
     where
         F: FnOnce() -> T,
@@ -244,14 +258,17 @@ impl ComponentTimings {
         result
     }
 
+    /// Gets the cumulative timing for a specific component
     pub fn get_timing(&self, component: &str) -> Option<Duration> {
         self.timings.get(component).copied()
     }
 
+    /// Calculates the total time across all components
     pub fn total_time(&self) -> Duration {
         self.timings.values().sum()
     }
 
+    /// Prints a formatted breakdown of component timings
     pub fn print_breakdown(&self) {
         if self.timings.is_empty() {
             return;
@@ -285,8 +302,11 @@ impl ComponentTimings {
 
 /// System resource monitor for memory and CPU usage
 pub struct ResourceMonitor {
+    /// System information collector from sysinfo crate
     system: System,
+    /// Process ID of the current process
     pid: u32,
+    /// Memory usage at monitor creation time (in bytes)
     initial_memory: u64,
 }
 
@@ -297,6 +317,7 @@ impl Default for ResourceMonitor {
 }
 
 impl ResourceMonitor {
+    /// Creates a new resource monitor and captures initial state
     pub fn new() -> Self {
         let mut system = System::new_all();
         system.refresh_all();
@@ -313,10 +334,12 @@ impl ResourceMonitor {
         }
     }
 
+    /// Refreshes system information
     pub fn refresh(&mut self) {
         self.system.refresh_all();
     }
 
+    /// Gets the current memory usage in megabytes
     pub fn current_memory_mb(&mut self) -> f64 {
         self.refresh();
         self.system
@@ -324,6 +347,7 @@ impl ResourceMonitor {
             .map_or(0.0, |process| process.memory() as f64 / (1024.0 * 1024.0))
     }
 
+    /// Gets the memory usage change since initialization in megabytes
     pub fn memory_delta_mb(&mut self) -> f64 {
         self.refresh();
         if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
@@ -334,6 +358,7 @@ impl ResourceMonitor {
         }
     }
 
+    /// Gets the current CPU usage percentage for this process
     pub fn cpu_usage(&mut self) -> f32 {
         self.refresh();
         self.system
@@ -341,6 +366,7 @@ impl ResourceMonitor {
             .map_or(0.0, sysinfo::Process::cpu_usage)
     }
 
+    /// Prints formatted resource usage information
     pub fn print_resource_usage(&mut self) {
         println!("\n{}", "Resource Usage".bold());
         println!("{}", "==============".bold());
@@ -366,7 +392,7 @@ pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::e
 /// Stop profiling and generate flamegraph
 #[cfg(feature = "flamegraph")]
 pub fn stop_profiling_and_report(
-    guard: pprof::ProfilerGuard,
+    guard: &pprof::ProfilerGuard,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match guard.report().build() {
         Ok(report) => {
@@ -393,6 +419,7 @@ pub fn start_profiling() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Stops CPU profiling and generates a flamegraph report (no-op when flamegraph feature is disabled)
 #[cfg(not(feature = "flamegraph"))]
 #[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn stop_profiling_and_report(_guard: ()) -> Result<(), Box<dyn std::error::Error>> {

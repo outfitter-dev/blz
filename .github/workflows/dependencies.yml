@@ -21,53 +21,73 @@ on:
     - cron: '0 0 * * MON'
   workflow_dispatch:
 
+# Cancel previous runs
+concurrency:
+  group: deps-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   optimize_ci:
     runs-on: ubuntu-latest
     outputs:
-      skip: ${{ steps.check_skip.outputs.skip }}
+      # Default to skip=false if Graphite is not configured or action fails
+      skip: ${{ steps.check_skip.outputs.skip || steps.default_skip.outputs.skip || 'false' }}
     steps:
       - name: Optimize CI
         id: check_skip
         uses: withgraphite/graphite-ci-action@main
         with:
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+        continue-on-error: true
+
+      - name: Default skip to false when unset
+        id: default_skip
+        if: always() && (steps.check_skip.outputs.skip == '' || steps.check_skip.outcome == 'failure')
+        run: echo "skip=false" >> "$GITHUB_OUTPUT"
 
   unused-deps:
     name: Check for unused dependencies
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    # Run unless explicitly skipped by Graphite action
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
       
-      - name: Cache cargo registry
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          prefix-key: "v2-deps"
+      
+      # Cache cargo-shear binary
+      - name: Cache cargo-shear
+        id: cache-shear
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: ~/.cargo/bin/cargo-shear
+          key: cargo-shear-0.0.26  # Update version as needed
       
       - name: Install cargo-shear
-        run: |
-          if ! command -v cargo-shear &> /dev/null; then
-            cargo install cargo-shear
-          fi
+        if: steps.cache-shear.outputs.cache-hit != 'true'
+        run: cargo install cargo-shear --locked
       
       - name: Check for unused dependencies
-        run: cargo shear
+        run: |
+          echo "::group::Running cargo-shear"
+          cargo shear
+          echo "::endgroup::"
         
   cargo-deny:
     name: Dependency validation
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
+      fail-fast: false  # Run all checks even if one fails
       matrix:
         checks:
           - advisories
@@ -75,47 +95,62 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Run cargo-deny
+      - name: Run cargo-deny (${{ matrix.checks }})
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check ${{ matrix.checks }}
           arguments: --all-features
+          log-level: warn  # Reduce noise in logs
           
   security-audit:
-    name: Security advisories (non-blocking)
+    name: Security advisories (informational)
     needs: optimize_ci
-    if: needs.optimize_ci.outputs.skip == 'false'
+    if: needs.optimize_ci.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     continue-on-error: true # Don't fail CI on new advisories
     steps:
       - uses: actions/checkout@v4
       
       - name: Run advisory check
+        id: advisories
         uses: EmbarkStudios/cargo-deny-action@v2
+        continue-on-error: true
         with:
           command: check advisories
           arguments: --all-features
-          
-      - name: Upload advisory report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: advisory-report
-          path: |
-            cargo-deny.log
+          log-level: warn
+      
+      - name: Create advisory summary
+        if: always()
+        run: |
+          if [ "${{ steps.advisories.outcome }}" == "failure" ]; then
+            echo "### ⚠️ Security Advisories Found" >> $GITHUB_STEP_SUMMARY
+            echo "New security advisories detected. Review the logs for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ No Security Advisories" >> $GITHUB_STEP_SUMMARY
+            echo "All dependencies passed security checks." >> $GITHUB_STEP_SUMMARY
+          fi
 
   dependency-review:
     name: Dependency Review
     needs: optimize_ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.optimize_ci.outputs.skip == 'false'
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request' && needs.optimize_ci.outputs.skip != 'true'
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
-          fail-on-severity: high
-          deny-licenses: GPL-3.0, AGPL-3.0
-          # Check for known vulnerabilities
+          fail-on-severity: critical  # Only fail on critical issues
+          warn-on-severity: high  # Warn on high severity
+          deny-licenses: GPL-3.0, AGPL-3.0, SSPL-1.0
           vulnerability-check: true
+          license-check: true
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}

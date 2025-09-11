@@ -98,8 +98,11 @@ blz search "test"
 
 Output:
 
-```
-Search results for 'test':
+```text
+bun:304-324 (score: 4), from bun.sh
+Bun Documentation > Guides > Test runner
+... Test runner integrates with Bun's toolchain ...
+
 
 1. bun (score: 4.09)
    Path: Bun Documentation > Guides > Test runner
@@ -111,7 +114,7 @@ Search results for 'test':
 Machine-readable for scripting:
 
 ```bash
-blz search "test" --format json
+blz search "test" --output json
 ```
 
 Output:
@@ -158,9 +161,10 @@ Results are ranked by BM25 score:
 
 Shows the document structure:
 
-```
-Path: Bun Documentation > Guides > Test runner
-      ^-- Top level     ^-- Section  ^-- Subsection
+```text
+bun:123-145 (score: 9), from bun.sh
+Bun Documentation  >  Guides  >  Test runner
+└ Top level           └ Section  └ Subsection
 ```
 
 ## Advanced Patterns
@@ -245,7 +249,7 @@ blz node "file system"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(blz search "test runner" --limit 1 --format json)
+result=$(blz search "test runner" --limit 1 --output json)
 alias=$(echo "$result" | jq -r '.hits[0].alias')
 lines=$(echo "$result" | jq -r '.hits[0].lines')
 
@@ -260,7 +264,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -280,7 +284,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(blz search "$query" --limit 5 --format json)
+results=$(blz search "$query" --limit 5 --output json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.hits[] |

@@ -1,0 +1,40 @@
+# Act configuration for local GitHub Actions testing
+# https://github.com/nektos/act
+
+# Platform mappings - use smaller, faster images
+--platform ubuntu-latest=catthehacker/ubuntu:act-latest
+--platform ubuntu-22.04=catthehacker/ubuntu:act-22.04
+--platform ubuntu-20.04=catthehacker/ubuntu:act-20.04
+
+# Performance optimizations
+--container-daemon-socket -    # Use host Docker daemon
+--reuse                        # Reuse containers between runs
+--pull=false                   # Don't auto-pull images (faster startup)
+--rm=false                     # Keep containers for debugging
+
+# Resource limits (adjust based on your system)
+--container-options "--memory=4g --cpus=2"
+
+# Default behavior
+--quiet                        # Less verbose by default
+--actor act-user              # Default actor
+--defaultbranch main          # Default branch name
+
+# Workflow selection
+--workflows .github/workflows # Workflow directory
+
+# Event configuration
+--eventpath .github/workflows/act-event.json
+
+# Secret handling (never commit real secrets!)
+--secret-file .secrets        # Load from .secrets file if exists
+
+# Environment variables for act detection
+--env ACT=true               # Let workflows know they're running in act
+--env CI=true                # Simulate CI environment
+--env GITHUB_ACTIONS=true    # Simulate GitHub Actions
+
+# Rust-specific optimizations
+--env CARGO_TERM_COLOR=always
+--env RUST_BACKTRACE=1
+--env CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse

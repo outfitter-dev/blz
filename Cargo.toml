@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "crates/blz-core",
     "crates/blz-cli",
-    "crates/blz-mcp",
 ]
 
 [workspace.package]
@@ -23,7 +22,7 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "json", "stream", "http2"] }
 sha2 = "0.10"
 base64 = "0.22"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -36,11 +35,9 @@ tree-sitter-md = "0.3"
 tantivy = "0.22"
 fuzzy-matcher = "0.3"
 
-# MCP server
-# rmcp = "0.4"  # Will uncomment when available
 
 # Performance & profiling
-criterion = "0.5"
+criterion = { version = "0.7", features = ["async_tokio"] }
 pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"] }
 sysinfo = "0.32"
 tempfile = "3"
@@ -74,4 +71,3 @@ expect_used = "warn"
 panic = "warn"
 unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
-

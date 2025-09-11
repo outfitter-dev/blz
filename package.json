@@ -1,6 +1,6 @@
 {
-  "name": "outfitter-blaze",
-  "version": "0.1.0",
+  "name": "@outfitter/blz",
+  "version": "0.1.1",
   "description": "Fast local llms.txt search for agents",
   "keywords": [
     "documentation",
@@ -16,8 +16,8 @@
     "rust",
     "cli",
     "mcp",
-    "blaze",
-    "blz"
+    "blz",
+    "outfitter"
   ],
   "homepage": "https://blz.run",
   "bugs": {

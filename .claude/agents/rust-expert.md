@@ -99,7 +99,7 @@ When reviewing code:
 
 ```
 🔍 CRITICAL: [Issue that could cause bugs/crashes]
-⚠️  WARNING: [Suboptimal but functional code]
+⚠️ WARNING: [Suboptimal but functional code]
 💭 CONSIDER: [Alternative approach worth exploring]
 ✨ EXCELLENT: [Particularly good code worth highlighting]
 ❓ QUESTION: [Need clarification before proceeding]

@@ -7,14 +7,21 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 - Follow the @./.agents/rules/IMPORTANT.md rules
 - Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
 
+## Use blz
+
+- You're working on blz, so you should use it!
+- For docs search, use the `blz` CLI tool: @.agents/instructions/use-blz.md
+
 ## 🚀 Quick Start for Agents
 
 ### Before You Begin
+
 1. **Run the agent check script**: `./scripts/agent-check.sh` for compiler diagnostics and automated fixes
 2. **Check current build status**: `cargo check --message-format=json` for machine-readable errors
 3. **Review unsafe code policy**: See `.agents/rules/conventions/rust/unsafe-policy.md` if working with unsafe blocks
 
 ### Common Agent Pain Points & Solutions
+
 - **Async confusion**: Read `.agents/rules/conventions/rust/async-patterns.md` to learn correct async/await patterns
 - **Compiler errors**: Use `.agents/rules/conventions/rust/compiler-loop.md` for JSON diagnostics and macro expansion
 - **Error handling**: Follow patterns in crate-specific AGENTS.md files
@@ -22,8 +29,9 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 ## 📂 Directory-Specific Guidance
 
 Each crate has its own AGENTS.md with specialized patterns:
+
 - `crates/blz-core/AGENTS.md` - Performance-critical library code, unsafe policy
-- `crates/blz-cli/AGENTS.md` - User-facing CLI patterns, error messages  
+- `crates/blz-cli/AGENTS.md` - User-facing CLI patterns, error messages
 - `crates/blz-mcp/AGENTS.md` - MCP protocol compliance, JSON-RPC handling
 
 ## Repository Overview
@@ -125,15 +133,12 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 ```text
 # Determined via directories::ProjectDirs::from("dev", "outfitter", "blz")
-# macOS:
-#   Data:     ~/Library/Application Support/dev/outfitter/blz/
-#   Config:   ~/Library/Preferences/dev/outfitter/blz/
-# Linux (XDG):
-#   Data:     ~/.local/share/dev/outfitter/blz/
-#   Config:   ~/.config/dev/outfitter/blz/
-# Windows:
-#   Data:     %APPDATA%/dev/outfitter/blz/data/
-#   Config:   %APPDATA%/dev/outfitter/blz/config/
+# Config (XDG, all platforms):
+#   $XDG_CONFIG_HOME/blz/ (or ~/.config/blz/)
+# Data (platform data dir):
+#   macOS:   ~/Library/Application Support/dev.outfitter.blz/
+#   Linux:   ~/.local/share/dev.outfitter.blz/
+#   Windows: %APPDATA%\dev.outfitter.blz\
 #
 # Within Data:
 <alias>/

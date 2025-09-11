@@ -3,43 +3,57 @@
 
 Complete guide to shell completions and integration for `blz`.
 
+## Supported Shells
+
+`blz` provides completions for:
+
+- **[Bash](./bash.md)** - Standard completions with broad compatibility
+- **[Zsh](./zsh.md)** - Rich completions with Oh My Zsh support
+- **[Fish](./fish.md)** - Best experience with dynamic source completion
+- **[PowerShell](./powershell.md)** - Windows and cross-platform support
+- **[Elvish](./elvish.md)** - Modern shell with structured data support
+
+For detailed Zsh setup including custom functions and troubleshooting, see [Zsh Setup Guide](./zsh-setup.md).
+
 ## Quick Setup
-
-### Zsh
-
-```zsh
-# Ensure completions directory exists
-mkdir -p ~/.zsh/completions
-
-# Generate and install completions
-blz completions zsh > ~/.zsh/completions/_blz
-
-# Add to .zshrc if not already present
-echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
-echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
-
-# Reload
-source ~/.zshrc
-```
-
-### Fish Shell
-
-```fish
-# Generate and install completions
-blz completions fish > ~/.config/fish/completions/blz.fish
-
-# Reload (or restart shell)
-source ~/.config/fish/config.fish
-```
 
 ### Bash
 
 ```bash
-# Generate and install completions
 blz completions bash > ~/.local/share/bash-completion/completions/blz
-
-# Reload (or restart shell)
 source ~/.bashrc
+```
+
+### Zsh
+
+```zsh
+mkdir -p ~/.zsh/completions
+blz completions zsh > ~/.zsh/completions/_blz
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Fish
+
+```fish
+blz completions fish > ~/.config/fish/completions/blz.fish
+source ~/.config/fish/config.fish
+```
+
+### PowerShell
+
+```powershell
+blz completions powershell >> $PROFILE
+. $PROFILE
+```
+
+### Elvish
+
+```elvish
+blz completions elvish > ~/.elvish/lib/blz.elv
+echo 'use blz' >> ~/.elvish/rc.elv
+exec elvish
 ```
 
 ## Features by Shell
@@ -94,13 +108,19 @@ Fish completions are enhanced with runtime data:
 ```fish
 # This function queries your actual indexed sources
 function __fish_blz_complete_aliases
-    blz list --format json 2>/dev/null | python3 -c "
+    blz list --output json 2>/dev/null | python3 -c "
 import json, sys
 try:
-    sources = json.load(sys.stdin)
-    for s in sources:
-        print(s)
-except:
+    data = json.load(sys.stdin)
+    for s in data:
+        # Emit alias names only; handle both string and object forms
+        if isinstance(s, str):
+            print(s)
+        elif isinstance(s, dict):
+            alias = s.get('alias') or s.get('name') or ''
+            if alias:
+                print(alias)
+except Exception:
     pass
 "
 end
@@ -205,7 +225,7 @@ Create helpful functions:
 # Search and display best result
 function blz-best
     set -l query $argv
-    set -l result (blz search "$query" --limit 1 --format json | jq -r '.hits[0]')
+    set -l result (blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
 
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')
@@ -238,7 +258,7 @@ end
 ```bash
 # Fish/Bash/Zsh
 function blz-fzf
-    blz search "$1" --format json | \
+    blz search "$1" --output json | \
     jq -r '.hits[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
@@ -253,7 +273,7 @@ Create a workflow script:
 # For Alfred/Raycast
 
 query="$1"
-results=$(blz search "$query" --format json)
+results=$(blz search "$query" --output json)
 
 echo "$results" | jq -r '.hits[] | {
     title: .heading_path | join(" > "),
@@ -322,7 +342,7 @@ The dynamic completions query live data:
 
 ```fish
 # Test the query function
-blz list --format json
+blz list --output json
 
 # If this works, completions should work
 # If not, check that you have sources:
@@ -404,11 +424,11 @@ done
 
 Planned improvements:
 
-- PowerShell completions
 - Nushell support
 - More dynamic completions for Bash/Zsh
 - Completion of search queries from history
 - IDE integrations (VS Code, IntelliJ)
+- Warp terminal native integration
 
 ## Contributing
 
@@ -419,4 +439,4 @@ To improve completions:
 3. Rebuild: `cargo build --release`
 4. Test: `blz completions <shell>`
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for more details.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for more details.
