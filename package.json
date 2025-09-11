@@ -1,6 +1,6 @@
 {
   "name": "@outfitter/blz",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Fast local llms.txt search for agents",
   "keywords": [
     "documentation",
