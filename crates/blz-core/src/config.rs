@@ -63,10 +63,11 @@ use std::path::{Path, PathBuf};
 ///
 /// ## File Location
 ///
-/// The configuration file is stored at:
-/// - Linux: `~/.config/outfitter/blz/global.toml`
-/// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`  
-/// - Windows: `%APPDATA%\outfitter\blz\global.toml`
+/// The configuration file is stored at (searched in order):
+/// - XDG: `$XDG_CONFIG_HOME/blz/config.toml` or `~/.config/blz/config.toml`
+/// - Dotfile fallback: `~/.blz/config.toml`
+///
+/// A `config.local.toml` in the same directory overrides keys from `config.toml`.
 ///
 /// ## Example Configuration File
 ///
@@ -163,8 +164,8 @@ pub struct PathsConfig {
     /// structure is: `root/<source_alias>/`
     ///
     /// Default locations:
-    /// - Linux: `~/.local/share/outfitter/blz`
-    /// - macOS: `~/Library/Application Support/outfitter.blz`
+    /// - Linux: `~/.local/share/blz`
+    /// - macOS: `~/Library/Application Support/dev.outfitter.blz`
     /// - Windows: `%APPDATA%\outfitter\blz`
     pub root: PathBuf,
 }
@@ -202,16 +203,51 @@ impl Config {
     /// # Ok::<(), blz_core::Error>(())
     /// ```
     pub fn load() -> Result<Self> {
-        let config_path = Self::config_path()?;
+        // Determine base config path (BLZ_CONFIG/BLZ_CONFIG_DIR, XDG, dotfile), or use defaults
+        let base_path = Self::existing_config_path()?;
 
-        if config_path.exists() {
-            let content = fs::read_to_string(&config_path)
+        // Load base
+        let mut base_value: toml::Value = if let Some(ref path) = base_path {
+            let content = fs::read_to_string(path)
                 .map_err(|e| Error::Config(format!("Failed to read config: {e}")))?;
             toml::from_str(&content)
-                .map_err(|e| Error::Config(format!("Failed to parse config: {e}")))
+                .map_err(|e| Error::Config(format!("Failed to parse config: {e}")))?
         } else {
-            Ok(Self::default())
+            let default_str = toml::to_string(&Self::default())
+                .map_err(|e| Error::Config(format!("Failed to init default config: {e}")))?;
+            toml::from_str(&default_str)
+                .map_err(|e| Error::Config(format!("Failed to init default config: {e}")))?
+        };
+
+        // Merge optional local override next to resolved base directory
+        let base_dir = base_path.as_deref().map_or_else(
+            || {
+                Self::canonical_config_path().map_or_else(
+                    |_| PathBuf::new(),
+                    |p| p.parent().map(Path::to_path_buf).unwrap_or_default(),
+                )
+            },
+            |bp| bp.parent().map(Path::to_path_buf).unwrap_or_default(),
+        );
+
+        let local_path = base_dir.join("config.local.toml");
+        if local_path.exists() {
+            let content = fs::read_to_string(&local_path)
+                .map_err(|e| Error::Config(format!("Failed to read local config: {e}")))?;
+            let local_value: toml::Value = toml::from_str(&content)
+                .map_err(|e| Error::Config(format!("Failed to parse local config: {e}")))?;
+            Self::merge_toml(&mut base_value, &local_value);
         }
+
+        // Deserialize
+        let mut config: Self = base_value
+            .try_into()
+            .map_err(|e| Error::Config(format!("Failed to materialize config: {e}")))?;
+
+        // Apply env overrides
+        config.apply_env_overrides();
+
+        Ok(config)
     }
 
     /// Save the configuration to the default location.
@@ -239,7 +275,7 @@ impl Config {
     /// # Ok::<(), blz_core::Error>(())
     /// ```
     pub fn save(&self) -> Result<()> {
-        let config_path = Self::config_path()?;
+        let config_path = Self::save_target_path()?;
         let parent = config_path
             .parent()
             .ok_or_else(|| Error::Config("Invalid config path".into()))?;
@@ -250,11 +286,11 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .map_err(|e| Error::Config(format!("Failed to serialize config: {e}")))?;
 
-        let tmp = parent.join("global.toml.tmp");
+        let tmp = parent.join("config.toml.tmp");
         fs::write(&tmp, &content)
             .map_err(|e| Error::Config(format!("Failed to write temp config: {e}")))?;
         // Best-effort atomic replace; on Windows, rename() replaces if target does not exist.
-        // SAFETY: global.toml write is replaced in one step to avoid torn files.
+        // SAFETY: config.toml write is replaced in one step to avoid torn files.
         #[cfg(target_os = "windows")]
         if config_path.exists() {
             fs::remove_file(&config_path)
@@ -269,68 +305,131 @@ impl Config {
     /// Get the path where the global configuration file is stored.
     ///
     /// Uses the system-appropriate config directory based on the platform:
-    /// - Linux: `~/.config/outfitter/blz/global.toml`
-    /// - macOS: `~/Library/Preferences/outfitter.blz/global.toml`
+    /// - Linux: `~/.config/blz/global.toml`
+    /// - macOS: `~/Library/Application Support/dev.outfitter.blz/global.toml`
     /// - Windows: `%APPDATA%\outfitter\blz\global.toml`
     ///
     /// # Errors
     ///
     /// Returns an error if the system config directory cannot be determined,
     /// which may happen on unsupported platforms or in sandboxed environments.
-    fn config_path() -> Result<PathBuf> {
-        let project_dirs = directories::ProjectDirs::from("dev", "outfitter", "blz")
-            .ok_or_else(|| Error::Config("Failed to determine project directories".into()))?;
-
-        let config_path = project_dirs.config_dir().join("global.toml");
-
-        // Check for migration from old cache directory
-        Self::check_and_migrate_old_config(&config_path)?;
-
-        Ok(config_path)
+    fn canonical_config_path() -> Result<PathBuf> {
+        let xdg = std::env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join(".config")))
+            .ok_or_else(|| Error::Config("Failed to determine XDG config directory".into()))?;
+        Ok(xdg.join("blz").join("config.toml"))
     }
 
-    /// Check if we need to migrate from the old cache config
-    fn check_and_migrate_old_config(new_config_path: &Path) -> Result<()> {
-        // Only migrate if new config doesn't exist
-        if new_config_path.exists() {
-            return Ok(());
-        }
+    fn dotfile_config_path() -> Result<PathBuf> {
+        let home = directories::BaseDirs::new()
+            .map(|b| b.home_dir().to_path_buf())
+            .ok_or_else(|| Error::Config("Failed to determine home directory".into()))?;
+        Ok(home.join(".blz").join("config.toml"))
+    }
 
-        // Try to find the old cache config
-        if let Some(old_project_dirs) = directories::ProjectDirs::from("dev", "outfitter", "cache")
-        {
-            let old_config_path = old_project_dirs.config_dir().join("global.toml");
-
-            if old_config_path.exists() {
-                // Create parent directory if needed
-                if let Some(parent) = new_config_path.parent() {
-                    std::fs::create_dir_all(parent).map_err(|e| {
-                        Error::Config(format!("Failed to create config directory: {e}"))
-                    })?;
-                }
-
-                // Attempt to copy the old config
-                match std::fs::copy(&old_config_path, new_config_path) {
-                    Ok(_) => {
-                        tracing::info!(
-                            "Migrated config from {} to {}",
-                            old_config_path.display(),
-                            new_config_path.display()
-                        );
-                    },
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to migrate config from {} to {}: {}",
-                            old_config_path.display(),
-                            new_config_path.display(),
-                            e
-                        );
-                    },
+    fn existing_config_path() -> Result<Option<PathBuf>> {
+        // 1) BLZ_CONFIG (file)
+        if let Ok(explicit) = std::env::var("BLZ_CONFIG") {
+            let explicit = explicit.trim();
+            if !explicit.is_empty() {
+                let p = PathBuf::from(explicit);
+                if p.is_file() && p.exists() {
+                    return Ok(Some(p));
                 }
             }
         }
 
-        Ok(())
+        // 2) BLZ_CONFIG_DIR (dir)
+        if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
+            let dir = dir.trim();
+            if !dir.is_empty() {
+                let p = PathBuf::from(dir).join("config.toml");
+                if p.is_file() && p.exists() {
+                    return Ok(Some(p));
+                }
+            }
+        }
+
+        // 3) XDG
+        let xdg = Self::canonical_config_path()?;
+        if xdg.exists() {
+            return Ok(Some(xdg));
+        }
+        // 4) Dotfile
+        let dot = Self::dotfile_config_path()?;
+        if dot.exists() {
+            return Ok(Some(dot));
+        }
+        Ok(None)
+    }
+
+    fn save_target_path() -> Result<PathBuf> {
+        if let Some(existing) = Self::existing_config_path()? {
+            return Ok(existing);
+        }
+        Self::canonical_config_path()
+    }
+
+    fn merge_toml(dst: &mut toml::Value, src: &toml::Value) {
+        use toml::Value::Table;
+        match (dst, src) {
+            (Table(dst_tbl), Table(src_tbl)) => {
+                for (k, v) in src_tbl {
+                    match dst_tbl.get_mut(k) {
+                        Some(dst_v) => Self::merge_toml(dst_v, v),
+                        None => {
+                            dst_tbl.insert(k.clone(), v.clone());
+                        },
+                    }
+                }
+            },
+            (dst_v, src_v) => *dst_v = src_v.clone(),
+        }
+    }
+
+    fn apply_env_overrides(&mut self) {
+        if let Ok(v) = std::env::var("BLZ_REFRESH_HOURS") {
+            if let Ok(n) = v.parse::<u32>() {
+                self.defaults.refresh_hours = n;
+            }
+        }
+        if let Ok(v) = std::env::var("BLZ_MAX_ARCHIVES") {
+            if let Ok(n) = v.parse::<usize>() {
+                self.defaults.max_archives = n;
+            }
+        }
+        if let Ok(v) = std::env::var("BLZ_FETCH_ENABLED") {
+            let norm = v.to_ascii_lowercase();
+            self.defaults.fetch_enabled = matches!(norm.as_str(), "1" | "true" | "yes" | "on");
+        }
+        if let Ok(v) = std::env::var("BLZ_FOLLOW_LINKS") {
+            match v.to_ascii_lowercase().as_str() {
+                "none" => self.defaults.follow_links = FollowLinks::None,
+                "first_party" | "firstparty" => {
+                    self.defaults.follow_links = FollowLinks::FirstParty;
+                },
+                "allowlist" => self.defaults.follow_links = FollowLinks::Allowlist,
+                _ => {},
+            }
+        }
+        if let Ok(v) = std::env::var("BLZ_ALLOWLIST") {
+            let list = v
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>();
+            if !list.is_empty() {
+                self.defaults.allowlist = list;
+            }
+        }
+        if let Ok(v) = std::env::var("BLZ_ROOT") {
+            let p = PathBuf::from(v);
+            if !p.as_os_str().is_empty() {
+                self.paths.root = p;
+            }
+        }
     }
 }
 

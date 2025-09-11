@@ -98,8 +98,11 @@ blz search "test"
 
 Output:
 
-```
-Search results for 'test':
+```text
+bun:304-324 (score: 4), from bun.sh
+Bun Documentation > Guides > Test runner
+... Test runner integrates with Bun's toolchain ...
+
 
 1. bun (score: 4.09)
    Path: Bun Documentation > Guides > Test runner
@@ -158,9 +161,10 @@ Results are ranked by BM25 score:
 
 Shows the document structure:
 
-```
-Path: Bun Documentation > Guides > Test runner
-      ^-- Top level     ^-- Section  ^-- Subsection
+```text
+bun:123-145 (score: 9), from bun.sh
+Bun Documentation  >  Guides  >  Test runner
+└ Top level           └ Section  └ Subsection
 ```
 
 ## Advanced Patterns

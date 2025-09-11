@@ -157,5 +157,5 @@ omz reload
 
 ## See Also
 
-- [Shell Integration Guide](./shell-integration.md) - General shell setup
-- [CLI Documentation](./cli.md) - Complete command reference
+- [Shell Integration Guide](./README.md) - General shell setup
+- [CLI Documentation](../cli.md) - Complete command reference

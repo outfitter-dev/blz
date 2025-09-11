@@ -1,6 +1,6 @@
-# Performance Optimizations for blz
+# Performance in blz
 
-This document describes the advanced performance optimizations implemented in the blz search cache system.
+This document describes the advanced performance optimizations implemented in the blz core system.
 
 ## Overview of Optimizations
 
@@ -17,12 +17,14 @@ The performance optimizations implemented in this project focus on five key area
 ### 1. Zero-Copy String Operations (`string_pool.rs`)
 
 **Key Features:**
+
 - String interning for frequently used values (aliases, file names)
 - Single-pass query sanitization with minimal allocations
 - Copy-on-Write (Cow) patterns to avoid unnecessary cloning
 - Batch string interning for better performance
 
 **Performance Benefits:**
+
 - Reduces memory allocations by 70% for repeated strings
 - Query sanitization is 3x faster with pre-allocated capacity
 - String interning reduces memory usage by 40-60% for large document sets
@@ -30,12 +32,14 @@ The performance optimizations implemented in this project focus on five key area
 ### 2. Memory Pool Pattern (`memory_pool.rs`)
 
 **Key Features:**
+
 - Buffer pools for different size classes (small: <1KB, medium: 1-64KB, large: >64KB)
 - RAII wrappers for automatic buffer return to pool
 - String buffer pooling for text operations
 - Arena allocator for temporary allocations with same lifetime
 
 **Performance Benefits:**
+
 - Eliminates allocation overhead for repeated operations
 - Reduces GC pressure and memory fragmentation
 - 80% reduction in allocation time for buffer-intensive operations
@@ -44,12 +48,14 @@ The performance optimizations implemented in this project focus on five key area
 ### 3. Async I/O Optimization (`async_io.rs`)
 
 **Key Features:**
+
 - Connection pooling with domain-specific optimization
 - Concurrent file operations with proper backpressure
 - Async file operations with atomic writes
 - Batch processing for multiple file operations
 
 **Performance Benefits:**
+
 - HTTP request latency reduced by 60% through connection reuse
 - File I/O throughput increased by 3x with concurrent operations
 - Atomic writes ensure data consistency without performance penalty
@@ -57,12 +63,14 @@ The performance optimizations implemented in this project focus on five key area
 ### 4. Advanced Caching Strategies (`cache.rs`)
 
 **Key Features:**
+
 - Multi-level cache (L1: fast/small, L2: larger with TTL)
 - LRU eviction with size-based limits
 - TTL-based expiration for freshness
 - Query pattern analysis for intelligent prefetching
 
 **Performance Benefits:**
+
 - Cache hit rates of 85%+ for typical query patterns
 - Search latency reduced from 25ms to 6ms for cached queries
 - Memory usage stays within configured limits
@@ -71,6 +79,7 @@ The performance optimizations implemented in this project focus on five key area
 ### 5. Optimized Index with Reader Pooling (`optimized_index.rs`)
 
 **Key Features:**
+
 - Reader pooling for concurrent search operations
 - Writer pooling for batch indexing
 - Search result caching with intelligent invalidation
@@ -78,6 +87,7 @@ The performance optimizations implemented in this project focus on five key area
 - Memory-optimized snippet extraction
 
 **Performance Benefits:**
+
 - Concurrent search performance scales linearly with CPU cores
 - Indexing throughput improved by 150% with batch operations
 - Search latency consistency improved (P99 < 15ms vs 45ms)
@@ -123,18 +133,18 @@ use blz_core::OptimizedSearchIndex;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create optimized index
     let index = OptimizedSearchIndex::create("./index").await?;
-    
+
     // Index documents (automatically uses pools and caching)
     index.index_blocks_optimized("alias", "file.md", &blocks).await?;
-    
+
     // Search with full optimization pipeline
     let results = index.search_optimized("query", Some("alias"), 10).await?;
-    
+
     // Get comprehensive performance statistics
     let stats = index.get_stats().await;
     println!("Cache hit rate: {:.2}%", stats.cache_hit_rate * 100.0);
     println!("Average search time: {}ms", stats.avg_search_time_ms);
-    
+
     Ok(())
 }
 ```
@@ -147,24 +157,24 @@ use blz_core::MemoryPool;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = MemoryPool::new(100, 50); // 100 buffers max, 50MB max
-    
+
     // Get pooled buffer
     {
         let mut buffer = pool.get_buffer(1024).await;
         buffer.as_mut().extend_from_slice(b"data");
         // Buffer automatically returned to pool on drop
     }
-    
+
     // Get pooled string
     {
         let mut str_buffer = pool.get_string_buffer(256).await;
         str_buffer.as_mut().push_str("text data");
         // String automatically returned to pool on drop
     }
-    
+
     let stats = pool.get_stats();
     println!("Pool hit rate: {:.2}%", stats.hit_rate * 100.0);
-    
+
     Ok(())
 }
 ```
@@ -177,19 +187,19 @@ use blz_core::StringPool;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = StringPool::new(1000);
-    
+
     // Intern individual strings
     let s1 = pool.intern("frequently_used_string").await;
     let s2 = pool.intern("frequently_used_string").await; // Same Arc returned
-    
+
     // Batch interning for better performance
     let strings = ["alias1", "alias2", "alias1", "alias3"];
     let interned = pool.intern_batch(&strings).await;
-    
+
     let stats = pool.stats().await;
     println!("Unique strings: {}", stats.unique_strings);
     println!("Hit rate: {:.2}%", stats.hit_rate * 100.0);
-    
+
     Ok(())
 }
 ```
@@ -222,12 +232,12 @@ use tokio::time::interval;
 
 async fn monitor_performance(index: Arc<OptimizedSearchIndex>) {
     let mut interval_timer = interval(Duration::from_secs(60));
-    
+
     loop {
         interval_timer.tick().await;
-        
+
         let stats = index.get_stats().await;
-        
+
         // Log key metrics
         tracing::info!(
             "Performance stats - Searches: {}, Cache hit rate: {:.2}%, Avg search time: {}ms",
@@ -235,12 +245,12 @@ async fn monitor_performance(index: Arc<OptimizedSearchIndex>) {
             stats.cache_hit_rate * 100.0,
             stats.avg_search_time_ms
         );
-        
+
         // Alert on performance degradation
         if stats.avg_search_time_ms > 20 {
             tracing::warn!("Search latency above threshold: {}ms", stats.avg_search_time_ms);
         }
-        
+
         if stats.cache_hit_rate < 0.7 {
             tracing::warn!("Cache hit rate below threshold: {:.2}%", stats.cache_hit_rate * 100.0);
         }
@@ -251,6 +261,7 @@ async fn monitor_performance(index: Arc<OptimizedSearchIndex>) {
 ## Configuration Recommendations
 
 ### For Small Datasets (< 1MB)
+
 ```rust
 let config = CacheConfig {
     l1_max_entries: 100,
@@ -263,6 +274,7 @@ let config = CacheConfig {
 ```
 
 ### For Medium Datasets (1-50MB)
+
 ```rust
 let config = CacheConfig {
     l1_max_entries: 500,
@@ -275,6 +287,7 @@ let config = CacheConfig {
 ```
 
 ### For Large Datasets (>50MB)
+
 ```rust
 let config = CacheConfig {
     l1_max_entries: 1000,

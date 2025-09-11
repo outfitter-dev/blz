@@ -35,12 +35,14 @@ VERBOSE=1 ./scripts/act-validate.sh fast
 ## Validation Modes
 
 ### Fast Mode (<30s)
+
 - Rust formatting check
 - Basic Clippy validation (workspace bins only)
 - Ideal for pre-commit hooks
 - Command: `./scripts/act-validate.sh fast`
 
 ### Full Mode (2-5 minutes)
+
 - Complete rust-ci workflow
 - All Clippy checks (bins, examples, tests)
 - Full test suite
@@ -48,6 +50,7 @@ VERBOSE=1 ./scripts/act-validate.sh fast
 - Command: `./scripts/act-validate.sh full`
 
 ### Specialized Modes
+
 - **Format only**: `./scripts/act-validate.sh format`
 - **Clippy only**: `./scripts/act-validate.sh clippy`
 - **Tests only**: `./scripts/act-validate.sh test`
@@ -67,6 +70,7 @@ pre-push:
 ```
 
 To skip for a single push:
+
 ```bash
 git push --no-verify
 ```
@@ -85,6 +89,7 @@ pre-commit:
 ### Manual Validation
 
 Run before creating PRs:
+
 ```bash
 # Quick check
 ./scripts/act-validate.sh fast
@@ -98,6 +103,7 @@ Run before creating PRs:
 ### Container Reuse
 
 Containers are reused by default for faster subsequent runs:
+
 ```bash
 # First run: ~60s (downloads image, builds cache)
 ./scripts/act-validate.sh fast
@@ -109,7 +115,8 @@ Containers are reused by default for faster subsequent runs:
 ### Resource Limits
 
 Configured in `.actrc`:
-```
+
+```text
 --container-options "--memory=4g --cpus=2"
 ```
 
@@ -136,6 +143,7 @@ Reduce memory limit in `.actrc` or close other applications
 Normal - downloading Docker images. Subsequent runs are faster.
 
 ### Container cleanup
+
 ```bash
 # Remove act containers
 docker container prune -f
@@ -169,20 +177,24 @@ docker image rm catthehacker/ubuntu:act-latest
 For AI agents working with this repository:
 
 ### Before Making Changes
+
 1. Run format check: `cargo fmt --check`
 2. Run fast validation: `./scripts/act-validate.sh fast`
 
 ### Before Creating PRs
+
 1. Run full validation: `./scripts/act-validate.sh full`
 2. Fix any issues found
 3. Document in PR if act validation passed
 
 ### Debugging CI Failures
+
 1. Reproduce locally: `./scripts/act-validate.sh full`
 2. Use verbose mode: `VERBOSE=1 ./scripts/act-validate.sh full`
 3. Check specific job: `act -j rust -W .github/workflows/rust-ci.yml`
 
 ### Performance Expectations
+
 - Fast mode: Should complete in <30 seconds
 - Full mode: Should complete in <5 minutes
 - If slower, check Docker resources and system load

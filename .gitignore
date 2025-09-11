@@ -42,15 +42,12 @@ perf.data.old
 flamegraph.svg
 cache_profile.pb
 
-# Cache data files
+# blz cached data files
 *.llms.txt
 *.llms-full.txt
 llms.txt
 llms-full.txt
 llms.json
-
-# User cache directory (if testing locally)
-~/.outfitter/cache/
 
 # Benchmark results
 criterion/
@@ -75,3 +72,9 @@ coverage/
 
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
+
+# Local agent scratchpad (ignore)
+.agents/scratchpad.md
+# npm local binaries and packs (do not commit)
+/npm/bin/blz-*
+/outfitter-blz-*.tgz

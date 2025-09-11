@@ -10,13 +10,13 @@ use colored::Colorize;
 use dialoguer::Select;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::utils::validation::validate_alias;
+use crate::utils::validation::{normalize_alias, validate_alias};
 
 /// Add a new documentation source
 ///
 /// # Arguments
 ///
-/// * `alias` - Local alias for the source
+/// * `alias` - Local alias for the source (will be normalized to kebab-case)
 /// * `url` - URL to fetch llms.txt from
 /// * `auto_yes` - Auto-select the best flavor without prompts
 /// * `metrics` - Performance metrics collector
@@ -26,12 +26,25 @@ pub async fn execute(
     auto_yes: bool,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
-    validate_alias(alias)?;
+    // Normalize the alias to kebab-case lowercase
+    let normalized_alias = normalize_alias(alias);
+
+    // Show normalization if it changed
+    if normalized_alias != alias {
+        println!(
+            "Normalizing alias: '{}' → '{}'",
+            alias,
+            normalized_alias.green()
+        );
+    }
+
+    // Validate the normalized alias
+    validate_alias(&normalized_alias)?;
 
     let fetcher = Fetcher::new()?;
     let final_url = select_flavor(&fetcher, url, auto_yes).await?;
 
-    fetch_and_index(alias, &final_url, fetcher, metrics).await
+    fetch_and_index(&normalized_alias, &final_url, fetcher, metrics).await
 }
 
 async fn select_flavor(fetcher: &Fetcher, url: &str, auto_yes: bool) -> Result<String> {

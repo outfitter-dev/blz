@@ -2,7 +2,7 @@
 
 Complete command-line interface reference for `blz`.
 
-For enhanced productivity with tab completion and shell integration, see the [Shell Integration Guide](shell-integration.md).
+For enhanced productivity with tab completion and shell integration, see the [Shell Integration Guide](shell-integration/README.md).
 
 ## Global Options
 
@@ -12,6 +12,8 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
       --verbose   Enable verbose output
       --debug     Show detailed performance metrics
       --profile   Show resource usage (memory, CPU)
+      --config <FILE>  Path to configuration file (overrides autodiscovery)
+      --config-dir <DIR>  Directory containing config.toml (overrides autodiscovery)
       --flamegraph Generate CPU flamegraph (requires flamegraph feature)
 ```
 
@@ -28,6 +30,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `remove` | `rm`, `delete` | Remove an indexed source |
 | `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |
+| `instruct` | | Print instructions for agent use of blz |
 
 ## Command Reference
 
@@ -357,9 +360,12 @@ blz search "complex query" --flamegraph
 
 ### Configuration
 
-- **macOS**: `~/Library/Application Support/dev.outfitter.blz/global.toml`
-- **Linux**: `~/.config/outfitter/blz/global.toml`
-- **Windows**: `%APPDATA%\outfitter\blz\config\global.toml`
+Config discovery order:
+
+- `$XDG_CONFIG_HOME/blz/config.toml` or `~/.config/blz/config.toml`
+- Fallback: `~/.blz/config.toml`
+- Explicit override: `--config <FILE>` or `--config-dir <DIR>` (uses `<DIR>/config.toml`)
+- Optional overlay: `config.local.toml` in the same directory
 
 ### Storage Structure
 
@@ -371,7 +377,7 @@ blz search "complex query" --flamegraph
 │   ├── .index/      # Tantivy search index
 │   ├── .archive/    # Historical snapshots
 │   └── settings.toml # Source-specific config
-└── global.toml      # Global configuration
+└── (global config is stored under XDG, not inside the data directory)
 ```
 
 **Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old cache directory location.
@@ -383,3 +389,12 @@ blz search "complex query" --flamegraph
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
+### `blz instruct`
+
+Print instructions for agent use of blz.
+
+```bash
+blz instruct
+```
+
+Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
