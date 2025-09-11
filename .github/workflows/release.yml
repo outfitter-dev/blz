@@ -205,7 +205,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: outfitter-dev/homebrew-tap
-          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
       - name: Update formula
@@ -246,7 +246,7 @@ RUBY
       - name: Create PR in tap repo
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
           branch: bump-blz-${{ steps.tar.outputs.version }}
           commit-message: "blz ${{ steps.tar.outputs.version }}"
