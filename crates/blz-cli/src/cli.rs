@@ -58,6 +58,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::output::OutputFormat;
+use std::path::PathBuf;
 
 /// Main CLI structure for the `blz` command
 ///
@@ -128,6 +129,18 @@ pub struct Cli {
     #[cfg(feature = "flamegraph")]
     #[arg(long, global = true)]
     pub flamegraph: bool,
+
+    /// Path to configuration file (overrides autodiscovery). Also via `BLZ_CONFIG`.
+    #[arg(long, global = true, value_name = "FILE", env = "BLZ_CONFIG")]
+    pub config: Option<PathBuf>,
+    /// Directory containing config.toml (overrides autodiscovery). Also via `BLZ_CONFIG_DIR`.
+    #[arg(
+        long = "config-dir",
+        global = true,
+        value_name = "DIR",
+        env = "BLZ_CONFIG_DIR"
+    )]
+    pub config_dir: Option<PathBuf>,
 }
 
 /// Available subcommands for the `blz` CLI
@@ -175,6 +188,8 @@ pub struct Cli {
 /// ```
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
+    /// Print instructions for agent use of blz
+    Instruct,
     /// Generate shell completions
     Completions {
         /// Shell to generate completions for

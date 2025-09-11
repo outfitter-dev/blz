@@ -140,7 +140,6 @@ pub struct Storage {
 
 ```
 ~/.../outfitter.cache/
-├── global.toml           # Global config
 ├── bun/
 │   ├── llms.txt         # Raw content
 │   ├── llms.json        # Metadata + TOC

@@ -1,11 +1,7 @@
 {
 	"explorer.fileNesting.enabled": true,
 	"explorer.fileNesting.expand": false,
-	"explorer.fileNesting.patterns": {
-		"Cargo.toml": "Cargo.lock,rust-toolchain.toml,rustfmt.toml,clippy.toml,.cargo, justfile, deny.toml, Makefile",
-		"README.md": "LICENSE*,CONTRIBUTING.md,CODE_OF_CONDUCT.md,SECURITY.md",
-		".editorconfig": "pnpm-*.yaml,*config.json,*.config.js,*.config.ts,.prettierrc.json,.prettierignore,turbo.json, .markdownlint-cli2.json*, commitlint.toml,lefthook.yml"
-	},
+
 
 	// Global editor defaults
 	"editor.formatOnSave": true,

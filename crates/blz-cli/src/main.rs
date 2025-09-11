@@ -13,6 +13,13 @@ mod cli;
 mod commands;
 mod output;
 mod utils;
+mod instruct_mod {
+    pub fn print() {
+        // Embed a simple, agent-friendly text with no special formatting.
+        const INSTRUCT: &str = include_str!("../agent-instructions.txt");
+        println!("{INSTRUCT}");
+    }
+}
 
 use cli::{Cli, Commands};
 
@@ -91,6 +98,10 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
     match cli.command {
         Some(Commands::Completions { shell }) => {
             commands::generate(shell);
+        },
+
+        Some(Commands::Instruct) => {
+            instruct_mod::print();
         },
 
         Some(Commands::Add { alias, url, yes }) => {

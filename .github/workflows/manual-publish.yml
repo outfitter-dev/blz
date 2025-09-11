@@ -1,0 +1,111 @@
+name: manual-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_crates:
+        description: "Publish crates to crates.io"
+        required: true
+        default: "true"
+      publish_npm:
+        description: "Publish @outfitter/blz to npm"
+        required: true
+        default: "true"
+      npm_channel:
+        description: "npm channel to publish (stable or next)"
+        required: true
+        default: "stable"
+      dry_run:
+        description: "Dry run (do not actually publish)"
+        required: true
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-crates:
+    if: github.event.inputs.publish_crates == 'true'
+    name: Publish crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate versions (no -dev)
+        id: check
+        run: |
+          if grep -q 'version = ".*-dev"' Cargo.toml; then
+            echo "Crate version is -dev; refusing to publish." >&2
+            exit 1
+          fi
+      - name: Cargo publish (dry run)
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          cargo publish -p blz-core --dry-run
+          cargo publish -p blz-cli --dry-run
+      - name: Cargo publish
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p blz-core
+          cargo publish -p blz-cli
+
+  publish-npm:
+    if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'stable'
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+      - name: Show package version
+        run: node -e "console.log(require('./package.json').version)"
+      - name: npm pack (dry run)
+        if: github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  publish-npm-canary:
+    if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'next'
+    name: Publish npm canary (next tag)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+      - name: Bump to canary prerelease (no git tag)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(node -e "console.log(require('./package.json').version)")
+          RUN=${GITHUB_RUN_NUMBER}
+          # If base already has a pre-release, append .canary.RUN, else add -next.RUN
+          if [[ "$BASE" == *-* ]]; then
+            NEW="$BASE.canary.$RUN"
+          else
+            NEW="$BASE-next.$RUN"
+          fi
+          echo "Bumping version to $NEW"
+          node -e "const fs=require('fs');const p=require('./package.json');p.version='$NEW';fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\n');"
+      - name: npm publish (canary)
+        run: npm publish --access public --tag next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: npm publish
+        if: github.event.inputs.dry_run != 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
