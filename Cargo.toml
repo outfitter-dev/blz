@@ -43,8 +43,8 @@ sysinfo = "0.32"
 tempfile = "3"
 url = "2"
 
-# Internal crates
-blz-core = { path = "crates/blz-core" }
+# Internal crates (ensure version is set for crates.io publish of dependents)
+blz-core = { path = "crates/blz-core", version = "0.1.2" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
