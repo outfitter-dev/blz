@@ -1,0 +1,612 @@
+name: Cached Release
+
+# This workflow reuses build artifacts from the CI pipeline when possible
+# It can be triggered:
+# 1. Automatically when a tag is pushed (if CI has run on that commit)
+# 2. Manually via workflow_dispatch with optional cache invalidation
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.6)'
+        required: true
+        type: string
+      force_rebuild:
+        description: 'Force rebuild (ignore cache)'
+        required: false
+        type: boolean
+        default: false
+      ci_check_name:
+        description: 'Name of CI check run to gate cache reuse'
+        required: false
+        type: string
+        default: 'Build & Test'
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: release-${{ github.ref_type == 'tag' && github.ref || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Verify tag and extract metadata
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      commit_sha: ${{ steps.extract.outputs.commit_sha }}
+      cache_key: ${{ steps.extract.outputs.cache_key }}
+      should_use_cache: ${{ steps.cache_check.outputs.should_use_cache }}
+    steps:
+      - name: Determine tag source
+        id: tag_source
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            echo "::error::Invalid tag format: $TAG. Must be v*.*.* (e.g., v0.1.6)"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "📦 Tag: $TAG"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Extract version and commit
+        id: extract
+        run: |
+          TAG="${{ steps.tag_source.outputs.tag }}"
+          VERSION="${TAG#v}"
+
+          # Validate tag exists
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG does not exist in the repository"
+            exit 1
+          fi
+
+          # Get the commit SHA for this tag
+          COMMIT_SHA=$(git rev-list -n 1 "$TAG")
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+          echo "🔖 Commit: $COMMIT_SHA"
+
+          # Generate cache key based on commit and Cargo.lock
+          CACHE_KEY="rust-build-${COMMIT_SHA:0:8}"
+          echo "cache_key=$CACHE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Check CI status for commit
+        id: cache_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_CHECK_NAME: ${{ inputs.ci_check_name || 'Build & Test' }}
+        run: |
+          COMMIT_SHA="${{ steps.extract.outputs.commit_sha }}"
+          FORCE_REBUILD="${{ inputs.force_rebuild }}"
+
+          if [[ "$FORCE_REBUILD" == "true" ]]; then
+            echo "🔨 Force rebuild requested"
+            echo "should_use_cache=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if CI has passed for this commit
+          echo "Checking CI status for commit $COMMIT_SHA..."
+
+          # Get check runs for this commit
+          CI_STATUS=$(gh api \
+            "/repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
+            --jq ".check_runs[] | select(.name == \"${CI_CHECK_NAME}\") | .conclusion" \
+            2>/dev/null || true)
+
+          if echo "$CI_STATUS" | grep -q '^success$'; then
+            echo "✅ CI passed for this commit - will attempt to use cache"
+            echo "should_use_cache=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ CI hasn't passed or not found for this commit - will rebuild"
+            echo "should_use_cache=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Build jobs with cache support
+  build-darwin-arm64:
+    needs: prepare
+    name: Build macOS arm64
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup cache
+        if: needs.prepare.outputs.should_use_cache == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v2-rust"
+          key: ${{ runner.os }}-${{ needs.prepare.outputs.cache_key }}
+          cache-on-failure: true
+
+      - name: Build
+        run: |
+          if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
+            echo "🔄 Building with cache..."
+            # Try to use cached dependencies
+            cargo build --release --locked
+          else
+            echo "🔨 Clean build..."
+            cargo clean
+            cargo build --release --locked
+          fi
+
+      - name: Prepare assets
+        run: |
+          mkdir -p dist
+          cp target/release/blz dist/blz-darwin-arm64
+          chmod +x dist/blz-darwin-arm64
+
+          # Create tarball for Homebrew
+          cp target/release/blz blz
+          tar -czf dist/blz-darwin-arm64.tar.gz blz
+          rm blz
+          shasum -a 256 dist/blz-darwin-arm64.tar.gz > dist/blz-darwin-arm64.tar.gz.sha256
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/blz-darwin-arm64
+            dist/blz-darwin-arm64.tar.gz
+            dist/blz-darwin-arm64.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-darwin-x64:
+    needs: prepare
+    name: Build macOS x64
+    runs-on: macos-13
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup cache
+        if: needs.prepare.outputs.should_use_cache == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v2-rust"
+          key: ${{ runner.os }}-${{ needs.prepare.outputs.cache_key }}
+          cache-on-failure: true
+
+      - name: Build
+        run: |
+          if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
+            echo "🔄 Building with cache..."
+            cargo build --release --locked
+          else
+            echo "🔨 Clean build..."
+            cargo clean
+            cargo build --release --locked
+          fi
+
+      - name: Prepare assets
+        run: |
+          mkdir -p dist
+          cp target/release/blz dist/blz-darwin-x64
+          chmod +x dist/blz-darwin-x64
+
+          # Create tarball for Homebrew
+          cp target/release/blz blz
+          tar -czf dist/blz-darwin-x64.tar.gz blz
+          rm blz
+          shasum -a 256 dist/blz-darwin-x64.tar.gz > dist/blz-darwin-x64.tar.gz.sha256
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/blz-darwin-x64
+            dist/blz-darwin-x64.tar.gz
+            dist/blz-darwin-x64.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux-x64:
+    needs: prepare
+    name: Build Linux x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install lld
+        run: sudo apt-get update && sudo apt-get install -y lld
+
+      - name: Setup cache
+        if: needs.prepare.outputs.should_use_cache == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v2-rust"
+          key: ${{ runner.os }}-${{ needs.prepare.outputs.cache_key }}
+          cache-on-failure: true
+
+      - name: Build
+        env:
+          RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+        run: |
+          if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
+            echo "🔄 Building with cache..."
+            cargo build --release --locked
+          else
+            echo "🔨 Clean build..."
+            cargo clean
+            cargo build --release --locked
+          fi
+
+      - name: Prepare assets
+        run: |
+          mkdir -p dist
+          cp target/release/blz dist/blz-linux-x64
+          chmod +x dist/blz-linux-x64
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/blz-linux-x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux-arm64:
+    needs: prepare
+    name: Build Linux arm64
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup cache
+        if: needs.prepare.outputs.should_use_cache == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v2-rust"
+          key: ${{ runner.os }}-arm64-${{ needs.prepare.outputs.cache_key }}
+          cache-on-failure: true
+
+      - name: Build
+        env:
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
+            echo "🔄 Building with cache..."
+            cargo build --release --target aarch64-unknown-linux-gnu --locked
+          else
+            echo "🔨 Clean build..."
+            cargo clean
+            cargo build --release --target aarch64-unknown-linux-gnu --locked
+          fi
+
+      - name: Prepare assets
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-gnu/release/blz dist/blz-linux-arm64
+          chmod +x dist/blz-linux-arm64
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/blz-linux-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows-x64:
+    needs: prepare
+    name: Build Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup cache
+        if: needs.prepare.outputs.should_use_cache == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v2-rust"
+          key: ${{ runner.os }}-${{ needs.prepare.outputs.cache_key }}
+          cache-on-failure: true
+
+      - name: Build
+        run: |
+          if ("${{ needs.prepare.outputs.should_use_cache }}" -eq "true") {
+            Write-Host "🔄 Building with cache..."
+            cargo build --release --locked
+          } else {
+            Write-Host "🔨 Clean build..."
+            cargo clean
+            cargo build --release --locked
+          }
+
+      - name: Prepare assets
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/blz.exe dist/blz-win32-x64.exe
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/blz-win32-x64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Downstream publishing jobs
+  bump-homebrew:
+    name: Bump Homebrew Tap
+    needs: [prepare, build-darwin-arm64, build-darwin-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tarballs and compute SHA
+        id: tar
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
+
+          # Download with retries
+          for i in {1..5}; do
+            curl -L -o blz-darwin-arm64.tar.gz "$BASE_URL/blz-darwin-arm64.tar.gz" && break
+            echo "Retry $i/5..."
+            sleep 10
+          done
+
+          for i in {1..5}; do
+            curl -L -o blz-darwin-x64.tar.gz "$BASE_URL/blz-darwin-x64.tar.gz" && break
+            echo "Retry $i/5..."
+            sleep 10
+          done
+
+          SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
+          echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
+
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: outfitter-dev/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.tar.outputs.version }}"
+          SHA_ARM64="${{ steps.tar.outputs.sha_arm64 }}"
+          SHA_X64="${{ steps.tar.outputs.sha_x64 }}"
+          cat > homebrew-tap/Formula/blz.rb <<'RUBY'
+        class Blz < Formula
+          desc "Fast local search for llms.txt"
+          homepage "https://blz.run"
+          version "${VERSION}"
+
+          on_macos do
+            if Hardware::CPU.arm?
+              url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-arm64.tar.gz"
+              sha256 "${SHA_ARM64}"
+            else
+              url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-x64.tar.gz"
+              sha256 "${SHA_X64}"
+            end
+
+            def install
+              bin.install "blz"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/blz --version")
+            end
+          end
+        end
+RUBY
+          # Substitute placeholders after write to appease linters
+          sed -i.bak "s/\${VERSION}/${VERSION}/g" homebrew-tap/Formula/blz.rb
+          sed -i.bak "s/\${SHA_ARM64}/${SHA_ARM64}/g" homebrew-tap/Formula/blz.rb
+          sed -i.bak "s/\${SHA_X64}/${SHA_X64}/g" homebrew-tap/Formula/blz.rb
+          rm -f homebrew-tap/Formula/blz.rb.bak
+
+      - name: Create PR in tap repo
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          branch: bump-blz-${{ steps.tar.outputs.version }}
+          commit-message: "blz ${{ steps.tar.outputs.version }}"
+          title: "blz ${{ steps.tar.outputs.version }}"
+          body: |
+            Bump blz formula to ${{ steps.tar.outputs.version }}.
+            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
+            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
+
+  cargo-publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [prepare, build-linux-x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Check publishable versions
+        id: check
+        run: |
+          if grep -q 'version = ".*-dev"' Cargo.toml; then
+            echo "dev=true" >> $GITHUB_OUTPUT
+          else
+            echo "dev=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify Cargo version matches tag
+        if: steps.check.outputs.dev == 'false'
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.version }}"
+          CARGO_VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$TAG" != "$CARGO_VER" ]; then
+            echo "Tag ${TAG} does not match Cargo.toml version ${CARGO_VER}" >&2
+            exit 1
+          fi
+
+      - name: Publish blz-core
+        if: steps.check.outputs.dev == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p blz-core --locked
+
+      - name: Wait for blz-core to propagate
+        if: steps.check.outputs.dev == 'false'
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          echo "Waiting for blz-core $VERSION to appear on crates.io..."
+          for i in {1..30}; do
+            if curl -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
+              echo "blz-core $VERSION is available."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for blz-core $VERSION to propagate" >&2
+          exit 1
+
+      - name: Publish blz-cli
+        if: steps.check.outputs.dev == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p blz-cli --locked
+
+  npm-publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: [prepare, build-linux-x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+
+      - name: Validate package.json version
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          VERSION="${{ needs.prepare.outputs.version }}"
+          if [ "$VERSION" != "$PKG" ]; then
+            echo "Tag version $VERSION does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
+      - name: npm publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Summary job to report status
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [prepare, build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64, cargo-publish, npm-publish]
+    steps:
+      - name: Summary
+        run: |
+          {
+            echo "## Release Summary for v${{ needs.prepare.outputs.version }}"
+            echo ""
+            echo "### Build Status:"
+            echo "- macOS ARM64: ${{ needs.build-darwin-arm64.result }}"
+            echo "- macOS x64: ${{ needs.build-darwin-x64.result }}"
+            echo "- Linux x64: ${{ needs.build-linux-x64.result }}"
+            echo "- Linux ARM64: ${{ needs.build-linux-arm64.result }}"
+            echo "- Windows x64: ${{ needs.build-windows-x64.result }}"
+            echo ""
+            echo "### Publishing:"
+            echo "- Crates.io: ${{ needs.cargo-publish.result }}"
+            echo "- npm: ${{ needs.npm-publish.result }}"
+            echo ""
+            if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
+              echo "✅ Used cached builds from CI"
+            else
+              echo "🔨 Performed clean builds"
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"

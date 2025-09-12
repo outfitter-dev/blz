@@ -1,0 +1,28 @@
+# yamlfmt configuration for GitHub Actions workflows
+# https://github.com/google/yamlfmt
+
+formatter:
+  type: basic
+  # Preserve line breaks and formatting
+  retain_line_breaks: true
+  # Disable auto line wrapping
+  disable_line_wrap: true
+  # Indent size
+  indent: 2
+  # Include document start marker
+  include_document_start: false
+  # Line ending type
+  line_ending: lf
+  # Maximum line length (0 = no limit)
+  max_line_length: 0
+  # Preserve quotes
+  retain_quotes: true
+  # Scan folded scalars (heredocs)
+  scan_folded_as_literal: true
+
+# Exclude patterns
+exclude:
+  - '*.md'
+  - '*.txt'
+  - 'vendor/**'
+  - 'node_modules/**'

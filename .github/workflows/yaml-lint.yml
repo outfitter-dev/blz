@@ -16,10 +16,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install yamlfmt
+        run: |
+          # Install Go (required for yamlfmt)
+          sudo apt-get update
+          sudo apt-get install -y golang-go
+
+          # Install yamlfmt
+          go install github.com/google/yamlfmt/cmd/yamlfmt@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Format YAML with yamlfmt
+        run: |
+          # Export PATH to include Go binaries
+          export PATH="$HOME/go/bin:$PATH"
+
+          # Format all YAML files (dry run to check for issues)
+          yamlfmt -dry -conf .yamlfmt.yml .github/workflows/*.yml || true
+
+          # Actually format the files
+          yamlfmt -conf .yamlfmt.yml .github/workflows/*.yml
+
+          # Check if formatting made changes
+          if [[ -n $(git diff --name-only) ]]; then
+            echo "::warning::yamlfmt made formatting changes. Files affected:"
+            git diff --name-only
+            git diff
+          fi
+
       - name: Install yamllint
         run: |
           sudo apt-get update
           sudo apt-get install -y yamllint
+
       - name: Run yamllint (workflows only)
         run: |
           yamllint -c .yamllint.yml .github/workflows
