@@ -5,7 +5,7 @@ on:
       - '.github/**/*.yml'
       - '.github/**/*.yaml'
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
       - '.github/**/*.yml'
       - '.github/**/*.yaml'
@@ -16,10 +16,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install yamlfmt
+        run: |
+          go install github.com/google/yamlfmt/cmd/yamlfmt@v0.10.0
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      - name: Format YAML with yamlfmt
+        run: |
+          # Export PATH to include Go binaries
+          export PATH="$HOME/go/bin:$PATH"
+
+          # Dry-run (both .yml and .yaml)
+          yamlfmt -dry -conf .yamlfmt.yml .github/workflows/*.{yml,yaml} || true
+
+          # Apply formatting
+          yamlfmt -conf .yamlfmt.yml .github/workflows/*.{yml,yaml}
+
+          # Check if formatting made changes
+          if [[ -n $(git diff --name-only) ]]; then
+            echo "::warning::yamlfmt made formatting changes. Files affected:"
+            git diff --name-only
+            git diff
+            # Fail to enforce formatting locally before push
+            exit 1
+          fi
+
       - name: Install yamllint
         run: |
           sudo apt-get update
           sudo apt-get install -y yamllint
+
       - name: Run yamllint (workflows only)
         run: |
           yamllint -c .yamllint.yml .github/workflows

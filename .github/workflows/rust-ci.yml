@@ -31,7 +31,7 @@ jobs:
   rust:
     name: Build & Test
     runs-on: ubuntu-latest
-    needs: format  # Only run if format check passes
+    needs: format # Only run if format check passes
     timeout-minutes: 15
     permissions:
       contents: read
@@ -45,28 +45,28 @@ jobs:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      
+
       # Install faster linker
       - name: Install lld
         run: sudo apt-get update && sudo apt-get install -y lld
-      
+
       # Use Swatinem's rust-cache for better caching
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
           cache-all-crates: true
           prefix-key: "v2-rust"
-      
+
       # Run clippy and build in parallel using matrix strategy
       - name: Clippy (non-test code)
         run: |
           cargo clippy --workspace --all-features --bins --examples -- \
             -D warnings -A missing_docs -A clippy::missing_errors_doc -A clippy::missing_panics_doc
-      
+
       - name: Clippy (test code)
         run: |
           cargo clippy --workspace --all-features --tests -- \
@@ -76,10 +76,10 @@ jobs:
             -A clippy::needless_collect -A clippy::unnecessary_wraps \
             -A clippy::match_wildcard_for_single_variants -A clippy::format_push_string \
             -A clippy::unnecessary_map_or -A clippy::case_sensitive_file_extension_comparisons
-      
+
       - name: Build
         run: cargo build --workspace --all-features --bins --examples --tests
-      
+
       - name: Test
         run: |
           # Run tests with optimized settings
