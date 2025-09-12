@@ -10,7 +10,7 @@ build = "build.rs"
 workspace = true
 
 [features]
-flamegraph = ["blz-core/flamegraph"]
+flamegraph = ["dep:pprof", "blz-core/flamegraph"]
 
 [[bin]]
 name = "blz"
@@ -33,8 +33,8 @@ indicatif = "0.17"
 clap_complete = "4"
 dialoguer = "0.11"
 
-# Performance & profiling
-pprof.workspace = true
+# Performance & profiling (optional; enabled via feature "flamegraph")
+pprof = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"

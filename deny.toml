@@ -87,4 +87,5 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # Allow git dependencies from our own org (if needed)
 allow-git = [
     # "https://github.com/outfitter-dev/",
+    "https://github.com/briansmith/ring",
 ]
