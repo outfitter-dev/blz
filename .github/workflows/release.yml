@@ -51,6 +51,9 @@ jobs:
     name: Build macOS arm64
     runs-on: macos-14
     timeout-minutes: 45
+    env:
+      # Workaround for ring CPU feature detection issues on Apple Silicon
+      RING_DISABLE_ASM: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
