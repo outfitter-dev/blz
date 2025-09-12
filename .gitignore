@@ -1,6 +1,7 @@
 # Build artifacts
 target/
-Cargo.lock
+## Track lockfile for deterministic releases
+# (Do not ignore Cargo.lock)
 
 # Environment files
 .env

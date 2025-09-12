@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   # Safeguard: Verify this is actually a tag push
   verify-tag:
-    name: Verify Tag
+    name: "Release: Verify Tag"
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.extract.outputs.version }}
@@ -27,7 +27,7 @@ jobs:
         run: |
           TAG="${{ inputs.tag }}"
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
-            echo "::error::Invalid tag format: $TAG. Must be v*.*.* (e.g., v0.1.6)"
+            echo "::error::Operation failed: Invalid tag format - $TAG (Expected: v*.*.* format)"
             exit 1
           fi
           echo "✅ Tag: $TAG"
@@ -39,7 +39,7 @@ jobs:
         run: |
           TAG="${{ inputs.tag }}"
           if ! gh api "repos/${{ github.repository }}/git/refs/tags/${TAG}" --silent; then
-            echo "::error::Tag $TAG does not exist in the repository"
+            echo "::error::Operation failed: Tag not found - $TAG does not exist in repository"
             exit 1
           fi
           VERSION="${TAG#v}"
@@ -48,33 +48,33 @@ jobs:
 
   build-darwin-arm64:
     needs: verify-tag
-    name: Build macOS arm64
+    name: "Release: Build macOS arm64"
     runs-on: macos-14
     timeout-minutes: 45
     env:
       # Workaround for ring CPU feature detection issues on Apple Silicon
       RING_DISABLE_ASM: 1
     steps:
-      - name: Checkout
+      - name: "Release: Checkout tag"
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Rust
+      - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
+      - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
           key: ${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
-      - name: Build (release)
+      - name: "Release: Build (release)"
         run: |
-          cargo build --release
+          cargo build --release --locked
 
-      - name: Prepare assets
+      - name: "Release: Prepare assets"
         run: |
           mkdir -p dist
           cp target/release/blz dist/blz-darwin-arm64
@@ -85,11 +85,12 @@ jobs:
           rm blz
           shasum -a 256 dist/blz-darwin-arm64.tar.gz > dist/blz-darwin-arm64.tar.gz.sha256
 
-      - name: Upload release assets
+      - name: "Release: Upload release assets"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           generate_release_notes: true
+          draft: true
           fail_on_unmatched_files: true
           files: |
             dist/blz-darwin-arm64
@@ -100,30 +101,30 @@ jobs:
 
   build-darwin-x64:
     needs: verify-tag
-    name: Build macOS x64
+    name: "Release: Build macOS x64"
     runs-on: macos-13
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: "Release: Checkout tag"
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Rust
+      - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
+      - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
           key: ${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
-      - name: Build (release)
+      - name: "Release: Build (release)"
         run: |
-          cargo build --release
+          cargo build --release --locked
 
-      - name: Prepare assets
+      - name: "Release: Prepare assets"
         run: |
           mkdir -p dist
           cp target/release/blz dist/blz-darwin-x64
@@ -134,11 +135,12 @@ jobs:
           rm blz
           shasum -a 256 dist/blz-darwin-x64.tar.gz > dist/blz-darwin-x64.tar.gz.sha256
 
-      - name: Upload release assets
+      - name: "Release: Upload release assets"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           generate_release_notes: true
+          draft: true
           fail_on_unmatched_files: true
           files: |
             dist/blz-darwin-x64
@@ -149,40 +151,44 @@ jobs:
 
   build-linux-x64:
     needs: verify-tag
-    name: Build Linux x64
+    name: "Release: Build Linux x64"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: "Release: Checkout tag"
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Rust
+      - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
+      - name: "Release: Install lld"
+        run: sudo apt-get update && sudo apt-get install -y lld
+
+      - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
           key: ${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
-      - name: Build (release)
+      - name: "Release: Build (release)"
         run: |
-          cargo build --release
+          cargo build --release --locked
 
-      - name: Prepare assets
+      - name: "Release: Prepare assets"
         run: |
           mkdir -p dist
           cp target/release/blz dist/blz-linux-x64
           chmod +x dist/blz-linux-x64
 
-      - name: Upload release assets
+      - name: "Release: Upload release assets"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           generate_release_notes: true
+          draft: true
           fail_on_unmatched_files: true
           files: |
             dist/blz-linux-x64
@@ -191,50 +197,51 @@ jobs:
 
   build-linux-arm64:
     needs: verify-tag
-    name: Build Linux arm64
+    name: "Release: Build Linux arm64"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: "Release: Checkout tag"
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Rust
+      - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-gnu
 
-      - name: Setup cache
+      - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
           key: ${{ runner.os }}-arm64-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
-      - name: Install cross toolchain
+      - name: "Release: Install cross toolchain"
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Build (release)
+      - name: "Release: Build (release)"
         env:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
-          cargo build --release --target aarch64-unknown-linux-gnu
+          cargo build --release --locked --target aarch64-unknown-linux-gnu
 
-      - name: Prepare assets
+      - name: "Release: Prepare assets"
         run: |
           mkdir -p dist
           cp target/aarch64-unknown-linux-gnu/release/blz dist/blz-linux-arm64
           chmod +x dist/blz-linux-arm64
 
-      - name: Upload release assets
+      - name: "Release: Upload release assets"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           generate_release_notes: true
+          draft: true
           fail_on_unmatched_files: true
           files: |
             dist/blz-linux-arm64
@@ -243,40 +250,41 @@ jobs:
 
   build-windows-x64:
     needs: verify-tag
-    name: Build Windows x64
+    name: "Release: Build Windows x64"
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: "Release: Checkout tag"
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Rust
+      - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup cache
+      - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
           key: ${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
-      - name: Build (release)
+      - name: "Release: Build (release)"
         run: |
-          cargo build --release
+          cargo build --release --locked
 
-      - name: Prepare assets
+      - name: "Release: Prepare assets"
         shell: bash
         run: |
           mkdir -p dist
           cp target/release/blz.exe dist/blz-win32-x64.exe
 
-      - name: Upload release assets
+      - name: "Release: Upload release assets"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           generate_release_notes: true
+          draft: true
           fail_on_unmatched_files: true
           files: |
             dist/blz-win32-x64.exe
@@ -284,31 +292,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   bump-homebrew:
-    name: Bump Homebrew Tap
+    name: "Publish: Homebrew Tap"
     needs: [build-darwin-arm64, build-darwin-x64]
     runs-on: ubuntu-latest
     steps:
-      - name: Compute version and download tarballs
+      - name: "Publish: Compute version and download tarballs"
         id: tar
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TAG="${{ inputs.tag }}"
           VERSION="${TAG#v}"
-          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
-          # Download with retries
-          for i in {1..5}; do
-            curl -fL -o blz-darwin-arm64.tar.gz "$BASE_URL/blz-darwin-arm64.tar.gz" && break
-            echo "Retry $i/5..."
-            sleep 10
-          done
-
-          for i in {1..5}; do
-            curl -fL -o blz-darwin-x64.tar.gz "$BASE_URL/blz-darwin-x64.tar.gz" && break
-            echo "Retry $i/5..."
-            sleep 10
-          done
+          # Download from draft release using gh CLI (works with draft releases)
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
 
           SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
           SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
@@ -316,14 +318,14 @@ jobs:
           echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
           echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
 
-      - name: Checkout tap repo
+      - name: "Publish: Checkout tap repo"
         uses: actions/checkout@v4
         with:
           repository: outfitter-dev/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
-      - name: Update formula
+      - name: "Publish: Update formula"
         shell: bash
         env:
           FORMULA: |
@@ -362,7 +364,7 @@ jobs:
           sed -i.bak "s/\${SHA_X64}/${SHA_X64}/g" homebrew-tap/Formula/blz.rb
           rm -f homebrew-tap/Formula/blz.rb.bak
 
-      - name: Create PR in tap repo
+      - name: "Publish: Create PR in tap repo"
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -376,7 +378,7 @@ jobs:
             - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
 
   cargo-publish:
-    name: Publish to crates.io
+    name: "Publish: crates.io"
     runs-on: ubuntu-latest
     needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64]
     steps:
@@ -388,7 +390,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
-      - name: Check publishable versions
+      - name: "Publish: Check publishable versions"
         id: check
         run: |
           if grep -q 'version = ".*-dev"' Cargo.toml; then
@@ -396,14 +398,14 @@ jobs:
           else
             echo "dev=false" >> $GITHUB_OUTPUT
           fi
-      - name: Extract version
+      - name: "Publish: Extract version"
         if: steps.check.outputs.dev == 'false'
         id: ver
         shell: bash
         run: |
           VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
           echo "version=$VER" >> $GITHUB_OUTPUT
-      - name: Verify Cargo version matches tag
+      - name: "Publish: Verify Cargo version matches tag"
         if: steps.check.outputs.dev == 'false'
         shell: bash
         run: |
@@ -413,13 +415,13 @@ jobs:
             echo "Tag ${TAG} does not match Cargo.toml version ${{ steps.ver.outputs.version }}" >&2
             exit 1
           fi
-      - name: Publish (blz-core)
+      - name: "Publish: blz-core"
         if: steps.check.outputs.dev == 'false'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish -p blz-core
-      - name: Wait for blz-core to propagate
+          cargo publish -p blz-core --locked
+      - name: "Publish: wait for blz-core to propagate"
         if: steps.check.outputs.dev == 'false'
         shell: bash
         run: |
@@ -435,15 +437,15 @@ jobs:
           done
           echo "Timed out waiting for blz-core $V to propagate" >&2
           exit 1
-      - name: Publish (blz-cli)
+      - name: "Publish: blz-cli"
         if: steps.check.outputs.dev == 'false'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish -p blz-cli
+          cargo publish -p blz-cli --locked
 
   npm-publish:
-    name: Publish to npm
+    name: "Publish: npm"
     runs-on: ubuntu-latest
     needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64]
     steps:
@@ -456,7 +458,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
           scope: '@outfitter'
-      - name: Validate package.json version matches tag
+      - name: "Publish: Validate package.json version matches tag"
         shell: bash
         run: |
           TAG="${{ inputs.tag }}"
@@ -466,7 +468,29 @@ jobs:
             echo "Tag $TAG does not match package.json version $PKG" >&2
             exit 1
           fi
-      - name: npm publish
+      - name: "Publish: npm publish"
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-release:
+    name: "Publish: GitHub Release"
+    needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64, cargo-publish, npm-publish, bump-homebrew]
+    runs-on: ubuntu-latest
+    # Only undraft the GitHub release when all builds and publish jobs succeed
+    if: |
+      needs.build-darwin-arm64.result == 'success' &&
+      needs.build-darwin-x64.result == 'success' &&
+      needs.build-linux-x64.result == 'success' &&
+      needs.build-linux-arm64.result == 'success' &&
+      needs.build-windows-x64.result == 'success' &&
+      needs.cargo-publish.result == 'success' &&
+      needs.npm-publish.result == 'success' &&
+      needs.bump-homebrew.result == 'success'
+    steps:
+      - name: "Publish: finalize GitHub release (undraft)"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          draft: false
+          prerelease: false

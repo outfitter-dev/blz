@@ -1,0 +1,131 @@
+name: Reusable Build Workflow v2
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+        description: 'Build target (darwin-arm64, linux-x64, windows-x64)'
+      version:
+        required: true
+        type: string
+        description: 'Version string (without v prefix)'
+      cache_key:
+        required: true
+        type: string
+        description: 'Cache key for build artifacts'
+      use_cache:
+        required: false
+        type: boolean
+        default: true
+        description: 'Whether to attempt using cache'
+    outputs:
+      artifact_name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact_name }}
+      artifact_id:
+        description: 'ID of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact_id }}
+      artifact_url:
+        description: 'URL of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact_url }}
+
+jobs:
+  build:
+    name: Build ${{ inputs.target }}
+    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || 'macos-14' }}
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      artifact_id: ${{ steps.upload.outputs['artifact-id'] }}
+      artifact_url: ${{ steps.upload.outputs['artifact-url'] }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set build variables
+        id: vars
+        run: |
+          if [ "${{ inputs.target }}" = "windows-x64" ]; then
+            echo "rust_target=x86_64-pc-windows-msvc" >> "$GITHUB_OUTPUT"
+            echo "binary_name=blz.exe" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.target }}" = "linux-x64" ]; then
+            echo "rust_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUT"
+            echo "binary_name=blz" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust_target=aarch64-apple-darwin" >> "$GITHUB_OUTPUT"
+            echo "binary_name=blz" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+      - name: Try to restore from cache
+        if: inputs.use_cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/release/${{ steps.vars.outputs.binary_name }}
+          key: ${{ inputs.cache_key }}-${{ inputs.target }}
+          restore-keys: |
+            ${{ inputs.cache_key }}-
+            rust-build-
+
+      - name: Setup Rust
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ steps.vars.outputs.rust_target }}
+
+      - name: Setup build environment (Linux)
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld
+
+      - name: Cache cargo registry
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Build release binary
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          RING_DISABLE_ASM: ${{ inputs.target == 'darwin-arm64' && '1' || '' }}
+          RUSTFLAGS: ${{ inputs.target == 'linux-x64' && '-C link-arg=-fuse-ld=lld' || '' }}
+        run: |
+          cargo build --release --locked --target ${{ steps.vars.outputs.rust_target }}
+          mv target/${{ steps.vars.outputs.rust_target }}/release/${{ steps.vars.outputs.binary_name }} target/release/
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target/release
+          if [[ "${{ inputs.target }}" == "windows-x64" ]]; then
+            7z a blz-${{ inputs.version }}-${{ inputs.target }}.zip ${{ steps.vars.outputs.binary_name }}
+            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.zip" >> $GITHUB_ENV
+          else
+            tar czf blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz ${{ steps.vars.outputs.binary_name }}
+            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Set artifact metadata
+        id: meta
+        run: echo "artifact_name=blz-${{ inputs.version }}-${{ inputs.target }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: ${{ env.ARCHIVE_PATH }}
+          retention-days: 1

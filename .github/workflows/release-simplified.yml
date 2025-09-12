@@ -1,0 +1,168 @@
+name: Release (Simplified)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.6)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  # Safeguard: Verify this is actually a tag push
+  verify-tag:
+    name: "Release: Verify Tag"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      commit_sha: ${{ steps.extract.outputs.commit_sha }}
+      cache_key: ${{ steps.extract.outputs.cache_key }}
+    steps:
+      - name: Check tag format
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            echo "::error::Operation failed: Invalid tag format - $TAG (Expected: v*.*.* format)"
+            exit 1
+          fi
+          echo "✅ Tag: $TAG"
+
+      - name: Extract version and metadata
+        id: extract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+
+          # Verify tag exists
+          if ! gh api "repos/${{ github.repository }}/git/refs/tags/${TAG}" --silent; then
+            echo "::error::Operation failed: Tag not found - $TAG does not exist in repository"
+            exit 1
+          fi
+
+          # Resolve tag to commit (handles lightweight and annotated)
+          REF_JSON=$(gh api "repos/${{ github.repository }}/git/refs/tags/${TAG}")
+          OBJ_TYPE=$(echo "$REF_JSON" | jq -r '.object.type')
+          OBJ_SHA=$(echo "$REF_JSON" | jq -r '.object.sha')
+          if [ "$OBJ_TYPE" = "tag" ]; then
+            COMMIT_SHA=$(gh api "repos/${{ github.repository }}/git/tags/${OBJ_SHA}" --jq '.object.sha')
+          else
+            COMMIT_SHA="$OBJ_SHA"
+          fi
+          VERSION="${TAG#v}"
+
+          # Generate cache key with Cargo.lock hash
+          CARGO_LOCK_HASH=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${COMMIT_SHA}/Cargo.lock" | sha256sum | cut -d' ' -f1 | head -c 8)
+          CACHE_KEY="rust-build-${COMMIT_SHA:0:8}-${CARGO_LOCK_HASH}"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "cache_key=$CACHE_KEY" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+          echo "🔖 Commit: $COMMIT_SHA"
+          echo "🔑 Cache key: $CACHE_KEY"
+
+  # Build targets using reusable workflow
+  build-darwin-arm64:
+    needs: verify-tag
+    uses: ./.github/workflows/reusable-build-v2.yml
+    with:
+      target: darwin-arm64
+      version: ${{ needs.verify-tag.outputs.version }}
+      cache_key: ${{ needs.verify-tag.outputs.cache_key }}
+      use_cache: false # Always build fresh for releases
+
+  build-linux-x64:
+    needs: verify-tag
+    uses: ./.github/workflows/reusable-build-v2.yml
+    with:
+      target: linux-x64
+      version: ${{ needs.verify-tag.outputs.version }}
+      cache_key: ${{ needs.verify-tag.outputs.cache_key }}
+      use_cache: false # Always build fresh for releases
+
+  build-windows-x64:
+    needs: verify-tag
+    uses: ./.github/workflows/reusable-build-v2.yml
+    with:
+      target: windows-x64
+      version: ${{ needs.verify-tag.outputs.version }}
+      cache_key: ${{ needs.verify-tag.outputs.cache_key }}
+      use_cache: false # Always build fresh for releases
+
+  # Create GitHub release
+  create-release:
+    needs: [verify-tag, build-darwin-arm64, build-linux-x64, build-windows-x64]
+    name: "Release: Create GitHub Release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-tag.outputs.commit_sha }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-artifacts
+
+      - name: List artifacts
+        run: |
+          echo "📦 Release artifacts:"
+          find ./release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) | sort
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          VERSION="${{ needs.verify-tag.outputs.version }}"
+
+          # Create release notes
+          cat > release-notes.md << EOF
+          ## blz v${VERSION}
+
+          ### Installation
+
+          \`\`\`bash
+          # macOS (Apple Silicon)
+          curl -L https://github.com/${{ github.repository }}/releases/download/${TAG}/blz-${VERSION}-darwin-arm64.tar.gz | tar xz
+          sudo mv blz /usr/local/bin/
+
+          # Linux x64
+          curl -L https://github.com/${{ github.repository }}/releases/download/${TAG}/blz-${VERSION}-linux-x64.tar.gz | tar xz
+          sudo mv blz /usr/local/bin/
+
+          # Windows x64
+          # Download and extract blz-${VERSION}-windows-x64.zip
+          \`\`\`
+
+          ### Changes
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${TAG}/CHANGELOG.md) for details.
+          EOF
+
+          # Create the release
+          gh release create "${TAG}" \
+            --title "blz ${VERSION}" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            ./release-artifacts/*/*
+
+      - name: Verify release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          echo "✅ Release created successfully!"
+          echo "📦 View at: https://github.com/${{ github.repository }}/releases/tag/${TAG}"
