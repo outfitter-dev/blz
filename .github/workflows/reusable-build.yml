@@ -1,0 +1,40 @@
+name: Reusable Build Workflow
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+        description: 'Build target (darwin-arm64, linux-x64, windows-x64)'
+      version:
+        required: true
+        type: string
+        description: 'Version string (without v prefix)'
+      cache_key:
+        required: true
+        type: string
+        description: 'Cache key for build artifacts'
+      use_cache:
+        required: false
+        type: boolean
+        default: true
+        description: 'Whether to attempt using cache'
+    outputs:
+      artifact_name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact_name }}
+
+jobs:
+  build:
+    name: Build ${{ inputs.target }}
+    uses: ./.github/workflows/reusable-build-v2.yml
+    with:
+      target: ${{ inputs.target }}
+      version: ${{ inputs.version }}
+      cache_key: ${{ inputs.cache_key }}
+      use_cache: ${{ inputs.use_cache }}
+    secrets: inherit
