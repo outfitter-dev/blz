@@ -20,18 +20,18 @@ jobs:
         with:
           fetch-depth: 1
 
-      # - name: Preliminary Setup
-        # run: |
-          # echo "Setting up environment..."
-          # Add any preliminary setup commands here to setup Claude's dev environment
-          # e.g., npm install, etc.
+        # - name: Preliminary Setup
+        #   run: |
+        #     echo "Setting up environment..."
+        #     # Add any preliminary setup commands here to setup Claude's dev environment
+        #     # e.g., npm install, etc.
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@eap
         with:
           mode: 'remote-agent'
-          
+
           # Optional: Specify an API key, otherwise we'll use your Claude account automatically
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -40,9 +40,9 @@ jobs:
 
           # Optional: Allow Claude to run specific commands
           # allowed_tools: |
-            # Bash(npm run lint)
-            # Bash(npm run test)
-            # Bash(npm run build)
+          #   Bash(npm run lint)
+          #   Bash(npm run test)
+          #   Bash(npm run build)
 
           # Optional: Custom environment variables for Claude
           # claude_env: |

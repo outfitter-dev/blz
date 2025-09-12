@@ -5,6 +5,24 @@ pre-commit:
   # Keep pre-commit blazing fast: hygiene + fmt + quick compile
   parallel: true
   commands:
+    yaml_format:
+      run: |
+        bash -lc '
+          export PATH="$HOME/go/bin:$PATH"
+          if ! command -v yamlfmt >/dev/null 2>&1; then
+            echo "yamlfmt not found. Install with: go install github.com/google/yamlfmt/cmd/yamlfmt@v0.10.0"
+            echo "Or run: just bootstrap-fast"
+            exit 2
+          fi
+          yamlfmt -dry -conf .yamlfmt.yml .github/workflows/*.{yml,yaml} || true
+          yamlfmt -conf .yamlfmt.yml .github/workflows/*.{yml,yaml}
+          if [ -n "$(git diff --name-only -- .github/workflows)" ]; then
+            echo "::warning::yamlfmt made formatting changes. Please re-stage files:"
+            git diff --name-only -- .github/workflows
+            exit 1
+          fi
+        '
+      stage_fixed: true
     whitespace:
       run: git diff --check --staged
 

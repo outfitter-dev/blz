@@ -54,32 +54,32 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
           prefix-key: "v2-deps"
-      
+
       # Cache cargo-shear binary
       - name: Cache cargo-shear
         id: cache-shear
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/cargo-shear
-          key: cargo-shear-0.0.26  # Update version as needed
-      
+          key: cargo-shear-0.0.26 # Update version as needed
+
       - name: Install cargo-shear
         if: steps.cache-shear.outputs.cache-hit != 'true'
         run: cargo install cargo-shear --locked
-      
+
       - name: Check for unused dependencies
         run: |
           echo "::group::Running cargo-shear"
           cargo shear
           echo "::endgroup::"
-        
+
   cargo-deny:
     name: Dependency validation
     needs: optimize_ci
@@ -87,21 +87,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
-      fail-fast: false  # Run all checks even if one fails
+      fail-fast: false # Run all checks even if one fails
       matrix:
         checks:
           - advisories
           - bans licenses sources
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run cargo-deny (${{ matrix.checks }})
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check ${{ matrix.checks }}
           arguments: --all-features
-          log-level: warn  # Reduce noise in logs
-          
+          log-level: warn # Reduce noise in logs
+
   security-audit:
     name: Security advisories (informational)
     needs: optimize_ci
@@ -111,7 +111,7 @@ jobs:
     continue-on-error: true # Don't fail CI on new advisories
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run advisory check
         id: advisories
         uses: EmbarkStudios/cargo-deny-action@v2
@@ -120,7 +120,7 @@ jobs:
           command: check advisories
           arguments: --all-features
           log-level: warn
-      
+
       - name: Create advisory summary
         if: always()
         run: |
@@ -143,12 +143,12 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
-          fail-on-severity: critical  # Only fail on critical issues
-          warn-on-severity: high  # Warn on high severity
+          fail-on-severity: critical # Only fail on critical issues
+          warn-on-severity: high # Warn on high severity
           deny-licenses: GPL-3.0, AGPL-3.0, SSPL-1.0
           vulnerability-check: true
           license-check: true
