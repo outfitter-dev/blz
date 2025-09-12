@@ -1,0 +1,25 @@
+name: yaml-lint
+on:
+  pull_request:
+    paths:
+      - '.github/**/*.yml'
+      - '.github/**/*.yaml'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/**/*.yml'
+      - '.github/**/*.yaml'
+
+jobs:
+  lint:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint
+      - name: Run yamllint (workflows only)
+        run: |
+          yamllint -c .yamllint.yml .github/workflows
