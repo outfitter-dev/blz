@@ -9,7 +9,31 @@ permissions:
   contents: write
 
 jobs:
+  # Safeguard: Verify this is actually a tag push
+  verify-tag:
+    name: Verify Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Check if running on tag
+        run: |
+          if [[ "${{ github.ref }}" != refs/tags/v* ]]; then
+            echo "::error::Release workflow triggered without a version tag! Got ref: ${{ github.ref }}"
+            echo "This workflow should only run on version tags (v*)"
+            exit 1
+          fi
+          echo "✅ Running on tag: ${{ github.ref }}"
+
+      - name: Extract version
+        id: extract
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
   build-darwin-arm64:
+    needs: verify-tag
     name: Build macOS arm64
     runs-on: macos-14
     steps:
@@ -46,6 +70,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-darwin-x64:
+    needs: verify-tag
     name: Build macOS x64
     runs-on: macos-13
     steps:
@@ -81,6 +106,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-x64:
+    needs: verify-tag
     name: Build Linux x64
     runs-on: ubuntu-latest
     steps:
@@ -109,6 +135,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-arm64:
+    needs: verify-tag
     name: Build Linux arm64
     runs-on: ubuntu-latest
     steps:
@@ -147,6 +174,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows-x64:
+    needs: verify-tag
     name: Build Windows x64
     runs-on: windows-latest
     steps:
