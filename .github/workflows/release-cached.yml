@@ -100,7 +100,7 @@ jobs:
           # Generate cache key based on commit and Cargo.lock hash
           # This ensures cache invalidation when dependencies change
           # Fallback to commit-only key if Cargo.lock doesn't exist (older tags)
-          if CARGO_LOCK_HASH=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${COMMIT_SHA}/Cargo.lock" 2>/dev/null | sha256sum | cut -d' ' -f1 | head -c 8) && [ -n "$CARGO_LOCK_HASH" ]; then
+          if CARGO_LOCK_HASH=$(curl --retry 3 --retry-delay 1 -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${COMMIT_SHA}/Cargo.lock" 2>/dev/null | sha256sum | cut -d' ' -f1 | head -c 8) && [ -n "$CARGO_LOCK_HASH" ]; then
             CACHE_KEY="rust-build-${COMMIT_SHA:0:8}-${CARGO_LOCK_HASH}"
           else
             echo "⚠️ Cargo.lock not found at commit; falling back to commit-only cache key"
@@ -168,6 +168,9 @@ jobs:
           cache-on-failure: true
 
       - name: "Release: Build (release)"
+        env:
+          # Ensure required CPU features are enabled at compile time for ring
+          RUSTFLAGS: "-C target-feature=+neon,+aes,+sha2,+pmull"
         run: |
           if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
             echo "🔄 Building with cache..."
@@ -383,6 +386,9 @@ jobs:
     name: "Release: Build Windows x64"
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      # Avoid requiring nasm on Windows by disabling ring ASM paths
+      RING_DISABLE_ASM: 1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -551,20 +557,45 @@ jobs:
             exit 1
           fi
 
+      - name: "Publish: Check if blz-core version exists"
+        id: crate_core_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          VERSION="${{ needs.prepare.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: Check if blz-cli version exists"
+        id: crate_cli_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          VERSION="${{ needs.prepare.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: "Publish: blz-core"
-        if: steps.check.outputs.dev == 'false'
+        id: publish_core
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           cargo publish -p blz-core --locked
 
       - name: "Publish: wait for blz-core to propagate"
-        if: steps.check.outputs.dev == 'false'
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true' && steps.publish_core.outcome == 'success'
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           echo "Waiting for blz-core $VERSION to appear on crates.io..."
           for i in {1..30}; do
-            if curl -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
               echo "blz-core $VERSION is available."
               exit 0
             fi
@@ -574,7 +605,8 @@ jobs:
           exit 1
 
       - name: "Publish: blz-cli"
-        if: steps.check.outputs.dev == 'false'
+        id: publish_cli
+        if: steps.check.outputs.dev == 'false' && steps.crate_cli_exists.outputs.exists != 'true' && (steps.crate_core_exists.outputs.exists == 'true' || steps.publish_core.outcome == 'success')
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -605,8 +637,21 @@ jobs:
             exit 1
           fi
 
+      - name: "Publish: Check if npm version exists"
+        id: npm_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          VERSION="${{ needs.prepare.outputs.version }}"
+          if npm view @outfitter/blz@"$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: "Publish: npm publish"
-        run: npm publish --access public
+        if: steps.npm_exists.outputs.exists != 'true'
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

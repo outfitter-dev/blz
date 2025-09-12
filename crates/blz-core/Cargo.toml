@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+description = "Core library for fast local llms.txt search"
 
 [lints]
 workspace = true

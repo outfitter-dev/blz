@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 build = "build.rs"
+description = "CLI for blz – fast local llms.txt search"
 
 [lints]
 workspace = true
