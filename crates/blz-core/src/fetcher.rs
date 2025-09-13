@@ -228,6 +228,50 @@ impl Fetcher {
 
         Ok(flavors)
     }
+
+    /// Perform a HEAD request to retrieve basic metadata for a URL without downloading content
+    pub async fn head_metadata(&self, url: &str) -> Result<HeadInfo> {
+        let response = self.client.head(url).send().await?;
+        let status = response.status();
+
+        let content_length = response
+            .headers()
+            .get(CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+
+        let etag = response
+            .headers()
+            .get(ETAG)
+            .and_then(|v| v.to_str().ok())
+            .map(std::string::ToString::to_string);
+
+        let last_modified = response
+            .headers()
+            .get(LAST_MODIFIED)
+            .and_then(|v| v.to_str().ok())
+            .map(std::string::ToString::to_string);
+
+        Ok(HeadInfo {
+            status: status.as_u16(),
+            content_length,
+            etag,
+            last_modified,
+        })
+    }
+}
+
+/// Metadata from a HEAD request
+#[derive(Debug, Clone)]
+pub struct HeadInfo {
+    /// HTTP status code returned by the server (e.g., 200, 404)
+    pub status: u16,
+    /// Optional content length reported by the server via `Content-Length`
+    pub content_length: Option<u64>,
+    /// Optional entity tag returned by the server for cache validation
+    pub etag: Option<String>,
+    /// Optional last modified timestamp returned by the server
+    pub last_modified: Option<String>,
 }
 
 /// Result of a conditional HTTP fetch operation
@@ -317,6 +361,12 @@ fn format_size(bytes: u64) -> String {
 // Use Fetcher::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::match_wildcard_for_single_variants
+)]
 mod tests {
     use super::*;
     use std::time::Duration;

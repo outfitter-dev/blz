@@ -8,7 +8,7 @@ use crate::output::OutputFormat;
 use crate::utils::formatting::get_alias_color;
 
 /// Execute the list command to show all cached sources
-pub async fn execute(output: OutputFormat) -> Result<()> {
+pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
@@ -21,13 +21,26 @@ pub async fn execute(output: OutputFormat) -> Result<()> {
 
     for source in &sources {
         if let Ok(llms_json) = storage.load_llms_json(source) {
-            source_info.push(serde_json::json!({
-                "alias": source,
-                "url": llms_json.source.url,
-                "fetchedAt": llms_json.source.fetched_at,
-                "lines": llms_json.line_index.total_lines,
-                "sha256": llms_json.source.sha256
-            }));
+            if status {
+                // Include health/status details
+                source_info.push(serde_json::json!({
+                    "alias": source,
+                    "url": llms_json.source.url,
+                    "fetchedAt": llms_json.source.fetched_at,
+                    "lines": llms_json.line_index.total_lines,
+                    "sha256": llms_json.source.sha256,
+                    "etag": llms_json.source.etag,
+                    "lastModified": llms_json.source.last_modified,
+                }));
+            } else {
+                source_info.push(serde_json::json!({
+                    "alias": source,
+                    "url": llms_json.source.url,
+                    "fetchedAt": llms_json.source.fetched_at,
+                    "lines": llms_json.line_index.total_lines,
+                    "sha256": llms_json.source.sha256
+                }));
+            }
         }
     }
 
@@ -42,14 +55,14 @@ pub async fn execute(output: OutputFormat) -> Result<()> {
             }
         },
         OutputFormat::Text => {
-            display_sources_text(&sources, &storage);
+            display_sources_text(&sources, &storage, status);
         },
     }
 
     Ok(())
 }
 
-fn display_sources_text(sources: &[String], storage: &Storage) {
+fn display_sources_text(sources: &[String], storage: &Storage, status: bool) {
     println!("\nCached sources:\n");
 
     for (i, source) in sources.iter().enumerate() {
@@ -66,6 +79,15 @@ fn display_sources_text(sources: &[String], storage: &Storage) {
                 llms_json.source.fetched_at.format("%Y-%m-%d %H:%M:%S")
             );
             println!("    Lines: {}", llms_json.line_index.total_lines);
+            if status {
+                if let Some(etag) = &llms_json.source.etag {
+                    println!("    ETag: {etag}");
+                }
+                if let Some(lm) = &llms_json.source.last_modified {
+                    println!("    Last-Modified: {lm}");
+                }
+                println!("    Checksum: {}", llms_json.source.sha256);
+            }
             println!();
         }
     }

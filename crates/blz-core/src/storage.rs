@@ -144,6 +144,11 @@ impl Storage {
         Ok(self.tool_dir(alias)?.join("metadata.json"))
     }
 
+    /// Returns the path to the anchors mapping file for an alias
+    pub fn anchors_map_path(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join("anchors.json"))
+    }
+
     /// Saves the llms.txt content for an alias
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
@@ -230,6 +235,17 @@ impl Storage {
             .map_err(|e| Error::Storage(format!("Failed to persist metadata: {e}")))?;
 
         debug!("Saved metadata for {}", alias);
+        Ok(())
+    }
+
+    /// Save anchors remap JSON for an alias
+    pub fn save_anchors_map(&self, alias: &str, map: &crate::AnchorsMap) -> Result<()> {
+        self.ensure_tool_dir(alias)?;
+        let path = self.anchors_map_path(alias)?;
+        let json = serde_json::to_string_pretty(map)
+            .map_err(|e| Error::Storage(format!("Failed to serialize anchors map: {e}")))?;
+        fs::write(&path, json)
+            .map_err(|e| Error::Storage(format!("Failed to write anchors map: {e}")))?;
         Ok(())
     }
 
@@ -402,6 +418,7 @@ impl Storage {
 // Use Storage::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::types::{FileInfo, LineIndex, Source, TocEntry};
@@ -428,6 +445,7 @@ mod tests {
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],
                 lines: "1-50".to_string(),
+                anchor: None,
                 children: vec![],
             }],
             files: vec![FileInfo {
@@ -439,6 +457,7 @@ mod tests {
                 byte_offsets: false,
             },
             diagnostics: vec![],
+            parse_meta: None,
         }
     }
 

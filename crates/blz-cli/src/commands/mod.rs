@@ -4,8 +4,10 @@
 //! in its own submodule for better organization and maintainability.
 
 mod add;
+mod anchors;
 mod completions;
 mod diff;
+pub mod docs;
 mod get;
 mod list;
 mod lookup;
@@ -14,8 +16,11 @@ mod search;
 mod update;
 
 pub use add::execute as add_source;
+pub use anchors::execute as show_anchors;
+pub use anchors::get_by_anchor;
 pub use completions::generate;
 pub use diff::show as show_diff;
+pub use docs::{DocsFormat, execute as generate_docs};
 pub use get::execute as get_lines;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;

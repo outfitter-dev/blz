@@ -14,27 +14,18 @@ mod commands;
 mod output;
 mod utils;
 mod instruct_mod {
-    use super::Cli;
-    use clap::CommandFactory;
-
     pub fn print() {
         // Embed a simple, agent-friendly text with no special formatting.
         const INSTRUCT: &str = include_str!("../agent-instructions.txt");
         println!("{INSTRUCT}");
 
-        // Append current CLI help so onboarding is a single command
-        let mut cmd = Cli::command();
-        let mut buf: Vec<u8> = Vec::new();
-        // Best-effort: if writing help fails, skip appending
-        let _ = cmd.write_long_help(&mut buf);
-        if let Ok(help) = String::from_utf8(buf) {
-            println!("\n=== CLI Help (blz --help) ===\n");
-            println!("{help}");
-        }
+        // Append generated CLI docs for single-command onboarding
+        println!("\n=== CLI Docs ===\n");
+        let _ = crate::commands::generate_docs(crate::commands::DocsFormat::Markdown);
     }
 }
 
-use cli::{Cli, Commands};
+use cli::{AnchorCommands, Cli, Commands};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -84,17 +75,13 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     // If the selected command is emitting machine-readable output, suppress info logs
     // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
     if !(cli.verbose || cli.debug) {
-        if let Some(cmd) = &cli.command {
-            match cmd {
-                Commands::Search { output, .. } | Commands::List { output } => {
-                    if matches!(
-                        output,
-                        crate::output::OutputFormat::Json | crate::output::OutputFormat::Ndjson
-                    ) {
-                        level = Level::ERROR;
-                    }
-                },
-                _ => {},
+        if let Some(Commands::Search { output, .. } | Commands::List { output, .. }) = &cli.command
+        {
+            if matches!(
+                output,
+                crate::output::OutputFormat::Json | crate::output::OutputFormat::Ndjson
+            ) {
+                level = Level::ERROR;
             }
         }
     }
@@ -144,6 +131,35 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             commands::generate(shell);
         },
 
+        Some(Commands::Docs { format }) => {
+            commands::generate_docs(format)?;
+        },
+
+        Some(Commands::Anchor { command }) => match command {
+            AnchorCommands::List {
+                alias,
+                output,
+                mappings,
+            } => {
+                commands::show_anchors(&alias, output, mappings).await?;
+            },
+            AnchorCommands::Get {
+                alias,
+                anchor,
+                context,
+            } => {
+                commands::get_by_anchor(&alias, &anchor, context).await?;
+            },
+        },
+
+        Some(Commands::Anchors {
+            alias,
+            output,
+            mappings,
+        }) => {
+            commands::show_anchors(&alias, output, mappings).await?;
+        },
+
         Some(Commands::Instruct) => {
             instruct_mod::print();
         },
@@ -159,6 +175,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::Search {
             query,
             alias,
+            last,
             limit,
             all,
             page,
@@ -169,6 +186,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             commands::search(
                 &query,
                 alias.as_deref(),
+                last,
                 actual_limit,
                 page,
                 top,
@@ -187,8 +205,8 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             commands::get_lines(&alias, &lines, context).await?;
         },
 
-        Some(Commands::List { output }) => {
-            commands::list_sources(output).await?;
+        Some(Commands::List { output, status }) => {
+            commands::list_sources(output, status).await?;
         },
 
         Some(Commands::Update { alias, all }) => {
@@ -223,6 +241,14 @@ fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::needless_collect,
+    clippy::unnecessary_wraps,
+    clippy::deref_addrof
+)]
 mod tests {
     use super::*;
     use crate::utils::constants::RESERVED_KEYWORDS;
@@ -563,7 +589,7 @@ mod tests {
         for (format_str, expected_format) in output_formats {
             let cli = Cli::try_parse_from(vec!["blz", "list", "--output", format_str]).unwrap();
 
-            if let Some(Commands::List { output }) = cli.command {
+            if let Some(Commands::List { output, .. }) = cli.command {
                 assert_eq!(
                     output, expected_format,
                     "Output format should match: {format_str}"

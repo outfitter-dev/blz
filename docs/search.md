@@ -250,8 +250,8 @@ blz node "file system"
 # Get the best match for a query
 
 result=$(blz search "test runner" --limit 1 --output json)
-alias=$(echo "$result" | jq -r '.hits[0].alias')
-lines=$(echo "$result" | jq -r '.hits[0].lines')
+alias=$(echo "$result" | jq -r '.results[0].alias')
+lines=$(echo "$result" | jq -r '.results[0].lines')
 
 echo "Best match in $alias at lines $lines"
 blz get "$alias" --lines "$lines"
@@ -264,7 +264,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --output json | jq -r '.results[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')

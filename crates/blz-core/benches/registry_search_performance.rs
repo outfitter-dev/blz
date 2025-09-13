@@ -1,4 +1,6 @@
 //! Benchmarks for registry search performance
+#![allow(missing_docs)]
+#![allow(clippy::unwrap_used)]
 //!
 //! Tests search performance under various conditions including:
 //! - Different query sizes
@@ -93,12 +95,12 @@ fn create_large_registry() -> Registry {
     ];
 
     for (i, name) in similar_names.iter().enumerate() {
-        let alt_name = format!("{}-alt", name);
+        let alt_name = format!("{name}-alt");
         let entry = RegistryEntry::new(
             &format!("{} Framework", name.to_uppercase()),
-            &format!("similar-{}", i),
-            &format!("Similar name testing framework: {}", name),
-            &format!("https://{}.example.com/llms.txt", name),
+            &format!("similar-{i}"),
+            &format!("Similar name testing framework: {name}"),
+            &format!("https://{name}.example.com/llms.txt"),
         )
         .with_aliases(&[name, alt_name.as_str()]);
         entries.push(entry);
@@ -135,7 +137,7 @@ fn bench_search_query_sizes(c: &mut Criterion) {
             b.iter(|| {
                 let results = registry.search(black_box(query));
                 black_box(results)
-            })
+            });
         });
     }
 
@@ -162,7 +164,7 @@ fn bench_search_result_sizes(c: &mut Criterion) {
             b.iter(|| {
                 let results = registry.search(black_box(query));
                 black_box(results)
-            })
+            });
         });
     }
 
@@ -197,7 +199,7 @@ fn bench_fuzzy_matching_types(c: &mut Criterion) {
                 b.iter(|| {
                     let results = registry.search(black_box(query));
                     black_box(results)
-                })
+                });
             },
         );
     }
@@ -211,7 +213,7 @@ fn bench_concurrent_searches(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_searches");
 
     let concurrency_levels = vec![1, 2, 4, 8, 16];
-    let queries = vec![
+    let queries = [
         "react",
         "node",
         "vue",
@@ -251,7 +253,7 @@ fn bench_concurrent_searches(c: &mut Criterion) {
                         .collect();
 
                     black_box(results)
-                })
+                });
             },
         );
     }
@@ -288,7 +290,7 @@ fn bench_search_patterns(c: &mut Criterion) {
                 b.iter(|| {
                     let results = registry.search(black_box(query));
                     black_box(results)
-                })
+                });
             },
         );
     }
@@ -302,7 +304,7 @@ fn bench_repeated_searches(c: &mut Criterion) {
     let mut group = c.benchmark_group("repeated_searches");
 
     // Test if there's any caching effect or performance degradation
-    let queries = vec!["react", "node", "vue", "angular"];
+    let queries = ["react", "node", "vue", "angular"];
 
     group.bench_function("repeated_same_query", |b| {
         b.iter(|| {
@@ -310,7 +312,7 @@ fn bench_repeated_searches(c: &mut Criterion) {
                 let results = registry.search(black_box("react"));
                 black_box(results);
             }
-        })
+        });
     });
 
     group.bench_function("repeated_different_queries", |b| {
@@ -320,7 +322,7 @@ fn bench_repeated_searches(c: &mut Criterion) {
                 let results = registry.search(black_box(query));
                 black_box(results);
             }
-        })
+        });
     });
 
     group.finish();
@@ -338,7 +340,7 @@ fn bench_search_memory_usage(c: &mut Criterion) {
             // Force results to be used to prevent optimization
             assert!(!results.is_empty() || results.is_empty());
             black_box(results)
-        })
+        });
     });
 
     // Test large result sets
@@ -347,7 +349,7 @@ fn bench_search_memory_usage(c: &mut Criterion) {
             // This query should match many entries
             let results = registry.search(black_box("a"));
             black_box(results)
-        })
+        });
     });
 
     group.finish();
@@ -382,7 +384,7 @@ fn bench_edge_case_queries(c: &mut Criterion) {
                 b.iter(|| {
                     let results = registry.search(black_box(query));
                     black_box(results)
-                })
+                });
             },
         );
     }
@@ -402,14 +404,14 @@ fn bench_registry_size_impact(c: &mut Criterion) {
         b.iter(|| {
             let results = small_registry.search(black_box(query));
             black_box(results)
-        })
+        });
     });
 
     group.bench_function("large_registry", |b| {
         b.iter(|| {
             let results = large_registry.search(black_box(query));
             black_box(results)
-        })
+        });
     });
 
     group.finish();
@@ -436,7 +438,7 @@ fn bench_search_field_types(c: &mut Criterion) {
             b.iter(|| {
                 let results = registry.search(black_box(query));
                 black_box(results)
-            })
+            });
         });
     }
 

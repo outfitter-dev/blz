@@ -11,11 +11,12 @@ Core Commands
 Search
 - All sources:                  blz search "<query>" --output json
 - By source:                    blz search "<query>" --alias <alias> --output json
-  (also supports --source or -s as alias for --alias)
-- Pagination:                   --limit <N> --page <P>
+  (also supports --source or -s)
+- Pagination:                   --limit <N> --page <P> [--last]
 
-Search JSON fields (typical)
-- alias, lines (e.g. "120-142"), snippet, score, headingPath, sourceUrl
+JSON output shape (search)
+- Top-level: { query, page, limit, totalResults, totalPages, totalLinesSearched, searchTimeMs, sources, results }
+- Each result: { alias, file, headingPath[], lines, snippet, score, sourceUrl, checksum }
 
 Get Exact Lines
 - Fetch text:                   blz get <alias> --lines <range> [--context N]
@@ -30,3 +31,5 @@ Agent Flow (recommended)
 Notes
 - Prefer llms-full.txt when available.
 - Exit codes: 0=ok, 1=user error, 2=system error.
+- Use --quiet for clean JSON in scripts.
+- blz list --status to include ETag, Last-Modified, checksum.

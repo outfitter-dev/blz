@@ -15,6 +15,7 @@ const ALL_RESULTS_LIMIT: usize = 10_000;
 pub struct SearchOptions {
     pub query: String,
     pub alias: Option<String>,
+    pub last: bool,
     pub limit: usize,
     pub page: usize,
     pub top_percentile: Option<u8>,
@@ -27,6 +28,7 @@ pub struct SearchOptions {
 pub async fn execute(
     query: &str,
     alias: Option<&str>,
+    last: bool,
     limit: usize,
     page: usize,
     top_percentile: Option<u8>,
@@ -37,6 +39,7 @@ pub async fn execute(
     let options = SearchOptions {
         query: query.to_string(),
         alias: alias.map(String::from),
+        last,
         limit,
         page,
         top_percentile,
@@ -79,6 +82,7 @@ pub async fn handle_default(
     execute(
         &query,
         alias.as_deref(),
+        false,
         50,
         1,
         None,
@@ -117,12 +121,22 @@ fn get_max_concurrent_searches() -> usize {
     std::thread::available_parallelism().map_or(8, |n| (n.get().saturating_mul(2)).min(16))
 }
 
+#[allow(clippy::too_many_lines)]
 async fn perform_search(
     options: &SearchOptions,
     metrics: PerformanceMetrics,
 ) -> Result<SearchResults> {
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
+    // Provide actionable suggestion if alias not found
+    if let Some(requested) = &options.alias {
+        let known = storage.list_sources();
+        if !known.contains(requested) {
+            eprintln!(
+                "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
+            );
+        }
+    }
 
     let sources = options
         .alias
@@ -336,15 +350,48 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         options.limit.max(1)
     };
 
-    let start_idx = (options.page - 1) * actual_limit;
+    let total_pages = if total_results == 0 {
+        0
+    } else {
+        total_results.div_ceil(actual_limit)
+    };
+    let requested_page = if options.last {
+        total_pages.max(1)
+    } else {
+        options.page
+    };
+
+    if total_results == 0 {
+        // Let formatter print the "No results" message
+        let formatter = SearchResultFormatter::new(options.output);
+        let params = FormatParams {
+            hits: &[],
+            query: &options.query,
+            total_results,
+            total_lines_searched: results.total_lines_searched,
+            search_time: results.search_time,
+            show_pagination: false,
+            single_source: options.alias.is_some(),
+            sources: &results.sources,
+            start_idx: 0,
+            page: 1,
+            limit: actual_limit,
+            total_pages,
+        };
+        formatter.format(&params)?;
+        return Ok(());
+    }
+
+    let page = requested_page.clamp(1, total_pages);
+    let start_idx = (page - 1) * actual_limit;
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
     if start_idx >= results.hits.len() {
         println!(
-            "Page {} is beyond available results (only {} pages available)",
-            options.page,
-            total_results.div_ceil(actual_limit)
+            "Page {} is beyond available results (Page {} of {})",
+            options.page, page, total_pages
         );
+        println!("Tip: use --last to jump to the final page.");
         return Ok(());
     }
 
@@ -361,6 +408,9 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         single_source: options.alias.is_some(),
         sources: &results.sources,
         start_idx,
+        page,
+        limit: actual_limit,
+        total_pages,
     };
     formatter.format(&params)?;
 
@@ -385,6 +435,7 @@ mod tests {
                 score: (i as f32).mul_add(-0.01, 1.0),
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
+                anchor: Some("unit-test-anchor".to_string()),
             })
             .collect();
 
@@ -403,6 +454,7 @@ mod tests {
         let options = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 10,
             page: 1,
             top_percentile: None,
@@ -422,6 +474,7 @@ mod tests {
         let options = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 10,
             page: 1,
             top_percentile: None,
@@ -441,6 +494,7 @@ mod tests {
         let options_empty = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
             top_percentile: None,
@@ -457,6 +511,7 @@ mod tests {
         let options_high_page = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
             top_percentile: None,
@@ -478,6 +533,7 @@ mod tests {
         let options = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 2,
             page: 100, // Way beyond available pages
             top_percentile: None,
@@ -498,6 +554,7 @@ mod tests {
         let options = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 5,
             page: 2,
             top_percentile: None,
@@ -512,6 +569,7 @@ mod tests {
         let options_beyond = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 5,
             page: 3,
             top_percentile: None,
@@ -533,6 +591,7 @@ mod tests {
         let options1 = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: 10,
             page: 1,
             top_percentile: None,
@@ -552,6 +611,7 @@ mod tests {
         let options2 = SearchOptions {
             query: "test".to_string(),
             alias: None,
+            last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 1,
             top_percentile: None,

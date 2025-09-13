@@ -134,7 +134,7 @@ blz search "bundler" --output json
 #!/bin/bash
 # Find and display TypeScript information
 
-result=$(blz search "typescript" --output json | jq -r '.hits[0]')
+result=$(blz search "typescript" --output json | jq -r '.results[0]')
 alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 

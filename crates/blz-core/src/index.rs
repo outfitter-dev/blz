@@ -1,5 +1,7 @@
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
 use crate::{Error, HeadingBlock, Result, SearchHit};
+use base64::{Engine, engine::general_purpose::STANDARD as B64};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
@@ -17,6 +19,7 @@ pub struct SearchIndex {
     heading_path_field: Field,
     lines_field: Field,
     alias_field: Field,
+    anchor_field: Option<Field>,
     reader: IndexReader,
     metrics: Option<PerformanceMetrics>,
 }
@@ -42,6 +45,7 @@ impl SearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
+        let anchor_field = schema_builder.add_text_field("anchor", STRING | STORED);
 
         let schema = schema_builder.build();
 
@@ -66,6 +70,7 @@ impl SearchIndex {
             lines_field,
             alias_field,
             reader,
+            anchor_field: Some(anchor_field),
             metrics: None,
         })
     }
@@ -102,6 +107,9 @@ impl SearchIndex {
             .get_field("alias")
             .map_err(|_| Error::Index("Missing alias field".into()))?;
 
+        // Anchor is optional for backward compatibility with older indexes
+        let anchor_field = schema.get_field("anchor").ok();
+
         let reader = index
             .reader_builder()
             .reload_policy(tantivy::ReloadPolicy::OnCommitWithDelay)
@@ -117,6 +125,7 @@ impl SearchIndex {
             lines_field,
             alias_field,
             reader,
+            anchor_field,
             metrics: None,
         })
     }
@@ -152,14 +161,19 @@ impl SearchIndex {
                 total_content_bytes += block.content.len();
                 let heading_path_str = block.path.join(" > ");
                 let lines_str = format!("{}-{}", block.start_line, block.end_line);
+                // Compute anchor from last heading text
+                let anchor = block.path.last().map(|h| Self::compute_anchor(h));
 
-                let doc = doc!(
+                let mut doc = doc!(
                     self.content_field => block.content.as_str(),  // Use &str instead of clone
                     self.path_field => file_path,
                     self.heading_path_field => heading_path_str,
                     self.lines_field => lines_str,
                     self.alias_field => alias
                 );
+                if let (Some(f), Some(a)) = (self.anchor_field, anchor) {
+                    doc.add_text(f, a);
+                }
 
                 writer
                     .add_document(doc)
@@ -290,6 +304,11 @@ impl SearchIndex {
                 let heading_path_str = Self::get_field_text(&doc, self.heading_path_field)?;
                 let lines = Self::get_field_text(&doc, self.lines_field)?;
                 let content = Self::get_field_text(&doc, self.content_field)?;
+                let anchor = self.anchor_field.and_then(|f| {
+                    doc.get_first(f)
+                        .and_then(|v| v.as_str())
+                        .map(std::string::ToString::to_string)
+                });
 
                 // Count lines for metrics
                 lines_searched += content.lines().count();
@@ -301,15 +320,20 @@ impl SearchIndex {
 
                 let snippet = Self::extract_snippet(&content, query_str, 100);
 
+                // Prefer exact match line(s) when possible for better citations
+                let exact_lines = Self::compute_match_lines(&content, query_str, &lines)
+                    .unwrap_or_else(|| lines.clone());
+
                 hits.push(SearchHit {
                     alias,
                     file,
                     heading_path,
-                    lines,
+                    lines: exact_lines,
                     snippet,
                     score,
                     source_url: None,
                     checksum: String::new(),
+                    anchor,
                 });
             }
             Ok::<(), Error>(())
@@ -333,11 +357,50 @@ impl SearchIndex {
         Ok(hits)
     }
 
+    fn compute_anchor(heading_text: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(heading_text.trim().to_lowercase().as_bytes());
+        let digest = hasher.finalize();
+        let full = B64.encode(digest);
+        full[..22.min(full.len())].to_string()
+    }
+
     fn get_field_text(doc: &tantivy::TantivyDocument, field: Field) -> Result<String> {
         doc.get_first(field)
             .and_then(|v| v.as_str())
             .map(std::string::ToString::to_string)
             .ok_or_else(|| Error::Index("Field not found in document".into()))
+    }
+
+    /// Compute exact match line(s) within a block's content relative to its stored line range.
+    /// Returns a "start-end" string (typically a single line) falling back to the original range on failure.
+    fn compute_match_lines(content: &str, query: &str, block_lines: &str) -> Option<String> {
+        // Parse the block's starting line
+        let block_start: usize = block_lines
+            .split(['-', ':'])
+            .next()
+            .and_then(|s| s.trim().parse::<usize>().ok())?;
+
+        // Tokenize query naively by whitespace; try to find the earliest occurrence
+        let mut best_pos: Option<usize> = None;
+        for token in query.split_whitespace() {
+            if token.is_empty() {
+                continue;
+            }
+            if let Some(pos) = content.find(token) {
+                match best_pos {
+                    Some(cur) if pos < cur => best_pos = Some(pos),
+                    None => best_pos = Some(pos),
+                    _ => {},
+                }
+            }
+        }
+
+        let pos = best_pos?;
+        // Count newlines before position to get 0-based line offset
+        let local_line = content[..pos].bytes().filter(|&b| b == b'\n').count();
+        let abs_line = block_start.saturating_add(local_line);
+        Some(format!("{abs_line}-{abs_line}"))
     }
 
     fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
@@ -423,6 +486,9 @@ impl SearchIndex {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::panic)]
+    #![allow(clippy::disallowed_macros)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::HeadingBlock;
     use std::time::Instant;
@@ -518,6 +584,35 @@ mod tests {
 
         assert!(!hits.is_empty(), "Should find results");
         assert!(hits.len() <= 1, "Should respect limit");
+    }
+
+    #[test]
+    fn test_search_includes_anchor() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+
+        let index = SearchIndex::create(&index_path).expect("Should create index");
+
+        let blocks = vec![HeadingBlock {
+            path: vec!["API".to_string(), "Reference".to_string()],
+            content: "token auth key".to_string(),
+            start_line: 10,
+            end_line: 20,
+        }];
+
+        index
+            .index_blocks("test", "api.md", &blocks)
+            .expect("Should index blocks");
+
+        let hits = index
+            .search("token", Some("test"), 10)
+            .expect("Should search");
+
+        assert!(!hits.is_empty());
+        assert!(hits[0].anchor.is_some(), "anchor should be present in hits");
+        // Anchor should be derived from the last heading segment
+        let expected = SearchIndex::compute_anchor("Reference");
+        assert_eq!(hits[0].anchor.clone().unwrap(), expected);
     }
 
     #[test]
@@ -662,7 +757,12 @@ mod tests {
         assert!(!hits.is_empty(), "Should find results");
         assert_eq!(hits[0].heading_path, vec!["API", "Reference", "Hooks"]);
         assert_eq!(hits[0].file, "api.md");
-        assert_eq!(hits[0].lines, "100-120");
+        // Lines should point to the exact match within the block (first line)
+        assert!(
+            hits[0].lines.starts_with("100-"),
+            "Expected match to start at line 100, got {}",
+            hits[0].lines
+        );
     }
 
     #[test]

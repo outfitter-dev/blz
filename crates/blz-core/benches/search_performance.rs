@@ -1,4 +1,5 @@
 //! Benchmarks for search performance
+#![allow(missing_docs)]
 #![allow(clippy::expect_used)] // Allow expect() in benchmark setup code
 #![allow(clippy::cast_precision_loss)] // Allow precision loss in benchmark metrics
 #![allow(clippy::cast_possible_truncation)] // Allow truncation in benchmark display

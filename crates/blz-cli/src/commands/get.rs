@@ -12,7 +12,25 @@ pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result
     let storage = Storage::new()?;
 
     if !storage.exists(alias) {
-        println!("Source '{alias}' not found");
+        println!("Source '{alias}' not found.");
+        let available = storage.list_sources();
+        if available.is_empty() {
+            println!(
+                "No sources available. Use 'blz lookup <name>' or 'blz add <alias> <url>' to add one."
+            );
+        } else {
+            let preview = available.iter().take(8).cloned().collect::<Vec<_>>();
+            println!(
+                "Available: {}{}",
+                preview.join(", "),
+                if available.len() > preview.len() {
+                    format!(" (+{} more)", available.len() - preview.len())
+                } else {
+                    String::new()
+                }
+            );
+            println!("Hint: 'blz list' to see all, or 'blz lookup <name>' to search registries.");
+        }
         return Ok(());
     }
 
@@ -30,7 +48,9 @@ fn collect_line_numbers(
     context: Option<usize>,
     total_lines: usize,
 ) -> Result<BTreeSet<usize>> {
-    let ranges = parse_line_ranges(lines)?;
+    let ranges = parse_line_ranges(lines).map_err(|_| {
+        anyhow::anyhow!("Invalid --lines format. Examples: '120-142', '36+20', '36:43,320:350'.")
+    })?;
     let context_lines = context.unwrap_or(0);
     let mut all_line_numbers = BTreeSet::new();
 

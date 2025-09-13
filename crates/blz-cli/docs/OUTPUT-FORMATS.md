@@ -44,36 +44,36 @@ Results 50/150:
 [node] https://nodejs.org/llms.txt
 ```
 
-## JSON and JSONL
-
-For programmatic use:
+## JSON and NDJSON
 
 ```bash
-# JSON array of hits (shortcut)
-blz search "async rust" --json
+# JSON (aggregated with metadata)
+blz search "async rust" --output json
 
 # NDJSON (one hit per line)
-blz search "async rust" --jsonl
-
-# Equivalent long-form
-blz search "async rust" --output json
+blz search "async rust" --output ndjson
 ```
 
-Output structure:
+Output structure (JSON):
 ```json
 {
   "query": "async rust",
-  "total_results": 42,
-  "search_time_ms": 6,
-  "hits": [
+  "page": 1,
+  "limit": 5,
+  "totalResults": 42,
+  "totalPages": 9,
+  "totalLinesSearched": 123456,
+  "searchTimeMs": 6,
+  "sources": ["rust", "node"],
+  "results": [
     {
       "alias": "rust",
       "file": "llms.txt",
-      "heading_path": ["Async", "Futures"],
+      "headingPath": ["Async", "Futures"],
       "lines": "123-145",
       "snippet": "...",
       "score": 0.95,
-      "source_url": "https://...",
+      "sourceUrl": "https://...",
       "checksum": "..."
     }
   ]
@@ -119,20 +119,22 @@ blz search "async rust" --color auto
 
 ## Pagination
 
-Control result pagination:
 ```bash
 # Show first 5 results
 blz search "async rust" --limit 5
 
-# Show results 10-20
-blz search "async rust" --offset 10 --limit 10
+# Show page 2
+blz search "async rust" --page 2 --limit 5
+
+# Jump to last page
+blz search "async rust" --last --limit 5
 ```
 
 ## Integration Examples
 
 ### With jq
 ```bash
-blz search "async rust" --output json | jq '.hits[0]'
+blz search "async rust" --output json | jq '.results[0]'
 ```
 
 Notes:
@@ -150,6 +152,6 @@ blz search "async rust" --output compact | fzf
 ```bash
 #!/bin/bash
 results=$(blz search "$1" --output json)
-count=$(echo "$results" | jq '.total_results')
+count=$(echo "$results" | jq '.totalResults')
 echo "Found $count results"
 ```

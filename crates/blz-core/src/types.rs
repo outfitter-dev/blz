@@ -27,6 +27,7 @@
 //! let toc_entry = TocEntry {
 //!     heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
 //!     lines: "15-42".to_string(),
+//!     anchor: None,
 //!     children: vec![],
 //! };
 //!
@@ -49,6 +50,7 @@
 //!     score: 0.92,
 //!     source_url: Some("https://react.dev/hooks".to_string()),
 //!     checksum: "abc123".to_string(),
+//!     anchor: Some("react-hooks-usestate".to_string()),
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
@@ -140,6 +142,13 @@ pub struct TocEntry {
     /// Format: `"start-end"` where both are 1-based line numbers.
     /// Examples: `"15-42"`, `"1-10"`, `"100-100"` (single line)
     pub lines: String,
+
+    /// Stable content anchor for this section.
+    ///
+    /// Computed from heading text and leading content to remap sections
+    /// across updates when text moves. Base64(SHA-256) truncated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 
     /// Nested subsections under this heading.
     ///
@@ -284,6 +293,22 @@ pub struct LlmsJson {
     /// Includes warnings about malformed content, missing sections,
     /// or processing issues that users should be aware of.
     pub diagnostics: Vec<Diagnostic>,
+
+    /// Parser/segmentation metadata for durability across updates.
+    ///
+    /// Optional for forward/backward compatibility. When present, indicates
+    /// how the document was segmented and which parser version produced it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parse_meta: Option<ParseMeta>,
+}
+
+/// Metadata about how parsing/segmentation was performed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParseMeta {
+    /// Monotonic parser version used to generate this JSON.
+    pub parser_version: u32,
+    /// Segmentation strategy used (e.g., "structured", "windowed").
+    pub segmentation: String,
 }
 
 /// A search result hit.
@@ -350,6 +375,32 @@ pub struct SearchHit {
     /// Used to verify that the search result corresponds to the expected
     /// version of the content. Helps detect stale results after content updates.
     pub checksum: String,
+
+    /// Stable anchor for the section (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+}
+
+/// Mapping between stable content anchors and line ranges across updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnchorMapping {
+    /// Stable anchor value computed from heading and leading content
+    pub anchor: String,
+    /// Previous line range (e.g., "15-42")
+    pub old_lines: String,
+    /// New line range after update
+    pub new_lines: String,
+    /// Heading path for context
+    pub heading_path: Vec<String>,
+}
+
+/// Anchors remapping file saved per alias to help remap citations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnchorsMap {
+    /// Timestamp when this map was generated
+    pub updated_at: DateTime<Utc>,
+    /// Mappings from anchors to new line ranges
+    pub mappings: Vec<AnchorMapping>,
 }
 
 /// An entry recording changes between content versions.
@@ -480,6 +531,7 @@ mod tests {
             score: 0.95,
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
+            anchor: Some("anchor1".to_string()),
         };
 
         let hit2 = SearchHit {
@@ -491,6 +543,7 @@ mod tests {
             score: 0.90, // Different score
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
+            anchor: Some("anchor1".to_string()),
         };
 
         // Should be considered the same for deduplication (same alias, lines, heading_path)
@@ -520,6 +573,7 @@ mod tests {
         let entry = TocEntry {
             heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
             lines: "1-25".to_string(),
+            anchor: None,
             children: vec![],
         };
 
@@ -580,6 +634,7 @@ mod tests {
                 byte_offsets: false,
             },
             diagnostics: vec![],
+            parse_meta: None,
         };
 
         assert_eq!(llms_json.alias, "test");

@@ -197,6 +197,31 @@ pub enum Commands {
         shell: clap_complete::Shell,
     },
 
+    /// Generate CLI docs from the clap definitions
+    Docs {
+        /// Output format for docs
+        #[arg(long = "format", value_enum, default_value = "markdown")]
+        format: crate::commands::DocsFormat,
+    },
+
+    /// Anchor utilities
+    Anchor {
+        #[command(subcommand)]
+        command: AnchorCommands,
+    },
+
+    /// Show anchors for a source or remap mappings
+    Anchors {
+        /// Source alias
+        alias: String,
+        /// Output format
+        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        output: OutputFormat,
+        /// Show anchors remap mappings if available
+        #[arg(long)]
+        mappings: bool,
+    },
+
     /// Add a new source
     Add {
         /// Alias for the source
@@ -221,6 +246,9 @@ pub enum Commands {
         /// Filter by alias (also accepts --source)
         #[arg(long, short = 's', alias = "source", visible_alias = "source")]
         alias: Option<String>,
+        /// Jump to last page of results
+        #[arg(long)]
+        last: bool,
         /// Maximum number of results
         #[arg(short = 'n', long, default_value = "50")]
         limit: usize,
@@ -256,6 +284,9 @@ pub enum Commands {
         /// Output format
         #[arg(short = 'o', long, value_enum, default_value = "text")]
         output: OutputFormat,
+        /// Include status/health information (etag, lastModified, checksum)
+        #[arg(long)]
+        status: bool,
     },
 
     /// Update sources
@@ -282,5 +313,30 @@ pub enum Commands {
         /// Show changes since timestamp
         #[arg(long)]
         since: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AnchorCommands {
+    /// List anchors for a source
+    List {
+        /// Source alias
+        alias: String,
+        /// Output format
+        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        output: OutputFormat,
+        /// Show anchors remap mappings if available
+        #[arg(long)]
+        mappings: bool,
+    },
+    /// Get content by anchor
+    Get {
+        /// Source alias
+        alias: String,
+        /// Anchor value (from list)
+        anchor: String,
+        /// Context lines around the section
+        #[arg(short = 'c', long)]
+        context: Option<usize>,
     },
 }

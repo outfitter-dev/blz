@@ -1,7 +1,7 @@
 //! Lookup command implementation for searching registries
 
 use anyhow::Result;
-use blz_core::{PerformanceMetrics, Registry};
+use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
 use dialoguer::{Input, Select};
 use std::io::IsTerminal;
@@ -26,7 +26,7 @@ pub async fn execute(query: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     }
 
     if !quiet {
-        display_results(&results);
+        display_results_with_health(&results).await?;
     }
 
     // Try interactive selection
@@ -61,17 +61,31 @@ pub async fn execute(query: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     add_source(final_alias, &selected_entry.llms_url, false, metrics).await
 }
 
-fn display_results(results: &[blz_core::registry::RegistrySearchResult]) {
+async fn display_results_with_health(
+    results: &[blz_core::registry::RegistrySearchResult],
+) -> Result<()> {
     println!(
         "Found {} match{}:\n",
         results.len(),
         if results.len() == 1 { "" } else { "es" }
     );
 
+    let fetcher = Fetcher::new()?;
     for (i, result) in results.iter().enumerate() {
-        println!("{}. {}", i + 1, result.entry);
+        let mut health = String::new();
+        if let Ok(meta) = fetcher.head_metadata(&result.entry.llms_url).await {
+            let ok = (200..300).contains(&i32::from(meta.status));
+            let size = meta
+                .content_length
+                .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
+            let status = if ok { "OK" } else { "ERR" };
+            health = format!(" [{status} • {size}]");
+        }
+
+        println!("{}. {}{}", i + 1, result.entry, health.bright_black());
         println!("   {}\n", result.entry.llms_url.bright_black());
     }
+    Ok(())
 }
 
 fn display_manual_instructions(results: &[blz_core::registry::RegistrySearchResult]) {

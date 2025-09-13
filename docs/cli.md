@@ -391,7 +391,7 @@ Config discovery order:
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
 ### `blz instruct`
 
-Print instructions for agent use of blz.
+Print instructions for agent use of blz, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
 
 ```bash
 blz instruct

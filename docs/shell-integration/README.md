@@ -225,7 +225,7 @@ Create helpful functions:
 # Search and display best result
 function blz-best
     set -l query $argv
-    set -l result (blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
+    set -l result (blz search "$query" --limit 1 --output json | jq -r '.results[0]')
 
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')

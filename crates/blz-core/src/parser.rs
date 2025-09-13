@@ -137,6 +137,10 @@
 //! ```
 
 use crate::{Diagnostic, DiagnosticSeverity, Error, HeadingBlock, Result, TocEntry};
+use base64::{Engine, engine::general_purpose::STANDARD as B64};
+use sha2::{Digest, Sha256};
+/// Lines per window used when falling back to windowed segmentation
+const FALLBACK_WINDOW_LINES: usize = 200;
 use std::collections::VecDeque;
 use tree_sitter::{Node, Parser, TreeCursor};
 
@@ -324,12 +328,48 @@ impl MarkdownParser {
                 line: Some(1),
             });
 
-            heading_blocks.push(HeadingBlock {
-                path: vec!["Document".into()],
-                content: text.to_string(),
-                start_line: 1,
-                end_line: text.lines().count(),
-            });
+            // Hybrid fallback: windowed segmentation for unstructured content
+            // Splits the document into fixed-size windows to improve search fidelity
+            let total_lines = text.lines().count();
+            if total_lines <= FALLBACK_WINDOW_LINES {
+                heading_blocks.push(HeadingBlock {
+                    path: vec!["Document".into()],
+                    content: text.to_string(),
+                    start_line: 1,
+                    end_line: total_lines,
+                });
+            } else {
+                let mut start = 1usize;
+                let mut current = String::new();
+                let mut count = 0usize;
+                for line in text.lines() {
+                    if count > 0 {
+                        current.push('\n');
+                    }
+                    current.push_str(line);
+                    count += 1;
+                    if count == FALLBACK_WINDOW_LINES {
+                        let end_line = start + count - 1;
+                        heading_blocks.push(HeadingBlock {
+                            path: vec!["Document".into()],
+                            content: std::mem::take(&mut current),
+                            start_line: start,
+                            end_line,
+                        });
+                        start = end_line + 1;
+                        count = 0;
+                    }
+                }
+                if !current.is_empty() {
+                    let end_line = start + count - 1;
+                    heading_blocks.push(HeadingBlock {
+                        path: vec!["Document".into()],
+                        content: current,
+                        start_line: start,
+                        end_line,
+                    });
+                }
+            }
         }
 
         let line_count = text.lines().count();
@@ -380,6 +420,9 @@ impl MarkdownParser {
             return;
         }
 
+        // Ensure headings are processed in source order
+        headings.sort_by_key(|h| h.byte_start);
+
         // Second pass: build blocks by slicing between headings
         let mut current_path = Vec::new();
         let mut stack: VecDeque<usize> = VecDeque::new();
@@ -422,6 +465,9 @@ impl MarkdownParser {
                 end_line,
             });
 
+            // Compute stable content anchor for remapping across updates
+            let anchor = Some(Self::compute_anchor(&current_path, &heading.text, content));
+
             // Create TOC entry
             let entry = TocEntry {
                 heading_path: current_path.clone(),
@@ -430,11 +476,22 @@ impl MarkdownParser {
                 } else {
                     format!("{start_line}")
                 },
+                anchor,
                 children: Vec::new(),
             };
 
             Self::add_to_toc(toc, entry, stack.len());
         }
+    }
+
+    fn compute_anchor(_path: &[String], heading_text: &str, _content: &str) -> String {
+        let mut hasher = Sha256::new();
+        // Normalize heading only for a stable, move-invariant anchor
+        hasher.update(heading_text.trim().to_lowercase().as_bytes());
+        let digest = hasher.finalize();
+        let full = B64.encode(digest);
+        // Truncate for brevity while remaining collision-resistant
+        full[..22.min(full.len())].to_string()
     }
 
     fn walk_tree<F>(cursor: &mut TreeCursor, _text: &str, mut callback: F)
@@ -627,6 +684,12 @@ pub struct ParseResult {
 // Use MarkdownParser::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::unnecessary_wraps,
+    clippy::format_push_string,
+    clippy::disallowed_macros
+)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
@@ -634,6 +697,41 @@ mod tests {
     // Test fixtures and builders
     fn create_test_parser() -> MarkdownParser {
         MarkdownParser::new().expect("Failed to create parser")
+    }
+
+    #[test]
+    fn test_anchor_stability_when_section_moves() {
+        let mut parser = create_test_parser();
+
+        let doc_v1 = "# Intro\n\nPrelude.\n\n## Section A\n\nAlpha content line 1.\nAlpha content line 2.\n\n## Section B\n\nBeta content.\n";
+
+        let result_v1 = parser.parse(doc_v1).expect("parse v1");
+        #[allow(clippy::items_after_statements)]
+        fn find<'a>(entries: &'a [TocEntry], name: &str) -> Option<&'a TocEntry> {
+            for e in entries {
+                if e.heading_path.last().is_some_and(|h| h == name) {
+                    return Some(e);
+                }
+                if let Some(found) = find(&e.children, name) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        let a_v1 = find(&result_v1.toc, "Section A").expect("section A in v1");
+        let anchor_v1 = a_v1.anchor.clone().expect("anchor v1");
+        let lines_v1 = a_v1.lines.clone();
+
+        // Move Section A below B
+        let doc_v2 = "# Intro\n\nPrelude.\n\n## Section B\n\nBeta content.\n\n## Section A\n\nAlpha content line 1.\nAlpha content line 2.\n";
+        let result_v2 = parser.parse(doc_v2).expect("parse v2");
+        let a_v2 = find(&result_v2.toc, "Section A").expect("section A in v2");
+        let anchor_v2 = a_v2.anchor.clone().expect("anchor v2");
+        let lines_v2 = a_v2.lines.clone();
+
+        // Anchor should be stable even if lines changed
+        assert_eq!(anchor_v1, anchor_v2, "anchor stable across moves");
+        assert_ne!(lines_v1, lines_v2, "lines should reflect new position");
     }
 
     fn simple_markdown() -> &'static str {

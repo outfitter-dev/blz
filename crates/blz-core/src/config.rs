@@ -666,6 +666,12 @@ impl ToolConfig {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::unwrap_used,
+    clippy::unnecessary_wraps
+)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
