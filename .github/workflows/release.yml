@@ -71,6 +71,9 @@ jobs:
           cache-on-failure: true
 
       - name: "Release: Build (release)"
+        env:
+          # Ensure required CPU features are enabled at compile time for ring
+          RUSTFLAGS: "-C target-feature=+neon,+aes,+sha2,+pmull"
         run: |
           cargo build --release --locked
 
@@ -253,6 +256,9 @@ jobs:
     name: "Release: Build Windows x64"
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      # Avoid requiring nasm on Windows by disabling ring ASM paths
+      RING_DISABLE_ASM: 1
     steps:
       - name: "Release: Checkout tag"
         uses: actions/checkout@v4
@@ -415,21 +421,48 @@ jobs:
             echo "Tag ${TAG} does not match Cargo.toml version ${{ steps.ver.outputs.version }}" >&2
             exit 1
           fi
-      - name: "Publish: blz-core"
+      - name: "Publish: Check if blz-core version exists"
         if: steps.check.outputs.dev == 'false'
+        id: crate_core_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: Check if blz-cli version exists"
+        if: steps.check.outputs.dev == 'false'
+        id: crate_cli_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: blz-core"
+        id: publish_core
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           cargo publish -p blz-core --locked
       - name: "Publish: wait for blz-core to propagate"
-        if: steps.check.outputs.dev == 'false'
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true' && steps.publish_core.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
           V=${{ steps.ver.outputs.version }}
           echo "Waiting for blz-core $V to appear on crates.io index..."
           for i in {1..30}; do
-            if curl -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
               echo "blz-core $V is available."
               exit 0
             fi
@@ -438,7 +471,8 @@ jobs:
           echo "Timed out waiting for blz-core $V to propagate" >&2
           exit 1
       - name: "Publish: blz-cli"
-        if: steps.check.outputs.dev == 'false'
+        id: publish_cli
+        if: steps.check.outputs.dev == 'false' && steps.crate_cli_exists.outputs.exists != 'true' && (steps.crate_core_exists.outputs.exists == 'true' || steps.publish_core.outcome == 'success')
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -468,8 +502,22 @@ jobs:
             echo "Tag $TAG does not match package.json version $PKG" >&2
             exit 1
           fi
+      - name: "Publish: Check if npm version exists"
+        id: npm_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          TAG="${{ inputs.tag }}"
+          V="${TAG#v}"
+          if npm view @outfitter/blz@"$V" version >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: "Publish: npm publish"
-        run: npm publish --access public
+        if: steps.npm_exists.outputs.exists != 'true'
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
