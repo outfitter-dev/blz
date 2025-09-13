@@ -12,7 +12,7 @@ use std::time::Instant;
 use tracing::{debug, info};
 
 /// Execute update for a specific source
-pub async fn execute(alias: &str, metrics: PerformanceMetrics) -> Result<()> {
+pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
 
     if !storage.exists(alias) {
@@ -21,21 +21,27 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics) -> Result<()> {
 
     update_source(&storage, alias, metrics.clone()).await?;
 
-    metrics.print_summary();
+    if !quiet {
+        metrics.print_summary();
+    }
     Ok(())
 }
 
 /// Execute update for all sources
-pub async fn execute_all(metrics: PerformanceMetrics) -> Result<()> {
+pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
     if sources.is_empty() {
-        println!("No sources to update");
+        if !quiet {
+            println!("No sources to update");
+        }
         return Ok(());
     }
 
-    println!("Updating {} source(s)...", sources.len());
+    if !quiet {
+        println!("Updating {} source(s)...", sources.len());
+    }
     let mut updated_count = 0;
     let mut skipped_count = 0;
     let mut error_count = 0;
@@ -50,24 +56,27 @@ pub async fn execute_all(metrics: PerformanceMetrics) -> Result<()> {
                 }
             },
             Err(e) => {
-                eprintln!("Failed to update '{}': {}", alias.red(), e);
+                if !quiet {
+                    eprintln!("Failed to update '{}': {}", alias.red(), e);
+                }
                 error_count += 1;
             },
         }
     }
 
-    println!(
-        "\nSummary: {} updated, {} unchanged, {} errors",
-        updated_count.to_string().green(),
-        skipped_count,
-        if error_count > 0 {
-            error_count.to_string().red()
-        } else {
-            error_count.to_string().normal()
-        }
-    );
-
-    metrics.print_summary();
+    if !quiet {
+        println!(
+            "\nSummary: {} updated, {} unchanged, {} errors",
+            updated_count.to_string().green(),
+            skipped_count,
+            if error_count > 0 {
+                error_count.to_string().red()
+            } else {
+                error_count.to_string().normal()
+            }
+        );
+        metrics.print_summary();
+    }
     Ok(())
 }
 

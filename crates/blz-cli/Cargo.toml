@@ -27,6 +27,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono.workspace = true
 futures.workspace = true
+libc = "0.2"
 
 # CLI-specific
 colored = "2"

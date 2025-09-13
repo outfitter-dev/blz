@@ -14,10 +14,23 @@ mod commands;
 mod output;
 mod utils;
 mod instruct_mod {
+    use super::Cli;
+    use clap::CommandFactory;
+
     pub fn print() {
         // Embed a simple, agent-friendly text with no special formatting.
         const INSTRUCT: &str = include_str!("../agent-instructions.txt");
         println!("{INSTRUCT}");
+
+        // Append current CLI help so onboarding is a single command
+        let mut cmd = Cli::command();
+        let mut buf: Vec<u8> = Vec::new();
+        // Best-effort: if writing help fails, skip appending
+        let _ = cmd.write_long_help(&mut buf);
+        if let Ok(help) = String::from_utf8(buf) {
+            println!("\n=== CLI Help (blz --help) ===\n");
+            println!("{help}");
+        }
     }
 }
 
@@ -28,6 +41,17 @@ use blz_core::profiling::{start_profiling, stop_profiling_and_report};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Convert Broken pipe panics into a clean exit
+    std::panic::set_hook(Box::new(|info| {
+        let msg = info.to_string();
+        if msg.contains("Broken pipe") || msg.contains("broken pipe") {
+            // Exit silently for pipeline truncation
+            std::process::exit(0);
+        }
+        // Default behavior: print to stderr
+        eprintln!("{msg}");
+    }));
+
     let cli = Cli::parse();
 
     initialize_logging(&cli)?;
@@ -48,19 +72,39 @@ async fn main() -> Result<()> {
 }
 
 fn initialize_logging(cli: &Cli) -> Result<()> {
-    let level = if cli.verbose || cli.debug {
+    // Base level from global flags
+    let mut level = if cli.verbose || cli.debug {
         Level::DEBUG
     } else if cli.quiet {
         Level::ERROR
     } else {
-        Level::INFO
+        Level::WARN
     };
+
+    // If the selected command is emitting machine-readable output, suppress info logs
+    // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
+    if !(cli.verbose || cli.debug) {
+        if let Some(cmd) = &cli.command {
+            match cmd {
+                Commands::Search { output, .. } | Commands::List { output } => {
+                    if matches!(
+                        output,
+                        crate::output::OutputFormat::Json | crate::output::OutputFormat::Ndjson
+                    ) {
+                        level = Level::ERROR;
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
 
     let subscriber = FmtSubscriber::builder()
         .with_max_level(level)
         .with_target(false)
         .with_thread_ids(false)
         .with_thread_names(false)
+        .with_writer(std::io::stderr)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)?;
@@ -109,7 +153,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         },
 
         Some(Commands::Lookup { query }) => {
-            commands::lookup_registry(&query, metrics).await?;
+            commands::lookup_registry(&query, metrics, cli.quiet).await?;
         },
 
         Some(Commands::Search {
@@ -149,9 +193,9 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
 
         Some(Commands::Update { alias, all }) => {
             if all || alias.is_none() {
-                commands::update_all(metrics).await?;
+                commands::update_all(metrics, cli.quiet).await?;
             } else if let Some(alias) = alias {
-                commands::update_source(&alias, metrics).await?;
+                commands::update_source(&alias, metrics, cli.quiet).await?;
             }
         },
 

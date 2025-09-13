@@ -218,8 +218,8 @@ pub enum Commands {
     Search {
         /// Search query
         query: String,
-        /// Filter by alias
-        #[arg(long)]
+        /// Filter by alias (also accepts --source)
+        #[arg(long, short = 's', alias = "source", visible_alias = "source")]
         alias: Option<String>,
         /// Maximum number of results
         #[arg(short = 'n', long, default_value = "50")]

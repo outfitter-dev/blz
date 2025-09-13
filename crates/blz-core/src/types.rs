@@ -301,6 +301,7 @@ pub struct LlmsJson {
 /// The `lines` field uses the same format as [`TocEntry`]: `"start-end"` with
 /// 1-based line numbers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     /// Source alias where this hit was found.
     ///

@@ -24,7 +24,7 @@ pub async fn execute(output: OutputFormat) -> Result<()> {
             source_info.push(serde_json::json!({
                 "alias": source,
                 "url": llms_json.source.url,
-                "fetched_at": llms_json.source.fetched_at,
+                "fetchedAt": llms_json.source.fetched_at,
                 "lines": llms_json.line_index.total_lines,
                 "sha256": llms_json.source.sha256
             }));

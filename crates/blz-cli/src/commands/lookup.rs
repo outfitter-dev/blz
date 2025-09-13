@@ -10,41 +10,53 @@ use crate::commands::add_source;
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
-pub async fn execute(query: &str, metrics: PerformanceMetrics) -> Result<()> {
+pub async fn execute(query: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let registry = Registry::new();
 
-    println!("Searching registries...");
+    if !quiet {
+        println!("Searching registries...");
+    }
     let results = registry.search(query);
 
     if results.is_empty() {
-        println!("No matches found for '{query}'");
+        if !quiet {
+            println!("No matches found for '{query}'");
+        }
         return Ok(());
     }
 
-    display_results(&results);
+    if !quiet {
+        display_results(&results);
+    }
 
     // Try interactive selection
     let Some(selected_entry) = try_interactive_selection(&results).ok() else {
         // Not interactive, show instructions
-        display_manual_instructions(&results);
+        if !quiet {
+            display_manual_instructions(&results);
+        }
         return Ok(());
     };
 
     // Prompt for alias
     let default_alias = selected_entry.slug.clone();
     let alias = try_interactive_alias_input(&default_alias).unwrap_or_else(|_| {
-        println!("Using default alias: {}", default_alias.green());
+        if !quiet {
+            println!("Using default alias: {}", default_alias.green());
+        }
         default_alias.clone()
     });
 
     let final_alias = alias.trim();
     validate_alias(final_alias)?;
 
-    println!(
-        "Adding {} from {}...",
-        final_alias.green(),
-        selected_entry.llms_url.bright_black()
-    );
+    if !quiet {
+        println!(
+            "Adding {} from {}...",
+            final_alias.green(),
+            selected_entry.llms_url.bright_black()
+        );
+    }
 
     add_source(final_alias, &selected_entry.llms_url, false, metrics).await
 }

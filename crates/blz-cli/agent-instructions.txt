@@ -6,12 +6,13 @@ Purpose
 Core Commands
 - Add source (non-interactive): blz add <alias> <llms.txt-url> -y
 - Update all sources:           blz update --all
-- List sources (JSON):          blz list -o json
+- List sources (JSON):          blz list --output json
 
 Search
-- All sources:                  blz "<query>" -o json
-- By source:                    blz "<query>" -s <alias> -o json
-- Pagination:                   --limit <N> --page <P> | search --next | --prev
+- All sources:                  blz search "<query>" --output json
+- By source:                    blz search "<query>" --alias <alias> --output json
+  (also supports --source or -s as alias for --alias)
+- Pagination:                   --limit <N> --page <P>
 
 Search JSON fields (typical)
 - alias, lines (e.g. "120-142"), snippet, score, headingPath, sourceUrl
@@ -21,8 +22,8 @@ Get Exact Lines
 - Ranges:                       "A-B" | "A+N" | "A:B,C:D"
 
 Agent Flow (recommended)
-1) Ensure source exists (blz list -o json); if missing, blz add <alias> <url> -y
-2) Search for topic (blz "query" -s <alias> -o json)
+1) Ensure source exists (blz list --output json); if missing, blz add <alias> <url> -y
+2) Search for topic (blz search "<query>" --alias <alias> --output json)
 3) Pick top result; extract alias + lines
 4) Fetch content (blz get <alias> --lines <lines> --context 3)
 

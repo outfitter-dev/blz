@@ -218,6 +218,27 @@ async fn perform_search(
     sort_by_score(&mut all_hits);
     apply_percentile_filter(&mut all_hits, options.top_percentile);
 
+    // Enrich results with sourceUrl and checksum where available
+    // Best-effort: failures are ignored to avoid impacting search flow
+    let mut alias_meta: std::collections::HashMap<String, (String, String)> =
+        std::collections::HashMap::new();
+    for hit in &all_hits {
+        if !alias_meta.contains_key(&hit.alias) {
+            if let Ok(json) = storage.load_llms_json(&hit.alias) {
+                alias_meta.insert(
+                    hit.alias.clone(),
+                    (json.source.url.clone(), json.source.sha256.clone()),
+                );
+            }
+        }
+    }
+    for hit in &mut all_hits {
+        if let Some((url, sha)) = alias_meta.get(&hit.alias) {
+            hit.source_url = Some(url.clone());
+            hit.checksum = sha.clone();
+        }
+    }
+
     sources_searched.sort();
     Ok(SearchResults {
         hits: all_hits,
