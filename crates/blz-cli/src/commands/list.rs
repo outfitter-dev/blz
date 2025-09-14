@@ -25,6 +25,7 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
                 // Include health/status details
                 source_info.push(serde_json::json!({
                     "alias": source,
+                    "source": source, // canonical handle (same as alias for now)
                     "url": llms_json.source.url,
                     "fetchedAt": llms_json.source.fetched_at,
                     "lines": llms_json.line_index.total_lines,
@@ -35,6 +36,7 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
             } else {
                 source_info.push(serde_json::json!({
                     "alias": source,
+                    "source": source, // canonical handle (same as alias for now)
                     "url": llms_json.source.url,
                     "fetchedAt": llms_json.source.fetched_at,
                     "lines": llms_json.line_index.total_lines,

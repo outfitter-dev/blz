@@ -325,7 +325,8 @@ impl SearchIndex {
                     .unwrap_or_else(|| lines.clone());
 
                 hits.push(SearchHit {
-                    alias,
+                    alias: alias.clone(),
+                    source: alias,
                     file,
                     heading_path,
                     lines: exact_lines,

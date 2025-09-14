@@ -16,6 +16,12 @@ pub struct Storage {
 impl Storage {
     /// Creates a new storage instance with the default root directory
     pub fn new() -> Result<Self> {
+        // Test/dev override: allow BLZ_DATA_DIR to set the root directory explicitly
+        if let Ok(dir) = std::env::var("BLZ_DATA_DIR") {
+            let root = PathBuf::from(dir);
+            return Self::with_root(root);
+        }
+
         let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
 

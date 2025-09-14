@@ -3,15 +3,23 @@ BLZ Agent Instructions
 Purpose
 - Local, fast search over llms.txt/llms-full.txt with exact line ranges.
 
+Canonical handle
+- Use "source" as the canonical identifier for a document. Prefer `--source` (or `-s`) and positional SOURCE where available.
+
+Recommended defaults
+- export BLZ_OUTPUT_FORMAT=json   # agent-friendly default across search/list/anchors/docs
+
 Core Commands
 - Add source (non-interactive): blz add <alias> <llms.txt-url> -y
 - Update all sources:           blz update --all
 - List sources (JSON):          blz list --output json
+- CLI docs (Markdown):          blz docs --format markdown
+- CLI docs (JSON):              BLZ_OUTPUT_FORMAT=json blz docs
 
 Search
 - All sources:                  blz search "<query>" --output json
-- By source:                    blz search "<query>" --alias <alias> --output json
-  (also supports --source or -s)
+- By source:                    blz search "<query>" --source <source> --output json
+  (also supports -s)
 - Pagination:                   --limit <N> --page <P> [--last]
 
 JSON output shape (search)
@@ -33,3 +41,5 @@ Notes
 - Exit codes: 0=ok, 1=user error, 2=system error.
 - Use --quiet for clean JSON in scripts.
 - blz list --status to include ETag, Last-Modified, checksum.
+- Global default output via env: BLZ_OUTPUT_FORMAT=json|text|ndjson
+ - Canonical: use --source; reserve alias for future multiple-alias features

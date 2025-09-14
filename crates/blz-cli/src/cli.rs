@@ -197,9 +197,16 @@ pub enum Commands {
         shell: clap_complete::Shell,
     },
 
+    /// Manage aliases for a source (scaffold)
+    Alias {
+        #[command(subcommand)]
+        command: AliasCommands,
+    },
+
     /// Generate CLI docs from the clap definitions
     Docs {
         /// Output format for docs
+        /// Defaults to `markdown`.
         #[arg(long = "format", value_enum, default_value = "markdown")]
         format: crate::commands::DocsFormat,
     },
@@ -215,7 +222,13 @@ pub enum Commands {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
         /// Show anchors remap mappings if available
         #[arg(long)]
@@ -262,7 +275,13 @@ pub enum Commands {
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
     },
 
@@ -279,10 +298,16 @@ pub enum Commands {
     },
 
     /// List all cached sources
-    #[command(alias = "sources")]
+    #[command(visible_alias = "sources")]
     List {
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
         /// Include status/health information (etag, lastModified, checksum)
         #[arg(long)]
@@ -323,7 +348,13 @@ pub enum AnchorCommands {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
         /// Show anchors remap mappings if available
         #[arg(long)]
@@ -338,5 +369,23 @@ pub enum AnchorCommands {
         /// Context lines around the section
         #[arg(short = 'c', long)]
         context: Option<usize>,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AliasCommands {
+    /// Add an alias for a source
+    Add {
+        /// Canonical source
+        source: String,
+        /// Alias to add (e.g., @scope/package)
+        alias: String,
+    },
+    /// Remove an alias from a source
+    Rm {
+        /// Canonical source
+        source: String,
+        /// Alias to remove
+        alias: String,
     },
 }

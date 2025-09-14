@@ -341,6 +341,7 @@ fn bench_caching_strategies(c: &mut Criterion) {
         (0..count)
             .map(|i| blz_core::SearchHit {
                 alias: format!("alias_{}", i % 5),
+                source: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
                 lines: format!("{}-{}", i * 10, i * 10 + 5),

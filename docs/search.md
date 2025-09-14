@@ -121,16 +121,24 @@ Output:
 
 ```json
 {
-  "hits": [
+  "query": "test",
+  "page": 1,
+  "limit": 5,
+  "totalResults": 1,
+  "totalPages": 1,
+  "totalLinesSearched": 12345,
+  "searchTimeMs": 6,
+  "sources": ["bun"],
+  "results": [
     {
       "alias": "bun",
       "file": "llms.txt",
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
+      "headingPath": ["Bun Documentation", "Guides", "Test runner"],
       "lines": "304-324",
       "snippet": "### Guides: Test runner...",
       "score": 4.09,
-      "source_url": null,
-      "checksum": ""
+      "sourceUrl": "https://bun.sh/llms-full.txt",
+      "checksum": "..."
     }
   ]
 }
@@ -287,8 +295,8 @@ query="typescript config"
 results=$(blz search "$query" --limit 5 --output json)
 
 echo "Context for query: $query"
-echo "$results" | jq -r '.hits[] |
-  "Source: \(.alias)\nSection: \(.heading_path | join(" > "))\n\(.snippet)\n"'
+echo "$results" | jq -r '.results[] |
+  "Source: \(.alias)\nSection: \(.headingPath | join(" > "))\n\(.snippet)\n"'
 ```
 
 ## Common Searches

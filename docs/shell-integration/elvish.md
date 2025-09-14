@@ -72,9 +72,7 @@ Create `~/.elvish/lib/blz-utils.elv`:
 fn search-preview [query]{
     blz search $query -o json |
         from-json |
-        each [hit]{
-            echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[heading_path])
-        }
+        each [resp]{ each [hit]{ echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[headingPath]) } $resp[results] }
 }
 
 # List sources with details

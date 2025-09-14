@@ -428,6 +428,7 @@ mod tests {
         let hits: Vec<SearchHit> = (0..num_hits)
             .map(|i| SearchHit {
                 alias: format!("test-{i}"),
+                source: format!("test-{i}"),
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
                 lines: format!("{}-{}", i * 10, i * 10 + 5),

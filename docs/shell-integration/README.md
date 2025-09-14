@@ -259,7 +259,7 @@ end
 # Fish/Bash/Zsh
 function blz-fzf
     blz search "$1" --output json | \
-    jq -r '.hits[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
+    jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
 ```
@@ -275,8 +275,8 @@ Create a workflow script:
 query="$1"
 results=$(blz search "$query" --output json)
 
-echo "$results" | jq -r '.hits[] | {
-    title: .heading_path | join(" > "),
+echo "$results" | jq -r '.results[] | {
+    title: .headingPath | join(" > "),
     subtitle: "\(.alias) L\(.lines)",
     arg: "\(.alias) --lines \(.lines)"
 }'

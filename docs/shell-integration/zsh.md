@@ -80,13 +80,13 @@ alias bu='blz update --all'
 blz-fzf() {
     local query="$*"
     blz search "$query" -o json | \
-    jq -r '.[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
+    jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 }
 
 # Quick search and display
 blz-quick() {
-    local result=$(blz search "$*" --limit 1 -o json | jq -r '.[] | "\(.alias) \(.lines)"')
+    local result=$(blz search "$*" --limit 1 -o json | jq -r '.results[0] | "\(.alias) \(.lines)"')
     if [[ -n "$result" ]]; then
         blz get $result
     else

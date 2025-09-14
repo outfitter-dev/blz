@@ -150,13 +150,14 @@ Get-PSReadLineKeyHandler -Key Tab
 
 ```powershell
 # Parse JSON output
-$results = blz search "hooks" -o json | ConvertFrom-Json
-$results | ForEach-Object {
-    Write-Host "$($_.alias): $($_.heading_path -join ' > ')"
+$resp = blz search "hooks" -o json | ConvertFrom-Json
+$resp.results | ForEach-Object {
+    Write-Host "$($_.alias): $($_.headingPath -join ' > ')"
 }
 
 # Filter high-score results
 $highScore = blz search "async" -o json | ConvertFrom-Json |
+    Select-Object -ExpandProperty results |
     Where-Object { $_.score -gt 50 }
 ```
 
@@ -166,7 +167,8 @@ $highScore = blz search "async" -o json | ConvertFrom-Json |
 # Search and select with Out-GridView
 blz search "react" -o json |
     ConvertFrom-Json |
-    Select-Object alias, lines, @{N='Path';E={$_.heading_path -join ' > '}} |
+    Select-Object -ExpandProperty results |
+    Select-Object alias, lines, @{N='Path';E={$_.headingPath -join ' > '}} |
     Out-GridView -PassThru |
     ForEach-Object { blz get $_.alias --lines $_.lines }
 ```

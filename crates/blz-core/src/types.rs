@@ -43,6 +43,7 @@
 //!
 //! let hit = SearchHit {
 //!     alias: "react".to_string(),
+//!     source: "react".to_string(),
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
 //!     lines: "120-145".to_string(),
@@ -334,6 +335,12 @@ pub struct SearchHit {
     /// field in [`LlmsJson`].
     pub alias: String,
 
+    /// Canonical source name (user-facing "source").
+    ///
+    /// For now, this is the same as `alias`. Kept separate to allow future
+    /// rename/alias semantics without breaking JSON consumers.
+    pub source: String,
+
     /// Filename within the source where the hit was found.
     ///
     /// Typically "llms.txt" but may be other files for multi-file sources.
@@ -524,6 +531,7 @@ mod tests {
         // Test that SearchHit can be compared for deduplication
         let hit1 = SearchHit {
             alias: "react".to_string(),
+            source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),
@@ -536,6 +544,7 @@ mod tests {
 
         let hit2 = SearchHit {
             alias: "react".to_string(),
+            source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),

@@ -27,6 +27,9 @@ fn generate_markdown<C: CommandFactory>() -> String {
     let root = C::command();
 
     let _ = write!(&mut out, "# {}\n\n", root.get_name());
+    if let Some(ver) = root.get_version() {
+        let _ = write!(&mut out, "Version: {ver}\n\n");
+    }
     if let Some(about) = root.get_about() {
         let _ = write!(&mut out, "{about}\n\n");
     }
@@ -50,6 +53,16 @@ fn generate_markdown<C: CommandFactory>() -> String {
         let _ = write!(&mut out, "### {}\n\n", sc.get_name());
         if let Some(about) = sc.get_about() {
             let _ = write!(&mut out, "{about}\n\n");
+        }
+        let aliases: Vec<String> = sc
+            .get_visible_aliases()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+        if !aliases.is_empty() {
+            let alias_list = aliases.join(", ");
+            let _ = write!(&mut out, "Aliases: {alias_list}\n\n");
         }
         let mut buf = Vec::new();
         let _ = sc.clone().write_long_help(&mut buf);
@@ -104,6 +117,13 @@ fn command_to_json(cmd: &Command) -> serde_json::Value {
         })
         .collect::<Vec<_>>();
 
+    let aliases: Vec<String> = cmd
+        .get_visible_aliases()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+
     let subs = cmd
         .get_subcommands()
         .map(command_to_json)
@@ -118,7 +138,65 @@ fn command_to_json(cmd: &Command) -> serde_json::Value {
         "about": cmd.get_about().map(std::string::ToString::to_string),
         "longAbout": cmd.get_long_about().map(std::string::ToString::to_string),
         "usage": usage,
+        "aliases": aliases,
         "args": args,
         "subcommands": subs,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn docs_markdown_contains_root_help() {
+        let md = generate_markdown::<crate::cli::Cli>();
+        assert!(
+            md.contains("## blz --help"),
+            "markdown should include root help section"
+        );
+        assert!(
+            md.contains("## Subcommands"),
+            "markdown should list subcommands"
+        );
+    }
+
+    #[test]
+    fn docs_json_has_expected_top_level_shape() {
+        let json = generate_json::<crate::cli::Cli>();
+        assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("blz"));
+        assert!(json.get("subcommands").and_then(|v| v.as_array()).is_some());
+        assert!(json.get("usage").and_then(|v| v.as_str()).is_some());
+    }
+
+    #[test]
+    fn docs_markdown_includes_aliases_when_present() {
+        let md = generate_markdown::<crate::cli::Cli>();
+        // 'list' has alias 'sources'
+        assert!(
+            md.contains("Aliases:"),
+            "markdown should include Aliases section for commands with aliases"
+        );
+    }
+
+    #[test]
+    fn docs_json_includes_aliases_array() {
+        let json = generate_json::<crate::cli::Cli>();
+        // Find the 'list' subcommand
+        let subs = json.get("subcommands").and_then(|v| v.as_array()).unwrap();
+        let list = subs
+            .iter()
+            .find(|c| c.get("name").and_then(|n| n.as_str()) == Some("list"))
+            .unwrap();
+        let aliases = list
+            .get("aliases")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        // Either empty or contains known alias 'sources'
+        if !aliases.is_empty() {
+            let vals: Vec<_> = aliases.iter().filter_map(|a| a.as_str()).collect();
+            assert!(vals.contains(&"sources"));
+        }
+    }
 }

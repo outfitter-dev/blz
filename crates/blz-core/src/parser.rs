@@ -973,6 +973,31 @@ But no headings at all.
     }
 
     #[test]
+    fn test_windowed_segmentation_for_large_unstructured() -> Result<()> {
+        // Given: Unstructured content larger than fallback window size
+        let mut parser = create_test_parser();
+        let total = FALLBACK_WINDOW_LINES * 2 + 25; // two full windows + remainder
+        let doc = (1..=total)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // When: Parsing the unstructured document
+        let result = parser.parse(&doc)?;
+
+        // Then: Should split into windows of size FALLBACK_WINDOW_LINES
+        assert_eq!(result.heading_blocks.len(), 3);
+        for b in &result.heading_blocks {
+            assert_eq!(b.path, vec!["Document".to_string()]);
+            assert!(b.start_line >= 1);
+            assert!(b.end_line <= total);
+        }
+        assert_eq!(result.heading_blocks.last().unwrap().end_line, total);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_heading_level_detection() -> Result<()> {
         // Given: Markdown with various heading levels
         let mut parser = create_test_parser();

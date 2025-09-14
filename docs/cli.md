@@ -30,6 +30,8 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `remove` | `rm`, `delete` | Remove an indexed source |
 | `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |
+| `docs` | | Generate CLI docs (Markdown/JSON) |
+| `alias` | | Manage aliases for a source (scaffold) |
 | `instruct` | | Print instructions for agent use of blz |
 
 ## Command Reference
@@ -97,12 +99,13 @@ blz search <QUERY> [OPTIONS]
 
 **Options:**
 
-- `--alias <ALIAS>` - Filter results to specific source
+- `--source <SOURCE>` - Filter results to specific source (also supports `-s`)
 - `-n, --limit <N>` - Maximum results to show (default: 50)
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
-- `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson` to avoid passing `-o` each time
 
 **Examples:**
 
@@ -111,7 +114,7 @@ blz search <QUERY> [OPTIONS]
 blz search "test runner"
 
 # Search only in Bun docs
-blz search "bundler" --alias bun
+blz search "bundler" --source bun
 
 # Get more results
 blz search "performance" --limit 100
@@ -171,6 +174,7 @@ blz list [OPTIONS]
 **Options:**
 
 - `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
 
 **Examples:**
 
@@ -280,6 +284,35 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 blz completions zsh > ~/.zsh/completions/_blz
 ```
 
+### `blz docs`
+
+Generate CLI documentation directly from the clap definitions.
+
+```bash
+blz docs [--format markdown|json]
+```
+
+**Options:**
+
+- `--format` - Output format. Defaults to `markdown`. Use `json` for agent/scripting scenarios.
+  - Respects global `BLZ_OUTPUT_FORMAT=json` to default to JSON without passing `--format`.
+
+**Examples:**
+
+```bash
+# Human-readable CLI docs
+blz docs --format markdown
+
+# Structured docs for agents / tooling
+blz docs --format json | jq '.subcommands[] | {name, usage}'
+
+# Pipe docs into a file for offline reference
+blz docs --format markdown > BLZ-CLI.md
+
+# Use global env var to default to JSON
+BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
+```
+
 ## Default Behavior
 
 When you run `blz` without a subcommand, it acts as a search:
@@ -307,22 +340,45 @@ Search results for 'test runner':
 
 ### JSON Format
 
-Machine-readable JSON for scripting and integration:
+Machine-readable JSON for scripting and integration. Top-level includes pagination and performance metadata, and results use camelCase keys:
 
 ```json
 {
-  "hits": [
+  "query": "test runner",
+  "page": 1,
+  "limit": 50,
+  "totalResults": 1,
+  "totalPages": 1,
+  "totalLinesSearched": 50000,
+  "searchTimeMs": 6,
+  "sources": ["bun"],
+  "results": [
     {
       "alias": "bun",
+      "file": "llms.txt",
+      "headingPath": ["Bun Documentation", "Guides", "Test runner"],
       "lines": "304-324",
+      "snippet": "### Guides: Test runner...",
       "score": 4.09,
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
-      "content": "### Guides: Test runner..."
+      "sourceUrl": "https://bun.sh/llms.txt",
+      "checksum": "abc123...",
+      "anchor": "bun-guides-test-runner"
     }
-  ],
-  "total": 1,
-  "query": "test runner"
+  ]
 }
+```
+
+JSON + jq examples
+
+```bash
+# Set JSON as the default output for agents
+export BLZ_OUTPUT_FORMAT=json
+
+# List result summaries
+blz search "hooks" | jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"'
+
+# Top 10 results with score > 2.0
+blz search "sqlite" | jq '.results | map(select(.score > 2.0)) | .[:10]'
 ```
 
 ## Performance Profiling
@@ -398,3 +454,34 @@ blz instruct
 ```
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
+### Setting a Global Default
+
+Set a single environment variable to control default output across commands that support `-o/--output`:
+
+```bash
+export BLZ_OUTPUT_FORMAT=json   # or text, ndjson
+
+# Now these default to JSON unless overridden
+blz search "async"
+blz list --status
+blz anchors react --mappings
+```
+# `blz alias` (scaffold)
+
+Manage aliases for a source. This is a scaffold command; persistence will be added in a future update.
+
+```bash
+blz alias add <SOURCE> <ALIAS>
+blz alias rm <SOURCE> <ALIAS>
+```
+
+Examples:
+
+```bash
+blz alias add react @facebook/react
+blz alias rm react @facebook/react
+```
+
+Notes:
+- Aliases will be stored in source metadata; canonical "source" remains the primary handle.
+- Alias formats like `@scope/package` will be supported.

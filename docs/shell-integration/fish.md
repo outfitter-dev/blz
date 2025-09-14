@@ -88,7 +88,7 @@ end
 # ~/.config/fish/functions/blz-fzf.fish
 function blz-fzf -d "Search with fzf preview"
     blz search $argv -o json | \
-    jq -r '.[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
+    jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 end
 ```
@@ -118,7 +118,7 @@ end
 function blzi
     set -l query (commandline -b)
     set -l result (blz search "$query" -o json | \
-        jq -r '.[] | "\(.alias) \(.lines) \(.heading_path[-1])"' | \
+        jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"' | \
         fzf --preview 'echo {} | cut -d" " -f1-2 | xargs blz get' \
             --preview-window=right:60%)
 

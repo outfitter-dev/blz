@@ -15,6 +15,7 @@ A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` f
 ## Usage For AI Agents
 
 - Quick primer in your terminal: `blz instruct`
+- Programmatic CLI docs for agents: `blz docs --format json`
 - Detailed instructions you can copy into CLAUDE.md or AGENTS.md: see `.agents/instructions/use-blz.md`
   - You can inline it directly or @‑mention it from your agent’s rules file
 

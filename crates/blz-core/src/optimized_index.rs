@@ -341,6 +341,7 @@ impl OptimizedSearchIndex {
 
             results.push(SearchHit {
                 alias: alias_interned.to_string(),
+                source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
                 lines,
@@ -348,6 +349,7 @@ impl OptimizedSearchIndex {
                 score,
                 source_url: None,
                 checksum: String::new(),
+                anchor: None,
             });
         }
 

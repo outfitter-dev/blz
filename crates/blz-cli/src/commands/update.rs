@@ -2,8 +2,8 @@
 
 use anyhow::{Result, anyhow};
 use blz_core::{
-    AnchorMapping, AnchorsMap, FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser,
-    ParseResult, PerformanceMetrics, SearchIndex, Source, Storage,
+    FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser, ParseResult, PerformanceMetrics,
+    SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -96,6 +96,36 @@ async fn update_source(
 
     // Create fetcher
     let fetcher = Fetcher::new()?;
+
+    // Preflight HEAD summary (size/ETA) and early failure on non-2xx
+    if let Ok(meta) = fetcher.head_metadata(&url).await {
+        let ok = (200..300).contains(&i32::from(meta.status));
+        let size_text = meta
+            .content_length
+            .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
+
+        if ok {
+            if let Some(n) = meta.content_length {
+                // Show rough ETA assuming ~5 MB/s when size is known
+                let denom: u128 = 5u128 * 1024 * 1024; // bytes per second
+                let eta_ms_u128 = (u128::from(n) * 1000).div_ceil(denom);
+                let eta_ms = u64::try_from(eta_ms_u128).unwrap_or(u64::MAX);
+                pb.set_message(format!(
+                    "Checking {alias}... • Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)"
+                ));
+            } else {
+                pb.set_message(format!(
+                    "Checking {alias}... • Preflight: [OK • {size_text}]"
+                ));
+            }
+        } else {
+            // Fail fast for clearer errors before attempting fetch
+            return Err(anyhow!(
+                "Preflight failed (HTTP {status}) for {url}. Verify the URL or update the source.",
+                status = meta.status
+            ));
+        }
+    }
 
     // Try conditional fetch with ETag/Last-Modified
     let (etag, last_modified) = if let Some(ref metadata) = existing_metadata {
@@ -247,39 +277,11 @@ fn handle_modified(
     };
     storage.save_llms_json(alias, &new_json)?;
 
-    // Build anchors remap from old -> new using toc anchors
+    // Build anchors remap from old -> new using core helper
     if !existing_json.toc.is_empty() && !new_json.toc.is_empty() {
-        let old_map: std::collections::HashMap<String, (String, Vec<String>)> = existing_json
-            .toc
-            .iter()
-            .filter_map(|e| {
-                e.anchor
-                    .as_ref()
-                    .map(|a| (a.clone(), (e.lines.clone(), e.heading_path.clone())))
-            })
-            .collect();
-        let mut mappings: Vec<AnchorMapping> = Vec::new();
-        for entry in &new_json.toc {
-            if let (Some(anchor), new_lines) = (entry.anchor.as_ref(), &entry.lines) {
-                if let Some((old_lines, path)) = old_map.get(anchor) {
-                    if old_lines != new_lines {
-                        mappings.push(AnchorMapping {
-                            anchor: anchor.clone(),
-                            old_lines: old_lines.clone(),
-                            new_lines: new_lines.clone(),
-                            heading_path: path.clone(),
-                        });
-                    }
-                }
-            }
-        }
-
+        let mappings = compute_anchor_mappings(&existing_json.toc, &new_json.toc);
         if !mappings.is_empty() {
-            let anchors_map = AnchorsMap {
-                updated_at: Utc::now(),
-                mappings,
-            };
-            // Best-effort save; don't fail update if this errors
+            let anchors_map = build_anchors_map(mappings, Utc::now());
             let _ = storage.save_anchors_map(alias, &anchors_map);
         }
     }

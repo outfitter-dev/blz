@@ -952,6 +952,7 @@ mod tests {
         
         let results = vec![SearchHit {
             alias: "test".to_string(),
+            source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
             lines: "1-10".to_string(),
@@ -959,6 +960,7 @@ mod tests {
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
+            anchor: None,
         }];
         
         cache.cache_search_results("test query", Some("test"), results.clone()).await;
@@ -1007,6 +1009,7 @@ mod tests {
     fn test_search_result_size() {
         let results = vec![SearchHit {
             alias: "test".to_string(),
+            source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
             lines: "1-10".to_string(),
@@ -1014,6 +1017,7 @@ mod tests {
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
+            anchor: None,
         }];
         
         let size = search_result_size(&results);

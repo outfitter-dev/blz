@@ -4,6 +4,7 @@
 //! in its own submodule for better organization and maintainability.
 
 mod add;
+mod alias;
 mod anchors;
 mod completions;
 mod diff;
@@ -16,6 +17,7 @@ mod search;
 mod update;
 
 pub use add::execute as add_source;
+pub use alias::{AliasCommand, execute as manage_alias};
 pub use anchors::execute as show_anchors;
 pub use anchors::get_by_anchor;
 pub use completions::generate;

@@ -25,7 +25,7 @@ mod instruct_mod {
     }
 }
 
-use cli::{AnchorCommands, Cli, Commands};
+use cli::{AliasCommands, AnchorCommands, Cli, Commands};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -75,7 +75,12 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     // If the selected command is emitting machine-readable output, suppress info logs
     // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
     if !(cli.verbose || cli.debug) {
-        if let Some(Commands::Search { output, .. } | Commands::List { output, .. }) = &cli.command
+        // Suppress logs when emitting machine-readable output across common commands
+        if let Some(
+            Commands::Search { output, .. }
+            | Commands::List { output, .. }
+            | Commands::Anchors { output, .. },
+        ) = &cli.command
         {
             if matches!(
                 output,
@@ -132,7 +137,17 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         },
 
         Some(Commands::Docs { format }) => {
-            commands::generate_docs(format)?;
+            // Single-switch behavior: if BLZ_OUTPUT_FORMAT=json and no explicit format was set
+            // (heuristic: current format is the default Markdown), prefer JSON for agent use.
+            let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), format) {
+                (Some(v), crate::commands::DocsFormat::Markdown)
+                    if v.eq_ignore_ascii_case("json") =>
+                {
+                    crate::commands::DocsFormat::Json
+                },
+                _ => format,
+            };
+            commands::generate_docs(effective)?;
         },
 
         Some(Commands::Anchor { command }) => match command {
@@ -149,6 +164,15 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
                 context,
             } => {
                 commands::get_by_anchor(&alias, &anchor, context).await?;
+            },
+        },
+
+        Some(Commands::Alias { command }) => match command {
+            AliasCommands::Add { source, alias } => {
+                commands::manage_alias(commands::AliasCommand::Add { source, alias }).await?;
+            },
+            AliasCommands::Rm { source, alias } => {
+                commands::manage_alias(commands::AliasCommand::Rm { source, alias }).await?;
             },
         },
 
