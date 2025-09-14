@@ -355,6 +355,12 @@ pub enum Commands {
         /// Update all sources
         #[arg(long)]
         all: bool,
+        /// Choose update flavor policy
+        #[arg(long = "flavor", value_enum, default_value = "current")]
+        flavor: crate::commands::FlavorMode,
+        /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
     },
 
     /// Remove/delete a source

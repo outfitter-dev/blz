@@ -14,14 +14,18 @@ pub struct Fetcher {
 impl Fetcher {
     /// Creates a new fetcher with configured HTTP client
     pub fn new() -> Result<Self> {
+        Self::with_timeout(Duration::from_secs(30))
+    }
+
+    /// Creates a new fetcher with a custom request timeout (primarily for tests)
+    pub fn with_timeout(timeout: Duration) -> Result<Self> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(timeout)
             .user_agent(concat!("outfitter-blz/", env!("CARGO_PKG_VERSION")))
             .gzip(true)
             .brotli(true)
             .build()
             .map_err(Error::Network)?;
-
         Ok(Self { client })
     }
 
@@ -692,12 +696,13 @@ mod tests {
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_string("slow content")
-                    .set_delay(Duration::from_secs(35)), // Longer than client timeout (30s)
+                    .set_delay(Duration::from_millis(500)), // Longer than custom client timeout (200ms)
             )
             .mount(&mock_server)
             .await;
 
-        let fetcher = Fetcher::new()?;
+        // Use a short timeout to keep test runtime fast
+        let fetcher = Fetcher::with_timeout(Duration::from_millis(200))?;
         let url = format!("{}/slow.txt", mock_server.uri());
 
         let start_time = std::time::Instant::now();
@@ -707,8 +712,8 @@ mod tests {
         // Should fail due to timeout
         assert!(result.is_err(), "Slow request should timeout");
         assert!(
-            elapsed < Duration::from_secs(35),
-            "Should timeout before 35s"
+            elapsed < Duration::from_millis(500),
+            "Should timeout before server's 500ms delay"
         );
 
         Ok(())

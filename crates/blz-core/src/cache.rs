@@ -305,6 +305,57 @@ where
     }
 }
 
+// Specialized helpers for search result caches (String keys)
+impl MultiLevelCache<String, Vec<SearchHit>> {
+    /// Invalidate all cached search results for a specific alias (keys prefixed by `"alias:"`).
+    /// Returns the number of entries removed across L1 and L2.
+    pub async fn invalidate_alias(&self, alias: &str) -> usize {
+        let prefix = format!("{alias}:");
+        self.remove_prefix(&prefix).await
+    }
+
+    /// Remove all entries whose keys start with the given prefix.
+    /// Returns the number of entries removed across L1 and L2.
+    async fn remove_prefix(&self, prefix: &str) -> usize {
+        let mut removed = 0usize;
+
+        // L1 scan + remove
+        {
+            let mut l1 = self.l1_cache.write().await;
+            // Collect keys first to avoid mutating while iterating
+            let keys: Vec<String> = l1
+                .map
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .cloned()
+                .collect();
+            for k in keys {
+                if l1.remove(&k).is_some() {
+                    removed += 1;
+                }
+            }
+        }
+
+        // L2 scan + remove
+        {
+            let mut l2 = self.l2_cache.write().await;
+            let keys: Vec<String> = l2
+                .map
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .cloned()
+                .collect();
+            for k in keys {
+                if l2.remove(&k).is_some() {
+                    removed += 1;
+                }
+            }
+        }
+
+        removed
+    }
+}
+
 /// LRU cache implementation with size tracking
 struct LruCache<K, V> 
 where
@@ -696,6 +747,40 @@ impl SearchCache {
 
         self.get(&cache_key).await
     }
+
+    /// Versioned cache put: embeds a version token into the cache key so that
+    /// updates invalidate old keys without explicit deletion.
+    pub async fn cache_search_results_v(
+        &self,
+        query: &str,
+        alias: Option<&str>,
+        version: Option<&str>,
+        results: Vec<SearchHit>,
+    ) {
+        let v = version.unwrap_or("0");
+        let cache_key = if let Some(alias) = alias {
+            format!("{}#{}:{}", alias, v, query)
+        } else {
+            format!("v{}:{}", v, query)
+        };
+        self.put(cache_key, results).await;
+    }
+
+    /// Versioned cache get: must use the same version token as used to put.
+    pub async fn get_cached_results_v(
+        &self,
+        query: &str,
+        alias: Option<&str>,
+        version: Option<&str>,
+    ) -> Option<Vec<SearchHit>> {
+        let v = version.unwrap_or("0");
+        let cache_key = if let Some(alias) = alias {
+            format!("{}#{}:{}", alias, v, query)
+        } else {
+            format!("v{}:{}", v, query)
+        };
+        self.get(&cache_key).await
+    }
 }
 
 /// Calculate approximate size of search results for caching
@@ -707,6 +792,7 @@ fn search_result_size(results: &Vec<SearchHit>) -> usize {
         hit.file.len() +
         hit.heading_path.iter().map(|s| s.len()).sum::<usize>() +
         hit.lines.len() +
+        hit.line_numbers.as_ref().map(|v| v.len() * std::mem::size_of::<usize>()).unwrap_or(0) +
         hit.snippet.len() +
         hit.source_url.as_ref().map(|s| s.len()).unwrap_or(0) +
         hit.checksum.len()
@@ -956,6 +1042,7 @@ mod tests {
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
             lines: "1-10".to_string(),
+            line_numbers: Some(vec![1, 10]),
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
@@ -1013,6 +1100,7 @@ mod tests {
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
             lines: "1-10".to_string(),
+            line_numbers: Some(vec![1, 10]),
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),

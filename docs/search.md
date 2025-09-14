@@ -135,6 +135,7 @@ Output:
       "file": "llms.txt",
       "headingPath": ["Bun Documentation", "Guides", "Test runner"],
       "lines": "304-324",
+      "lineNumbers": [304, 324],
       "snippet": "### Guides: Test runner...",
       "score": 4.09,
       "sourceUrl": "https://bun.sh/llms-full.txt",

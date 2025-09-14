@@ -11,8 +11,26 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Instant;
 use tracing::{debug, info};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub enum FlavorMode {
+    /// Keep current URL/flavor
+    Current,
+    /// Prefer best available flavor (llms-full.txt > llms.txt > others)
+    Auto,
+    /// Force llms-full.txt if available
+    Full,
+    /// Force llms.txt if available
+    Txt,
+}
+
 /// Execute update for a specific source
-pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
+pub async fn execute(
+    alias: &str,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    flavor: FlavorMode,
+    yes: bool,
+) -> Result<()> {
     let storage = Storage::new()?;
 
     // Resolve metadata alias to canonical if needed
@@ -23,7 +41,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
-    update_source(&storage, &canonical, metrics.clone()).await?;
+    update_source(&storage, &canonical, metrics.clone(), flavor, yes, quiet).await?;
 
     if !quiet {
         metrics.print_summary();
@@ -32,7 +50,12 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
 }
 
 /// Execute update for all sources
-pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
+pub async fn execute_all(
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    flavor: FlavorMode,
+    yes: bool,
+) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
@@ -51,7 +74,7 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
     let mut error_count = 0;
 
     for alias in &sources {
-        match update_source(&storage, alias, metrics.clone()).await {
+        match update_source(&storage, alias, metrics.clone(), flavor, yes, quiet).await {
             Ok(updated) => {
                 if updated {
                     updated_count += 1;
@@ -88,6 +111,9 @@ async fn update_source(
     storage: &Storage,
     alias: &str,
     metrics: PerformanceMetrics,
+    flavor: FlavorMode,
+    yes: bool,
+    quiet: bool,
 ) -> Result<bool> {
     let start = Instant::now();
 
@@ -95,11 +121,33 @@ async fn update_source(
     let existing_metadata = storage.load_source_metadata(alias)?;
     let existing_json = storage.load_llms_json(alias)?;
 
-    let url = existing_json.source.url.clone();
+    let mut url = existing_json.source.url.clone();
     let pb = create_spinner(format!("Checking {alias}...").as_str());
 
     // Create fetcher
     let fetcher = Fetcher::new()?;
+
+    // Optional flavor upgrade/selection (consider global config default)
+    let effective_flavor = if matches!(flavor, FlavorMode::Current) {
+        // Respect config default if set
+        if let Ok(cfg) = blz_core::Config::load() {
+            if cfg.defaults.prefer_llms_full {
+                FlavorMode::Full
+            } else {
+                FlavorMode::Current
+            }
+        } else {
+            FlavorMode::Current
+        }
+    } else {
+        flavor
+    };
+
+    if let Some(new_url) =
+        select_update_flavor(&fetcher, &url, effective_flavor, yes, quiet).await?
+    {
+        url = new_url;
+    }
 
     // Preflight HEAD summary (size/ETA) and early failure on non-2xx
     if let Ok(meta) = crate::utils::http::head_with_retries(&fetcher, &url, 3, 200).await {
@@ -192,6 +240,53 @@ async fn update_source(
             metrics,
             start,
         ),
+    }
+}
+
+/// Decide whether to change the URL flavor during update
+async fn select_update_flavor(
+    fetcher: &Fetcher,
+    current_url: &str,
+    flavor: FlavorMode,
+    yes: bool,
+    quiet: bool,
+) -> Result<Option<String>> {
+    match flavor {
+        FlavorMode::Current => Ok(None),
+        FlavorMode::Auto | FlavorMode::Full | FlavorMode::Txt => {
+            let flavors = fetcher.check_flavors(current_url).await.unwrap_or_default();
+            if flavors.is_empty() {
+                return Ok(None);
+            }
+            let want = match flavor {
+                FlavorMode::Auto => flavors.get(0).map(|f| f.url.clone()),
+                FlavorMode::Full => flavors
+                    .iter()
+                    .find(|f| f.name == "llms-full.txt")
+                    .map(|f| f.url.clone()),
+                FlavorMode::Txt => flavors
+                    .iter()
+                    .find(|f| f.name == "llms.txt")
+                    .map(|f| f.url.clone()),
+                FlavorMode::Current => None,
+            };
+            if let Some(candidate) = want {
+                if candidate != current_url {
+                    if yes {
+                        if !quiet {
+                            eprintln!("Upgrading flavor: {} -> {}", current_url, candidate);
+                        }
+                        return Ok(Some(candidate));
+                    } else if !quiet {
+                        eprintln!(
+                            "Flavor upgrade available (use --yes to apply): {} -> {}",
+                            current_url, candidate
+                        );
+                    }
+                }
+            }
+            Ok(None)
+        },
     }
 }
 

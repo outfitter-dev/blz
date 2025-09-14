@@ -1,4 +1,4 @@
-# Docs
+# Docs Generator
 
 Generate CLI documentation from the Clap definitions.
 

@@ -1,6 +1,6 @@
-# BLZ CLI
+# Commands
 
-This section documents the `blz` command-line interface in focused pages:
+This section lists individual command reference pages. For the single‑page reference, see `docs/cli.md`.
 
 - [Search](./search.md)
 - [Get](./get.md)
@@ -13,5 +13,5 @@ This section documents the `blz` command-line interface in focused pages:
 - [Completions](./completions.md)
 - [Instruct](./instruct.md)
 - [Global Options](./global.md)
-
-For the single-page reference, see the root-level `docs/cli.md`.
+- [Output formats](./output-formats.md)
+- [Diff](./diff.md)

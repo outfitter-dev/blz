@@ -19,3 +19,7 @@ blz search "hooks" --source react -o json
 blz "async await" react
 blz react "server actions"
 ```
+
+See also:
+- [Output formats](./output-formats.md)
+- [Global options](./global.md)

@@ -397,6 +397,16 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     if total_results == 0 {
         // Let formatter print the "No results" message
         let formatter = SearchResultFormatter::new(options.output);
+        let suggestions = if matches!(options.output, OutputFormat::Json) {
+            let storage = Storage::new()?;
+            Some(compute_suggestions(
+                &options.query,
+                &storage,
+                &results.sources,
+            ))
+        } else {
+            None
+        };
         let params = FormatParams {
             hits: &[],
             query: &options.query,
@@ -410,6 +420,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             page: 1,
             limit: actual_limit,
             total_pages,
+            suggestions,
         };
         formatter.format(&params)?;
         return Ok(());
@@ -433,6 +444,24 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.output);
+    // Compute simple fuzzy suggestions for JSON output when few/low-quality results
+    let suggestions = if matches!(options.output, OutputFormat::Json) {
+        let need_suggest =
+            total_results == 0 || results.hits.first().map(|h| h.score).unwrap_or(0.0) < 2.0;
+        if need_suggest {
+            let storage = Storage::new()?;
+            Some(compute_suggestions(
+                &options.query,
+                &storage,
+                &results.sources,
+            ))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let params = FormatParams {
         hits: page_hits,
         query: &options.query,
@@ -446,10 +475,97 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         page,
         limit: actual_limit,
         total_pages,
+        suggestions,
     };
     formatter.format(&params)?;
 
     Ok(())
+}
+
+fn compute_suggestions(
+    query: &str,
+    storage: &blz_core::Storage,
+    sources: &[String],
+) -> Vec<serde_json::Value> {
+    // Tokenize query (lowercase alphanumeric words)
+    let qtokens = tokenize(query);
+    if qtokens.is_empty() {
+        return Vec::new();
+    }
+
+    let mut suggestions: Vec<(f32, String, String, String)> = Vec::new(); // (score, alias, heading, lines)
+    for alias in sources {
+        if let Ok(doc) = storage.load_llms_json(alias) {
+            collect_suggestions_from_toc(&doc, alias, &qtokens, &mut suggestions);
+        }
+    }
+    // Sort by score desc and take top 5
+    suggestions.sort_by(|a, b| b.0.total_cmp(&a.0));
+    suggestions.truncate(5);
+    suggestions
+        .into_iter()
+        .map(|(score, alias, heading, lines)| {
+            serde_json::json!({
+                "alias": alias,
+                "heading": heading,
+                "lines": lines,
+                "score": score,
+            })
+        })
+        .collect()
+}
+
+fn collect_suggestions_from_toc(
+    doc: &blz_core::LlmsJson,
+    alias: &str,
+    qtokens: &[String],
+    out: &mut Vec<(f32, String, String, String)>,
+) {
+    fn walk(
+        list: &[blz_core::TocEntry],
+        alias: &str,
+        qtokens: &[String],
+        out: &mut Vec<(f32, String, String, String)>,
+    ) {
+        for e in list {
+            if let Some(name) = e.heading_path.last() {
+                let score = score_tokens(&tokenize(name), qtokens);
+                if score > 0.2 {
+                    out.push((score, alias.to_string(), name.clone(), e.lines.clone()));
+                }
+            }
+            if !e.children.is_empty() {
+                walk(&e.children, alias, qtokens, out);
+            }
+        }
+    }
+    walk(&doc.toc, alias, qtokens, out);
+}
+
+fn tokenize(s: &str) -> Vec<String> {
+    let mut toks = Vec::new();
+    let mut cur = String::new();
+    for ch in s.chars() {
+        if ch.is_alphanumeric() {
+            cur.push(ch.to_ascii_lowercase());
+        } else if !cur.is_empty() {
+            toks.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() {
+        toks.push(cur);
+    }
+    toks
+}
+
+fn score_tokens(h: &[String], q: &[String]) -> f32 {
+    if h.is_empty() || q.is_empty() {
+        return 0.0;
+    }
+    let hset: std::collections::BTreeSet<&str> = h.iter().map(|s| s.as_str()).collect();
+    let qset: std::collections::BTreeSet<&str> = q.iter().map(|s| s.as_str()).collect();
+    let inter = hset.intersection(&qset).count() as f32;
+    inter / (qset.len() as f32)
 }
 
 // alias resolution moved to utils::resolver
@@ -469,6 +585,7 @@ mod tests {
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
                 lines: format!("{}-{}", i * 10, i * 10 + 5),
+                line_numbers: Some(vec![i * 10, i * 10 + 5]),
                 snippet: format!("test content {i}"),
                 score: (i as f32).mul_add(-0.01, 1.0),
                 source_url: Some(format!("https://example.com/test-{i}")),

@@ -13,3 +13,6 @@ blz anchors react --mappings
 blz anchor list react -o json | jq '.[0]'
 blz anchor get react <ANCHOR> -o json | jq '.content'
 ```
+
+See also:
+- [Output formats](./output-formats.md)

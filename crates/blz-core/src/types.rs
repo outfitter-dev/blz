@@ -47,6 +47,7 @@
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
 //!     lines: "120-145".to_string(),
+//!     line_numbers: Some(vec![120, 145]),
 //!     snippet: "useState returns an array with two elements...".to_string(),
 //!     score: 0.92,
 //!     source_url: Some("https://react.dev/hooks".to_string()),
@@ -366,6 +367,14 @@ pub struct SearchHit {
     /// May represent a single line (`"42-42"`) or a range (`"42-45"`).
     pub lines: String,
 
+    /// Numeric line numbers corresponding to `lines`.
+    ///
+    /// Optional two-element array `[start, end]` with 1-based inclusive line
+    /// numbers. Provided to make programmatic consumption simpler without
+    /// parsing the `lines` string. When not available, this field is omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_numbers: Option<Vec<usize>>,
+
     /// Content snippet showing the match context.
     ///
     /// Contains the relevant portion of the content with the search terms
@@ -543,6 +552,7 @@ mod tests {
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),
+            line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
             score: 0.95,
             source_url: Some("https://react.dev".to_string()),
@@ -556,6 +566,7 @@ mod tests {
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),
+            line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
             score: 0.90, // Different score
             source_url: Some("https://react.dev".to_string()),

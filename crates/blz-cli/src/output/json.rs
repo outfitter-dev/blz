@@ -18,8 +18,9 @@ impl JsonFormatter {
         limit: usize,
         total_pages: usize,
         sources: &[String],
+        suggestions: Option<&[serde_json::Value]>,
     ) -> Result<()> {
-        let obj = serde_json::json!({
+        let mut obj = serde_json::json!({
             "query": query,
             "page": page,
             "limit": limit,
@@ -30,6 +31,14 @@ impl JsonFormatter {
             "sources": sources,
             "results": hits,
         });
+        if let Some(s) = suggestions {
+            if !s.is_empty() {
+                let _ = obj.as_object_mut().expect("json object").insert(
+                    "suggestions".to_string(),
+                    serde_json::Value::Array(s.to_vec()),
+                );
+            }
+        }
         println!("{}", serde_json::to_string_pretty(&obj)?);
         Ok(())
     }

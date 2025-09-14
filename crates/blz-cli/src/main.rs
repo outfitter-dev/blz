@@ -191,8 +191,13 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::List { output, status }) => {
             commands::list_sources(output, status).await?;
         },
-        Some(Commands::Update { alias, all }) => {
-            handle_update(alias, all, metrics, cli.quiet).await?;
+        Some(Commands::Update {
+            alias,
+            all,
+            flavor,
+            yes,
+        }) => {
+            handle_update(alias, all, metrics, cli.quiet, flavor, yes).await?;
         },
         Some(Commands::Remove { alias }) => {
             commands::remove_source(&alias).await?;
@@ -276,11 +281,13 @@ async fn handle_update(
     all: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
+    flavor: crate::commands::FlavorMode,
+    yes: bool,
 ) -> Result<()> {
     if all || alias.is_none() {
-        commands::update_all(metrics, quiet).await
+        commands::update_all(metrics, quiet, flavor, yes).await
     } else if let Some(alias) = alias {
-        commands::update_source(&alias, metrics, quiet).await
+        commands::update_source(&alias, metrics, quiet, flavor, yes).await
     } else {
         Ok(())
     }

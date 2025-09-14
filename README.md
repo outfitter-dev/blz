@@ -270,7 +270,7 @@ max_heading_block_lines = 400
 
 ## Shell Completions
 
-The `blz` command includes built-in shell completion support with dynamic alias completion:
+The `blz` command includes built-in shell completion support. You can also enable dynamic alias/anchor completion helpers for richer UX.
 
 ```bash
 # Generate completions for your shell
@@ -279,9 +279,23 @@ blz completions bash    # Bash
 blz completions zsh     # Zsh
 blz completions elvish  # Elvish
 
-# Fish users get dynamic alias completion
+# Dynamic completions (optional)
+#  - Zsh:  source ./scripts/blz-dynamic-completions.zsh (after compinit)
+#  - Fish: source ./scripts/blz-dynamic-completions.fish
+#  - PS:   . ./scripts/blz-dynamic-completions.ps1
+
+# Example: dynamic alias completion
 blz <TAB>                 # Shows your indexed aliases
 blz get <TAB>             # Completes with your indexed aliases
+
+## Configuration
+
+See the new configuration docs for details on global config, per-source settings, and environment variables:
+
+- docs/configuration/README.md
+- docs/configuration/global-config.md
+- docs/configuration/per-source.md
+- docs/configuration/env-vars.md
 ```
 
 ### Auto-updating Completions

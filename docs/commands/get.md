@@ -18,3 +18,6 @@ blz get node --lines "10:20,50:60"
 blz get deno --lines 100-110 --context 3
 blz get bun --lines 42-55 -o json | jq '.content'
 ```
+
+See also:
+- [Output formats](./output-formats.md)

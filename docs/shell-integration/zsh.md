@@ -47,6 +47,23 @@ rm -f ~/.zcompdump && compinit
 - Option completion
 - Basic argument completion
 
+## Dynamic Alias Completion
+
+Augment the static `_blz` script with live alias suggestions (canonical + metadata aliases) by sourcing the dynamic helper:
+
+```zsh
+# Add after compinit in ~/.zshrc
+source /path/to/blz/scripts/blz-dynamic-completions.zsh
+```
+
+What it adds:
+
+- `--alias`/`-s`/`--source` dynamic values for `blz search`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
+- Anchor value completion for `blz anchor get <alias> <anchor>`
+
+It reads from `blz list --output json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
+
 ## Configuration
 
 ### Completion Styles

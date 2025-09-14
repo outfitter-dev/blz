@@ -23,8 +23,8 @@ Search
 - Pagination:                   --limit <N> --page <P> [--last]
 
 JSON output shape (search)
-- Top-level: { query, page, limit, totalResults, totalPages, totalLinesSearched, searchTimeMs, sources, results }
-- Each result: { alias, file, headingPath[], lines, snippet, score, sourceUrl, checksum }
+- Top-level: { query, page, limit, totalResults, totalPages, totalLinesSearched, searchTimeMs, sources, results, suggestions? }
+- Each result: { alias, file, headingPath[], lines, lineNumbers[], snippet, score, sourceUrl, checksum }
 
 Get Exact Lines
 - Fetch text:                   blz get <alias> --lines <range> [--context N]
@@ -37,9 +37,16 @@ Agent Flow (recommended)
 4) Fetch content (blz get <alias> --lines <lines> --context 3)
 
 Notes
-- Prefer llms-full.txt when available.
+- Prefer llms-full.txt when available (updates may auto-upgrade with --yes; configurable default).
 - Exit codes: 0=ok, 1=user error, 2=system error.
 - Use --quiet for clean JSON in scripts.
 - blz list --status to include ETag, Last-Modified, checksum.
 - Global default output via env: BLZ_OUTPUT_FORMAT=json|text|ndjson
  - Canonical: use --source; reserve alias for future multiple-alias features
+
+Shell completions
+- Static: blz completions <bash|zsh|fish|powershell>
+- Dynamic aliases & anchors (recommended):
+  - Fish: source scripts/blz-dynamic-completions.fish
+  - Zsh:  source scripts/blz-dynamic-completions.zsh (after compinit)
+  - PS:   . scripts/blz-dynamic-completions.ps1

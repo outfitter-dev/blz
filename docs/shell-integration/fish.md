@@ -91,6 +91,21 @@ function blz-fzf -d "Search with fzf preview"
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 end
+
+## Dynamic Alias & Anchor Completion
+
+Enable live alias and anchor suggestions by sourcing the dynamic helper in your Fish config:
+
+```fish
+# e.g., in ~/.config/fish/config.fish
+source /path/to/blz/scripts/blz-dynamic-completions.fish
+```
+
+Adds:
+- `--alias`/`-s` dynamic values for `blz search`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz diff`, `blz anchors`
+- `blz anchor list <alias>` alias completion
+- `blz anchor get <alias> <anchor>` anchor completion (after alias is provided)
 ```
 
 ## Auto-update Completions

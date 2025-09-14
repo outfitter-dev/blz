@@ -3,7 +3,7 @@ use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
 use crate::{Error, HeadingBlock, Result, SearchHit};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -41,6 +41,10 @@ pub struct OptimizedSearchIndex {
     
     /// Statistics
     stats: Arc<IndexStats>,
+
+    // Versioning for safe cache keys
+    global_version: AtomicUsize,
+    alias_versions: RwLock<HashMap<String, usize>>,
 }
 
 /// Index schema fields
@@ -215,6 +219,8 @@ impl OptimizedSearchIndex {
             memory_pool,
             string_pool,
             stats,
+            global_version: AtomicUsize::new(1),
+            alias_versions: RwLock::new(HashMap::new()),
         })
     }
 
@@ -229,8 +235,20 @@ impl OptimizedSearchIndex {
         let start_time = Instant::now();
         self.stats.searches.fetch_add(1, Ordering::Relaxed);
 
-        // Try cache first
-        if let Some(cached_results) = self.cache.get_cached_results(query_str, alias).await {
+        // Prepare version token for cache
+        let version_token = if let Some(a) = alias {
+            let map = self.alias_versions.read().await;
+            format!("{}", map.get(a).copied().unwrap_or(1))
+        } else {
+            format!("{}", self.global_version.load(Ordering::Relaxed))
+        };
+
+        // Try cache first (versioned)
+        if let Some(cached_results) = self
+            .cache
+            .get_cached_results_v(query_str, alias, Some(&version_token))
+            .await
+        {
             self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
             debug!("Cache hit for query: {}", query_str);
             return Ok(cached_results);
@@ -243,7 +261,7 @@ impl OptimizedSearchIndex {
 
         // Cache results for future use
         self.cache
-            .cache_search_results(query_str, alias, results.clone())
+            .cache_search_results_v(query_str, alias, Some(&version_token), results.clone())
             .await;
 
         // Update statistics
@@ -339,12 +357,24 @@ impl OptimizedSearchIndex {
             self.extract_snippet_optimized(&content, query_str, &mut snippet_buffer)
                 .await;
 
+            // Parse numeric line range for convenience
+            let line_numbers = {
+                let mut it = lines.split(['-', ':']);
+                let start = it.next().and_then(|s| s.trim().parse::<usize>().ok());
+                let end = it.next().and_then(|s| s.trim().parse::<usize>().ok());
+                match (start, end) {
+                    (Some(a), Some(b)) => Some(vec![a, b]),
+                    _ => None,
+                }
+            };
+
             results.push(SearchHit {
                 alias: alias_interned.to_string(),
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
                 lines,
+                line_numbers,
                 snippet: snippet_buffer.as_str().to_string(),
                 score,
                 source_url: None,
@@ -492,9 +522,24 @@ impl OptimizedSearchIndex {
         self.stats
             .documents_indexed
             .fetch_add(blocks.len(), Ordering::Relaxed);
-
-        // Invalidate cache for this alias
-        // TODO: Implement more granular cache invalidation
+        // Invalidate cache entries for this alias (best-effort) and bump versions
+        let removed = self.cache.invalidate_alias(alias).await;
+        {
+            let mut map = self.alias_versions.write().await;
+            let e = map.entry(alias.to_string()).or_insert(1);
+            *e = e.saturating_add(1);
+        }
+        self.global_version.fetch_add(1, Ordering::Relaxed);
+        debug!(
+            "Invalidated {} cached entries for alias {}; versions -> alias={}, global={}",
+            removed,
+            alias,
+            {
+                let map = self.alias_versions.read().await;
+                *map.get(alias).unwrap_or(&1)
+            },
+            self.global_version.load(Ordering::Relaxed)
+        );
         
         info!(
             "Indexed {} blocks for {} in {:.2}ms",

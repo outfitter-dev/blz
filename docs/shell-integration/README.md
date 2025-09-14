@@ -71,7 +71,7 @@ blz search --<TAB>           # Shows all options for search
 blz search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
 blz get <TAB>                # Completes with your indexed aliases
 blz update <TAB>             # Shows available sources to update
-# blz diff <TAB>             # (Coming soon)
+blz diff <TAB>               # Shows sources for diff
 
 # Descriptions for everything
 blz <TAB>
@@ -385,7 +385,7 @@ sudo pacman -S bash-completion
 
 ### Windows (WSL)
 
-Works the same as Linux within WSL. For native Windows, use PowerShell completions (coming soon).
+Works the same as Linux within WSL. For native Windows, use PowerShell completions (see PowerShell page).
 
 ## Tips & Tricks
 

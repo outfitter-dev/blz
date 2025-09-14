@@ -29,6 +29,6 @@ pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;
 pub use remove::execute as remove_source;
 pub use search::{execute as search, handle_default as handle_default_search};
-pub use update::{execute as update_source, execute_all as update_all};
+pub use update::{FlavorMode, execute as update_source, execute_all as update_all};
 
 // Re-export types that commands might need

@@ -324,12 +324,16 @@ impl SearchIndex {
                 let exact_lines = Self::compute_match_lines(&content, query_str, &lines)
                     .unwrap_or_else(|| lines.clone());
 
+                // Parse numeric line range for convenience
+                let line_numbers = Self::parse_lines_range(&exact_lines);
+
                 hits.push(SearchHit {
                     alias: alias.clone(),
                     source: alias,
                     file,
                     heading_path,
                     lines: exact_lines,
+                    line_numbers,
                     snippet,
                     score,
                     source_url: None,
@@ -402,6 +406,15 @@ impl SearchIndex {
         let local_line = content[..pos].bytes().filter(|&b| b == b'\n').count();
         let abs_line = block_start.saturating_add(local_line);
         Some(format!("{abs_line}-{abs_line}"))
+    }
+
+    /// Parse a `"start-end"` or `"start:end"` range into a two-element vector.
+    /// Returns None if parsing fails or inputs are invalid.
+    fn parse_lines_range(range: &str) -> Option<Vec<usize>> {
+        let mut parts = range.split(['-', ':']);
+        let start = parts.next()?.trim().parse::<usize>().ok()?;
+        let end = parts.next()?.trim().parse::<usize>().ok()?;
+        Some(vec![start, end])
     }
 
     fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
