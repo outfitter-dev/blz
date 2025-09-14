@@ -111,6 +111,14 @@ pub struct Source {
     /// Provides content integrity verification and change detection.
     /// Calculated from the raw content bytes, not the parsed structure.
     pub sha256: String,
+
+    /// Alternate human-friendly names (aliases) for this source.
+    ///
+    /// These do not affect on-disk storage paths and may include relaxed
+    /// formats like "@scope/package". Used for resolution in the CLI.
+    /// Defaults to empty for backward compatibility.
+    #[serde(default)]
+    pub aliases: Vec<String>,
 }
 
 /// An entry in the table of contents.
@@ -570,6 +578,7 @@ mod tests {
             last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
             fetched_at: now,
             sha256: "deadbeef".to_string(),
+            aliases: Vec::new(),
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
@@ -632,6 +641,7 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "hash".to_string(),
+                aliases: Vec::new(),
             },
             toc: vec![],
             files: vec![FileInfo {

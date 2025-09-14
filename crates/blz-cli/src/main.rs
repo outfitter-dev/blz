@@ -6,6 +6,7 @@
 use anyhow::Result;
 use blz_core::PerformanceMetrics;
 use clap::Parser;
+use colored::control as color_control;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -74,6 +75,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
 
     // If the selected command is emitting machine-readable output, suppress info logs
     // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
+    let mut machine_output = false;
     if !(cli.verbose || cli.debug) {
         // Suppress logs when emitting machine-readable output across common commands
         if let Some(
@@ -87,6 +89,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
                 crate::output::OutputFormat::Json | crate::output::OutputFormat::Ndjson
             ) {
                 level = Level::ERROR;
+                machine_output = true;
             }
         }
     }
@@ -100,6 +103,12 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)?;
+
+    // Color control: disable when requested, NO_COLOR is set, or when emitting machine output
+    let env_no_color = std::env::var("NO_COLOR").ok().is_some();
+    if cli.no_color || env_no_color || machine_output {
+        color_control::set_override(false);
+    }
     Ok(())
 }
 
@@ -132,70 +141,35 @@ fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
 
 async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
     match cli.command {
-        Some(Commands::Completions { shell }) => {
-            commands::generate(shell);
+        Some(Commands::Completions {
+            shell,
+            list,
+            output,
+        }) => {
+            if list {
+                commands::list_supported(output);
+            } else if let Some(shell) = shell {
+                commands::generate(shell);
+            } else {
+                // Default to listing if no shell provided
+                commands::list_supported(output);
+            }
         },
-
-        Some(Commands::Docs { format }) => {
-            // Single-switch behavior: if BLZ_OUTPUT_FORMAT=json and no explicit format was set
-            // (heuristic: current format is the default Markdown), prefer JSON for agent use.
-            let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), format) {
-                (Some(v), crate::commands::DocsFormat::Markdown)
-                    if v.eq_ignore_ascii_case("json") =>
-                {
-                    crate::commands::DocsFormat::Json
-                },
-                _ => format,
-            };
-            commands::generate_docs(effective)?;
-        },
-
-        Some(Commands::Anchor { command }) => match command {
-            AnchorCommands::List {
-                alias,
-                output,
-                mappings,
-            } => {
-                commands::show_anchors(&alias, output, mappings).await?;
-            },
-            AnchorCommands::Get {
-                alias,
-                anchor,
-                context,
-            } => {
-                commands::get_by_anchor(&alias, &anchor, context).await?;
-            },
-        },
-
-        Some(Commands::Alias { command }) => match command {
-            AliasCommands::Add { source, alias } => {
-                commands::manage_alias(commands::AliasCommand::Add { source, alias }).await?;
-            },
-            AliasCommands::Rm { source, alias } => {
-                commands::manage_alias(commands::AliasCommand::Rm { source, alias }).await?;
-            },
-        },
-
+        Some(Commands::Docs { format }) => handle_docs(format)?,
+        Some(Commands::Anchor { command }) => handle_anchor(command).await?,
+        Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Anchors {
             alias,
             output,
             mappings,
-        }) => {
-            commands::show_anchors(&alias, output, mappings).await?;
-        },
-
-        Some(Commands::Instruct) => {
-            instruct_mod::print();
-        },
-
+        }) => commands::show_anchors(&alias, output, mappings).await?,
+        Some(Commands::Instruct) => instruct_mod::print(),
         Some(Commands::Add { alias, url, yes }) => {
             commands::add_source(&alias, &url, yes, metrics).await?;
         },
-
-        Some(Commands::Lookup { query }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet).await?;
+        Some(Commands::Lookup { query, output }) => {
+            commands::lookup_registry(&query, metrics, cli.quiet, output).await?;
         },
-
         Some(Commands::Search {
             query,
             alias,
@@ -206,56 +180,110 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             top,
             output,
         }) => {
-            let actual_limit = if all { 10000 } else { limit };
-            commands::search(
-                &query,
-                alias.as_deref(),
-                last,
-                actual_limit,
-                page,
-                top,
-                output,
-                metrics,
-                None,
-            )
-            .await?;
+            handle_search(query, alias, last, limit, all, page, top, output, metrics).await?;
         },
-
         Some(Commands::Get {
             alias,
             lines,
             context,
-        }) => {
-            commands::get_lines(&alias, &lines, context).await?;
-        },
-
+            output,
+        }) => commands::get_lines(&alias, &lines, context, output).await?,
         Some(Commands::List { output, status }) => {
             commands::list_sources(output, status).await?;
         },
-
         Some(Commands::Update { alias, all }) => {
-            if all || alias.is_none() {
-                commands::update_all(metrics, cli.quiet).await?;
-            } else if let Some(alias) = alias {
-                commands::update_source(&alias, metrics, cli.quiet).await?;
-            }
+            handle_update(alias, all, metrics, cli.quiet).await?;
         },
-
         Some(Commands::Remove { alias }) => {
             commands::remove_source(&alias).await?;
         },
-
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
-
-        None => {
-            // Default search command
-            commands::handle_default_search(&cli.args, metrics, None).await?;
-        },
+        None => commands::handle_default_search(&cli.args, metrics, None).await?,
     }
 
     Ok(())
+}
+
+fn handle_docs(format: crate::commands::DocsFormat) -> Result<()> {
+    // If BLZ_OUTPUT_FORMAT=json and no explicit format set (markdown default), prefer JSON
+    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), format) {
+        (Some(v), crate::commands::DocsFormat::Markdown) if v.eq_ignore_ascii_case("json") => {
+            crate::commands::DocsFormat::Json
+        },
+        _ => format,
+    };
+    commands::generate_docs(effective)
+}
+
+async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+    match command {
+        AnchorCommands::List {
+            alias,
+            output,
+            mappings,
+        } => commands::show_anchors(&alias, output, mappings).await,
+        AnchorCommands::Get {
+            alias,
+            anchor,
+            context,
+            output,
+        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+    }
+}
+
+async fn handle_alias(command: AliasCommands) -> Result<()> {
+    match command {
+        AliasCommands::Add { source, alias } => {
+            commands::manage_alias(commands::AliasCommand::Add { source, alias }).await
+        },
+        AliasCommands::Rm { source, alias } => {
+            commands::manage_alias(commands::AliasCommand::Rm { source, alias }).await
+        },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_search(
+    query: String,
+    alias: Option<String>,
+    last: bool,
+    limit: usize,
+    all: bool,
+    page: usize,
+    top: Option<u8>,
+    output: crate::output::OutputFormat,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    let actual_limit = if all { 10_000 } else { limit };
+    commands::search(
+        &query,
+        alias.as_deref(),
+        last,
+        actual_limit,
+        page,
+        top,
+        output,
+        metrics,
+        None,
+    )
+    .await
+}
+
+async fn handle_update(
+    alias: Option<String>,
+    all: bool,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+) -> Result<()> {
+    if all || alias.is_none() {
+        commands::update_all(metrics, quiet).await
+    } else if let Some(alias) = alias {
+        commands::update_source(&alias, metrics, quiet).await
+    } else {
+        Ok(())
+    }
 }
 
 fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
@@ -747,11 +775,13 @@ mod tests {
             alias,
             lines,
             context,
+            output,
         }) = cli.command
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, "1-10");
             assert_eq!(context, Some(5));
+            let _ = output; // ignore
         } else {
             panic!("Expected get command");
         }
@@ -1097,7 +1127,7 @@ mod tests {
 
             if let Ok(cli) = result {
                 match cli.command {
-                    Some(Commands::Completions { shell: _ }) => {
+                    Some(Commands::Completions { shell: _, .. }) => {
                         // Expected - completions command parsed successfully
                     },
                     other => {

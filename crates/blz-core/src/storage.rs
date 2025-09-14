@@ -447,6 +447,7 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "deadbeef".to_string(),
+                aliases: Vec::new(),
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],

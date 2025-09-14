@@ -125,6 +125,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub profile: bool,
 
+    /// Disable all ANSI colors in output (also respects `NO_COLOR` env)
+    #[arg(long = "no-color", global = true)]
+    pub no_color: bool,
+
     /// Generate CPU flamegraph (requires flamegraph feature)
     #[cfg(feature = "flamegraph")]
     #[arg(long, global = true)]
@@ -194,10 +198,22 @@ pub enum Commands {
     Completions {
         /// Shell to generate completions for
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: Option<clap_complete::Shell>,
+        /// List supported shells instead of generating a script
+        #[arg(long)]
+        list: bool,
+        /// Output format for listing
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: crate::output::OutputFormat,
     },
 
-    /// Manage aliases for a source (scaffold)
+    /// Manage aliases for a source
     Alias {
         #[command(subcommand)]
         command: AliasCommands,
@@ -250,6 +266,15 @@ pub enum Commands {
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
     },
 
     /// Search across cached docs
@@ -295,6 +320,15 @@ pub enum Commands {
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
     },
 
     /// List all cached sources
@@ -369,6 +403,15 @@ pub enum AnchorCommands {
         /// Context lines around the section
         #[arg(short = 'c', long)]
         context: Option<usize>,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
     },
 }
 

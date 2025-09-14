@@ -1,4 +1,4 @@
-use assert_cmd::prelude::*;
+#![allow(missing_docs)]
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};

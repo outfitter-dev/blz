@@ -13,7 +13,17 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
     let sources = storage.list_sources();
 
     if sources.is_empty() {
-        println!("No sources found. Use 'blz add' to add sources.");
+        match output {
+            OutputFormat::Json => {
+                println!("[]");
+            },
+            OutputFormat::Ndjson => {
+                // No output when empty
+            },
+            OutputFormat::Text => {
+                println!("No sources found. Use 'blz add' to add sources.");
+            },
+        }
         return Ok(());
     }
 
@@ -32,6 +42,7 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
                     "sha256": llms_json.source.sha256,
                     "etag": llms_json.source.etag,
                     "lastModified": llms_json.source.last_modified,
+                    "aliases": llms_json.source.aliases,
                 }));
             } else {
                 source_info.push(serde_json::json!({
@@ -40,7 +51,8 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
                     "url": llms_json.source.url,
                     "fetchedAt": llms_json.source.fetched_at,
                     "lines": llms_json.line_index.total_lines,
-                    "sha256": llms_json.source.sha256
+                    "sha256": llms_json.source.sha256,
+                    "aliases": llms_json.source.aliases
                 }));
             }
         }

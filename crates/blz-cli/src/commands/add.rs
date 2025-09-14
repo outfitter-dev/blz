@@ -60,21 +60,29 @@ pub async fn execute(
     }
     let final_url = select_flavor(&fetcher, url, auto_yes).await?;
 
-    // HEAD preflight summary before fetching for clearer UX
-    match fetcher.head_metadata(&final_url).await {
+    // HEAD preflight summary before fetching for clearer UX (with limited retries)
+    match crate::utils::http::head_with_retries(&fetcher, &final_url, 3, 200).await {
         Ok(meta) => {
-            let ok = (200..300).contains(&i32::from(meta.status));
+            let status = meta.status;
+            let is_success = (200..=299).contains(&status);
+            let is_redirect = (300..=399).contains(&status);
             let size_text = meta
                 .content_length
                 .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
 
-            if ok {
+            if is_success || is_redirect {
                 // Optional ETA hint assuming ~5 MB/s if size known (integer ceil division)
                 if let Some(n) = meta.content_length {
                     let denom: u128 = 5u128 * 1024 * 1024; // bytes per second
                     let eta_ms_u128 = (u128::from(n) * 1000).div_ceil(denom); // ceil(n/denom*1000)
                     let eta_ms = u64::try_from(eta_ms_u128).unwrap_or(u64::MAX);
-                    println!("Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)");
+                    if is_redirect {
+                        println!("Preflight: [REDIRECT • {size_text}] (est ~{eta_ms}ms @5MB/s)");
+                    } else {
+                        println!("Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)");
+                    }
+                } else if is_redirect {
+                    println!("Preflight: [REDIRECT • {size_text}]");
                 } else {
                     println!("Preflight: [OK • {size_text}]");
                 }
@@ -220,6 +228,7 @@ async fn fetch_and_index(
         last_modified,
         fetched_at: Utc::now(),
         sha256,
+        aliases: Vec::new(),
     };
     storage.save_source_metadata(alias, &metadata)?;
 
@@ -253,6 +262,7 @@ fn create_llms_json(
             last_modified,
             fetched_at: Utc::now(),
             sha256: sha256.clone(),
+            aliases: Vec::new(),
         },
         toc: parse_result.toc,
         files: vec![FileInfo {

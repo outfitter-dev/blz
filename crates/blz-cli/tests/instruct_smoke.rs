@@ -1,4 +1,4 @@
-use assert_cmd::prelude::*;
+#![allow(missing_docs)]
 
 #[test]
 fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {

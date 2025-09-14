@@ -9,21 +9,25 @@ use std::fs;
 pub async fn execute(alias: &str) -> Result<()> {
     let storage = Storage::new()?;
 
-    if !storage.exists(alias) {
+    // Resolve metadata alias to canonical if needed
+    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
+        .unwrap_or_else(|| alias.to_string());
+
+    if !storage.exists(&canonical) {
         println!("Source '{alias}' not found");
         return Ok(());
     }
 
-    display_removal_info(&storage, alias);
+    display_removal_info(&storage, &canonical);
 
     // Remove the entire source directory and all its contents
-    let source_dir = storage.tool_dir(alias)?;
+    let source_dir = storage.tool_dir(&canonical)?;
 
     match fs::remove_dir_all(&source_dir) {
         Ok(()) => {
             println!(
                 "✓ Successfully removed source '{}' and all associated files",
-                alias.green()
+                canonical.green()
             );
         },
         Err(e) => {

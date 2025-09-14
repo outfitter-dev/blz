@@ -1,8 +1,20 @@
-use assert_cmd::prelude::*;
+#![allow(missing_docs)]
 use std::path::PathBuf;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+fn find_lines<'a>(list: &'a [blz_core::TocEntry], name: &str) -> Option<&'a str> {
+    for e in list {
+        if e.heading_path.last().map(std::string::String::as_str) == Some(name) {
+            return Some(e.lines.as_str());
+        }
+        if let Some(l) = find_lines(&e.children, name) {
+            return Some(l);
+        }
+    }
+    None
+}
 
 #[tokio::test]
 async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
@@ -75,17 +87,6 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
     let new_json_txt = std::fs::read_to_string(&new_json_path)?;
     let new_llms: blz_core::LlmsJson = serde_json::from_str(&new_json_txt)?;
     // Quick sanity: ensure 'A' moved lines
-    fn find_lines<'a>(list: &'a [blz_core::TocEntry], name: &str) -> Option<&'a str> {
-        for e in list {
-            if e.heading_path.last().map(std::string::String::as_str) == Some(name) {
-                return Some(e.lines.as_str());
-            }
-            if let Some(l) = find_lines(&e.children, name) {
-                return Some(l);
-            }
-        }
-        None
-    }
     let a_old = find_lines(&old_llms.toc, "A").unwrap_or("");
     let a_new = find_lines(&new_llms.toc, "A").unwrap_or("");
     assert_ne!(

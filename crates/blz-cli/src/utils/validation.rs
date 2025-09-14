@@ -48,6 +48,42 @@ pub fn validate_alias(alias: &str) -> Result<()> {
     Ok(())
 }
 
+/// Validate a relaxed "metadata alias" that is not used as a directory name.
+///
+/// Allows formats like `@scope/package` and other characters that are safe
+/// for in-memory resolution but not for filesystem paths.
+///
+/// Rules:
+/// - Non-empty, no whitespace
+/// - Length <= 100
+/// - Disallow control characters
+/// - Disallow reserved keywords used by the CLI
+pub fn validate_relaxed_alias(alias: &str) -> Result<()> {
+    let trimmed = alias.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow::anyhow!("Alias cannot be empty"));
+    }
+    if trimmed.len() > 100 {
+        return Err(anyhow::anyhow!("Alias exceeds maximum length (100)"));
+    }
+    if trimmed.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(anyhow::anyhow!(
+            "Alias cannot contain whitespace or control characters"
+        ));
+    }
+
+    // Reserve core CLI keywords to avoid confusion
+    if RESERVED_KEYWORDS.contains(&trimmed.to_lowercase().as_str()) {
+        return Err(anyhow::anyhow!(
+            "Alias '{}' is reserved. Reserved keywords: {}",
+            alias,
+            RESERVED_KEYWORDS.join(", ")
+        ));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

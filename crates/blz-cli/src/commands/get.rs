@@ -5,13 +5,23 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
+use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
-pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result<()> {
+pub async fn execute(
+    alias: &str,
+    lines: &str,
+    context: Option<usize>,
+    output: OutputFormat,
+) -> Result<()> {
     let storage = Storage::new()?;
 
-    if !storage.exists(alias) {
+    // Resolve metadata alias to canonical if needed
+    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
+        .map_or_else(|| alias.to_string(), |c| c);
+
+    if !storage.exists(&canonical) {
         println!("Source '{alias}' not found.");
         let available = storage.list_sources();
         if available.is_empty() {
@@ -34,13 +44,44 @@ pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result
         return Ok(());
     }
 
-    let file_content = storage.load_llms_txt(alias)?;
+    let file_content = storage.load_llms_txt(&canonical)?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
-    let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
-    display_lines(&line_numbers, &all_lines);
-
-    Ok(())
+    match output {
+        OutputFormat::Text => {
+            let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
+            display_lines(&line_numbers, &all_lines);
+            Ok(())
+        },
+        OutputFormat::Json | OutputFormat::Ndjson => {
+            // Build content for requested ranges and context
+            let selected = collect_line_numbers(lines, context, all_lines.len())?;
+            let mut body = String::new();
+            for (i, &ln) in selected.iter().enumerate() {
+                if ln == 0 || ln > all_lines.len() {
+                    continue;
+                }
+                if i > 0 {
+                    body.push('\n');
+                }
+                body.push_str(all_lines[ln - 1]);
+            }
+            let obj = serde_json::json!({
+                "alias": canonical,
+                "source": canonical,
+                "lines": lines,
+                "context": context,
+                "lineNumbers": selected.iter().copied().collect::<Vec<_>>(),
+                "content": body,
+            });
+            if matches!(output, OutputFormat::Json) {
+                println!("{}", serde_json::to_string_pretty(&obj)?);
+            } else {
+                println!("{}", serde_json::to_string(&obj)?);
+            }
+            Ok(())
+        },
+    }
 }
 
 fn collect_line_numbers(

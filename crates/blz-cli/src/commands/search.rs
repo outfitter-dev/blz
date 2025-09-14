@@ -66,6 +66,14 @@ pub async fn handle_default(
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
         println!("       blz search [OPTIONS] QUERY");
+        println!("\nExamples:");
+        println!("  blz hooks react");
+        println!("  blz react hooks");
+        println!("  blz search \"async await\" --source react -o json");
+        println!("\nNotes:");
+        println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
+        println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
+        println!("  • Run 'blz instruct' for agent-focused guidance.");
         return Ok(());
     }
 
@@ -77,7 +85,22 @@ pub async fn handle_default(
         return Ok(());
     }
 
-    let (query, alias) = parse_arguments(args, &sources);
+    let (mut query, mut alias) = parse_arguments(args, &sources);
+
+    // If no canonical alias was detected, attempt metadata alias resolution for first/last token
+    if alias.is_none() && args.len() >= 2 {
+        let first = &args[0];
+        let last = &args[args.len() - 1];
+        if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, first) {
+            // blz SOURCE QUERY...
+            alias = Some(canon);
+            query = args[1..].join(" ");
+        } else if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, last) {
+            // blz QUERY... SOURCE
+            alias = Some(canon);
+            query = args[..args.len() - 1].join(" ");
+        }
+    }
 
     execute(
         &query,
@@ -94,20 +117,25 @@ pub async fn handle_default(
 }
 
 fn parse_arguments(args: &[String], sources: &[String]) -> (String, Option<String>) {
-    // Smart argument detection
-    if args.len() >= 2 && sources.contains(&args[0]) {
-        // Format: blz SOURCE QUERY...
-        (args[1..].join(" "), Some(args[0].clone()))
-    } else if args.len() >= 2 && sources.contains(&args[args.len() - 1]) {
-        // Format: blz QUERY... SOURCE
-        (
-            args[..args.len() - 1].join(" "),
-            Some(args[args.len() - 1].clone()),
-        )
-    } else {
-        // Single query or query without known source
-        (args.join(" "), None)
+    // Smart argument detection with metadata alias resolution best-effort
+    if args.len() >= 2 {
+        // Check first token as source
+        if let Some(candidate) = args.first() {
+            if sources.contains(candidate) {
+                return (args[1..].join(" "), Some(candidate.clone()));
+            }
+        }
+
+        // Check last token as source
+        if let Some(candidate) = args.last() {
+            if sources.contains(candidate) {
+                return (args[..args.len() - 1].join(" "), Some(candidate.clone()));
+            }
+        }
     }
+
+    // Fallback: all args are the query; alias resolution will be handled by flags if provided
+    (args.join(" "), None)
 }
 
 struct SearchResults {
@@ -128,20 +156,25 @@ async fn perform_search(
 ) -> Result<SearchResults> {
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
-    // Provide actionable suggestion if alias not found
-    if let Some(requested) = &options.alias {
-        let known = storage.list_sources();
-        if !known.contains(requested) {
-            eprintln!(
-                "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
-            );
+    // Resolve requested source (supports metadata aliases)
+    let sources = if let Some(requested) = &options.alias {
+        match crate::utils::resolver::resolve_source(&storage, requested) {
+            Ok(Some(canonical)) => vec![canonical],
+            Ok(None) => {
+                // Fallback: show hint and continue with zero sources handled below
+                let known = storage.list_sources();
+                if !known.contains(requested) && matches!(options.output, OutputFormat::Text) {
+                    eprintln!(
+                        "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
+                    );
+                }
+                vec![requested.clone()]
+            },
+            Err(e) => return Err(e),
         }
-    }
-
-    let sources = options
-        .alias
-        .as_ref()
-        .map_or_else(|| storage.list_sources(), |alias| vec![alias.clone()]);
+    } else {
+        storage.list_sources()
+    };
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -387,11 +420,13 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
     if start_idx >= results.hits.len() {
-        println!(
-            "Page {} is beyond available results (Page {} of {})",
-            options.page, page, total_pages
-        );
-        println!("Tip: use --last to jump to the final page.");
+        if matches!(options.output, OutputFormat::Text) {
+            eprintln!(
+                "Page {} is beyond available results (Page {} of {})",
+                options.page, page, total_pages
+            );
+            eprintln!("Tip: use --last to jump to the final page.");
+        }
         return Ok(());
     }
 
@@ -416,6 +451,8 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
 
     Ok(())
 }
+
+// alias resolution moved to utils::resolver
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)] // Test code precision is not critical

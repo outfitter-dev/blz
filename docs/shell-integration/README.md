@@ -113,7 +113,7 @@ import json, sys
 try:
     data = json.load(sys.stdin)
     for s in data:
-        # Emit alias names only; handle both string and object forms
+        # Emit canonical source names only; handle both string and object forms
         if isinstance(s, str):
             print(s)
         elif isinstance(s, dict):
@@ -132,6 +132,11 @@ end
 2. **Commands** - All available subcommands
 3. **Options** - Flags and parameters
 4. **Values** - Format options (json/pretty)
+
+Note on metadata aliases
+
+- The CLI also supports metadata aliases (e.g., `@scope/package`) via `blz alias add`.
+- Completions list canonical source names; metadata aliases still work when typed manually and are resolved by the CLI for `search`, `get`, and `anchors`.
 
 ## Auto-Updating Completions
 

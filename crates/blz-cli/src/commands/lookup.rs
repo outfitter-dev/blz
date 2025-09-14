@@ -7,32 +7,77 @@ use dialoguer::{Input, Select};
 use std::io::IsTerminal;
 
 use crate::commands::add_source;
+use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
-pub async fn execute(query: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
+pub async fn execute(
+    query: &str,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    output: OutputFormat,
+) -> Result<()> {
     let registry = Registry::new();
 
-    if !quiet {
+    if matches!(output, OutputFormat::Text) && !quiet {
         println!("Searching registries...");
     }
     let results = registry.search(query);
 
     if results.is_empty() {
-        if !quiet {
+        if matches!(output, OutputFormat::Text) && !quiet {
             println!("No matches found for '{query}'");
+        }
+        if matches!(output, OutputFormat::Json) {
+            println!("[]");
         }
         return Ok(());
     }
 
-    if !quiet {
+    if matches!(output, OutputFormat::Text) && !quiet {
         display_results_with_health(&results).await?;
+    }
+
+    // Non-interactive JSON output for agents
+    if !matches!(output, OutputFormat::Text) {
+        let fetcher = Fetcher::new()?;
+        let mut out = Vec::new();
+        for r in &results {
+            let mut head = serde_json::json!({});
+            if let Ok(meta) = fetcher.head_metadata(&r.entry.llms_url).await {
+                head = serde_json::json!({
+                    "status": meta.status,
+                    "contentLength": meta.content_length,
+                    "etag": meta.etag,
+                    "lastModified": meta.last_modified,
+                });
+            }
+            let obj = serde_json::json!({
+                "name": r.entry.name,
+                "slug": r.entry.slug,
+                "aliases": r.entry.aliases,
+                "description": r.entry.description,
+                "llmsUrl": r.entry.llms_url,
+                "score": r.score,
+                "matchField": r.match_field,
+                "head": head,
+            });
+            out.push(obj);
+        }
+        if matches!(output, OutputFormat::Json) {
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        } else {
+            for o in out {
+                println!("{}", serde_json::to_string(&o)?);
+            }
+        }
+        return Ok(());
     }
 
     // Try interactive selection
     let Some(selected_entry) = try_interactive_selection(&results).ok() else {
         // Not interactive, show instructions
-        if !quiet {
+        if matches!(output, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
         }
         return Ok(());
@@ -50,7 +95,7 @@ pub async fn execute(query: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     let final_alias = alias.trim();
     validate_alias(final_alias)?;
 
-    if !quiet {
+    if matches!(output, OutputFormat::Text) && !quiet {
         println!(
             "Adding {} from {}...",
             final_alias.green(),

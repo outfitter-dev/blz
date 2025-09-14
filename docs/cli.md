@@ -31,7 +31,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |
 | `docs` | | Generate CLI docs (Markdown/JSON) |
-| `alias` | | Manage aliases for a source (scaffold) |
+| `alias` | | Manage aliases for a source |
 | `instruct` | | Print instructions for agent use of blz |
 
 ## Command Reference
@@ -68,12 +68,16 @@ blz add node https://nodejs.org/llms.txt --yes
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY>
+blz lookup <QUERY> [--output text|json|ndjson]
 ```
 
 **Arguments:**
 
 - `<QUERY>` - Search term (tool name, partial name, etc.)
+
+**Options:**
+
+- `-o, --output <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
 
 **Examples:**
 
@@ -81,8 +85,8 @@ blz lookup <QUERY>
 # Find TypeScript-related documentation
 blz lookup typescript
 
-# Search for web frameworks
-blz lookup react
+# Search for web frameworks (JSON for scripting)
+blz lookup react -o json | jq '.[0]'
 ```
 
 ### `blz search`
@@ -126,22 +130,28 @@ blz search "async" --output json
 blz search "database" --top 10
 ```
 
+Aliases and resolution
+
+- Use `--source <SOURCE>` (or `-s`) with either the canonical source or a metadata alias added via `blz alias add`.
+- When running `blz QUERY SOURCE` or `blz SOURCE QUERY` without a subcommand, SOURCE may be a canonical name or a metadata alias; the CLI resolves it to the canonical source.
+
 ### `blz get`
 
 Retrieve exact line ranges from an indexed source.
 
 ```bash
-blz get <ALIAS> --lines <RANGE> [OPTIONS]
+blz get <SOURCE> --lines <RANGE> [OPTIONS]
 ```
 
 **Arguments:**
 
-- `<ALIAS>` - Source alias to read from
+- `<SOURCE>` - Canonical source or metadata alias to read from
 
 **Options:**
 
 - `-l, --lines <RANGE>` - Line range(s) to retrieve
 - `-c, --context <N>` - Include N context lines around each range
+- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
 
 **Line Range Formats:**
 
@@ -161,6 +171,9 @@ blz get node --lines "10:20,50:60"
 
 # Include 3 lines of context
 blz get deno --lines 100-110 --context 3
+
+# JSON output for agents
+blz get bun --lines 42-55 -o json | jq '.content'
 ```
 
 ### `blz list` / `blz sources`
@@ -175,6 +188,11 @@ blz list [OPTIONS]
 
 - `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
+
+JSON keys
+
+- Each entry includes: `alias`, `source` (canonical handle), `url`, `fetchedAt`, `lines`, `sha256`
+- When available: `etag`, `lastModified`, and `aliases` (array of metadata aliases)
 
 **Examples:**
 
@@ -196,7 +214,7 @@ blz update [ALIAS] [OPTIONS]
 
 **Arguments:**
 
-- `[ALIAS]` - Specific source to update (optional)
+- `[SOURCE]` - Specific source to update (canonical or metadata alias; optional)
 
 **Options:**
 
@@ -222,7 +240,7 @@ blz remove <ALIAS>
 
 **Arguments:**
 
-- `<ALIAS>` - Source alias to remove
+- `<SOURCE>` - Source to remove (canonical or metadata alias)
 
 **Examples:**
 
@@ -321,6 +339,10 @@ When you run `blz` without a subcommand, it acts as a search:
 # These are equivalent
 blz "test runner"
 blz search "test runner"
+
+# SOURCE may be canonical or a metadata alias
+blz bun "install"
+blz "install" @scope/package
 ```
 
 ## Output Formats
@@ -465,10 +487,12 @@ export BLZ_OUTPUT_FORMAT=json   # or text, ndjson
 blz search "async"
 blz list --status
 blz anchors react --mappings
+blz anchor list react -o json | jq '.[0]'
+blz anchor get react <ANCHOR> -o json | jq '.content'
 ```
-# `blz alias` (scaffold)
+# `blz alias`
 
-Manage aliases for a source. This is a scaffold command; persistence will be added in a future update.
+Manage aliases for a source. Aliases are stored in source metadata and resolved across commands.
 
 ```bash
 blz alias add <SOURCE> <ALIAS>
@@ -483,5 +507,6 @@ blz alias rm react @facebook/react
 ```
 
 Notes:
-- Aliases will be stored in source metadata; canonical "source" remains the primary handle.
-- Alias formats like `@scope/package` will be supported.
+- Canonical "source" remains the primary handle; aliases are alternate names.
+- Alias formats like `@scope/package` are allowed (not used for directories).
+- Ambiguous aliases across multiple sources will produce an error; use the canonical name instead.

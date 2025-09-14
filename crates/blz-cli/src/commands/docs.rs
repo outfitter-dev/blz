@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::Utc;
 use clap::{Command, CommandFactory, ValueEnum};
 use std::fmt::Write as _;
 
@@ -89,6 +90,8 @@ fn generate_json<C: CommandFactory>() -> serde_json::Value {
         "longAbout": root.get_long_about().map(std::string::ToString::to_string),
         "usage": root.clone().render_usage().to_string(),
         "version": root.get_version(),
+        "schemaVersion": 1,
+        "generatedAt": Utc::now().to_rfc3339(),
         "subcommands": commands,
     })
 }
@@ -139,6 +142,7 @@ fn command_to_json(cmd: &Command) -> serde_json::Value {
         "longAbout": cmd.get_long_about().map(std::string::ToString::to_string),
         "usage": usage,
         "aliases": aliases,
+        "visibleAliases": aliases,
         "args": args,
         "subcommands": subs,
     })
@@ -182,21 +186,19 @@ mod tests {
     #[test]
     fn docs_json_includes_aliases_array() {
         let json = generate_json::<crate::cli::Cli>();
-        // Find the 'list' subcommand
-        let subs = json.get("subcommands").and_then(|v| v.as_array()).unwrap();
-        let list = subs
-            .iter()
-            .find(|c| c.get("name").and_then(|n| n.as_str()) == Some("list"))
-            .unwrap();
-        let aliases = list
-            .get("aliases")
+        // Ensure at least one subcommand exposes alias 'sources'
+        let has_sources_alias = json
+            .get("subcommands")
             .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default();
-        // Either empty or contains known alias 'sources'
-        if !aliases.is_empty() {
-            let vals: Vec<_> = aliases.iter().filter_map(|a| a.as_str()).collect();
-            assert!(vals.contains(&"sources"));
-        }
+            .is_some_and(|subs| {
+                subs.iter().any(|c| {
+                    c.get("aliases")
+                        .and_then(|v| v.as_array())
+                        .is_some_and(|aliases| {
+                            aliases.iter().any(|a| a.as_str() == Some("sources"))
+                        })
+                })
+            });
+        assert!(has_sources_alias, "expected at least one 'sources' alias");
     }
 }

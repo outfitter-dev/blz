@@ -15,11 +15,15 @@ use tracing::{debug, info};
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
 
-    if !storage.exists(alias) {
+    // Resolve metadata alias to canonical if needed
+    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
+        .unwrap_or_else(|| alias.to_string());
+
+    if !storage.exists(&canonical) {
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
-    update_source(&storage, alias, metrics.clone()).await?;
+    update_source(&storage, &canonical, metrics.clone()).await?;
 
     if !quiet {
         metrics.print_summary();
@@ -98,20 +102,33 @@ async fn update_source(
     let fetcher = Fetcher::new()?;
 
     // Preflight HEAD summary (size/ETA) and early failure on non-2xx
-    if let Ok(meta) = fetcher.head_metadata(&url).await {
-        let ok = (200..300).contains(&i32::from(meta.status));
+    if let Ok(meta) = crate::utils::http::head_with_retries(&fetcher, &url, 3, 200).await {
+        // Treat 2xx as OK; accept 3xx as soft-OK (redirects) to avoid false negatives
+        let status_u16 = meta.status;
+        let is_success = (200..=299).contains(&status_u16);
+        let is_redirect = (300..=399).contains(&status_u16);
         let size_text = meta
             .content_length
             .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
 
-        if ok {
+        if is_success || is_redirect {
             if let Some(n) = meta.content_length {
                 // Show rough ETA assuming ~5 MB/s when size is known
                 let denom: u128 = 5u128 * 1024 * 1024; // bytes per second
                 let eta_ms_u128 = (u128::from(n) * 1000).div_ceil(denom);
                 let eta_ms = u64::try_from(eta_ms_u128).unwrap_or(u64::MAX);
+                if is_redirect {
+                    pb.set_message(format!(
+                        "Checking {alias}... • Preflight: [REDIRECT • {size_text}] (est ~{eta_ms}ms @5MB/s)"
+                    ));
+                } else {
+                    pb.set_message(format!(
+                        "Checking {alias}... • Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)"
+                    ));
+                }
+            } else if is_redirect {
                 pb.set_message(format!(
-                    "Checking {alias}... • Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)"
+                    "Checking {alias}... • Preflight: [REDIRECT • {size_text}]"
                 ));
             } else {
                 pb.set_message(format!(
@@ -231,6 +248,7 @@ fn handle_modified(
             last_modified: new_last_modified,
             fetched_at: Utc::now(),
             sha256,
+            aliases: existing_json.source.aliases.clone(),
         };
         storage.save_source_metadata(alias, &new_metadata)?;
 
@@ -259,6 +277,7 @@ fn handle_modified(
             last_modified: new_last_modified.clone(),
             fetched_at: Utc::now(),
             sha256: sha256.clone(),
+            aliases: existing_json.source.aliases.clone(),
         },
         toc: parse_result.toc.clone(),
         files: vec![blz_core::FileInfo {
@@ -296,6 +315,7 @@ fn handle_modified(
         last_modified: new_last_modified,
         fetched_at: Utc::now(),
         sha256,
+        aliases: new_json.source.aliases.clone(),
     };
     storage.save_source_metadata(alias, &metadata)?;
 

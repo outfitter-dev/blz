@@ -21,6 +21,7 @@ pub use alias::{AliasCommand, execute as manage_alias};
 pub use anchors::execute as show_anchors;
 pub use anchors::get_by_anchor;
 pub use completions::generate;
+pub use completions::list_supported;
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};
 pub use get::execute as get_lines;

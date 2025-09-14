@@ -1,4 +1,4 @@
-use assert_cmd::prelude::*;
+#![allow(missing_docs)]
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -39,7 +39,7 @@ async fn update_preflight_fails_on_non_2xx_head() -> anyhow::Result<()> {
         .mount(&server)
         .await;
 
-    let assert = assert_cmd::Command::cargo_bin("blz")?
+    assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
         .args(["update", "e2e", "--quiet"])
         .assert()
