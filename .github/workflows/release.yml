@@ -546,3 +546,10 @@ jobs:
           tag_name: ${{ inputs.tag }}
           draft: false
           prerelease: false
+  publish:
+    name: "Publish: orchestrate"
+    needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64]
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
