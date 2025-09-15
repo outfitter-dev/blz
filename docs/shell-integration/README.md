@@ -71,7 +71,7 @@ blz search --<TAB>           # Shows all options for search
 blz search --alias <TAB>     # Shows: bun, node, test (your actual sources!)
 blz get <TAB>                # Completes with your indexed aliases
 blz update <TAB>             # Shows available sources to update
-# blz diff <TAB>             # (Coming soon)
+blz diff <TAB>               # Shows sources for diff
 
 # Descriptions for everything
 blz <TAB>
@@ -113,7 +113,7 @@ import json, sys
 try:
     data = json.load(sys.stdin)
     for s in data:
-        # Emit alias names only; handle both string and object forms
+        # Emit canonical source names only; handle both string and object forms
         if isinstance(s, str):
             print(s)
         elif isinstance(s, dict):
@@ -132,6 +132,11 @@ end
 2. **Commands** - All available subcommands
 3. **Options** - Flags and parameters
 4. **Values** - Format options (json/pretty)
+
+Note on metadata aliases
+
+- The CLI also supports metadata aliases (e.g., `@scope/package`) via `blz alias add`.
+- Completions list canonical source names; metadata aliases still work when typed manually and are resolved by the CLI for `search`, `get`, and `anchors`.
 
 ## Auto-Updating Completions
 
@@ -225,7 +230,7 @@ Create helpful functions:
 # Search and display best result
 function blz-best
     set -l query $argv
-    set -l result (blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
+    set -l result (blz search "$query" --limit 1 --output json | jq -r '.results[0]')
 
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')
@@ -259,7 +264,7 @@ end
 # Fish/Bash/Zsh
 function blz-fzf
     blz search "$1" --output json | \
-    jq -r '.hits[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
+    jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
 ```
@@ -275,8 +280,8 @@ Create a workflow script:
 query="$1"
 results=$(blz search "$query" --output json)
 
-echo "$results" | jq -r '.hits[] | {
-    title: .heading_path | join(" > "),
+echo "$results" | jq -r '.results[] | {
+    title: .headingPath | join(" > "),
     subtitle: "\(.alias) L\(.lines)",
     arg: "\(.alias) --lines \(.lines)"
 }'
@@ -380,7 +385,7 @@ sudo pacman -S bash-completion
 
 ### Windows (WSL)
 
-Works the same as Linux within WSL. For native Windows, use PowerShell completions (coming soon).
+Works the same as Linux within WSL. For native Windows, use PowerShell completions (see PowerShell page).
 
 ## Tips & Tricks
 

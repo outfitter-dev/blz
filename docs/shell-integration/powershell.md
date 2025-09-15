@@ -7,7 +7,7 @@ Setup guide for PowerShell completions on Windows, macOS, and Linux.
 ### Windows PowerShell / PowerShell Core
 
 ```powershell
-# Generate completions
+# Generate completions (static)
 blz completions powershell | Out-String | Invoke-Expression
 
 # To make permanent, add to profile
@@ -108,6 +108,23 @@ Add to Windows Terminal settings.json:
 # Use same installation steps as above
 pwsh
 blz completions powershell >> $PROFILE
+
+## Dynamic Alias Completion
+
+For live alias suggestions (canonical + metadata aliases) when typing `blz` commands, source the dynamic completer in your PowerShell profile:
+
+```powershell
+# Add to your PowerShell profile (e.g., $PROFILE)
+. "$HOME/path/to/blz/scripts/blz-dynamic-completions.ps1"
+```
+
+This adds:
+
+- `--alias`/`-s` dynamic values for `blz search`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
+- Anchor value completion for `blz anchor get <alias> <anchor>`
+
+It reads from `blz list --output json` and merges canonical + metadata aliases.
 ```
 
 ## Troubleshooting
@@ -150,13 +167,14 @@ Get-PSReadLineKeyHandler -Key Tab
 
 ```powershell
 # Parse JSON output
-$results = blz search "hooks" -o json | ConvertFrom-Json
-$results | ForEach-Object {
-    Write-Host "$($_.alias): $($_.heading_path -join ' > ')"
+$resp = blz search "hooks" -o json | ConvertFrom-Json
+$resp.results | ForEach-Object {
+    Write-Host "$($_.alias): $($_.headingPath -join ' > ')"
 }
 
 # Filter high-score results
 $highScore = blz search "async" -o json | ConvertFrom-Json |
+    Select-Object -ExpandProperty results |
     Where-Object { $_.score -gt 50 }
 ```
 
@@ -166,7 +184,8 @@ $highScore = blz search "async" -o json | ConvertFrom-Json |
 # Search and select with Out-GridView
 blz search "react" -o json |
     ConvertFrom-Json |
-    Select-Object alias, lines, @{N='Path';E={$_.heading_path -join ' > '}} |
+    Select-Object -ExpandProperty results |
+    Select-Object alias, lines, @{N='Path';E={$_.headingPath -join ' > '}} |
     Out-GridView -PassThru |
     ForEach-Object { blz get $_.alias --lines $_.lines }
 ```

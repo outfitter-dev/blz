@@ -62,6 +62,8 @@ jobs:
 
       - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2
@@ -115,6 +117,8 @@ jobs:
 
       - name: "Release: Set up Rust"
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: "Release: Setup cache"
         uses: Swatinem/rust-cache@v2

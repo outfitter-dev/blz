@@ -16,6 +16,12 @@ pub struct Storage {
 impl Storage {
     /// Creates a new storage instance with the default root directory
     pub fn new() -> Result<Self> {
+        // Test/dev override: allow BLZ_DATA_DIR to set the root directory explicitly
+        if let Ok(dir) = std::env::var("BLZ_DATA_DIR") {
+            let root = PathBuf::from(dir);
+            return Self::with_root(root);
+        }
+
         let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
             .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
 
@@ -144,6 +150,11 @@ impl Storage {
         Ok(self.tool_dir(alias)?.join("metadata.json"))
     }
 
+    /// Returns the path to the anchors mapping file for an alias
+    pub fn anchors_map_path(&self, alias: &str) -> Result<PathBuf> {
+        Ok(self.tool_dir(alias)?.join("anchors.json"))
+    }
+
     /// Saves the llms.txt content for an alias
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
@@ -233,6 +244,17 @@ impl Storage {
         Ok(())
     }
 
+    /// Save anchors remap JSON for an alias
+    pub fn save_anchors_map(&self, alias: &str, map: &crate::AnchorsMap) -> Result<()> {
+        self.ensure_tool_dir(alias)?;
+        let path = self.anchors_map_path(alias)?;
+        let json = serde_json::to_string_pretty(map)
+            .map_err(|e| Error::Storage(format!("Failed to serialize anchors map: {e}")))?;
+        fs::write(&path, json)
+            .map_err(|e| Error::Storage(format!("Failed to write anchors map: {e}")))?;
+        Ok(())
+    }
+
     /// Loads source metadata for an alias if it exists
     pub fn load_source_metadata(&self, alias: &str) -> Result<Option<Source>> {
         let path = self.metadata_path(alias)?;
@@ -247,6 +269,7 @@ impl Storage {
     }
 
     /// Checks if an alias exists in storage
+    #[must_use]
     pub fn exists(&self, alias: &str) -> bool {
         self.llms_json_path(alias)
             .map(|path| path.exists())
@@ -254,6 +277,7 @@ impl Storage {
     }
 
     /// Lists all cached source aliases
+    #[must_use]
     pub fn list_sources(&self) -> Vec<String> {
         let mut sources = Vec::new();
 
@@ -402,6 +426,7 @@ impl Storage {
 // Use Storage::new() directly and handle the Result.
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::types::{FileInfo, LineIndex, Source, TocEntry};
@@ -424,10 +449,12 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "deadbeef".to_string(),
+                aliases: Vec::new(),
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],
                 lines: "1-50".to_string(),
+                anchor: None,
                 children: vec![],
             }],
             files: vec![FileInfo {
@@ -439,6 +466,7 @@ mod tests {
                 byte_offsets: false,
             },
             diagnostics: vec![],
+            parse_meta: None,
         }
     }
 

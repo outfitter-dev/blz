@@ -72,15 +72,13 @@ Create `~/.elvish/lib/blz-utils.elv`:
 fn search-preview [query]{
     blz search $query -o json |
         from-json |
-        each [hit]{
-            echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[heading_path])
-        }
+        each [resp]{ each [hit]{ echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[headingPath]) } $resp[results] }
 }
 
 # List sources with details
 fn list-detailed {
     blz list -o json | from-json | each [source]{
-        echo $source[alias]" - Last updated: "$source[last_updated]
+        echo $source[alias]" - Fetched at: "$source[fetchedAt]
     }
 }
 
@@ -110,13 +108,12 @@ blz-utils:add-batch [react=https://react.dev/llms.txt vue=https://vuejs.org/llms
 # Filter and process results
 blz search "async" -o json |
     from-json |
-    each [hit]{ if (> $hit[score] 50) { put $hit } } |
-    each [hit]{ echo "High score: "$hit[alias]" "$hit[lines] }
+    each [resp]{ each [hit]{ if (> $hit[score] 50) { echo "High score: "$hit[alias]" "$hit[lines] } } $resp[results] }
 
 # Count results by source
 blz search "test" -o json |
     from-json |
-    each [hit]{ put $hit[alias] } |
+    each [resp]{ each [hit]{ put $hit[alias] } $resp[results] } |
     sort | uniq -c
 ```
 

@@ -63,6 +63,10 @@ pub struct FormatParams<'a> {
     pub single_source: bool,
     pub sources: &'a [String],
     pub start_idx: usize,
+    pub page: usize,
+    pub limit: usize,
+    pub total_pages: usize,
+    pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
 }
 
 /// Output format options supported by the CLI
@@ -236,7 +240,19 @@ impl SearchResultFormatter {
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
             OutputFormat::Json => {
-                JsonFormatter::format_search_results(params.hits)?;
+                let suggestions_ref = params.suggestions.as_deref();
+                JsonFormatter::format_search_results_with_meta(
+                    params.hits,
+                    params.query,
+                    params.total_results,
+                    params.total_lines_searched,
+                    params.search_time,
+                    params.page,
+                    params.limit,
+                    params.total_pages,
+                    params.sources,
+                    suggestions_ref,
+                )?;
             },
             OutputFormat::Ndjson => {
                 JsonFormatter::format_search_results_ndjson(params.hits)?;

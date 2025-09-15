@@ -121,16 +121,25 @@ Output:
 
 ```json
 {
-  "hits": [
+  "query": "test",
+  "page": 1,
+  "limit": 5,
+  "totalResults": 1,
+  "totalPages": 1,
+  "totalLinesSearched": 12345,
+  "searchTimeMs": 6,
+  "sources": ["bun"],
+  "results": [
     {
       "alias": "bun",
       "file": "llms.txt",
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
+      "headingPath": ["Bun Documentation", "Guides", "Test runner"],
       "lines": "304-324",
+      "lineNumbers": [304, 324],
       "snippet": "### Guides: Test runner...",
       "score": 4.09,
-      "source_url": null,
-      "checksum": ""
+      "sourceUrl": "https://bun.sh/llms-full.txt",
+      "checksum": "..."
     }
   ]
 }
@@ -250,8 +259,8 @@ blz node "file system"
 # Get the best match for a query
 
 result=$(blz search "test runner" --limit 1 --output json)
-alias=$(echo "$result" | jq -r '.hits[0].alias')
-lines=$(echo "$result" | jq -r '.hits[0].lines')
+alias=$(echo "$result" | jq -r '.results[0].alias')
+lines=$(echo "$result" | jq -r '.results[0].lines')
 
 echo "Best match in $alias at lines $lines"
 blz get "$alias" --lines "$lines"
@@ -264,7 +273,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --output json | jq -r '.hits[0]')
+result=$(blz search "$query" --limit 1 --output json | jq -r '.results[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -287,8 +296,8 @@ query="typescript config"
 results=$(blz search "$query" --limit 5 --output json)
 
 echo "Context for query: $query"
-echo "$results" | jq -r '.hits[] |
-  "Source: \(.alias)\nSection: \(.heading_path | join(" > "))\n\(.snippet)\n"'
+echo "$results" | jq -r '.results[] |
+  "Source: \(.alias)\nSection: \(.headingPath | join(" > "))\n\(.snippet)\n"'
 ```
 
 ## Common Searches

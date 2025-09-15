@@ -45,6 +45,7 @@ jobs:
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: miri, rust-src
 
       - name: Setup Miri

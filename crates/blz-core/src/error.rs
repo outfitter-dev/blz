@@ -304,6 +304,7 @@ impl Error {
     /// // Example usage:
     /// // let result = retry_operation(|| fetch_document(), 3).await?;
     /// ```
+    #[must_use]
     pub fn is_recoverable(&self) -> bool {
         match self {
             Self::Network(e) => {
@@ -385,6 +386,7 @@ impl Error {
     ///     );
     /// }
     /// ```
+    #[must_use]
     pub const fn category(&self) -> &'static str {
         match self {
             Self::Io(_) => "io",
@@ -426,6 +428,12 @@ impl Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
+#[allow(
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::unwrap_used,
+    clippy::unnecessary_wraps
+)]
 mod tests {
     use super::*;
     use proptest::prelude::*;

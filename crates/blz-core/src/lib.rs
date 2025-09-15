@@ -63,6 +63,8 @@ pub mod error;
 pub mod fetcher;
 /// Search index implementation using Tantivy
 pub mod index;
+/// Anchor remapping utilities between versions
+pub mod mapping;
 /// Tree-sitter based markdown parser
 pub mod parser;
 /// Performance profiling utilities
@@ -82,6 +84,7 @@ pub use config::{
 pub use error::{Error, Result};
 pub use fetcher::{FetchResult, Fetcher, FlavorInfo};
 pub use index::SearchIndex;
+pub use mapping::{build_anchors_map, compute_anchor_mappings};
 pub use parser::{MarkdownParser, ParseResult};
 pub use profiling::{PerformanceMetrics, ResourceMonitor};
 pub use registry::Registry;

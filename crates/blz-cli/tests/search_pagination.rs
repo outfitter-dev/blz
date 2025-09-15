@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 //! Tests for search pagination edge cases including divide-by-zero prevention
 
 use assert_cmd::Command;

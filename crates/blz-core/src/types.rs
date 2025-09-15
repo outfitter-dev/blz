@@ -27,6 +27,7 @@
 //! let toc_entry = TocEntry {
 //!     heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
 //!     lines: "15-42".to_string(),
+//!     anchor: None,
 //!     children: vec![],
 //! };
 //!
@@ -42,13 +43,16 @@
 //!
 //! let hit = SearchHit {
 //!     alias: "react".to_string(),
+//!     source: "react".to_string(),
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
 //!     lines: "120-145".to_string(),
+//!     line_numbers: Some(vec![120, 145]),
 //!     snippet: "useState returns an array with two elements...".to_string(),
 //!     score: 0.92,
 //!     source_url: Some("https://react.dev/hooks".to_string()),
 //!     checksum: "abc123".to_string(),
+//!     anchor: Some("react-hooks-usestate".to_string()),
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
@@ -108,6 +112,14 @@ pub struct Source {
     /// Provides content integrity verification and change detection.
     /// Calculated from the raw content bytes, not the parsed structure.
     pub sha256: String,
+
+    /// Alternate human-friendly names (aliases) for this source.
+    ///
+    /// These do not affect on-disk storage paths and may include relaxed
+    /// formats like "@scope/package". Used for resolution in the CLI.
+    /// Defaults to empty for backward compatibility.
+    #[serde(default)]
+    pub aliases: Vec<String>,
 }
 
 /// An entry in the table of contents.
@@ -140,6 +152,13 @@ pub struct TocEntry {
     /// Format: `"start-end"` where both are 1-based line numbers.
     /// Examples: `"15-42"`, `"1-10"`, `"100-100"` (single line)
     pub lines: String,
+
+    /// Stable content anchor for this section.
+    ///
+    /// Computed from heading text and leading content to remap sections
+    /// across updates when text moves. Base64(SHA-256) truncated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 
     /// Nested subsections under this heading.
     ///
@@ -284,6 +303,22 @@ pub struct LlmsJson {
     /// Includes warnings about malformed content, missing sections,
     /// or processing issues that users should be aware of.
     pub diagnostics: Vec<Diagnostic>,
+
+    /// Parser/segmentation metadata for durability across updates.
+    ///
+    /// Optional for forward/backward compatibility. When present, indicates
+    /// how the document was segmented and which parser version produced it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parse_meta: Option<ParseMeta>,
+}
+
+/// Metadata about how parsing/segmentation was performed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParseMeta {
+    /// Monotonic parser version used to generate this JSON.
+    pub parser_version: u32,
+    /// Segmentation strategy used (e.g., "structured", "windowed").
+    pub segmentation: String,
 }
 
 /// A search result hit.
@@ -301,12 +336,19 @@ pub struct LlmsJson {
 /// The `lines` field uses the same format as [`TocEntry`]: `"start-end"` with
 /// 1-based line numbers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     /// Source alias where this hit was found.
     ///
     /// Corresponds to the directory name in the cache and the `alias`
     /// field in [`LlmsJson`].
     pub alias: String,
+
+    /// Canonical source name (user-facing "source").
+    ///
+    /// For now, this is the same as `alias`. Kept separate to allow future
+    /// rename/alias semantics without breaking JSON consumers.
+    pub source: String,
 
     /// Filename within the source where the hit was found.
     ///
@@ -324,6 +366,14 @@ pub struct SearchHit {
     /// Format: `"start-end"` with 1-based line numbers.
     /// May represent a single line (`"42-42"`) or a range (`"42-45"`).
     pub lines: String,
+
+    /// Numeric line numbers corresponding to `lines`.
+    ///
+    /// Optional two-element array `[start, end]` with 1-based inclusive line
+    /// numbers. Provided to make programmatic consumption simpler without
+    /// parsing the `lines` string. When not available, this field is omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_numbers: Option<Vec<usize>>,
 
     /// Content snippet showing the match context.
     ///
@@ -349,6 +399,32 @@ pub struct SearchHit {
     /// Used to verify that the search result corresponds to the expected
     /// version of the content. Helps detect stale results after content updates.
     pub checksum: String,
+
+    /// Stable anchor for the section (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+}
+
+/// Mapping between stable content anchors and line ranges across updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnchorMapping {
+    /// Stable anchor value computed from heading and leading content
+    pub anchor: String,
+    /// Previous line range (e.g., "15-42")
+    pub old_lines: String,
+    /// New line range after update
+    pub new_lines: String,
+    /// Heading path for context
+    pub heading_path: Vec<String>,
+}
+
+/// Anchors remapping file saved per alias to help remap citations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnchorsMap {
+    /// Timestamp when this map was generated
+    pub updated_at: DateTime<Utc>,
+    /// Mappings from anchors to new line ranges
+    pub mappings: Vec<AnchorMapping>,
 }
 
 /// An entry recording changes between content versions.
@@ -472,24 +548,30 @@ mod tests {
         // Test that SearchHit can be compared for deduplication
         let hit1 = SearchHit {
             alias: "react".to_string(),
+            source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),
+            line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
             score: 0.95,
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
+            anchor: Some("anchor1".to_string()),
         };
 
         let hit2 = SearchHit {
             alias: "react".to_string(),
+            source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             lines: "100-120".to_string(),
+            line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
             score: 0.90, // Different score
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
+            anchor: Some("anchor1".to_string()),
         };
 
         // Should be considered the same for deduplication (same alias, lines, heading_path)
@@ -507,6 +589,7 @@ mod tests {
             last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
             fetched_at: now,
             sha256: "deadbeef".to_string(),
+            aliases: Vec::new(),
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
@@ -519,6 +602,7 @@ mod tests {
         let entry = TocEntry {
             heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
             lines: "1-25".to_string(),
+            anchor: None,
             children: vec![],
         };
 
@@ -568,6 +652,7 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "hash".to_string(),
+                aliases: Vec::new(),
             },
             toc: vec![],
             files: vec![FileInfo {
@@ -579,6 +664,7 @@ mod tests {
                 byte_offsets: false,
             },
             diagnostics: vec![],
+            parse_meta: None,
         };
 
         assert_eq!(llms_json.alias, "test");

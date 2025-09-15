@@ -125,6 +125,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub profile: bool,
 
+    /// Disable all ANSI colors in output (also respects `NO_COLOR` env)
+    #[arg(long = "no-color", global = true)]
+    pub no_color: bool,
+
     /// Generate CPU flamegraph (requires flamegraph feature)
     #[cfg(feature = "flamegraph")]
     #[arg(long, global = true)]
@@ -194,9 +198,59 @@ pub enum Commands {
     Completions {
         /// Shell to generate completions for
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: Option<clap_complete::Shell>,
+        /// List supported shells instead of generating a script
+        #[arg(long)]
+        list: bool,
+        /// Output format for listing
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: crate::output::OutputFormat,
     },
 
+    /// Manage aliases for a source
+    Alias {
+        #[command(subcommand)]
+        command: AliasCommands,
+    },
+
+    /// Generate CLI docs from the clap definitions
+    Docs {
+        /// Output format for docs
+        /// Defaults to `markdown`.
+        #[arg(long = "format", value_enum, default_value = "markdown")]
+        format: crate::commands::DocsFormat,
+    },
+
+    // Anchor commands disabled for v0.2 release - functionality needs more work
+    // /// Anchor utilities
+    // Anchor {
+    //     #[command(subcommand)]
+    //     command: AnchorCommands,
+    // },
+
+    // /// Show anchors for a source or remap mappings
+    // Anchors {
+    //     /// Source alias
+    //     alias: String,
+    //     /// Output format
+    //     #[arg(
+    //         short = 'o',
+    //         long,
+    //         value_enum,
+    //         default_value = "text",
+    //         env = "BLZ_OUTPUT_FORMAT"
+    //     )]
+    //     output: OutputFormat,
+    //     /// Show anchors remap mappings if available
+    //     #[arg(long)]
+    //     mappings: bool,
+    // },
     /// Add a new source
     Add {
         /// Alias for the source
@@ -212,15 +266,27 @@ pub enum Commands {
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
     },
 
     /// Search across cached docs
     Search {
         /// Search query
         query: String,
-        /// Filter by alias
-        #[arg(long)]
+        /// Filter by alias (also accepts --source)
+        #[arg(long, short = 's', alias = "source", visible_alias = "source")]
         alias: Option<String>,
+        /// Jump to last page of results
+        #[arg(long)]
+        last: bool,
         /// Maximum number of results
         #[arg(short = 'n', long, default_value = "50")]
         limit: usize,
@@ -234,7 +300,13 @@ pub enum Commands {
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
     },
 
@@ -248,14 +320,32 @@ pub enum Commands {
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
     },
 
     /// List all cached sources
-    #[command(alias = "sources")]
+    #[command(visible_alias = "sources")]
     List {
         /// Output format
-        #[arg(short = 'o', long, value_enum, default_value = "text")]
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
         output: OutputFormat,
+        /// Include status/health information (etag, lastModified, checksum)
+        #[arg(long)]
+        status: bool,
     },
 
     /// Update sources
@@ -265,6 +355,12 @@ pub enum Commands {
         /// Update all sources
         #[arg(long)]
         all: bool,
+        /// Choose update flavor policy
+        #[arg(long = "flavor", value_enum, default_value = "current")]
+        flavor: crate::commands::FlavorMode,
+        /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
     },
 
     /// Remove/delete a source
@@ -282,5 +378,63 @@ pub enum Commands {
         /// Show changes since timestamp
         #[arg(long)]
         since: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AnchorCommands {
+    /// List anchors for a source
+    List {
+        /// Source alias
+        alias: String,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
+        /// Show anchors remap mappings if available
+        #[arg(long)]
+        mappings: bool,
+    },
+    /// Get content by anchor
+    Get {
+        /// Source alias
+        alias: String,
+        /// Anchor value (from list)
+        anchor: String,
+        /// Context lines around the section
+        #[arg(short = 'c', long)]
+        context: Option<usize>,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AliasCommands {
+    /// Add an alias for a source
+    Add {
+        /// Canonical source
+        source: String,
+        /// Alias to add (e.g., @scope/package)
+        alias: String,
+    },
+    /// Remove an alias from a source
+    Rm {
+        /// Canonical source
+        source: String,
+        /// Alias to remove
+        alias: String,
     },
 }

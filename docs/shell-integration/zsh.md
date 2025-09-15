@@ -47,6 +47,23 @@ rm -f ~/.zcompdump && compinit
 - Option completion
 - Basic argument completion
 
+## Dynamic Alias Completion
+
+Augment the static `_blz` script with live alias suggestions (canonical + metadata aliases) by sourcing the dynamic helper:
+
+```zsh
+# Add after compinit in ~/.zshrc
+source /path/to/blz/scripts/blz-dynamic-completions.zsh
+```
+
+What it adds:
+
+- `--alias`/`-s`/`--source` dynamic values for `blz search`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
+- Anchor value completion for `blz anchor get <alias> <anchor>`
+
+It reads from `blz list --output json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
+
 ## Configuration
 
 ### Completion Styles
@@ -80,13 +97,13 @@ alias bu='blz update --all'
 blz-fzf() {
     local query="$*"
     blz search "$query" -o json | \
-    jq -r '.[] | "\(.alias):\(.lines) \(.heading_path | join(" > "))"' | \
+    jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 }
 
 # Quick search and display
 blz-quick() {
-    local result=$(blz search "$*" --limit 1 -o json | jq -r '.[] | "\(.alias) \(.lines)"')
+    local result=$(blz search "$*" --limit 1 -o json | jq -r '.results[0] | "\(.alias) \(.lines)"')
     if [[ -n "$result" ]]; then
         blz get $result
     else

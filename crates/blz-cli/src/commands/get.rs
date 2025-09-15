@@ -5,24 +5,83 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
+use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
-pub async fn execute(alias: &str, lines: &str, context: Option<usize>) -> Result<()> {
+pub async fn execute(
+    alias: &str,
+    lines: &str,
+    context: Option<usize>,
+    output: OutputFormat,
+) -> Result<()> {
     let storage = Storage::new()?;
 
-    if !storage.exists(alias) {
-        println!("Source '{alias}' not found");
+    // Resolve metadata alias to canonical if needed
+    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
+        .map_or_else(|| alias.to_string(), |c| c);
+
+    if !storage.exists(&canonical) {
+        println!("Source '{alias}' not found.");
+        let available = storage.list_sources();
+        if available.is_empty() {
+            println!(
+                "No sources available. Use 'blz lookup <name>' or 'blz add <alias> <url>' to add one."
+            );
+        } else {
+            let preview = available.iter().take(8).cloned().collect::<Vec<_>>();
+            println!(
+                "Available: {}{}",
+                preview.join(", "),
+                if available.len() > preview.len() {
+                    format!(" (+{} more)", available.len() - preview.len())
+                } else {
+                    String::new()
+                }
+            );
+            println!("Hint: 'blz list' to see all, or 'blz lookup <name>' to search registries.");
+        }
         return Ok(());
     }
 
-    let file_content = storage.load_llms_txt(alias)?;
+    let file_content = storage.load_llms_txt(&canonical)?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
-    let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
-    display_lines(&line_numbers, &all_lines);
-
-    Ok(())
+    match output {
+        OutputFormat::Text => {
+            let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
+            display_lines(&line_numbers, &all_lines);
+            Ok(())
+        },
+        OutputFormat::Json | OutputFormat::Ndjson => {
+            // Build content for requested ranges and context
+            let selected = collect_line_numbers(lines, context, all_lines.len())?;
+            let mut body = String::new();
+            for (i, &ln) in selected.iter().enumerate() {
+                if ln == 0 || ln > all_lines.len() {
+                    continue;
+                }
+                if i > 0 {
+                    body.push('\n');
+                }
+                body.push_str(all_lines[ln - 1]);
+            }
+            let obj = serde_json::json!({
+                "alias": canonical,
+                "source": canonical,
+                "lines": lines,
+                "context": context,
+                "lineNumbers": selected.iter().copied().collect::<Vec<_>>(),
+                "content": body,
+            });
+            if matches!(output, OutputFormat::Json) {
+                println!("{}", serde_json::to_string_pretty(&obj)?);
+            } else {
+                println!("{}", serde_json::to_string(&obj)?);
+            }
+            Ok(())
+        },
+    }
 }
 
 fn collect_line_numbers(
@@ -30,7 +89,9 @@ fn collect_line_numbers(
     context: Option<usize>,
     total_lines: usize,
 ) -> Result<BTreeSet<usize>> {
-    let ranges = parse_line_ranges(lines)?;
+    let ranges = parse_line_ranges(lines).map_err(|_| {
+        anyhow::anyhow!("Invalid --lines format. Examples: '120-142', '36+20', '36:43,320:350'.")
+    })?;
     let context_lines = context.unwrap_or(0);
     let mut all_line_numbers = BTreeSet::new();
 

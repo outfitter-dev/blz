@@ -15,6 +15,7 @@ A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` f
 ## Usage For AI Agents
 
 - Quick primer in your terminal: `blz instruct`
+- Programmatic CLI docs for agents: `blz docs --format json`
 - Detailed instructions you can copy into CLAUDE.md or AGENTS.md: see `.agents/instructions/use-blz.md`
   - You can inline it directly or @‑mention it from your agent’s rules file
 
@@ -71,7 +72,7 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Coming in v0.2 – diff journal with unified diffs and changed sections
+- **Change Tracking**: Track source changes with `blz diff` command showing moved, added, and removed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 
@@ -269,7 +270,7 @@ max_heading_block_lines = 400
 
 ## Shell Completions
 
-The `blz` command includes built-in shell completion support with dynamic alias completion:
+The `blz` command includes built-in shell completion support. You can also enable dynamic alias/anchor completion helpers for richer UX.
 
 ```bash
 # Generate completions for your shell
@@ -278,9 +279,23 @@ blz completions bash    # Bash
 blz completions zsh     # Zsh
 blz completions elvish  # Elvish
 
-# Fish users get dynamic alias completion
+# Dynamic completions (optional)
+#  - Zsh:  source ./scripts/blz-dynamic-completions.zsh (after compinit)
+#  - Fish: source ./scripts/blz-dynamic-completions.fish
+#  - PS:   . ./scripts/blz-dynamic-completions.ps1
+
+# Example: dynamic alias completion
 blz <TAB>                 # Shows your indexed aliases
 blz get <TAB>             # Completes with your indexed aliases
+
+## Configuration
+
+See the new configuration docs for details on global config, per-source settings, and environment variables:
+
+- docs/configuration/README.md
+- docs/configuration/global-config.md
+- docs/configuration/per-source.md
+- docs/configuration/env-vars.md
 ```
 
 ### Auto-updating Completions

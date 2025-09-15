@@ -30,6 +30,8 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `remove` | `rm`, `delete` | Remove an indexed source |
 | `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |
+| `docs` | | Generate CLI docs (Markdown/JSON) |
+| `alias` | | Manage aliases for a source |
 | `instruct` | | Print instructions for agent use of blz |
 
 ## Command Reference
@@ -66,12 +68,16 @@ blz add node https://nodejs.org/llms.txt --yes
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY>
+blz lookup <QUERY> [--output text|json|ndjson]
 ```
 
 **Arguments:**
 
 - `<QUERY>` - Search term (tool name, partial name, etc.)
+
+**Options:**
+
+- `-o, --output <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
 
 **Examples:**
 
@@ -79,8 +85,8 @@ blz lookup <QUERY>
 # Find TypeScript-related documentation
 blz lookup typescript
 
-# Search for web frameworks
-blz lookup react
+# Search for web frameworks (JSON for scripting)
+blz lookup react -o json | jq '.[0]'
 ```
 
 ### `blz search`
@@ -97,12 +103,13 @@ blz search <QUERY> [OPTIONS]
 
 **Options:**
 
-- `--alias <ALIAS>` - Filter results to specific source
+- `--source <SOURCE>` - Filter results to specific source (also supports `-s`)
 - `-n, --limit <N>` - Maximum results to show (default: 50)
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
-- `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson` to avoid passing `-o` each time
 
 **Examples:**
 
@@ -111,7 +118,7 @@ blz search <QUERY> [OPTIONS]
 blz search "test runner"
 
 # Search only in Bun docs
-blz search "bundler" --alias bun
+blz search "bundler" --source bun
 
 # Get more results
 blz search "performance" --limit 100
@@ -123,22 +130,28 @@ blz search "async" --output json
 blz search "database" --top 10
 ```
 
+Aliases and resolution
+
+- Use `--source <SOURCE>` (or `-s`) with either the canonical source or a metadata alias added via `blz alias add`.
+- When running `blz QUERY SOURCE` or `blz SOURCE QUERY` without a subcommand, SOURCE may be a canonical name or a metadata alias; the CLI resolves it to the canonical source.
+
 ### `blz get`
 
 Retrieve exact line ranges from an indexed source.
 
 ```bash
-blz get <ALIAS> --lines <RANGE> [OPTIONS]
+blz get <SOURCE> --lines <RANGE> [OPTIONS]
 ```
 
 **Arguments:**
 
-- `<ALIAS>` - Source alias to read from
+- `<SOURCE>` - Canonical source or metadata alias to read from
 
 **Options:**
 
 - `-l, --lines <RANGE>` - Line range(s) to retrieve
 - `-c, --context <N>` - Include N context lines around each range
+- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
 
 **Line Range Formats:**
 
@@ -158,6 +171,9 @@ blz get node --lines "10:20,50:60"
 
 # Include 3 lines of context
 blz get deno --lines 100-110 --context 3
+
+# JSON output for agents
+blz get bun --lines 42-55 -o json | jq '.content'
 ```
 
 ### `blz list` / `blz sources`
@@ -171,6 +187,12 @@ blz list [OPTIONS]
 **Options:**
 
 - `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
+
+JSON keys
+
+- Each entry includes: `alias`, `source` (canonical handle), `url`, `fetchedAt`, `lines`, `sha256`
+- When available: `etag`, `lastModified`, and `aliases` (array of metadata aliases)
 
 **Examples:**
 
@@ -192,7 +214,7 @@ blz update [ALIAS] [OPTIONS]
 
 **Arguments:**
 
-- `[ALIAS]` - Specific source to update (optional)
+- `[SOURCE]` - Specific source to update (canonical or metadata alias; optional)
 
 **Options:**
 
@@ -218,7 +240,7 @@ blz remove <ALIAS>
 
 **Arguments:**
 
-- `<ALIAS>` - Source alias to remove
+- `<SOURCE>` - Source to remove (canonical or metadata alias)
 
 **Examples:**
 
@@ -280,6 +302,35 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 blz completions zsh > ~/.zsh/completions/_blz
 ```
 
+### `blz docs`
+
+Generate CLI documentation directly from the clap definitions.
+
+```bash
+blz docs [--format markdown|json]
+```
+
+**Options:**
+
+- `--format` - Output format. Defaults to `markdown`. Use `json` for agent/scripting scenarios.
+  - Respects global `BLZ_OUTPUT_FORMAT=json` to default to JSON without passing `--format`.
+
+**Examples:**
+
+```bash
+# Human-readable CLI docs
+blz docs --format markdown
+
+# Structured docs for agents / tooling
+blz docs --format json | jq '.subcommands[] | {name, usage}'
+
+# Pipe docs into a file for offline reference
+blz docs --format markdown > BLZ-CLI.md
+
+# Use global env var to default to JSON
+BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
+```
+
 ## Default Behavior
 
 When you run `blz` without a subcommand, it acts as a search:
@@ -288,6 +339,10 @@ When you run `blz` without a subcommand, it acts as a search:
 # These are equivalent
 blz "test runner"
 blz search "test runner"
+
+# SOURCE may be canonical or a metadata alias
+blz bun "install"
+blz "install" @scope/package
 ```
 
 ## Output Formats
@@ -307,22 +362,45 @@ Search results for 'test runner':
 
 ### JSON Format
 
-Machine-readable JSON for scripting and integration:
+Machine-readable JSON for scripting and integration. Top-level includes pagination and performance metadata, and results use camelCase keys:
 
 ```json
 {
-  "hits": [
+  "query": "test runner",
+  "page": 1,
+  "limit": 50,
+  "totalResults": 1,
+  "totalPages": 1,
+  "totalLinesSearched": 50000,
+  "searchTimeMs": 6,
+  "sources": ["bun"],
+  "results": [
     {
       "alias": "bun",
+      "file": "llms.txt",
+      "headingPath": ["Bun Documentation", "Guides", "Test runner"],
       "lines": "304-324",
+      "snippet": "### Guides: Test runner...",
       "score": 4.09,
-      "heading_path": ["Bun Documentation", "Guides", "Test runner"],
-      "content": "### Guides: Test runner..."
+      "sourceUrl": "https://bun.sh/llms.txt",
+      "checksum": "abc123...",
+      "anchor": "bun-guides-test-runner"
     }
-  ],
-  "total": 1,
-  "query": "test runner"
+  ]
 }
+```
+
+JSON + jq examples
+
+```bash
+# Set JSON as the default output for agents
+export BLZ_OUTPUT_FORMAT=json
+
+# List result summaries
+blz search "hooks" | jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"'
+
+# Top 10 results with score > 2.0
+blz search "sqlite" | jq '.results | map(select(.score > 2.0)) | .[:10]'
 ```
 
 ## Performance Profiling
@@ -391,10 +469,41 @@ Config discovery order:
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
 ### `blz instruct`
 
-Print instructions for agent use of blz.
+Print instructions for agent use of blz, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
 
 ```bash
 blz instruct
 ```
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
+### Setting a Global Default
+
+Set a single environment variable to control default output across commands that support `-o/--output`:
+
+```bash
+export BLZ_OUTPUT_FORMAT=json   # or text, ndjson
+
+# Now these default to JSON unless overridden
+blz search "async"
+blz list --status
+```
+# `blz alias`
+
+Manage aliases for a source. Aliases are stored in source metadata and resolved across commands.
+
+```bash
+blz alias add <SOURCE> <ALIAS>
+blz alias rm <SOURCE> <ALIAS>
+```
+
+Examples:
+
+```bash
+blz alias add react @facebook/react
+blz alias rm react @facebook/react
+```
+
+Notes:
+- Canonical "source" remains the primary handle; aliases are alternate names.
+- Alias formats like `@scope/package` are allowed (not used for directories).
+- Ambiguous aliases across multiple sources will produce an error; use the canonical name instead.
