@@ -42,10 +42,10 @@ class Blz < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/${REPO}/releases/download/v\#{version}/blz-darwin-arm64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v#{version}/blz-darwin-arm64.tar.gz"
       sha256 "${SHA_ARM64}"
     else
-      url "https://github.com/${REPO}/releases/download/v\#{version}/blz-darwin-x64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v#{version}/blz-darwin-x64.tar.gz"
       sha256 "${SHA_X64}"
     end
   end
