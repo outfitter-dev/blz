@@ -60,10 +60,10 @@ jobs:
           set -euo pipefail
           TAG="${{ inputs.tag || github.event.inputs.tag }}"
           V="${TAG#v}"
-          if npm view @outfitter/blz@"$V" version >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          if npm view "@outfitter/blz@${V}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: npm publish (OIDC provenance)
@@ -80,6 +80,11 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.event.inputs.tag }}
 
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Validate Cargo.toml version matches tag
         id: ver
         shell: bash
@@ -87,7 +92,7 @@ jobs:
           TAG="${{ inputs.tag || github.event.inputs.tag }}"
           TAG_NO_V="${TAG#v}"
           VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
           if [ "$TAG_NO_V" != "$VER" ]; then
             echo "Tag ${TAG_NO_V} does not match Cargo.toml version ${VER}" >&2
             exit 1
@@ -98,11 +103,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          V=${{ steps.ver.outputs.version }}
+          V="${{ steps.ver.outputs.version }}"
           if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-            echo exists=true >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo exists=false >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish blz-core
@@ -116,9 +121,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          V=${{ steps.ver.outputs.version }}
+          V="${{ steps.ver.outputs.version }}"
           echo "Waiting for blz-core $V to appear on crates.io..."
-          for i in {1..30}; do
+          for _ in {1..30}; do
             if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
               echo "blz-core $V is available."
               exit 0
@@ -133,11 +138,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          V=${{ steps.ver.outputs.version }}
+          V="${{ steps.ver.outputs.version }}"
           if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-            echo exists=true >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo exists=false >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish blz-cli
@@ -182,9 +187,11 @@ jobs:
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
           SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
           SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
-          echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
+          {
+            echo "version=${VERSION}"
+            echo "sha_arm64=${SHA_ARM64}"
+            echo "sha_x64=${SHA_X64}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: "Checkout tap repo"
         uses: actions/checkout@v4

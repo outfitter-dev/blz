@@ -1,0 +1,146 @@
+name: Build Platform
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'GitHub runner label (e.g., macos-14, ubuntu-latest, windows-latest)'
+        required: true
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag or commit)'
+        required: true
+        type: string
+      tag:
+        description: 'Tag name (e.g., v0.2.0) for uploading assets to the release'
+        required: true
+        type: string
+      target:
+        description: 'Rust target triple (host or explicit triple)'
+        required: false
+        default: 'host'
+        type: string
+      out_name:
+        description: 'Output asset name (e.g., blz-darwin-arm64, blz-win32-x64.exe)'
+        required: true
+        type: string
+      cross:
+        description: 'Enable cross compilation (Ubuntu only)'
+        required: false
+        default: false
+        type: boolean
+      rustflags:
+        description: 'Extra RUSTFLAGS for this build (optional)'
+        required: false
+        default: ''
+        type: string
+      disable_ring_asm:
+        description: 'Set RING_DISABLE_ASM=1 (Windows/macOS builds)'
+        required: false
+        default: false
+        type: boolean
+      package_macos_tar:
+        description: 'Also produce .tar.gz with single blz binary (macOS)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ inputs.out_name }}
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust target (when cross-compiling)
+        if: ${{ inputs.target != 'host' }}
+        run: rustup target add "${{ inputs.target }}"
+
+      - name: Install cross toolchain (aarch64)
+        if: ${{ runner.os == 'Linux' && inputs.cross }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Configure environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.disable_ring_asm }}" = "true" ]; then
+            echo "RING_DISABLE_ASM=1" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ inputs.rustflags }}" ]; then
+            echo "RUSTFLAGS=${{ inputs.rustflags }}" >> $GITHUB_ENV
+          fi
+          if [ "${{ inputs.target }}" != "host" ]; then
+            case "${{ inputs.target }}" in
+              aarch64-unknown-linux-gnu)
+                echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+                echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+                ;;
+            esac
+          fi
+
+      - name: Build (release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.target }}" = "host" ]; then
+            cargo build --release --locked
+          else
+            cargo build --release --locked --target "${{ inputs.target }}"
+          fi
+
+      - name: Prepare assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # Resolve binary path
+          BIN_NAME="blz"
+          EXT=""
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            EXT=".exe"
+          fi
+          if [ "${{ inputs.target }}" = "host" ]; then
+            BIN_PATH="target/release/${BIN_NAME}${EXT}"
+          else
+            BIN_PATH="target/${{ inputs.target }}/release/${BIN_NAME}${EXT}"
+          fi
+          # Copy primary asset
+          cp "$BIN_PATH" "dist/${{ inputs.out_name }}"
+          chmod +x "dist/${{ inputs.out_name }}" || true
+          # macOS tarball for Homebrew
+          if [ "${{ inputs.package_macos_tar }}" = "true" ]; then
+            cp "$BIN_PATH" blz
+            tar -czf "dist/${{ inputs.out_name }}.tar.gz" blz
+            rm -f blz
+          fi
+
+      - name: Upload release asset (binary)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          draft: true
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          files: dist/${{ inputs.out_name }}
+
+      - name: Upload release asset (macOS tarball)
+        if: ${{ inputs.package_macos_tar }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          draft: true
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          files: dist/${{ inputs.out_name }}.tar.gz
