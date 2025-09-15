@@ -26,7 +26,7 @@ mod instruct_mod {
     }
 }
 
-use cli::{AliasCommands, AnchorCommands, Cli, Commands};
+use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -79,9 +79,8 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     if !(cli.verbose || cli.debug) {
         // Suppress logs when emitting machine-readable output across common commands
         if let Some(
-            Commands::Search { output, .. }
-            | Commands::List { output, .. }
-            | Commands::Anchors { output, .. },
+            Commands::Search { output, .. } | Commands::List { output, .. },
+            // | Commands::Anchors { output, .. }, // Disabled for v0.2
         ) = &cli.command
         {
             if matches!(
@@ -156,13 +155,14 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             }
         },
         Some(Commands::Docs { format }) => handle_docs(format)?,
-        Some(Commands::Anchor { command }) => handle_anchor(command).await?,
+        // Anchor commands disabled for v0.2 release
+        // Some(Commands::Anchor { command }) => handle_anchor(command).await?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
-        Some(Commands::Anchors {
-            alias,
-            output,
-            mappings,
-        }) => commands::show_anchors(&alias, output, mappings).await?,
+        // Some(Commands::Anchors {
+        //     alias,
+        //     output,
+        //     mappings,
+        // }) => commands::show_anchors(&alias, output, mappings).await?,
         Some(Commands::Instruct) => instruct_mod::print(),
         Some(Commands::Add { alias, url, yes }) => {
             commands::add_source(&alias, &url, yes, metrics).await?;
@@ -222,21 +222,22 @@ fn handle_docs(format: crate::commands::DocsFormat) -> Result<()> {
     commands::generate_docs(effective)
 }
 
-async fn handle_anchor(command: AnchorCommands) -> Result<()> {
-    match command {
-        AnchorCommands::List {
-            alias,
-            output,
-            mappings,
-        } => commands::show_anchors(&alias, output, mappings).await,
-        AnchorCommands::Get {
-            alias,
-            anchor,
-            context,
-            output,
-        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
-    }
-}
+// Anchor commands disabled for v0.2 release
+// async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+//     match command {
+//         AnchorCommands::List {
+//             alias,
+//             output,
+//             mappings,
+//         } => commands::show_anchors(&alias, output, mappings).await,
+//         AnchorCommands::Get {
+//             alias,
+//             anchor,
+//             context,
+//             output,
+//         } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+//     }
+// }
 
 async fn handle_alias(command: AliasCommands) -> Result<()> {
     match command {

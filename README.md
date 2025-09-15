@@ -72,7 +72,7 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Coming in v0.2 – diff journal with unified diffs and changed sections
+- **Change Tracking**: Track source changes with `blz diff` command showing moved, added, and removed sections
 - **Direct CLI Integration**: IDE agents run commands directly for instant results
 - **MCP Server** (coming soon): stdio-based integration via official Rust SDK
 

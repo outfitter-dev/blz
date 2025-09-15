@@ -33,8 +33,7 @@ blz "query invalidation" -s tanstack
 
 # Pagination
 blz "async" --limit 20 --page 2
-blz search --next  # next page of last search
-blz search --prev  # previous page
+blz "async" --last  # jump to last page
 
 # Output formats
 blz "routing" -o json   # JSON array
