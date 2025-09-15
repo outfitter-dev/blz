@@ -447,7 +447,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     // Compute simple fuzzy suggestions for JSON output when few/low-quality results
     let suggestions = if matches!(options.output, OutputFormat::Json) {
         let need_suggest =
-            total_results == 0 || results.hits.first().map(|h| h.score).unwrap_or(0.0) < 2.0;
+            total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
         if need_suggest {
             let storage = Storage::new()?;
             Some(compute_suggestions(
@@ -558,12 +558,15 @@ fn tokenize(s: &str) -> Vec<String> {
     toks
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn score_tokens(h: &[String], q: &[String]) -> f32 {
     if h.is_empty() || q.is_empty() {
         return 0.0;
     }
-    let hset: std::collections::BTreeSet<&str> = h.iter().map(|s| s.as_str()).collect();
-    let qset: std::collections::BTreeSet<&str> = q.iter().map(|s| s.as_str()).collect();
+    let hset: std::collections::BTreeSet<&str> =
+        h.iter().map(std::string::String::as_str).collect();
+    let qset: std::collections::BTreeSet<&str> =
+        q.iter().map(std::string::String::as_str).collect();
     let inter = hset.intersection(&qset).count() as f32;
     inter / (qset.len() as f32)
 }

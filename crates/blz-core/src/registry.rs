@@ -19,6 +19,7 @@ pub struct RegistryEntry {
 
 impl RegistryEntry {
     /// Creates a new registry entry
+    #[must_use]
     pub fn new(name: &str, slug: &str, description: &str, llms_url: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -52,6 +53,7 @@ pub struct Registry {
 impl Registry {
     /// Create a new registry with hardcoded entries
     /// Creates a new registry with built-in entries
+    #[must_use]
     pub fn new() -> Self {
         let entries = vec![
             RegistryEntry::new(
@@ -136,6 +138,7 @@ impl Registry {
     }
 
     /// Searches the registry for matching entries using fuzzy matching
+    #[must_use]
     pub fn search(&self, query: &str) -> Vec<RegistrySearchResult> {
         let matcher = SkimMatcherV2::default();
         let query = query.trim().to_lowercase();
@@ -198,6 +201,7 @@ impl Registry {
 
     /// Get all registry entries
     /// Returns all entries in the registry
+    #[must_use]
     pub fn all_entries(&self) -> &[RegistryEntry] {
         &self.entries
     }

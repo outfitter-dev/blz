@@ -107,6 +107,7 @@ pub async fn execute_all(
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn update_source(
     storage: &Storage,
     alias: &str,
@@ -259,7 +260,7 @@ async fn select_update_flavor(
                 return Ok(None);
             }
             let want = match flavor {
-                FlavorMode::Auto => flavors.get(0).map(|f| f.url.clone()),
+                FlavorMode::Auto => flavors.first().map(|f| f.url.clone()),
                 FlavorMode::Full => flavors
                     .iter()
                     .find(|f| f.name == "llms-full.txt")
@@ -274,13 +275,12 @@ async fn select_update_flavor(
                 if candidate != current_url {
                     if yes {
                         if !quiet {
-                            eprintln!("Upgrading flavor: {} -> {}", current_url, candidate);
+                            eprintln!("Upgrading flavor: {current_url} -> {candidate}");
                         }
                         return Ok(Some(candidate));
                     } else if !quiet {
                         eprintln!(
-                            "Flavor upgrade available (use --yes to apply): {} -> {}",
-                            current_url, candidate
+                            "Flavor upgrade available (use --yes to apply): {current_url} -> {candidate}"
                         );
                     }
                 }

@@ -269,6 +269,7 @@ impl Storage {
     }
 
     /// Checks if an alias exists in storage
+    #[must_use]
     pub fn exists(&self, alias: &str) -> bool {
         self.llms_json_path(alias)
             .map(|path| path.exists())
@@ -276,6 +277,7 @@ impl Storage {
     }
 
     /// Lists all cached source aliases
+    #[must_use]
     pub fn list_sources(&self) -> Vec<String> {
         let mut sources = Vec::new();
 

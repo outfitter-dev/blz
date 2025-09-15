@@ -240,7 +240,7 @@ impl SearchResultFormatter {
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
             OutputFormat::Json => {
-                let suggestions_ref = params.suggestions.as_ref().map(|v| v.as_slice());
+                let suggestions_ref = params.suggestions.as_deref();
                 JsonFormatter::format_search_results_with_meta(
                     params.hits,
                     params.query,

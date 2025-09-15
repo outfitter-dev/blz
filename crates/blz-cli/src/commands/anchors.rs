@@ -6,6 +6,7 @@ use crate::commands::get_lines;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
+#[allow(dead_code, clippy::unused_async)]
 pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Result<()> {
     let storage = Storage::new()?;
     // Resolve metadata alias to canonical if needed
@@ -84,7 +85,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
     Ok(())
 }
 
-#[allow(clippy::items_after_statements)]
+#[allow(dead_code, clippy::items_after_statements)]
 fn collect_entries(entries: &mut Vec<serde_json::Value>, list: &[blz_core::TocEntry]) {
     for e in list {
         entries.push(serde_json::json!({
@@ -99,6 +100,7 @@ fn collect_entries(entries: &mut Vec<serde_json::Value>, list: &[blz_core::TocEn
     }
 }
 
+#[allow(dead_code)]
 fn print_text(e: &blz_core::TocEntry, depth: usize) {
     let indent = "  ".repeat(depth);
     let name = e.heading_path.last().cloned().unwrap_or_default();
@@ -116,6 +118,7 @@ fn print_text(e: &blz_core::TocEntry, depth: usize) {
 }
 
 /// Get lines by anchor
+#[allow(dead_code, clippy::unused_async)]
 pub async fn get_by_anchor(
     alias: &str,
     anchor: &str,
@@ -175,6 +178,7 @@ pub async fn get_by_anchor(
     }
 }
 
+#[allow(dead_code)]
 fn extract_content(
     lines_spec: &str,
     context: Option<usize>,
@@ -209,6 +213,7 @@ fn extract_content(
     Ok((out, selected.into_iter().collect()))
 }
 
+#[allow(dead_code)]
 fn add_with_context(
     set: &mut std::collections::BTreeSet<usize>,
     line: usize,
@@ -222,6 +227,7 @@ fn add_with_context(
     }
 }
 
+#[allow(dead_code)]
 fn add_range_with_context(
     set: &mut std::collections::BTreeSet<usize>,
     start: usize,

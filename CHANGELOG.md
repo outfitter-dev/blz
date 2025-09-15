@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-09-15
+
+### Added
+- **`blz diff` command**: Compare current and archived versions of sources to see what's changed
+- **`blz alias` command**: Manage source aliases with `add` and `rm` subcommands for better organization
+- **`blz docs` command**: Generate CLI documentation in markdown or JSON format
+- **Targeted cache invalidation**: Optimized search cache that invalidates only affected aliases on updates
+- **Anchors support**: Parse and index anchor links from llms.txt files for better navigation
+- **HEAD preflight checks**: Verify remote availability and size before downloads with retry logic
+- **Windowed segmentation fallback**: Handle large documents that exceed indexing limits gracefully
+- **Dynamic shell completions**: Enhanced completion support with metadata-aware suggestions
+- **Flavor policy for updates**: Control update behavior with `--flavor` (auto, full, txt, current)
+
+### Changed
+- **JSON output improvements**: Consistent camelCase field names, added sourceUrl and checksum fields
+- **CLI improvements**: Added `-s` as short alias for `--source`, improved error messages
+- **Documentation restructure**: Split CLI docs into organized sections under `docs/cli/`
+- **Performance**: Optimized search with granular cache invalidation per alias
+
+### Fixed
+- **JSON stability**: Proper stderr/stdout separation for clean JSON output
+- **Panic handling**: Graceful handling of broken pipe errors (SIGPIPE)
+- **Large document handling**: Fallback to windowed segmentation for documents exceeding limits
+
+### Developer Experience
+- **`blz instruct` command**: Append live CLI documentation to agent instructions
+- **Improved logging**: All logs go to stderr, keeping stdout clean for JSON/NDJSON output
+- **Better error messages**: More actionable error messages with suggestions
+
 ## [0.1.7] - 2025-09-12
 
 ### Changed

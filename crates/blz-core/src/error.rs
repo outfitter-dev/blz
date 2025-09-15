@@ -304,6 +304,7 @@ impl Error {
     /// // Example usage:
     /// // let result = retry_operation(|| fetch_document(), 3).await?;
     /// ```
+    #[must_use]
     pub fn is_recoverable(&self) -> bool {
         match self {
             Self::Network(e) => {
@@ -385,6 +386,7 @@ impl Error {
     ///     );
     /// }
     /// ```
+    #[must_use]
     pub const fn category(&self) -> &'static str {
         match self {
             Self::Io(_) => "io",

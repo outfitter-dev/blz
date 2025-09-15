@@ -435,7 +435,12 @@ where
             next: None,
         });
 
-        let node_ptr = NonNull::new(Box::into_raw(node)).unwrap();
+        // SAFETY: `Box::into_raw` never returns a null pointer. It converts a
+        // uniquely-owned Box into a raw pointer to its heap allocation. Since the
+        // allocation exists, the returned pointer is guaranteed non-null.
+        // Using `new_unchecked` avoids an unnecessary `Option` and prevents
+        // introducing `unwrap`/`expect` in production code per project policy.
+        let node_ptr = unsafe { NonNull::new_unchecked(Box::into_raw(node)) };
         self.map.insert(key, node_ptr);
         self.current_memory += memory_size;
         unsafe { self.add_to_front(node_ptr); }

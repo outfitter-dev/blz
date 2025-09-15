@@ -12,6 +12,7 @@ workspace = true
 
 [features]
 flamegraph = ["dep:pprof", "blz-core/flamegraph"]
+anchors = []
 
 [[bin]]
 name = "blz"
@@ -27,7 +28,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono.workspace = true
 futures.workspace = true
-libc = "0.2"
 url.workspace = true
 
 # CLI-specific

@@ -33,6 +33,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           components: llvm-tools-preview
 
       # Use Swatinem cache for better performance
@@ -99,8 +100,12 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Running tests with coverage (blz-mcp)"
-          cargo llvm-cov test --no-report -p blz-mcp --all-features -- \
-            --test-threads=2 --quiet
+          if cargo metadata --no-deps --format-version=1 | jq -r '.packages[].name' | grep -qx blz-mcp; then
+            cargo llvm-cov test --no-report -p blz-mcp --all-features -- \
+              --test-threads=2 --quiet
+          else
+            echo "blz-mcp crate not present; skipping"
+          fi
           echo "::endgroup::"
 
           echo "::group::Generating LCOV report"

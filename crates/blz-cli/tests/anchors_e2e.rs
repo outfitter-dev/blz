@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![cfg(feature = "anchors")]
 use std::path::PathBuf;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};

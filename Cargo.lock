@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "blz-cli"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -303,7 +303,6 @@ dependencies = [
  "dialoguer",
  "futures",
  "indicatif",
- "libc",
  "pprof",
  "predicates",
  "serde_json",
@@ -317,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "blz-core"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64",

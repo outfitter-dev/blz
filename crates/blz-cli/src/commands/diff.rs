@@ -1,6 +1,6 @@
 //! Diff command implementation
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::{LlmsJson, Storage, compute_anchor_mappings};
 use serde_json::json;
 use std::fs;
@@ -13,34 +13,35 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
         .unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical) {
-        println!(
-            "Source '{}' not found. Try 'blz list' or 'blz lookup' to add one.",
-            alias
-        );
+        println!("Source '{alias}' not found. Try 'blz list' or 'blz lookup' to add one.");
         return Ok(());
     }
 
     let current: LlmsJson = storage.load_llms_json(&canonical)?;
     let Some(prev_path) = find_previous_llms_json(&storage, &canonical, since)? else {
         println!(
-            "No previous snapshot found for '{}'. Run 'blz update' to create history.",
-            canonical
+            "No previous snapshot found for '{canonical}'. Run 'blz update' to create history."
         );
         return Ok(());
     };
-    let prev_txt = fs::read_to_string(&prev_path)?;
-    let prev: LlmsJson = serde_json::from_str(&prev_txt)?;
+    let prev_json_text = fs::read_to_string(&prev_path)?;
+    let prev: LlmsJson = serde_json::from_str(&prev_json_text)?;
 
     // Read contents for content diffs
-    let current_text = storage.load_llms_txt(&canonical).unwrap_or_default();
-    let prev_txt_path = prev_path.with_file_name(
-        prev_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n.replace("-llms.json", "-llms.txt"))
-            .unwrap_or_else(|| "llms.txt".to_string()),
-    );
-    let prev_text = std::fs::read_to_string(prev_txt_path).unwrap_or_default();
+    let current_text = storage
+        .load_llms_txt(&canonical)
+        .with_context(|| format!("Failed to load current llms.txt for '{canonical}'"))?;
+    let prev_txt_path =
+        prev_path.with_file_name(prev_path.file_name().and_then(|n| n.to_str()).map_or_else(
+            || "llms.txt".to_string(),
+            |n| n.replace("-llms.json", "-llms.txt"),
+        ));
+    let prev_llms_text = std::fs::read_to_string(&prev_txt_path).with_context(|| {
+        format!(
+            "Failed to read previous llms.txt at {}",
+            prev_txt_path.display()
+        )
+    })?;
 
     // Build maps of anchors for added/removed detection
     let (prev_anchors, prev_map) = collect_anchors(&prev);
@@ -51,7 +52,7 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
     let moved_enriched: Vec<serde_json::Value> = moved
         .into_iter()
         .map(|m| {
-            let oldc = slice_content(&prev_text, &m.old_lines);
+            let oldc = slice_content(&prev_llms_text, &m.old_lines);
             let newc = slice_content(&current_text, &m.new_lines);
             json!({
                 "anchor": m.anchor,
@@ -85,7 +86,10 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
         .map(|mut v| {
             if let Some(obj) = v.as_object_mut() {
                 if let Some(lines) = obj.get("lines").and_then(|x| x.as_str()) {
-                    obj.insert("content".into(), json!(slice_content(&prev_text, lines)));
+                    obj.insert(
+                        "content".into(),
+                        json!(slice_content(&prev_llms_text, lines)),
+                    );
                 }
             }
             v
@@ -130,18 +134,16 @@ fn find_previous_llms_json(
     }
 
     let mut candidates = fs::read_dir(&dir)
-        .map(|it| {
-            it.filter_map(Result::ok)
-                .map(|e| e.path())
-                .filter(|p| p.is_file())
-                .filter(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .map_or(false, |n| n.ends_with("-llms.json"))
-                })
-                .collect::<Vec<_>>()
+        .with_context(|| format!("Failed to read archive directory: {}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-llms.json"))
         })
-        .unwrap_or_default();
+        .collect::<Vec<_>>();
 
     // Sort descending by filename
     candidates.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
@@ -152,8 +154,7 @@ fn find_previous_llms_json(
             let needle = format!("{since_ts}-llms.json");
             p.file_name()
                 .and_then(|n| n.to_str())
-                .map(|n| n >= needle.as_str())
-                .unwrap_or(false)
+                .is_some_and(|n| n >= needle.as_str())
         }) {
             return Ok(Some(p.clone()));
         }
@@ -168,10 +169,6 @@ fn collect_anchors(
     std::collections::BTreeSet<String>,
     std::collections::HashMap<String, serde_json::Value>,
 ) {
-    let mut set = std::collections::BTreeSet::new();
-    let mut map: std::collections::HashMap<String, serde_json::Value> =
-        std::collections::HashMap::new();
-
     fn walk(
         set: &mut std::collections::BTreeSet<String>,
         map: &mut std::collections::HashMap<String, serde_json::Value>,
@@ -194,6 +191,9 @@ fn collect_anchors(
             }
         }
     }
+    let mut set = std::collections::BTreeSet::new();
+    let mut map: std::collections::HashMap<String, serde_json::Value> =
+        std::collections::HashMap::new();
     walk(&mut set, &mut map, &doc.toc);
     (set, map)
 }

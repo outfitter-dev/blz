@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![cfg(feature = "anchors")]
 use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};

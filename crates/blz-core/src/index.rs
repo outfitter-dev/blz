@@ -33,6 +33,7 @@ impl SearchIndex {
     }
 
     /// Get the performance metrics instance
+    #[must_use]
     pub const fn metrics(&self) -> Option<&PerformanceMetrics> {
         self.metrics.as_ref()
     }

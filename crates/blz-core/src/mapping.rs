@@ -5,6 +5,7 @@ use std::collections::HashMap;
 /// Compute anchor remapping between two TOC trees.
 ///
 /// Returns mappings for anchors whose line ranges changed between versions.
+#[must_use]
 pub fn compute_anchor_mappings(old: &[TocEntry], new: &[TocEntry]) -> Vec<AnchorMapping> {
     let mut old_map = HashMap::<String, (String, Vec<String>)>::new();
     collect_anchor_map(&mut old_map, old);
@@ -50,6 +51,7 @@ fn walk_new_list(
 }
 
 /// Convenience to build an `AnchorsMap` with a timestamp.
+#[must_use]
 pub const fn build_anchors_map(mappings: Vec<AnchorMapping>, ts: DateTime<Utc>) -> AnchorsMap {
     AnchorsMap {
         updated_at: ts,

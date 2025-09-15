@@ -77,6 +77,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           targets: ${{ steps.vars.outputs.rust_target }}
 
       - name: Setup build environment (Linux)

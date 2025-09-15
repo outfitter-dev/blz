@@ -69,6 +69,7 @@ impl PerformanceMetrics {
 
     /// Get average search time in microseconds
     #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
+    #[must_use]
     pub fn avg_search_time_micros(&self) -> f64 {
         let count = self.search_count.load(Ordering::Relaxed);
         let total = self.total_search_time.load(Ordering::Relaxed);
@@ -81,6 +82,7 @@ impl PerformanceMetrics {
 
     /// Get average index build time in milliseconds
     #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
+    #[must_use]
     pub fn avg_index_time_millis(&self) -> f64 {
         let count = self.index_build_count.load(Ordering::Relaxed);
         let total = self.total_index_time.load(Ordering::Relaxed);
@@ -92,6 +94,7 @@ impl PerformanceMetrics {
     }
 
     /// Get throughput in lines per second for search operations
+    #[must_use]
     pub fn search_throughput_lines_per_sec(&self) -> f64 {
         let lines = self.lines_searched.load(Ordering::Relaxed);
         let time_seconds = (self.total_search_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
@@ -103,6 +106,7 @@ impl PerformanceMetrics {
     }
 
     /// Get processing throughput in MB/s for indexing operations
+    #[must_use]
     pub fn index_throughput_mbps(&self) -> f64 {
         let bytes = self.bytes_processed.load(Ordering::Relaxed);
         let time_seconds = (self.total_index_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
@@ -235,6 +239,7 @@ pub struct ComponentTimings {
 
 impl ComponentTimings {
     /// Creates a new component timings tracker
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -259,11 +264,13 @@ impl ComponentTimings {
     }
 
     /// Gets the cumulative timing for a specific component
+    #[must_use]
     pub fn get_timing(&self, component: &str) -> Option<Duration> {
         self.timings.get(component).copied()
     }
 
     /// Calculates the total time across all components
+    #[must_use]
     pub fn total_time(&self) -> Duration {
         self.timings.values().sum()
     }
@@ -318,6 +325,7 @@ impl Default for ResourceMonitor {
 
 impl ResourceMonitor {
     /// Creates a new resource monitor and captures initial state
+    #[must_use]
     pub fn new() -> Self {
         let mut system = System::new_all();
         system.refresh_all();
