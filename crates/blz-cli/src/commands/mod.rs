@@ -18,9 +18,8 @@ mod update;
 
 pub use add::execute as add_source;
 pub use alias::{AliasCommand, execute as manage_alias};
-// Anchor commands disabled for v0.2
-// pub use anchors::execute as show_anchors;
-// pub use anchors::get_by_anchor;
+pub use anchors::execute as show_anchors;
+pub use anchors::get_by_anchor;
 pub use completions::generate;
 pub use completions::list_supported;
 pub use diff::show as show_diff;

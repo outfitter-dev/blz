@@ -227,30 +227,30 @@ pub enum Commands {
         format: crate::commands::DocsFormat,
     },
 
-    // Anchor commands disabled for v0.2 release - functionality needs more work
-    // /// Anchor utilities
-    // Anchor {
-    //     #[command(subcommand)]
-    //     command: AnchorCommands,
-    // },
+    /// Anchor utilities
+    Anchor {
+        #[command(subcommand)]
+        command: AnchorCommands,
+    },
 
-    // /// Show anchors for a source or remap mappings
-    // Anchors {
-    //     /// Source alias
-    //     alias: String,
-    //     /// Output format
-    //     #[arg(
-    //         short = 'o',
-    //         long,
-    //         value_enum,
-    //         default_value = "text",
-    //         env = "BLZ_OUTPUT_FORMAT"
-    //     )]
-    //     output: OutputFormat,
-    //     /// Show anchors remap mappings if available
-    //     #[arg(long)]
-    //     mappings: bool,
-    // },
+    /// Show anchors for a source or remap mappings
+    Anchors {
+        /// Source alias
+        alias: String,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
+        /// Show anchors remap mappings if available
+        #[arg(long)]
+        mappings: bool,
+    },
+
     /// Add a new source
     Add {
         /// Alias for the source

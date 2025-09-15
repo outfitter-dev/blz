@@ -486,6 +486,9 @@ export BLZ_OUTPUT_FORMAT=json   # or text, ndjson
 # Now these default to JSON unless overridden
 blz search "async"
 blz list --status
+blz anchors react --mappings
+blz anchor list react -o json | jq '.[0]'
+blz anchor get react <ANCHOR> -o json | jq '.content'
 ```
 # `blz alias`
 

@@ -4,6 +4,7 @@ This section lists individual command reference pages. For the single‑page ref
 
 - [Search](./search.md)
 - [Get](./get.md)
+- [Anchors](./anchors.md)
 - [Lookup](./lookup.md)
 - [List](./list.md)
 - [Update](./update.md)
