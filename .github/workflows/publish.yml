@@ -69,6 +69,8 @@ jobs:
       - name: npm publish (OIDC provenance)
         if: steps.npm_exists.outputs.exists != 'true'
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   cargo-publish:
     name: "Publish: crates.io"
