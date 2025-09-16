@@ -1,0 +1,225 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "publish-${{ inputs.tag || github.event.inputs.tag }}"
+  cancel-in-progress: false
+
+jobs:
+  npm-publish:
+    name: "Publish: npm"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: "Checkout tag"
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.inputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+
+      - name: Validate package.json version matches tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || github.event.inputs.tag }}"
+          TAG_NO_V="${TAG#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG_NO_V" != "$PKG" ]; then
+            echo "Tag $TAG_NO_V does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
+      - name: Check if npm version exists
+        id: npm_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || github.event.inputs.tag }}"
+          V="${TAG#v}"
+          if npm view "@outfitter/blz@${V}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: npm publish (OIDC provenance)
+        if: steps.npm_exists.outputs.exists != 'true'
+        run: npm publish --access public --provenance
+
+  cargo-publish:
+    name: "Publish: crates.io"
+    runs-on: ubuntu-latest
+    needs: npm-publish
+    steps:
+      - name: "Checkout tag"
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.inputs.tag }}
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate Cargo.toml version matches tag
+        id: ver
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.event.inputs.tag }}"
+          TAG_NO_V="${TAG#v}"
+          VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          if [ "$TAG_NO_V" != "$VER" ]; then
+            echo "Tag ${TAG_NO_V} does not match Cargo.toml version ${VER}" >&2
+            exit 1
+          fi
+
+      - name: Check if blz-core exists
+        id: crate_core_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish blz-core
+        if: steps.crate_core_exists.outputs.exists != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p blz-core --locked
+
+      - name: Wait for blz-core to propagate
+        if: steps.crate_core_exists.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.version }}"
+          echo "Waiting for blz-core $V to appear on crates.io..."
+          for _ in {1..30}; do
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+              echo "blz-core $V is available."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for blz-core $V to propagate" >&2
+          exit 1
+
+      - name: Check if blz-cli exists
+        id: crate_cli_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish blz-cli
+        if: steps.crate_cli_exists.outputs.exists != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p blz-cli --locked
+
+  bump-homebrew:
+    name: "Publish: Homebrew Tap"
+    runs-on: ubuntu-latest
+    needs: [npm-publish, cargo-publish]
+    steps:
+      - name: "Checkout source (for script)"
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.inputs.tag }}
+          path: src
+
+      - name: "Compute version and download tarballs"
+        id: tar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || github.event.inputs.tag }}"
+          VERSION="${TAG#v}"
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
+          SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
+          {
+            echo "version=${VERSION}"
+            echo "sha_arm64=${SHA_ARM64}"
+            echo "sha_x64=${SHA_X64}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: "Checkout tap repo"
+        uses: actions/checkout@v4
+        with:
+          repository: outfitter-dev/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: "Update formula"
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.tar.outputs.version }}
+          SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 }}
+          SHA_X64: ${{ steps.tar.outputs.sha_x64 }}
+          TAP_DIR: homebrew-tap
+        run: |
+          bash src/scripts/release/update-brew.sh
+
+      - name: "Create PR in tap repo"
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          branch: bump-blz-${{ steps.tar.outputs.version }}
+          commit-message: "blz ${{ steps.tar.outputs.version }}"
+          title: "blz ${{ steps.tar.outputs.version }}"
+          body: |
+            Bump blz formula to ${{ steps.tar.outputs.version }}.
+            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
+            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
+
+  finalize-github-release:
+    name: "Publish: GitHub Release (undraft)"
+    runs-on: ubuntu-latest
+    needs: [npm-publish, cargo-publish, bump-homebrew]
+    steps:
+      - name: "Undraft GitHub release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.event.inputs.tag }}
+          draft: false
+          prerelease: false

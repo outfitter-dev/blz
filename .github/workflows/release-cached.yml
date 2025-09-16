@@ -45,6 +45,11 @@ jobs:
       cache_key: ${{ steps.extract.outputs.cache_key }}
       should_use_cache: ${{ steps.cache_check.outputs.should_use_cache }}
     steps:
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Determine tag source
         id: tag_source
         run: |
@@ -144,6 +149,7 @@ jobs:
 
   # Build jobs with cache support
   build-darwin-arm64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: prepare
     name: "Release: Build macOS arm64"
     runs-on: macos-14
@@ -211,6 +217,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-darwin-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: prepare
     name: "Release: Build macOS x64"
     runs-on: macos-13
@@ -269,6 +276,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: prepare
     name: "Release: Build Linux x64"
     runs-on: ubuntu-latest
@@ -324,6 +332,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-arm64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: prepare
     name: "Release: Build Linux arm64"
     runs-on: ubuntu-latest
@@ -384,6 +393,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: prepare
     name: "Release: Build Windows x64"
     runs-on: windows-latest
@@ -437,273 +447,59 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Downstream publishing jobs
-  bump-homebrew:
-    name: "Publish: Homebrew Tap"
-    needs: [prepare, build-darwin-arm64, build-darwin-x64]
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Publish: Download tarballs and compute SHA"
-        id: tar
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.prepare.outputs.version }}"
-          TAG="v${VERSION}"
+  publish:
+    name: "Publish: orchestrate"
+    needs: [prepare, build]
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: write
+      id-token: write
+    with:
+      tag: v${{ needs.prepare.outputs.version }}
+    secrets: inherit
 
-          # Download from draft release using gh CLI (works with draft releases)
-          gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
-          gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
-
-          SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
-          SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
-
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
-          echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
-
-      - name: "Publish: Checkout tap repo"
-        uses: actions/checkout@v4
-        with:
-          repository: outfitter-dev/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
-
-      - name: "Publish: Update formula"
-        shell: bash
-        env:
-          FORMULA: |
-            class Blz < Formula
-              desc "Fast local search for llms.txt"
-              homepage "https://blz.run"
-              version "${VERSION}"
-
-              on_macos do
-                if Hardware::CPU.arm?
-                  url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-arm64.tar.gz"
-                  sha256 "${SHA_ARM64}"
-                else
-                  url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-x64.tar.gz"
-                  sha256 "${SHA_X64}"
-                end
-
-                def install
-                  bin.install "blz"
-                end
-
-                test do
-                  assert_match version.to_s, shell_output("#{bin}/blz --version")
-                end
-              end
-            end
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.tar.outputs.version }}"
-          SHA_ARM64="${{ steps.tar.outputs.sha_arm64 }}"
-          SHA_X64="${{ steps.tar.outputs.sha_x64 }}"
-          printf "%s\n" "$FORMULA" > homebrew-tap/Formula/blz.rb
-          # Substitute placeholders after write to appease linters
-          sed -i.bak "s/\${VERSION}/${VERSION}/g" homebrew-tap/Formula/blz.rb
-          sed -i.bak "s/\${SHA_ARM64}/${SHA_ARM64}/g" homebrew-tap/Formula/blz.rb
-          sed -i.bak "s/\${SHA_X64}/${SHA_X64}/g" homebrew-tap/Formula/blz.rb
-          rm -f homebrew-tap/Formula/blz.rb.bak
-
-      - name: "Publish: Create PR in tap repo"
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
-          branch: bump-blz-${{ steps.tar.outputs.version }}
-          commit-message: "blz ${{ steps.tar.outputs.version }}"
-          title: "blz ${{ steps.tar.outputs.version }}"
-          body: |
-            Bump blz formula to ${{ steps.tar.outputs.version }}.
-            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
-            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
-
-  cargo-publish:
-    name: "Publish: crates.io"
-    runs-on: ubuntu-latest
-    needs: [prepare, build-linux-x64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: "Publish: Check publishable versions"
-        id: check
-        run: |
-          if grep -q 'version = ".*-dev"' Cargo.toml; then
-            echo "dev=true" >> $GITHUB_OUTPUT
-          else
-            echo "dev=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: "Publish: Verify Cargo version matches tag"
-        if: steps.check.outputs.dev == 'false'
-        shell: bash
-        run: |
-          TAG="${{ needs.prepare.outputs.version }}"
-          CARGO_VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          if [ "$TAG" != "$CARGO_VER" ]; then
-            echo "Tag ${TAG} does not match Cargo.toml version ${CARGO_VER}" >&2
-            exit 1
-          fi
-
-      - name: "Publish: Check if blz-core version exists"
-        id: crate_core_exists
-        run: |
-          set -euo pipefail
-          IFS=$'\n\t'
-          VERSION="${{ needs.prepare.outputs.version }}"
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: "Publish: Check if blz-cli version exists"
-        id: crate_cli_exists
-        run: |
-          set -euo pipefail
-          IFS=$'\n\t'
-          VERSION="${{ needs.prepare.outputs.version }}"
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: "Publish: blz-core"
-        id: publish_core
-        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          cargo publish -p blz-core --locked
-
-      - name: "Publish: wait for blz-core to propagate"
-        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true' && steps.publish_core.outcome == 'success'
-        run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
-          echo "Waiting for blz-core $VERSION to appear on crates.io..."
-          for i in {1..30}; do
-            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$VERSION"; then
-              echo "blz-core $VERSION is available."
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Timed out waiting for blz-core $VERSION to propagate" >&2
-          exit 1
-
-      - name: "Publish: blz-cli"
-        id: publish_cli
-        if: steps.check.outputs.dev == 'false' && steps.crate_cli_exists.outputs.exists != 'true' && (steps.crate_core_exists.outputs.exists == 'true' || steps.publish_core.outcome == 'success')
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          cargo publish -p blz-cli --locked
-
-  npm-publish:
-    name: "Publish: npm"
-    runs-on: ubuntu-latest
-    needs: [prepare, build-linux-x64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@outfitter'
-
-      - name: "Publish: Validate package.json version"
-        run: |
-          PKG=$(node -p "require('./package.json').version")
-          VERSION="${{ needs.prepare.outputs.version }}"
-          if [ "$VERSION" != "$PKG" ]; then
-            echo "Tag version $VERSION does not match package.json version $PKG" >&2
-            exit 1
-          fi
-
-      - name: "Publish: Check if npm version exists"
-        id: npm_exists
-        run: |
-          set -euo pipefail
-          IFS=$'\n\t'
-          VERSION="${{ needs.prepare.outputs.version }}"
-          if npm view @outfitter/blz@"$VERSION" version >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: "Publish: npm publish"
-        if: steps.npm_exists.outputs.exists != 'true'
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  publish-github-release:
-    name: "Publish: GitHub Release"
-    needs: [prepare, build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64, cargo-publish, npm-publish, bump-homebrew]
-    runs-on: ubuntu-latest
-    if: |
-      needs.build-darwin-arm64.result == 'success' &&
-      needs.build-darwin-x64.result == 'success' &&
-      needs.build-linux-x64.result == 'success' &&
-      needs.build-linux-arm64.result == 'success' &&
-      needs.build-windows-x64.result == 'success' &&
-      needs.cargo-publish.result == 'success' &&
-      needs.npm-publish.result == 'success' &&
-      needs.bump-homebrew.result == 'success'
-    steps:
-      - name: "Publish: finalize GitHub release (undraft)"
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          draft: false
-          prerelease: false
-
-  # Summary job to report status
-  release-summary:
-    name: "Release: Summary"
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [prepare, build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64, cargo-publish, npm-publish]
-    steps:
-      - name: Summary
-        run: |
-          {
-            echo "## Release Summary for v${{ needs.prepare.outputs.version }}"
-            echo ""
-            echo "### Build Status:"
-            echo "- macOS ARM64: ${{ needs.build-darwin-arm64.result }}"
-            echo "- macOS x64: ${{ needs.build-darwin-x64.result }}"
-            echo "- Linux x64: ${{ needs.build-linux-x64.result }}"
-            echo "- Linux ARM64: ${{ needs.build-linux-arm64.result }}"
-            echo "- Windows x64: ${{ needs.build-windows-x64.result }}"
-            echo ""
-            echo "### Publishing:"
-            echo "- Crates.io: ${{ needs.cargo-publish.result }}"
-            echo "- npm: ${{ needs.npm-publish.result }}"
-            echo ""
-            if [[ "${{ needs.prepare.outputs.should_use_cache }}" == "true" ]]; then
-              echo "✅ Used cached builds from CI"
-            else
-              echo "🔨 Performed clean builds"
-            fi
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+  build:
+    name: "Build (matrix)"
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: host
+            out_name: blz-darwin-arm64
+            package_macos_tar: true
+            disable_ring_asm: true
+            rustflags: '-C target-feature=+neon,+aes,+sha2,+pmull'
+          - runner: macos-13
+            target: host
+            out_name: blz-darwin-x64
+            package_macos_tar: true
+            disable_ring_asm: false
+          - runner: ubuntu-latest
+            target: host
+            out_name: blz-linux-x64
+            package_macos_tar: false
+            disable_ring_asm: false
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            out_name: blz-linux-arm64
+            package_macos_tar: false
+            disable_ring_asm: false
+            cross: true
+          - runner: windows-latest
+            target: host
+            out_name: blz-win32-x64.exe
+            package_macos_tar: false
+            disable_ring_asm: true
+    uses: ./.github/workflows/build-platform.yml
+    with:
+      runner: ${{ matrix.runner }}
+      ref: ${{ needs.prepare.outputs.commit_sha }}
+      tag: v${{ needs.prepare.outputs.version }}
+      target: ${{ matrix.target }}
+      out_name: ${{ matrix.out_name }}
+      package_macos_tar: ${{ matrix.package_macos_tar }}
+      cross: ${{ matrix.cross || false }}
+      rustflags: ${{ matrix.rustflags || '' }}
+      disable_ring_asm: ${{ matrix.disable_ring_asm || false }}

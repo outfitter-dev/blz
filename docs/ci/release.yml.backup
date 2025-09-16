@@ -47,7 +47,6 @@ jobs:
           echo "📦 Version: $VERSION"
 
   build-darwin-arm64:
-    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build macOS arm64"
     runs-on: macos-14
@@ -106,7 +105,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-darwin-x64:
-    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build macOS x64"
     runs-on: macos-13
@@ -159,7 +157,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-x64:
-    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Linux x64"
     runs-on: ubuntu-latest
@@ -206,7 +203,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-arm64:
-    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Linux arm64"
     runs-on: ubuntu-latest
@@ -260,7 +256,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows-x64:
-    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Windows x64"
     runs-on: windows-latest
@@ -306,20 +301,253 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  bump-homebrew:
+    name: "Publish: Homebrew Tap"
+    needs: [build-darwin-arm64, build-darwin-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Publish: Compute version and download tarballs"
+        id: tar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+
+          # Download from draft release using gh CLI (works with draft releases)
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
+
+          SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
+          echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
+
+      - name: "Publish: Checkout tap repo"
+        uses: actions/checkout@v4
+        with:
+          repository: outfitter-dev/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: "Publish: Update formula"
+        shell: bash
+        env:
+          FORMULA: |
+            class Blz < Formula
+              desc "Fast local search for llms.txt"
+              homepage "https://blz.run"
+              version "${VERSION}"
+
+              on_macos do
+                if Hardware::CPU.arm?
+                  url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-arm64.tar.gz"
+                  sha256 "${SHA_ARM64}"
+                else
+                  url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-x64.tar.gz"
+                  sha256 "${SHA_X64}"
+                end
+
+                def install
+                  bin.install "blz"
+                end
+
+                test do
+                  assert_match version.to_s, shell_output("#{bin}/blz --version")
+                end
+              end
+            end
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.tar.outputs.version }}"
+          SHA_ARM64="${{ steps.tar.outputs.sha_arm64 }}"
+          SHA_X64="${{ steps.tar.outputs.sha_x64 }}"
+          printf "%s\n" "$FORMULA" > homebrew-tap/Formula/blz.rb
+          # Substitute placeholders after write to appease linters
+          sed -i.bak "s/\${VERSION}/${VERSION}/g" homebrew-tap/Formula/blz.rb
+          sed -i.bak "s/\${SHA_ARM64}/${SHA_ARM64}/g" homebrew-tap/Formula/blz.rb
+          sed -i.bak "s/\${SHA_X64}/${SHA_X64}/g" homebrew-tap/Formula/blz.rb
+          rm -f homebrew-tap/Formula/blz.rb.bak
+
+      - name: "Publish: Create PR in tap repo"
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          branch: bump-blz-${{ steps.tar.outputs.version }}
+          commit-message: "blz ${{ steps.tar.outputs.version }}"
+          title: "blz ${{ steps.tar.outputs.version }}"
+          body: |
+            Bump blz formula to ${{ steps.tar.outputs.version }}.
+            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
+            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
+
+  cargo-publish:
+    name: "Publish: crates.io"
+    runs-on: ubuntu-latest
+    needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+      - name: "Publish: Check publishable versions"
+        id: check
+        run: |
+          if grep -q 'version = ".*-dev"' Cargo.toml; then
+            echo "dev=true" >> $GITHUB_OUTPUT
+          else
+            echo "dev=false" >> $GITHUB_OUTPUT
+          fi
+      - name: "Publish: Extract version"
+        if: steps.check.outputs.dev == 'false'
+        id: ver
+        shell: bash
+        run: |
+          VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+      - name: "Publish: Verify Cargo version matches tag"
+        if: steps.check.outputs.dev == 'false'
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag }}"
+          TAG="${TAG#v}"
+          if [ "${TAG}" != "${{ steps.ver.outputs.version }}" ]; then
+            echo "Tag ${TAG} does not match Cargo.toml version ${{ steps.ver.outputs.version }}" >&2
+            exit 1
+          fi
+      - name: "Publish: Check if blz-core version exists"
+        if: steps.check.outputs.dev == 'false'
+        id: crate_core_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: Check if blz-cli version exists"
+        if: steps.check.outputs.dev == 'false'
+        id: crate_cli_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          V="${{ steps.ver.outputs.version }}"
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: blz-core"
+        id: publish_core
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p blz-core --locked
+      - name: "Publish: wait for blz-core to propagate"
+        if: steps.check.outputs.dev == 'false' && steps.crate_core_exists.outputs.exists != 'true' && steps.publish_core.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=${{ steps.ver.outputs.version }}
+          echo "Waiting for blz-core $V to appear on crates.io index..."
+          for i in {1..30}; do
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+              echo "blz-core $V is available."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for blz-core $V to propagate" >&2
+          exit 1
+      - name: "Publish: blz-cli"
+        id: publish_cli
+        if: steps.check.outputs.dev == 'false' && steps.crate_cli_exists.outputs.exists != 'true' && (steps.crate_core_exists.outputs.exists == 'true' || steps.publish_core.outcome == 'success')
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p blz-cli --locked
+
+  npm-publish:
+    name: "Publish: npm"
+    runs-on: ubuntu-latest
+    needs: [build-darwin-arm64, build-darwin-x64, build-linux-x64, build-linux-arm64, build-windows-x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+      - name: "Publish: Validate package.json version matches tag"
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag }}"
+          TAG="${TAG#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag $TAG does not match package.json version $PKG" >&2
+            exit 1
+          fi
+      - name: "Publish: Check if npm version exists"
+        id: npm_exists
+        run: |
+          set -euo pipefail
+          IFS=$'\n\t'
+          TAG="${{ inputs.tag }}"
+          V="${TAG#v}"
+          if npm view @outfitter/blz@"$V" version >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Publish: npm publish"
+        if: steps.npm_exists.outputs.exists != 'true'
+        run: npm publish --access public --provenance
+        env:
+          # Legacy token-based authentication; current pipeline uses npm OIDC Trusted Publishing.
+          # This backup workflow remains for incident response only.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-release:
+    name: "Publish: GitHub Release"
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Finalize GitHub release (undraft)"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          draft: false
+          prerelease: false
   publish:
     name: "Publish: orchestrate"
     needs: [build]
     uses: ./.github/workflows/publish.yml
-    permissions:
-      contents: write
-      id-token: write
     with:
       tag: ${{ inputs.tag }}
     secrets: inherit
 
   build:
     name: "Build (matrix)"
-    needs: verify-tag
     strategy:
       fail-fast: false
       matrix:
