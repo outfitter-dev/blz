@@ -310,6 +310,9 @@ jobs:
     name: "Publish: orchestrate"
     needs: [build]
     uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: write
+      id-token: write
     with:
       tag: ${{ inputs.tag }}
     secrets: inherit
