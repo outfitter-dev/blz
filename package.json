@@ -40,7 +40,9 @@
   ],
   "scripts": {
     "postinstall": "node npm/postinstall.js",
-    "prepack": "node npm/prepack.js"
+    "prepack": "node npm/prepack.js",
+    "lint:blz-style": "bun scripts/blz-style.ts --check",
+    "fix:blz-style": "bun scripts/blz-style.ts"
   },
   "engines": {
     "node": ">=18.20.0"
