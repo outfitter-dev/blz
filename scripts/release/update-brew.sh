@@ -45,9 +45,6 @@ class Blz < Formula
   license "Apache-2.0"
   version "${VERSION}"
 
-  url "https://github.com/${REPO}/releases/download/v#{version}/blz-darwin-arm64.tar.gz"
-  sha256 "${SHA_ARM64}"
-
   livecheck do
     url "https://github.com/${REPO}/releases/latest"
     strategy :github_latest
