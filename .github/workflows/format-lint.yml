@@ -1,0 +1,45 @@
+name: Format & Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy Lint
+    runs-on: ubuntu-latest
+    needs: format
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          prefix-key: v3-lint
+      - name: cargo clippy
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: |
+          cargo clippy --workspace --all-targets --all-features -- \
+            -D warnings -A missing_docs -A clippy::missing_errors_doc -A clippy::missing_panics_doc

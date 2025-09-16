@@ -37,7 +37,7 @@ on:
 jobs:
   build:
     name: Build ${{ inputs.target }}
-    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || 'macos-14' }}
+    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || inputs.target == 'darwin-x64' && 'macos-13' || 'macos-14' }}
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       artifact_id: ${{ steps.upload.outputs['artifact-id'] }}
@@ -55,50 +55,35 @@ jobs:
           elif [ "${{ inputs.target }}" = "linux-x64" ]; then
             echo "rust_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUT"
             echo "binary_name=blz" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.target }}" = "darwin-x64" ]; then
+            echo "rust_target=x86_64-apple-darwin" >> "$GITHUB_OUTPUT"
+            echo "binary_name=blz" >> "$GITHUB_OUTPUT"
           else
             echo "rust_target=aarch64-apple-darwin" >> "$GITHUB_OUTPUT"
             echo "binary_name=blz" >> "$GITHUB_OUTPUT"
           fi
         shell: bash
 
-      - name: Try to restore from cache
-        if: inputs.use_cache
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            target/release/${{ steps.vars.outputs.binary_name }}
-          key: ${{ inputs.cache_key }}-${{ inputs.target }}
-          restore-keys: |
-            ${{ inputs.cache_key }}-
-            rust-build-
-
       - name: Setup Rust
-        if: steps.cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: ${{ steps.vars.outputs.rust_target }}
 
       - name: Setup build environment (Linux)
-        if: steps.cache.outputs.cache-hit != 'true' && inputs.target == 'linux-x64'
+        if: inputs.target == 'linux-x64'
         run: |
           sudo apt-get update
           sudo apt-get install -y lld
 
-      - name: Cache cargo registry
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+      - name: Cache cargo
+        if: inputs.use_cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
+          cache-on-failure: true
+          prefix-key: release-${{ inputs.target }}
 
       - name: Build release binary
-        if: steps.cache.outputs.cache-hit != 'true'
         env:
           RING_DISABLE_ASM: ${{ inputs.target == 'darwin-arm64' && '1' || '' }}
           RUSTFLAGS: ${{ inputs.target == 'linux-x64' && '-C link-arg=-fuse-ld=lld' || '' }}

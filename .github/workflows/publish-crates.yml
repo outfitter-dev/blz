@@ -1,0 +1,150 @@
+name: Publish (crates.io)
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Git tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+      version:
+        description: 'Version string without leading v'
+        required: true
+        type: string
+      propagation_attempts:
+        description: 'Number of attempts to verify crates.io propagation'
+        required: false
+        default: 30
+        type: number
+      propagation_delay_seconds:
+        description: 'Seconds to wait between propagation checks'
+        required: false
+        default: 5
+        type: number
+    secrets:
+      cargo-token:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+      propagation_attempts:
+        description: 'Number of attempts to verify crates.io propagation'
+        required: false
+        default: 30
+        type: number
+      propagation_delay_seconds:
+        description: 'Seconds to wait between propagation checks'
+        required: false
+        default: 5
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish crates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+            VERSION="${TAG#v}"
+          else
+            TAG="$INPUT_TAG"
+            VERSION="$INPUT_VERSION"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate Cargo.toml version matches tag
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NO_V="${{ steps.resolve.outputs.tag }}"
+          TAG_NO_V="${TAG_NO_V#v}"
+          VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          if [ "$TAG_NO_V" != "$VER" ]; then
+            echo "::error::Tag ${TAG_NO_V} does not match Cargo.toml version ${VER}"
+            exit 1
+          fi
+
+      - name: Check if blz-core exists
+        id: crate_core_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.resolve.outputs.version }}'
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish blz-core
+        if: ${{ steps.crate_core_exists.outputs.exists != 'true' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.cargo-token }}
+        run: cargo publish -p blz-core --locked
+
+      - name: Wait for blz-core propagation
+        if: ${{ steps.crate_core_exists.outputs.exists != 'true' }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          INPUT_MAX_ATTEMPTS: ${{ inputs.propagation_attempts }}
+          INPUT_DELAY_SECONDS: ${{ inputs.propagation_delay_seconds }}
+        run: |
+          set -euo pipefail
+          V="$VERSION"
+          MAX_ATTEMPTS=${INPUT_MAX_ATTEMPTS:-30}
+          DELAY=${INPUT_DELAY_SECONDS:-5}
+          echo "Waiting for blz-core $V to propagate (max ${MAX_ATTEMPTS} attempts, delay ${DELAY}s)..."
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+              echo "blz-core $V available on attempt $attempt"
+              exit 0
+            fi
+            sleep "$DELAY"
+          done
+          echo "Timed out waiting for blz-core $V after ${MAX_ATTEMPTS} attempts" >&2
+          exit 1
+
+      - name: Check if blz-cli exists
+        id: crate_cli_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.resolve.outputs.version }}'
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish blz-cli
+        if: ${{ steps.crate_cli_exists.outputs.exists != 'true' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.cargo-token }}
+        run: cargo publish -p blz-cli --locked

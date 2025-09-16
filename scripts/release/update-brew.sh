@@ -7,8 +7,8 @@ set -euo pipefail
 # - TAP_DIR: path to the checked out tap repo (default: homebrew-tap)
 # - REPO: GitHub repo in owner/name form (e.g., outfitter-dev/blz)
 # - VERSION: version string without leading v (e.g., 0.2.0)
-# - SHA_ARM64: sha256 for blz-darwin-arm64.tar.gz
-# - SHA_X64: sha256 for blz-darwin-x64.tar.gz
+# - SHA_ARM64: sha256 for blz-${VERSION}-darwin-arm64.tar.gz
+# - SHA_X64: sha256 for blz-${VERSION}-darwin-x64.tar.gz
 
 TAP_DIR=${TAP_DIR:-homebrew-tap}
 REPO=${REPO:?REPO is required (e.g., outfitter-dev/blz)}
@@ -52,11 +52,11 @@ class Blz < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/blz-darwin-arm64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-darwin-arm64.tar.gz"
       sha256 "${SHA_ARM64}"
     end
     on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/blz-darwin-x64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-darwin-x64.tar.gz"
       sha256 "${SHA_X64}"
     end
   end

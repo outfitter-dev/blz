@@ -1,0 +1,141 @@
+name: Publish (Homebrew)
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Git tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+      version:
+        description: 'Version string without leading v'
+        required: true
+        type: string
+      enabled:
+        description: 'Whether to run the Homebrew publication'
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      homebrew-token:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Update Homebrew tap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_ENABLED: ${{ inputs.enabled }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+            VERSION="${TAG#v}"
+            ENABLED='true'
+          else
+            TAG="$INPUT_TAG"
+            VERSION="$INPUT_VERSION"
+            ENABLED="${INPUT_ENABLED:-true}"
+          fi
+          if [[ "$ENABLED" != 'true' ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Skip when disabled
+        if: ${{ steps.resolve.outputs.enabled != 'true' }}
+        run: echo "Homebrew publication disabled for this release."
+
+      - name: Check release assets exist
+        if: ${{ steps.resolve.outputs.enabled == 'true' }}
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='${{ steps.resolve.outputs.tag }}'
+          ARM_COUNT=$(gh release view "$TAG" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length')
+          X64_COUNT=$(gh release view "$TAG" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length')
+          if [ "${ARM_COUNT:-0}" -eq 0 ] || [ "${X64_COUNT:-0}" -eq 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Homebrew assets not ready for $TAG (arm64=$ARM_COUNT, x64=$X64_COUNT)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source (for scripts)
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+          path: src
+
+      - name: Compute shas and download assets
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        id: tar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG='${{ steps.resolve.outputs.tag }}'
+          VERSION='${{ steps.resolve.outputs.version }}'
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-arm64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-x64.tar.gz" --dir . --clobber
+          SHA_ARM64=$(shasum -a 256 blz-${VERSION}-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_X64=$(shasum -a 256 blz-${VERSION}-darwin-x64.tar.gz | cut -d' ' -f1)
+          echo "sha_arm64=$SHA_ARM64" >> "$GITHUB_OUTPUT"
+          echo "sha_x64=$SHA_X64" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap repository
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: outfitter-dev/homebrew-tap
+          token: ${{ secrets.homebrew-token }}
+          path: homebrew-tap
+
+      - name: Update formula
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+          SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 }}
+          SHA_X64: ${{ steps.tar.outputs.sha_x64 }}
+          TAP_DIR: homebrew-tap
+        run: |
+          bash src/scripts/release/update-brew.sh
+
+      - name: Create tap PR
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.homebrew-token }}
+          path: homebrew-tap
+          branch: bump-blz-${{ steps.resolve.outputs.version }}
+          commit-message: "blz ${{ steps.resolve.outputs.version }}"
+          title: "blz ${{ steps.resolve.outputs.version }}"
+          body: |
+            Bump blz formula to ${{ steps.resolve.outputs.version }}.
+            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
+            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}

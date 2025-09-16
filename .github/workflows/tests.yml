@@ -1,12 +1,13 @@
 name: Rust CI (tests + clippy)
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
 
 jobs:
-  test:
+  tests:
+    name: Cargo Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,32 +16,20 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          components: clippy, rustfmt
 
       - name: Cache cargo/target
         uses: Swatinem/rust-cache@v2
-
-      - name: Format check
-        run: cargo fmt -- --check
-
-      - name: Clippy (strict correctness/suspicious/perf)
-        run: |
-          cargo clippy --workspace -- \
-            -D clippy::correctness \
-            -D clippy::suspicious \
-            -D clippy::perf \
-            -A missing-docs \
-            -A clippy::missing-errors-doc \
-            -A clippy::missing-panics-doc \
-            -A clippy::must-use-candidate
+        with:
+          cache-on-failure: true
+          prefix-key: v3-tests
 
       - name: Install nextest
         run: |
           if ! command -v cargo-nextest >/dev/null 2>&1; then
-            cargo install cargo-nextest
+            cargo install cargo-nextest --locked
           fi
 
-      - name: Tests (nextest)
+      - name: cargo nextest
         run: cargo nextest run --workspace --status-level slow
 
       - name: Doc tests
