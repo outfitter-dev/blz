@@ -47,6 +47,7 @@ jobs:
           echo "📦 Version: $VERSION"
 
   build-darwin-arm64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build macOS arm64"
     runs-on: macos-14
@@ -105,6 +106,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-darwin-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build macOS x64"
     runs-on: macos-13
@@ -157,6 +159,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Linux x64"
     runs-on: ubuntu-latest
@@ -203,6 +206,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux-arm64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Linux arm64"
     runs-on: ubuntu-latest
@@ -256,6 +260,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows-x64:
+    if: ${{ false }} # legacy path disabled; replaced by matrix 'build'
     needs: verify-tag
     name: "Release: Build Windows x64"
     runs-on: windows-latest
@@ -311,6 +316,7 @@ jobs:
 
   build:
     name: "Build (matrix)"
+    needs: verify-tag
     strategy:
       fail-fast: false
       matrix:

@@ -76,16 +76,16 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ inputs.disable_ring_asm }}" = "true" ]; then
-            echo "RING_DISABLE_ASM=1" >> $GITHUB_ENV
+            printf '%s\n' "RING_DISABLE_ASM=1" >> "$GITHUB_ENV"
           fi
           if [ -n "${{ inputs.rustflags }}" ]; then
-            echo "RUSTFLAGS=${{ inputs.rustflags }}" >> $GITHUB_ENV
+            printf '%s=%s\n' "RUSTFLAGS" "${{ inputs.rustflags }}" >> "$GITHUB_ENV"
           fi
           if [ "${{ inputs.target }}" != "host" ]; then
             case "${{ inputs.target }}" in
               aarch64-unknown-linux-gnu)
-                echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-                echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+                printf '%s\n' "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+                printf '%s\n' "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
                 ;;
             esac
           fi
