@@ -1,6 +1,6 @@
-# blz CLI Reference
+# BLZ CLI Reference
 
-Complete command-line interface reference for `blz`.
+Complete command-line interface reference for BLZ.
 
 For enhanced productivity with tab completion and shell integration, see the [Shell Integration Guide](shell-integration/README.md).
 
@@ -32,7 +32,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `completions` | | Generate shell completions |
 | `docs` | | Generate CLI docs (Markdown/JSON) |
 | `alias` | | Manage aliases for a source |
-| `instruct` | | Print instructions for agent use of blz |
+| `instruct` | | Print instructions for agent use of BLZ |
 
 ## Command Reference
 
@@ -428,7 +428,7 @@ blz search "complex query" --flamegraph
 
 ## Configuration
 
-`blz` stores data in platform-specific locations:
+BLZ stores data in platform-specific locations:
 
 ### Data Storage
 
@@ -458,7 +458,7 @@ Config discovery order:
 └── (global config is stored under XDG, not inside the data directory)
 ```
 
-**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old cache directory location.
+**Note**: If upgrading from an earlier version, BLZ will automatically migrate your data from the old cache directory location.
 
 ## Tips
 
@@ -469,7 +469,7 @@ Config discovery order:
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
 ### `blz instruct`
 
-Print instructions for agent use of blz, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
+Print instructions for agent use of BLZ, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
 
 ```bash
 blz instruct

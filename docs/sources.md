@@ -1,6 +1,6 @@
 # Managing Sources
 
-This guide covers everything about managing documentation sources in `blz`.
+This guide covers everything about managing documentation sources in BLZ.
 
 ## Understanding Sources
 
@@ -222,7 +222,7 @@ Content...
 
 ### JSON Documents
 
-blz can handle JSON documents (like Node.js API):
+BLZ can handle JSON documents (like Node.js API):
 
 ```bash
 blz add node https://nodejs.org/api/all.json
@@ -266,7 +266,7 @@ blz update --all
 ```
 
 ### 4. Monitor Storage
-blz is efficient, but check occasionally:
+BLZ is efficient, but check occasionally:
 
 ```bash
 blz list  # Shows line counts
@@ -289,7 +289,7 @@ blz add bun https://bun.sh/llms.txt
 Check your internet connection and try again.
 
 ### Parse Errors
-blz handles malformed documents gracefully, but check diagnostics in the JSON:
+BLZ handles malformed documents gracefully, but check diagnostics in the JSON:
 
 ```bash
 cat ~/Library/Application\ Support/dev.outfitter.blz/bun/llms.json | jq .diagnostics

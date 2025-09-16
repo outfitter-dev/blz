@@ -1,6 +1,6 @@
 # Output formats
 
-The blz CLI supports multiple output formats to suit different use cases and integrations.
+The BLZ CLI supports multiple output formats to suit different use cases and integrations.
 
 ## Available formats
 

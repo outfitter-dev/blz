@@ -1,6 +1,6 @@
-# blz Documentation
+# BLZ Documentation
 
-Welcome to the comprehensive documentation for blz, a fast local-first search cache for `llms.txt` ecosystems.
+Welcome to the comprehensive documentation for BLZ, a fast local-first search cache for `llms.txt` ecosystems.
 
 ## 📚 Documentation Index
 
@@ -18,7 +18,7 @@ Welcome to the comprehensive documentation for blz, a fast local-first search ca
 ### Technical Details
 
 - [**Architecture**](architecture.md) - How it works under the hood
-- [**Storage Format**](storage.md) - Understanding the blz structure
+- [**Storage Format**](storage.md) - Understanding the BLZ structure
 
 ### Development
 

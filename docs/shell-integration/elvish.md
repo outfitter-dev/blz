@@ -63,7 +63,7 @@ set edit:insert:binding[Ctrl-B] = {
 
 ## Integration with Elvish Modules
 
-### Create a blz module
+### Create a BLZ module
 
 Create `~/.elvish/lib/blz-utils.elv`:
 

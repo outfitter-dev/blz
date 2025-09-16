@@ -31,7 +31,7 @@ cargo shear                  # Unused dependencies
 
 ## Reporting Security Vulnerabilities
 
-If you discover a security vulnerability in `blz`, please:
+If you discover a security vulnerability in BLZ, please:
 
 1. **DO NOT** create a public GitHub issue
 2. Email security details to the maintainers

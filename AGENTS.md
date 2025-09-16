@@ -1,4 +1,4 @@
-# blz Repository Instructions for AI Agents
+# BLZ Repository Instructions for AI Agents
 
 This file provides comprehensive guidance to AI agents when working with Rust code in this repository.
 
@@ -7,9 +7,9 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 - Follow the @./.agents/rules/IMPORTANT.md rules
 - Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
 
-## Use blz
+## Use BLZ
 
-- You're working on blz, so you should use it!
+- You're working on BLZ, so you should use it!
 - For docs search, use the `blz` CLI tool: @.agents/instructions/use-blz.md
 
 ## 🚀 Quick Start for Agents
@@ -36,7 +36,7 @@ Each crate has its own AGENTS.md with specialized patterns:
 
 ## Repository Overview
 
-`blz` is a local-first search cache for llms.txt documentation ecosystems. Built with Rust and Tantivy, it provides millisecond-latency search with exact line citations for cached documentation.
+BLZ is a local-first search cache for llms.txt documentation ecosystems. Built with Rust and Tantivy, it provides millisecond-latency search with exact line citations for cached documentation.
 
 ## Architecture
 

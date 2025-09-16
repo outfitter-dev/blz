@@ -1,6 +1,6 @@
 # Development Guide
 
-Welcome to the blz development documentation. This guide covers our development process, tools, and best practices.
+Welcome to the BLZ development documentation. This guide covers our development process, tools, and best practices.
 
 ## 📚 Documentation
 

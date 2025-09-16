@@ -1,11 +1,11 @@
 <!-- TODO #5: Update this doc as we improve Zsh support (track improvements in issue #5) -->
 # Shell Integration
 
-Complete guide to shell completions and integration for `blz`.
+Complete guide to shell completions and integration for BLZ.
 
 ## Supported Shells
 
-`blz` provides completions for:
+BLZ provides completions for:
 
 - **[Bash](./bash.md)** - Standard completions with broad compatibility
 - **[Zsh](./zsh.md)** - Rich completions with Oh My Zsh support

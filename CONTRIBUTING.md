@@ -1,4 +1,4 @@
-# Contributing to blz
+# Contributing to BLZ
 
 Thank you for your interest in contributing! 
 

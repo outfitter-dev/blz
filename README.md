@@ -1,14 +1,14 @@
-# blz ※
+# BLZ ※
 
 > **blaze** */bleɪz/* (verb, noun)
 >
 > 1. **verb** – Move or proceed at high speed; achieve something rapidly
 > 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey
-> 3. **abbr.** – `blz` – A local-first search tool that indexes llms.txt documentation for instant, line-accurate retrieval
+> 3. **abbr.** – BLZ – A local-first search tool that indexes llms.txt documentation for instant, line-accurate retrieval
 
 ---
 
-## What is `blz`?
+## What is BLZ?
 
 A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` files locally to enable fast documentation search with line-accurate retrieval.
 
@@ -42,9 +42,9 @@ blz "react hooks" -o json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
     - Example: the [Model Context Protocol llms-full.txt](https://modelcontextprotocol.io/llms-full.txt) is nearly 12,000 lines long, and is over 200,000 tokens, which coincidentally was Claude 3.7 Sonnet's token limit.
   - They can change often (which is a good thing), so if you want to download them as reference, keeping them up to date is a pain.
 
-### Why `blz`?
+### Why BLZ?
 
-`llms.txt` files are great, but they're not immediately useful for coding agents as a source for documentation. Context limits alone are enough to make them impractical. Using MCP servers to get docs is the gold-standard today, but they can often return lots of token-heavy results, which isn't ideal for context management in agents. So that's where `blz` comes in:
+`llms.txt` files are great, but they're not immediately useful for coding agents as a source for documentation. Context limits alone are enough to make them impractical. Using MCP servers to get docs is the gold-standard today, but they can often return lots of token-heavy results, which isn't ideal for context management in agents. So that's where BLZ comes in:
 
 ```bash
 # Add Bun's llms.txt to blz
