@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-09-17
+
+### Changed
+- Automated releases via label-driven workflows that build cross-platform artifacts, upload them, and publish npm/crates/Homebrew in sequence.
+- Added asset readiness guards for the Homebrew job and tightened release undraft conditions to avoid incomplete releases.
+- Cached `cargo-edit` in CI and documented local `act` rehearsals for release workflows.
+
+### Fixed
+- Windows npm postinstall now imports `package.json` via URL (no `ERR_UNSUPPORTED_ESM_URL_SCHEME`) and the package requires Node ≥ 18.20.0.
+
 ## [0.2.0] - 2025-09-15
 
 ### Added
@@ -82,3 +92,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.6]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.6
 [0.1.5]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.5
 [0.1.7]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.7
+[0.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.0
+[0.2.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.1

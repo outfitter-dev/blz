@@ -6,7 +6,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 authors = ["Outfitter Dev"]
 license = "MIT"
@@ -44,7 +44,7 @@ tempfile = "3"
 url = "2"
 
 # Internal crates (ensure version is set for crates.io publish of dependents)
-blz-core = { path = "crates/blz-core", version = "0.2.0" }
+blz-core = { path = "crates/blz-core", version = "0.2.1" }
 
 [patch.crates-io]
 # Work around macOS ARM CPU feature detection panic in ring 0.17.14
@@ -78,3 +78,7 @@ expect_used = "warn"
 panic = "warn"
 unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
