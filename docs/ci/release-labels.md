@@ -9,3 +9,5 @@ Use these labels on pull requests that target `main` to signal release automatio
 - `release:hold` – pause automation for the PR until the label is removed.
 
 If no `release:*` label is present, the release workflow will skip tagging. See `.github/workflows/auto-release.yml` for automation logic.
+
+For local rehearsal of the workflows, follow the steps in `docs/ci/workflow-testing.md`.
