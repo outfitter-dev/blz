@@ -75,7 +75,8 @@ jobs:
   cargo-publish:
     name: "Publish: crates.io"
     runs-on: ubuntu-latest
-    needs: npm-publish
+    # Run independently - don't block on npm-publish
+    if: always()
     steps:
       - name: "Checkout tag"
         uses: actions/checkout@v4
@@ -156,7 +157,8 @@ jobs:
   bump-homebrew:
     name: "Publish: Homebrew Tap"
     runs-on: ubuntu-latest
-    needs: [npm-publish, cargo-publish]
+    # Run independently - don't wait for npm/cargo publish
+    if: always()
     steps:
       - name: "Checkout source (for script)"
         uses: actions/checkout@v4
@@ -217,7 +219,8 @@ jobs:
   finalize-github-release:
     name: "Publish: GitHub Release (undraft)"
     runs-on: ubuntu-latest
-    needs: [npm-publish, cargo-publish, bump-homebrew]
+    # Always run to undraft the release, even if some publish steps fail
+    if: always()
     steps:
       - name: "Undraft GitHub release"
         uses: softprops/action-gh-release@v2

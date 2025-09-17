@@ -21,7 +21,8 @@ try {
     process.exit(0);
   }
 
-  const pkg = await import(join(dirname(__dirname), 'package.json'), { assert: { type: 'json' } });
+  const pkgUrl = new URL('../package.json', import.meta.url);
+  const pkg = await import(pkgUrl, { with: { type: 'json' } });
   const version = pkg.default.version;
   const p = platform();
   const a = arch();
