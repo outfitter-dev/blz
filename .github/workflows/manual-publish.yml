@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: manual-publish-${{ github.ref }}
@@ -78,12 +77,12 @@ jobs:
           publish_or_skip blz-core
           # Let the index catch up so blz-cli's versioned dep resolves
           V="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="blz-core") | .version')"
-          for i in {1..12}; do
+          for i in {1..24}; do
             if cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
               break
             fi
-            echo "Waiting for blz-core to propagate (attempt $i/12)..."
-            sleep 5
+            echo "Waiting for blz-core to propagate (attempt $i/24)..."
+            sleep 10
           done
           if ! cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
             echo "Timed out waiting for blz-core $V to propagate to crates.io index." >&2
@@ -95,6 +94,9 @@ jobs:
     if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'stable'
     name: Publish npm package
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -108,6 +110,11 @@ jobs:
       - name: npm publish (dry run)
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run
+      - name: npm auth check
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami
       - name: npm publish (stable)
         if: github.event.inputs.dry_run != 'true'
         run: npm publish --access public --tag latest --provenance
@@ -117,6 +124,9 @@ jobs:
     if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'next'
     name: Publish npm canary (next tag)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -142,6 +152,11 @@ jobs:
       - name: npm publish (canary dry run)
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run
+      - name: npm auth check
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami
       - name: npm publish (canary)
         if: github.event.inputs.dry_run != 'true'
         run: npm publish --access public --tag next --provenance
