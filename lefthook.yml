@@ -23,6 +23,28 @@ pre-commit:
           fi
         '
       stage_fixed: true
+    actionlint:
+      run: |
+        bash -lc '
+          if ! command -v actionlint >/dev/null 2>&1; then
+            echo "actionlint not found. Install with: go install github.com/rhysd/actionlint/cmd/actionlint@latest"
+            echo "Or run: just bootstrap-fast"
+            exit 2
+          fi
+          CHANGED=$(git diff -z --name-only --cached --diff-filter=d -- \
+            ".github/workflows/*.yml" \
+            ".github/workflows/*.yaml")
+          if [ -z "$CHANGED" ]; then
+            exit 0
+          fi
+          # Prefer running shellcheck if present to surface script issues early
+          if command -v shellcheck >/dev/null 2>&1; then
+            printf '%s' "$CHANGED" | xargs -0 actionlint -shellcheck="$(command -v shellcheck)"
+          else
+            echo "(tip) Install shellcheck for richer diagnostics"
+            printf '%s' "$CHANGED" | xargs -0 actionlint
+          fi
+        '
     whitespace:
       run: git diff --check --staged
 
