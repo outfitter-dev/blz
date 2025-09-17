@@ -47,20 +47,56 @@ jobs:
       - name: Cargo publish (dry run)
         if: github.event.inputs.dry_run == 'true'
         run: |
-          cargo publish -p blz-core --dry-run
-          cargo publish -p blz-cli --dry-run
+          cargo publish -p blz-core --dry-run --locked
+          cargo publish -p blz-cli --dry-run --locked
       - name: Cargo publish
         if: github.event.inputs.dry_run != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        shell: bash
         run: |
-          cargo publish -p blz-core
-          cargo publish -p blz-cli
+          set -euo pipefail
+
+          publish_or_skip() {
+            local crate="$1"
+            echo "::group::Publishing $crate"
+            if out=$(cargo publish -p "$crate" --locked 2>&1); then
+              echo "Published $crate"
+            else
+              code=$?
+              if echo "$out" | grep -qiE 'already uploaded|already been uploaded|previously published'; then
+                echo "$crate already published; continuing."
+              else
+                echo "$out"
+                exit $code
+              fi
+            fi
+            echo "::endgroup::"
+          }
+
+          publish_or_skip blz-core
+          # Let the index catch up so blz-cli's versioned dep resolves
+          V="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="blz-core") | .version')"
+          for i in {1..24}; do
+            if cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
+              break
+            fi
+            echo "Waiting for blz-core to propagate (attempt $i/24)..."
+            sleep 10
+          done
+          if ! cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
+            echo "Timed out waiting for blz-core $V to propagate to crates.io index." >&2
+            exit 1
+          fi
+          publish_or_skip blz-cli
 
   publish-npm:
     if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'stable'
     name: Publish npm package
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -71,15 +107,26 @@ jobs:
           scope: '@outfitter'
       - name: Show package version
         run: node -e "console.log(require('./package.json').version)"
-      - name: npm pack (dry run)
+      - name: npm publish (dry run)
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run
+      - name: npm auth check
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami
+      - name: npm publish (stable)
+        if: github.event.inputs.dry_run != 'true'
+        run: npm publish --access public --tag latest --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   publish-npm-canary:
     if: github.event.inputs.publish_npm == 'true' && github.event.inputs.npm_channel == 'next'
     name: Publish npm canary (next tag)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -102,12 +149,16 @@ jobs:
           fi
           echo "Bumping version to $NEW"
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$NEW';fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\n');"
-      - name: npm publish (canary)
-        run: npm publish --access public --tag next
+      - name: npm publish (canary dry run)
+        if: github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run
+      - name: npm auth check
+        if: github.event.inputs.dry_run != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: npm publish
+        run: npm whoami
+      - name: npm publish (canary)
         if: github.event.inputs.dry_run != 'true'
-        run: npm publish --access public
+        run: npm publish --access public --tag next --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
