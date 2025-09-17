@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: read
+  issues: write
 
 concurrency:
   group: auto-release-${{ github.ref }}
@@ -132,14 +133,16 @@ jobs:
 
       - name: Debug labels
         run: |
-          echo "Skip: ${{ steps.labels.outputs.skip }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Reason: ${{ steps.labels.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -n "${{ steps.labels.outputs.pr_url }}" ]]; then
-            echo "PR: ${{ steps.labels.outputs.pr_url }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [[ -n "${{ steps.labels.outputs.labels }}" ]]; then
-            echo "Labels: ${{ steps.labels.outputs.labels }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "Skip: ${{ steps.labels.outputs.skip }}"
+            echo "Reason: ${{ steps.labels.outputs.reason }}"
+            if [[ -n "${{ steps.labels.outputs.pr_url }}" ]]; then
+              echo "PR: ${{ steps.labels.outputs.pr_url }}"
+            fi
+            if [[ -n "${{ steps.labels.outputs.labels }}" ]]; then
+              echo "Labels: ${{ steps.labels.outputs.labels }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   bump:
     name: Bump & Tag Release
@@ -186,7 +189,7 @@ jobs:
           MODE="$RELEASE_MODE"
           VERSION=$(./scripts/release/semver-bump.sh "$MODE")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "New version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          { echo "New version: $VERSION"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Derive release metadata
         id: meta
@@ -222,7 +225,7 @@ jobs:
         run: |
           if [[ -z $(git status --porcelain) ]]; then
             echo "committed=false" >> "$GITHUB_OUTPUT"
-            echo "No file changes detected after semver bump" >> "$GITHUB_STEP_SUMMARY"
+            { echo "No file changes detected after semver bump"; } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           git config user.name "Outfitter Release Bot"
@@ -254,11 +257,13 @@ jobs:
 
       - name: Summarize release
         run: |
-          echo "### Release Automation" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: ${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Tag: ${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Mode: ${{ needs.detect.outputs.mode }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Dist tag: ${{ steps.meta.outputs.dist_tag }}" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -n "${{ needs.detect.outputs.pr_number }}" ]]; then
-            echo "- PR: #${{ needs.detect.outputs.pr_number }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### Release Automation"
+            echo "- Version: ${{ steps.bump.outputs.version }}"
+            echo "- Tag: ${{ steps.meta.outputs.tag }}"
+            echo "- Mode: ${{ needs.detect.outputs.mode }}"
+            echo "- Dist tag: ${{ steps.meta.outputs.dist_tag }}"
+            if [[ -n "${{ needs.detect.outputs.pr_number }}" ]]; then
+              echo "- PR: #${{ needs.detect.outputs.pr_number }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

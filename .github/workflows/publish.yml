@@ -150,7 +150,6 @@ jobs:
       - build_darwin_arm64
       - build_darwin_x64
       - build_linux_x64
-      - build_windows_x64
     runs-on: ubuntu-latest
     steps:
       - name: Create dist directory
@@ -193,18 +192,35 @@ jobs:
             mv "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
           fi
 
+      - name: Assemble files list
+        id: files
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.prepare.outputs.version }}'
+          : > files.txt
+          for f in \
+            "dist/blz-${VERSION}-darwin-arm64.tar.gz" \
+            "dist/blz-${VERSION}-darwin-x64.tar.gz" \
+            "dist/blz-${VERSION}-linux-x64.tar.gz" \
+            "dist/blz-${VERSION}-windows-x64.zip"
+          do
+            [[ -f "$f" ]] && echo "$f" >> files.txt
+          done
+          {
+            echo 'list<<EOF'
+            cat files.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload assets to draft release
+        if: ${{ steps.files.outputs.list != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: blz ${{ needs.prepare.outputs.version }}
           draft: true
           prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
-          files: |
-            dist/blz-${{ needs.prepare.outputs.version }}-darwin-arm64.tar.gz
-            dist/blz-${{ needs.prepare.outputs.version }}-darwin-x64.tar.gz
-            dist/blz-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz
-            dist/blz-${{ needs.prepare.outputs.version }}-windows-x64.zip
+          files: ${{ steps.files.outputs.list }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -252,9 +268,6 @@ jobs:
     needs:
       - prepare
       - upload_release_assets
-      - publish_npm
-      - publish_crates
-      - publish_homebrew
     if: ${{ always() && needs.upload_release_assets.result == 'success' }}
     runs-on: ubuntu-latest
     outputs:

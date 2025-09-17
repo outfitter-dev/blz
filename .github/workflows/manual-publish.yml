@@ -76,7 +76,7 @@ jobs:
 
           publish_or_skip blz-core
           # Let the index catch up so blz-cli's versioned dep resolves
-          V="$(grep -m1 '^version\s*=' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          V="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="blz-core") | .version')"
           for i in {1..12}; do
             if cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
               break
@@ -84,6 +84,10 @@ jobs:
             echo "Waiting for blz-core to propagate (attempt $i/12)..."
             sleep 5
           done
+          if ! cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
+            echo "Timed out waiting for blz-core $V to propagate to crates.io index." >&2
+            exit 1
+          fi
           publish_or_skip blz-cli
 
   publish-npm:
@@ -103,11 +107,9 @@ jobs:
       - name: npm publish (dry run)
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: npm publish (stable)
         if: github.event.inputs.dry_run != 'true'
-        run: npm publish --access public --tag latest
+        run: npm publish --access public --tag latest --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   publish-npm-canary:
@@ -139,10 +141,8 @@ jobs:
       - name: npm publish (canary dry run)
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: npm publish (canary)
         if: github.event.inputs.dry_run != 'true'
-        run: npm publish --access public --tag next
+        run: npm publish --access public --tag next --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
