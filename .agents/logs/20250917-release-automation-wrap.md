@@ -13,6 +13,7 @@
 - Local dry-run used dockerized `act` with `publish_crates=false` to avoid index mismatch on unpublished versions; npm dry-run completed successfully
 - `publish.yml` now requires Windows builds to pass (removed `continue-on-error`) and exposes `workflow_call` for reuse by `release.yml`
 - `lefthook` pre-commit runs `actionlint` when workflow files change to catch structural errors early
+- Post-merge polish tightened reusable publish permissions, expanded tag validation, and fixed artifact flattening to handle nested `target/release` paths
 
 ## Follow-ups
 - None; monitor next real publish run for parity with dry-run results
