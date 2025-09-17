@@ -14,6 +14,7 @@
 - `publish.yml` now requires Windows builds to pass (removed `continue-on-error`) and exposes `workflow_call` for reuse by `release.yml`
 - `lefthook` pre-commit runs `actionlint` when workflow files change to catch structural errors early
 - Post-merge polish tightened reusable publish permissions, expanded tag validation, and fixed artifact flattening to handle nested `target/release` paths
+- Updated `publish.yml` to place downloaded artifacts in deterministic per-target directories and harden the flatten helper against missing Windows zips (with deeper search fallback + duplicate-safe moves)
 
 ## Follow-ups
 - None; monitor next real publish run for parity with dry-run results

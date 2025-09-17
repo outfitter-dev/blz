@@ -181,25 +181,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: blz-${{ needs.prepare.outputs.version }}-darwin-arm64
-          path: dist
+          path: dist/blz-${{ needs.prepare.outputs.version }}-darwin-arm64
 
       - name: Download macOS x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: blz-${{ needs.prepare.outputs.version }}-darwin-x64
-          path: dist
+          path: dist/blz-${{ needs.prepare.outputs.version }}-darwin-x64
 
       - name: Download Linux x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: blz-${{ needs.prepare.outputs.version }}-linux-x64
-          path: dist
+          path: dist/blz-${{ needs.prepare.outputs.version }}-linux-x64
 
       - name: Download Windows x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: blz-${{ needs.prepare.outputs.version }}-windows-x64
-          path: dist
+          path: dist/blz-${{ needs.prepare.outputs.version }}-windows-x64
 
       - name: Flatten artifacts
         run: |
@@ -207,16 +207,40 @@ jobs:
           VERSION="${{ needs.prepare.outputs.version }}"
           # All builds run via reusable-build; fail immediately if expected payloads go missing
           locate_and_move() {
-            local search_dir="$1"
+            local search_hint="$1"
             local filename="$2"
             local dest="$3"
-            local match
-            match=$(find "$search_dir" -maxdepth 4 -type f -name "$filename" -print -quit)
+            local match=""
+
+            if [[ -d "$search_hint" ]]; then
+              match=$(find "$search_hint" -type f -name "$filename" -print -quit || true)
+            elif [[ -f "$search_hint" && "$(basename "$search_hint")" == "$filename" ]]; then
+              match="$search_hint"
+            fi
+
             if [[ -z "$match" ]]; then
-              echo "::error::Missing expected artifact $filename under $search_dir (searched in: $(find "$search_dir" -maxdepth 4 -type f -name "$filename"))" >&2
+              match=$(find dist -type f -name "$filename" -print -quit || true)
+              if [[ -n "$match" ]]; then
+                echo "::warning::Found $filename at $match instead of under $search_hint; continuing" >&2
+              fi
+            fi
+
+            if [[ -z "$match" ]]; then
+              echo "::group::Artifact layout for debugging"
+              find dist -maxdepth 5 -type d -print || true
+              find dist -maxdepth 6 -type f -print || true
+              echo "::endgroup::"
+              echo "::error::Missing expected artifact $filename. Looked under $search_hint and dist/" >&2
               exit 1
             fi
-            mv "$match" "$dest"
+
+            if [[ "$match" != "$dest" ]]; then
+              if [[ -e "$dest" ]] && cmp -s "$match" "$dest"; then
+                :
+              else
+                mv -f "$match" "$dest"
+              fi
+            fi
           }
 
           locate_and_move "dist/blz-${VERSION}-darwin-arm64" "blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-${VERSION}-darwin-arm64.tar.gz"
