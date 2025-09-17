@@ -16,6 +16,7 @@ on:
         type: string
   workflow_call:
     # Enables release.yml or other orchestrators to invoke this pipeline directly
+    # Callers must grant pull-requests: read so the release_notes job can enumerate PRs
     inputs:
       tag:
         required: true
@@ -33,7 +34,6 @@ on:
 
 permissions:
   contents: read
-  id-token: none
 
 concurrency:
   group: publish-${{ github.ref_name || inputs.tag }}
@@ -71,7 +71,7 @@ jobs:
             echo "::error::Invalid tag: $TAG (too long)"
             exit 1
           fi
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Invalid tag format: $TAG"
             exit 1
           fi
@@ -206,10 +206,23 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
           # All builds run via reusable-build; fail immediately if expected payloads go missing
-          mv "dist/blz-${VERSION}-darwin-arm64/blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-${VERSION}-darwin-arm64.tar.gz"
-          mv "dist/blz-${VERSION}-darwin-x64/blz-${VERSION}-darwin-x64.tar.gz" "dist/blz-${VERSION}-darwin-x64.tar.gz"
-          mv "dist/blz-${VERSION}-linux-x64/blz-${VERSION}-linux-x64.tar.gz" "dist/blz-${VERSION}-linux-x64.tar.gz"
-          mv "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
+          locate_and_move() {
+            local search_dir="$1"
+            local filename="$2"
+            local dest="$3"
+            local match
+            match=$(find "$search_dir" -maxdepth 4 -type f -name "$filename" -print -quit)
+            if [[ -z "$match" ]]; then
+              echo "::error::Missing expected artifact $filename under $search_dir (searched in: $(find "$search_dir" -maxdepth 4 -type f -name "$filename"))" >&2
+              exit 1
+            fi
+            mv "$match" "$dest"
+          }
+
+          locate_and_move "dist/blz-${VERSION}-darwin-arm64" "blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-${VERSION}-darwin-arm64.tar.gz"
+          locate_and_move "dist/blz-${VERSION}-darwin-x64" "blz-${VERSION}-darwin-x64.tar.gz" "dist/blz-${VERSION}-darwin-x64.tar.gz"
+          locate_and_move "dist/blz-${VERSION}-linux-x64" "blz-${VERSION}-linux-x64.tar.gz" "dist/blz-${VERSION}-linux-x64.tar.gz"
+          locate_and_move "dist/blz-${VERSION}-windows-x64" "blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
 
       - name: Assemble files list
         id: files
