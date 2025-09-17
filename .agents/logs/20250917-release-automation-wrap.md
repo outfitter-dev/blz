@@ -14,7 +14,12 @@
 - `publish.yml` now requires Windows builds to pass (removed `continue-on-error`) and exposes `workflow_call` for reuse by `release.yml`
 - `lefthook` pre-commit runs `actionlint` when workflow files change to catch structural errors early
 - Post-merge polish tightened reusable publish permissions, expanded tag validation, and fixed artifact flattening to handle nested `target/release` paths
+<<<<<<< HEAD
 - Updated `publish.yml` to place downloaded artifacts in deterministic per-target directories and harden the flatten helper against missing Windows zips (with deeper search fallback + duplicate-safe moves)
+=======
+- `publish.yml` downloads now land in per-target directories with a more resilient flatten helper (deep search fallback, duplicate-safe moves)
+- Ran `scripts/release/semver-bump.sh patch` to advance the workspace to v0.2.2 ahead of the next tag cut (syncing Cargo manifests, lockfile, npm metadata, and CHANGELOG)
+>>>>>>> 5189909 (chore(release): bump to v0.2.2)
 
 ## Follow-ups
 - None; monitor next real publish run for parity with dry-run results
