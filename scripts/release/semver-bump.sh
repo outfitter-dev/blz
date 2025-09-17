@@ -119,15 +119,32 @@ from pathlib import Path
 
 version = sys.argv[1]
 lock_path = Path('Cargo.lock')
-if lock_path.exists():
-    data = lock_path.read_text()
-    for pkg in ('blz-cli', 'blz-core'):
-        pattern = rf'(name = "{pkg}"\nversion = ")([^"\n]+)(")'
-        new_data, count = re.subn(pattern, rf'\1{version}\3', data, count=1)
-        if count == 0:
-            raise SystemExit(f"Failed to update {pkg} in Cargo.lock")
-        data = new_data
-    lock_path.write_text(data)
+if not lock_path.exists():
+    raise SystemExit("Cargo.lock not found; refusing to proceed. Generate it first.")
+
+data = lock_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+def bump_in_block(pkg: str, text: str) -> str:
+    # Constrain replacement to the matching [[package]] block for `pkg`
+    block = re.compile(
+        r'^\[\[package\]\]\n'                              # block start
+        r'(?:(?!^\[\[package\]\]\n).)*?'                   # until next block
+        rf'\bname\s*=\s*"{re.escape(pkg)}"\b'              # name match
+        r'(?:(?!^\[\[package\]\]\n).)*?'                   # still within block
+        r'(\bversion\s*=\s*")([^"\n]+)(")',                # capture version value
+        re.M | re.S
+    )
+    def _sub(m):
+        return f'{m.group(1)}{version}{m.group(3)}'
+    new_text, n = block.subn(_sub, text, count=1)
+    if n != 1:
+        raise SystemExit(f"Failed to update exactly one block for {pkg} in Cargo.lock (updated {n}).")
+    return new_text
+
+for pkg in ('blz-cli', 'blz-core'):
+    data = bump_in_block(pkg, data)
+
+lock_path.write_text(data, encoding="utf-8")
 PY
 
 echo "$NEW_VERSION"

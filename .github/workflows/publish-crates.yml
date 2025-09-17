@@ -106,7 +106,23 @@ jobs:
         if: ${{ steps.crate_core_exists.outputs.exists != 'true' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.cargo-token }}
-        run: cargo publish -p blz-core --locked
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Publishing blz-core"
+          if out=$(cargo publish -p blz-core --locked 2>&1); then
+            echo "Published blz-core successfully"
+          else
+            code=$?
+            if echo "$out" | grep -qiE 'already uploaded|already been uploaded|previously published'; then
+              echo "blz-core already published; continuing."
+            else
+              echo "$out"
+              echo "Failed with exit code $code"
+              exit $code
+            fi
+          fi
+          echo "::endgroup::"
 
       - name: Wait for blz-core propagation
         if: ${{ steps.crate_core_exists.outputs.exists != 'true' }}
@@ -122,10 +138,16 @@ jobs:
           DELAY=${INPUT_DELAY_SECONDS:-5}
           echo "Waiting for blz-core $V to propagate (max ${MAX_ATTEMPTS} attempts, delay ${DELAY}s)..."
           for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-              echo "blz-core $V available on attempt $attempt"
+            # Check both API and cargo search for better reliability
+            if cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
+              echo "blz-core $V available via cargo search on attempt $attempt"
               exit 0
             fi
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+              echo "blz-core $V available via API on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: Not yet available, waiting ${DELAY}s..."
             sleep "$DELAY"
           done
           echo "Timed out waiting for blz-core $V after ${MAX_ATTEMPTS} attempts" >&2
@@ -147,4 +169,20 @@ jobs:
         if: ${{ steps.crate_cli_exists.outputs.exists != 'true' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.cargo-token }}
-        run: cargo publish -p blz-cli --locked
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Publishing blz-cli"
+          if out=$(cargo publish -p blz-cli --locked 2>&1); then
+            echo "Published blz-cli successfully"
+          else
+            code=$?
+            if echo "$out" | grep -qiE 'already uploaded|already been uploaded|previously published'; then
+              echo "blz-cli already published; continuing."
+            else
+              echo "$out"
+              echo "Failed with exit code $code"
+              exit $code
+            fi
+          fi
+          echo "::endgroup::"

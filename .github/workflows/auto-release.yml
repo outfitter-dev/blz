@@ -19,7 +19,7 @@ concurrency:
 jobs:
   detect:
     name: Detect Release Intent
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
       skip: ${{ steps.labels.outputs.skip }}
@@ -132,13 +132,13 @@ jobs:
 
       - name: Debug labels
         run: |
-          echo "Skip: ${{ steps.labels.outputs.skip }}" >> $GITHUB_STEP_SUMMARY
-          echo "Reason: ${{ steps.labels.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "Skip: ${{ steps.labels.outputs.skip }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reason: ${{ steps.labels.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
           if [[ -n "${{ steps.labels.outputs.pr_url }}" ]]; then
-            echo "PR: ${{ steps.labels.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "PR: ${{ steps.labels.outputs.pr_url }}" >> "$GITHUB_STEP_SUMMARY"
           fi
           if [[ -n "${{ steps.labels.outputs.labels }}" ]]; then
-            echo "Labels: ${{ steps.labels.outputs.labels }}" >> $GITHUB_STEP_SUMMARY
+            echo "Labels: ${{ steps.labels.outputs.labels }}" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   bump:
@@ -186,7 +186,7 @@ jobs:
           MODE="$RELEASE_MODE"
           VERSION=$(./scripts/release/semver-bump.sh "$MODE")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "New version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "New version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Derive release metadata
         id: meta
@@ -222,13 +222,13 @@ jobs:
         run: |
           if [[ -z $(git status --porcelain) ]]; then
             echo "committed=false" >> "$GITHUB_OUTPUT"
-            echo "No file changes detected after semver bump" >> $GITHUB_STEP_SUMMARY
+            echo "No file changes detected after semver bump" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           git config user.name "Outfitter Release Bot"
           git config user.email "release-bot@outfitter.dev"
           git add .
-          git commit -m "chore(release): v$RELEASE_VERSION [skip release]"
+          git commit -m "chore(release): v$RELEASE_VERSION [skip release] [skip ci]"
           echo "committed=true" >> "$GITHUB_OUTPUT"
 
       - name: Push changes
@@ -243,21 +243,22 @@ jobs:
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
         run: |
           TAG="$RELEASE_TAG"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
+          git fetch --tags --force --quiet
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG already exists" >&2
             exit 1
           fi
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-          echo "Created tag $TAG" >> $GITHUB_STEP_SUMMARY
+          echo "Created tag $TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize release
         run: |
-          echo "### Release Automation" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: ${{ steps.bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Tag: ${{ steps.meta.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Mode: ${{ needs.detect.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Dist tag: ${{ steps.meta.outputs.dist_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Automation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: ${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mode: ${{ needs.detect.outputs.mode }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dist tag: ${{ steps.meta.outputs.dist_tag }}" >> "$GITHUB_STEP_SUMMARY"
           if [[ -n "${{ needs.detect.outputs.pr_number }}" ]]; then
-            echo "- PR: #${{ needs.detect.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- PR: #${{ needs.detect.outputs.pr_number }}" >> "$GITHUB_STEP_SUMMARY"
           fi

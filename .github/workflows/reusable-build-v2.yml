@@ -106,7 +106,13 @@ jobs:
 
       - name: Set artifact metadata
         id: meta
-        run: echo "artifact_name=blz-${{ inputs.version }}-${{ inputs.target }}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          # Ensure artifact name is always set, even on Windows
+          ARTIFACT_NAME="blz-${{ inputs.version }}-${{ inputs.target }}"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> "$GITHUB_ENV"
+          echo "::notice::Artifact name set to: ${ARTIFACT_NAME}"
 
       - name: Upload release artifact
         id: upload

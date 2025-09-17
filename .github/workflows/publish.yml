@@ -96,7 +96,7 @@ jobs:
             echo "- npm dist-tag: $DIST_TAG"
             echo "- Pre-release: $PRERELEASE"
             echo "- Publish Homebrew: $PUBLISH_HOMEBREW"
-          } >> $GITHUB_STEP_SUMMARY
+          } >> "$GITHUB_STEP_SUMMARY"
 
   build_darwin_arm64:
     name: Build macOS arm64 binary
@@ -141,6 +141,7 @@ jobs:
       cache_key: release-${{ needs.prepare.outputs.version }}
       use_cache: false
     secrets: inherit
+    continue-on-error: true
 
   upload_release_assets:
     name: Upload Release Assets
@@ -174,6 +175,8 @@ jobs:
           path: dist
 
       - name: Download Windows x64 artifact
+        if: ${{ always() }}
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: blz-${{ needs.prepare.outputs.version }}-windows-x64
@@ -186,7 +189,9 @@ jobs:
           mv "dist/blz-${VERSION}-darwin-arm64/blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-${VERSION}-darwin-arm64.tar.gz"
           mv "dist/blz-${VERSION}-darwin-x64/blz-${VERSION}-darwin-x64.tar.gz" "dist/blz-${VERSION}-darwin-x64.tar.gz"
           mv "dist/blz-${VERSION}-linux-x64/blz-${VERSION}-linux-x64.tar.gz" "dist/blz-${VERSION}-linux-x64.tar.gz"
-          mv "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
+          if [ -f "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" ]; then
+            mv "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
+          fi
 
       - name: Upload assets to draft release
         uses: softprops/action-gh-release@v2
@@ -200,7 +205,6 @@ jobs:
             dist/blz-${{ needs.prepare.outputs.version }}-darwin-x64.tar.gz
             dist/blz-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz
             dist/blz-${{ needs.prepare.outputs.version }}-windows-x64.zip
-          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -247,10 +251,11 @@ jobs:
     name: Generate Release Notes
     needs:
       - prepare
+      - upload_release_assets
       - publish_npm
       - publish_crates
       - publish_homebrew
-    if: ${{ always() && needs.publish_npm.result == 'success' && needs.publish_crates.result == 'success' }}
+    if: ${{ always() && needs.upload_release_assets.result == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       body: ${{ steps.notes.outputs.body }}
@@ -346,9 +351,41 @@ jobs:
       - publish_crates
       - publish_homebrew
       - release_notes
-    if: ${{ always() && needs.upload_release_assets.result == 'success' && needs.publish_npm.result == 'success' && needs.publish_crates.result == 'success' && (needs.publish_homebrew.result == 'success' || needs.publish_homebrew.result == 'skipped') }}
+    if: ${{ always() && needs.upload_release_assets.result == 'success' && (needs.publish_npm.result == 'success' || needs.publish_crates.result == 'success' || needs.publish_homebrew.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Generate Release Status Report
+        run: |
+          {
+            echo "## Release Status for ${{ needs.prepare.outputs.tag }}"
+            echo ""
+            echo "### Core Assets"
+            echo "- ✅ GitHub Release Assets: Uploaded"
+            echo ""
+            echo "### Registry Publishing"
+            if [[ "${{ needs.publish_npm.result }}" == "success" ]]; then
+              echo "- ✅ npm: Published to @outfitter/blz"
+            elif [[ "${{ needs.publish_npm.result }}" == "skipped" ]]; then
+              echo "- ⏭️ npm: Skipped"
+            else
+              echo "- ❌ npm: Failed (check logs for details)"
+            fi
+            if [[ "${{ needs.publish_crates.result }}" == "success" ]]; then
+              echo "- ✅ crates.io: Published blz-core and blz-cli"
+            elif [[ "${{ needs.publish_crates.result }}" == "skipped" ]]; then
+              echo "- ⏭️ crates.io: Skipped"
+            else
+              echo "- ❌ crates.io: Failed (check logs for details)"
+            fi
+            if [[ "${{ needs.publish_homebrew.result }}" == "success" ]]; then
+              echo "- ✅ Homebrew: Formula updated"
+            elif [[ "${{ needs.publish_homebrew.result }}" == "skipped" ]]; then
+              echo "- ⏭️ Homebrew: Skipped (pre-release)"
+            else
+              echo "- ❌ Homebrew: Failed (check logs for details)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
