@@ -112,6 +112,22 @@ cargo set-version --workspace "$NEW_VERSION"
 
 node "$NODE_SCRIPT" sync --version "$NEW_VERSION" --repo-root "$REPO_ROOT"
 
-cargo generate-lockfile >/dev/null
+python3 - "$NEW_VERSION" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+version = sys.argv[1]
+lock_path = Path('Cargo.lock')
+if lock_path.exists():
+    data = lock_path.read_text()
+    for pkg in ('blz-cli', 'blz-core'):
+        pattern = rf'(name = "{pkg}"\nversion = ")([^"\n]+)(")'
+        new_data, count = re.subn(pattern, rf'\1{version}\3', data, count=1)
+        if count == 0:
+            raise SystemExit(f"Failed to update {pkg} in Cargo.lock")
+        data = new_data
+    lock_path.write_text(data)
+PY
 
 echo "$NEW_VERSION"

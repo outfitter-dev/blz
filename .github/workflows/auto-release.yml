@@ -19,7 +19,7 @@ concurrency:
 jobs:
   detect:
     name: Detect Release Intent
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, 'chore(release):') }}
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
       skip: ${{ steps.labels.outputs.skip }}
@@ -228,7 +228,7 @@ jobs:
           git config user.name "Outfitter Release Bot"
           git config user.email "release-bot@outfitter.dev"
           git add .
-          git commit -m "chore(release): v$RELEASE_VERSION"
+          git commit -m "chore(release): v$RELEASE_VERSION [skip release]"
           echo "committed=true" >> "$GITHUB_OUTPUT"
 
       - name: Push changes
