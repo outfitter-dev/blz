@@ -1,230 +1,360 @@
-name: Publish
+name: Publish Release
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: 'Tag to publish (e.g., v0.2.0)'
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish (e.g., v0.2.0)'
+        description: 'Tag to release (e.g., v0.2.0)'
         required: true
+        type: string
+      dist_tag:
+        description: 'Override npm dist-tag (defaults based on version)'
+        required: false
         type: string
 
 permissions:
   contents: write
+  id-token: write
+  pull-requests: read
 
 concurrency:
-  group: "publish-${{ inputs.tag || github.event.inputs.tag }}"
+  group: publish-${{ github.ref_name || inputs.tag }}
   cancel-in-progress: false
 
 jobs:
-  npm-publish:
-    name: "Publish: npm"
+  prepare:
+    name: Prepare Release Metadata
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      version: ${{ steps.vars.outputs.version }}
+      dist_tag: ${{ steps.vars.outputs.dist_tag }}
+      prerelease: ${{ steps.vars.outputs.prerelease }}
+      publish_homebrew: ${{ steps.vars.outputs.publish_homebrew }}
     steps:
-      - name: "Checkout tag"
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.event.inputs.tag }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@outfitter'
-
-      - name: Validate package.json version matches tag
-        shell: bash
+      - name: Resolve tag
+        id: vars
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_DIST_TAG: ${{ inputs.dist_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-          TAG="${{ inputs.tag || github.event.inputs.tag }}"
-          TAG_NO_V="${TAG#v}"
-          PKG=$(node -p "require('./package.json').version")
-          if [ "$TAG_NO_V" != "$PKG" ]; then
-            echo "Tag $TAG_NO_V does not match package.json version $PKG" >&2
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="$REF_NAME"
+          fi
+          if [[ -z "$TAG" ]]; then
+            echo "::error::Missing tag input"
             exit 1
           fi
-
-      - name: Check if npm version exists
-        id: npm_exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ inputs.tag || github.event.inputs.tag }}"
-          V="${TAG#v}"
-          if npm view "@outfitter/blz@${V}" version >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: npm publish (OIDC provenance)
-        if: steps.npm_exists.outputs.exists != 'true'
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  cargo-publish:
-    name: "Publish: crates.io"
-    runs-on: ubuntu-latest
-    # Run independently - don't block on npm-publish
-    if: always()
-    steps:
-      - name: "Checkout tag"
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.event.inputs.tag }}
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: Validate Cargo.toml version matches tag
-        id: ver
-        shell: bash
-        run: |
-          TAG="${{ inputs.tag || github.event.inputs.tag }}"
-          TAG_NO_V="${TAG#v}"
-          VER=$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=${VER}" >> "$GITHUB_OUTPUT"
-          if [ "$TAG_NO_V" != "$VER" ]; then
-            echo "Tag ${TAG_NO_V} does not match Cargo.toml version ${VER}" >&2
+          if (( ${#TAG} > 64 )); then
+            echo "::error::Invalid tag: $TAG (too long)"
             exit 1
           fi
-
-      - name: Check if blz-core exists
-        id: crate_core_exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          V="${{ steps.ver.outputs.version }}"
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid tag format: $TAG"
+            exit 1
           fi
-
-      - name: Publish blz-core
-        if: steps.crate_core_exists.outputs.exists != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p blz-core --locked
-
-      - name: Wait for blz-core to propagate
-        if: steps.crate_core_exists.outputs.exists != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          V="${{ steps.ver.outputs.version }}"
-          echo "Waiting for blz-core $V to appear on crates.io..."
-          for _ in {1..30}; do
-            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-              echo "blz-core $V is available."
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Timed out waiting for blz-core $V to propagate" >&2
-          exit 1
-
-      - name: Check if blz-cli exists
-        id: crate_cli_exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          V="${{ steps.ver.outputs.version }}"
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish blz-cli
-        if: steps.crate_cli_exists.outputs.exists != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p blz-cli --locked
-
-  bump-homebrew:
-    name: "Publish: Homebrew Tap"
-    runs-on: ubuntu-latest
-    # Run independently - don't wait for npm/cargo publish
-    if: always()
-    steps:
-      - name: "Checkout source (for script)"
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.event.inputs.tag }}
-          path: src
-
-      - name: "Compute version and download tarballs"
-        id: tar
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          TAG="${{ inputs.tag || github.event.inputs.tag }}"
           VERSION="${TAG#v}"
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
-          SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
-          SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
+          if [[ -n "$INPUT_DIST_TAG" ]]; then
+            DIST_TAG="$INPUT_DIST_TAG"
+          else
+            if [[ "$VERSION" == *"-canary."* ]]; then
+              DIST_TAG='canary'
+            elif [[ "$VERSION" == *"-beta"* ]]; then
+              DIST_TAG='beta'
+            elif [[ "$VERSION" == *"-alpha"* ]]; then
+              DIST_TAG='alpha'
+            else
+              DIST_TAG='latest'
+            fi
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE='true'
+          else
+            PRERELEASE='false'
+          fi
+          if [[ "$PRERELEASE" == 'true' ]]; then
+            PUBLISH_HOMEBREW='false'
+          else
+            PUBLISH_HOMEBREW='true'
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "publish_homebrew=$PUBLISH_HOMEBREW" >> "$GITHUB_OUTPUT"
           {
-            echo "version=${VERSION}"
-            echo "sha_arm64=${SHA_ARM64}"
-            echo "sha_x64=${SHA_X64}"
-          } >> "$GITHUB_OUTPUT"
+            echo "### Publish Parameters"
+            echo "- Tag: $TAG"
+            echo "- Version: $VERSION"
+            echo "- npm dist-tag: $DIST_TAG"
+            echo "- Pre-release: $PRERELEASE"
+            echo "- Publish Homebrew: $PUBLISH_HOMEBREW"
+          } >> $GITHUB_STEP_SUMMARY
 
-      - name: "Checkout tap repo"
-        uses: actions/checkout@v4
-        with:
-          repository: outfitter-dev/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
+  build_darwin_arm64:
+    name: Build macOS arm64 binary
+    needs: prepare
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      target: darwin-arm64
+      version: ${{ needs.prepare.outputs.version }}
+      cache_key: release-${{ needs.prepare.outputs.version }}
+      use_cache: false
+    secrets: inherit
 
-      - name: "Update formula"
-        shell: bash
-        env:
-          REPO: ${{ github.repository }}
-          VERSION: ${{ steps.tar.outputs.version }}
-          SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 }}
-          SHA_X64: ${{ steps.tar.outputs.sha_x64 }}
-          TAP_DIR: homebrew-tap
-        run: |
-          bash src/scripts/release/update-brew.sh
+  build_darwin_x64:
+    name: Build macOS x64 binary
+    needs: prepare
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      target: darwin-x64
+      version: ${{ needs.prepare.outputs.version }}
+      cache_key: release-${{ needs.prepare.outputs.version }}
+      use_cache: false
+    secrets: inherit
 
-      - name: "Create PR in tap repo"
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
-          branch: bump-blz-${{ steps.tar.outputs.version }}
-          commit-message: "blz ${{ steps.tar.outputs.version }}"
-          title: "blz ${{ steps.tar.outputs.version }}"
-          body: |
-            Bump blz formula to ${{ steps.tar.outputs.version }}.
-            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
-            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
+  build_linux_x64:
+    name: Build Linux x64 binary
+    needs: prepare
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      target: linux-x64
+      version: ${{ needs.prepare.outputs.version }}
+      cache_key: release-${{ needs.prepare.outputs.version }}
+      use_cache: false
+    secrets: inherit
 
-  finalize-github-release:
-    name: "Publish: GitHub Release (undraft)"
+  build_windows_x64:
+    name: Build Windows x64 binary
+    needs: prepare
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      target: windows-x64
+      version: ${{ needs.prepare.outputs.version }}
+      cache_key: release-${{ needs.prepare.outputs.version }}
+      use_cache: false
+    secrets: inherit
+
+  upload_release_assets:
+    name: Upload Release Assets
+    needs:
+      - prepare
+      - build_darwin_arm64
+      - build_darwin_x64
+      - build_linux_x64
+      - build_windows_x64
     runs-on: ubuntu-latest
-    # Always run to undraft the release, even if some publish steps fail
-    if: always()
     steps:
-      - name: "Undraft GitHub release"
+      - name: Create dist directory
+        run: mkdir -p dist
+
+      - name: Download macOS arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blz-${{ needs.prepare.outputs.version }}-darwin-arm64
+          path: dist
+
+      - name: Download macOS x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blz-${{ needs.prepare.outputs.version }}-darwin-x64
+          path: dist
+
+      - name: Download Linux x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blz-${{ needs.prepare.outputs.version }}-linux-x64
+          path: dist
+
+      - name: Download Windows x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blz-${{ needs.prepare.outputs.version }}-windows-x64
+          path: dist
+
+      - name: Flatten artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mv "dist/blz-${VERSION}-darwin-arm64/blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-${VERSION}-darwin-arm64.tar.gz"
+          mv "dist/blz-${VERSION}-darwin-x64/blz-${VERSION}-darwin-x64.tar.gz" "dist/blz-${VERSION}-darwin-x64.tar.gz"
+          mv "dist/blz-${VERSION}-linux-x64/blz-${VERSION}-linux-x64.tar.gz" "dist/blz-${VERSION}-linux-x64.tar.gz"
+          mv "dist/blz-${VERSION}-windows-x64/blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
+
+      - name: Upload assets to draft release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.event.inputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: blz ${{ needs.prepare.outputs.version }}
+          draft: true
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          files: |
+            dist/blz-${{ needs.prepare.outputs.version }}-darwin-arm64.tar.gz
+            dist/blz-${{ needs.prepare.outputs.version }}-darwin-x64.tar.gz
+            dist/blz-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz
+            dist/blz-${{ needs.prepare.outputs.version }}-windows-x64.zip
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish_npm:
+    name: npm
+    needs:
+      - prepare
+      - upload_release_assets
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+      dist_tag: ${{ needs.prepare.outputs.dist_tag }}
+    secrets:
+      npm-token: ${{ secrets.NPM_TOKEN }}
+
+  publish_crates:
+    name: crates.io
+    needs:
+      - prepare
+      - upload_release_assets
+    uses: ./.github/workflows/publish-crates.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      cargo-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish_homebrew:
+    name: homebrew
+    needs:
+      - prepare
+      - upload_release_assets
+    if: ${{ needs.prepare.outputs.publish_homebrew == 'true' }}
+    uses: ./.github/workflows/publish-homebrew.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+      enabled: true
+    secrets:
+      homebrew-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  release_notes:
+    name: Generate Release Notes
+    needs:
+      - prepare
+      - publish_npm
+      - publish_crates
+      - publish_homebrew
+    if: ${{ always() && needs.publish_npm.result == 'success' && needs.publish_crates.result == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine previous tag
+        id: previous
+        run: |
+          git fetch --tags --force --quiet
+          TAG='${{ needs.prepare.outputs.tag }}'
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            PREV=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo '')
+          else
+            PREV=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo '')
+          fi
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes
+        id: notes
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = '${{ needs.prepare.outputs.tag }}';
+            const previousTag = '${{ steps.previous.outputs.tag || '' }}';
+
+            const prMap = new Map();
+
+            if (previousTag) {
+              const compare = await github.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: previousTag,
+                head: tag,
+              });
+
+              for (const commit of compare.data.commits) {
+                const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: commit.sha,
+                });
+                for (const pr of prs.data) {
+                  prMap.set(pr.number, pr);
+                }
+              }
+            }
+
+            const summaryLines = [];
+            const contributors = new Set();
+
+            if (prMap.size > 0) {
+              const ordered = Array.from(prMap.values()).sort((a, b) => new Date(a.merged_at || a.closed_at || 0) - new Date(b.merged_at || b.closed_at || 0));
+              for (const pr of ordered) {
+                const author = pr.user ? `@${pr.user.login}` : 'unknown';
+                summaryLines.push(`- ${pr.title} (#${pr.number}) — ${author}`);
+                if (pr.user) {
+                  contributors.add(`@${pr.user.login}`);
+                }
+              }
+            } else {
+              if (previousTag) {
+                summaryLines.push('- No pull requests detected between tags.');
+              } else {
+                summaryLines.push('- Initial release.');
+              }
+            }
+
+            const bodyParts = [];
+            bodyParts.push('## Summary');
+            bodyParts.push(summaryLines.join('\n'));
+
+            if (contributors.size > 0) {
+              bodyParts.push('\n## Contributors');
+              bodyParts.push(Array.from(contributors).sort().map((c) => `- ${c}`).join('\n'));
+            }
+
+            const body = bodyParts.join('\n');
+            core.setOutput('body', body);
+
+  finalize:
+    name: Finalize GitHub Release
+    needs:
+      - prepare
+      - upload_release_assets
+      - publish_npm
+      - publish_crates
+      - publish_homebrew
+      - release_notes
+    if: ${{ always() && needs.upload_release_assets.result == 'success' && needs.publish_npm.result == 'success' && needs.publish_crates.result == 'success' && (needs.publish_homebrew.result == 'success' || needs.publish_homebrew.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: blz ${{ needs.prepare.outputs.version }}
+          body: ${{ needs.release_notes.outputs.body }}
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.prepare.outputs.prerelease == 'true' && 'false' || 'true' }}

@@ -1,0 +1,109 @@
+name: Publish (npm)
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Git tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+      version:
+        description: 'Version string without leading v'
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm dist-tag to publish under'
+        required: false
+        default: latest
+        type: string
+    secrets:
+      npm-token:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g., v0.2.0)'
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm dist-tag to publish under'
+        required: false
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DIST_TAG: ${{ inputs.dist_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+            DIST_TAG="$INPUT_DIST_TAG"
+            VERSION="${TAG#v}"
+          else
+            TAG="$INPUT_TAG"
+            DIST_TAG="$INPUT_DIST_TAG"
+            VERSION="$INPUT_VERSION"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@outfitter'
+
+      - name: Validate package version
+        run: |
+          set -euo pipefail
+          EXPECTED='${{ steps.resolve.outputs.version }}'
+          PKG=$(node -p "require('./package.json').version")
+          if [[ "$PKG" != "$EXPECTED" ]]; then
+            echo "::error::package.json version $PKG does not match expected $EXPECTED"
+            exit 1
+          fi
+
+      - name: Check if version already published
+        id: exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.resolve.outputs.version }}'
+          if npm view "@outfitter/blz@$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION already published to npm"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: ${{ steps.exists.outputs.exists != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.npm-token }}
+        run: |
+          DIST='${{ steps.resolve.outputs.dist_tag }}'
+          if [[ "$DIST" == 'latest' ]]; then
+            npm publish --access public --provenance
+          else
+            npm publish --access public --provenance --tag "$DIST"
+          fi
