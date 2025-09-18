@@ -40,6 +40,7 @@ if (!existsSync(binaryPath)) {
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: 'inherit',
   env: process.env,
+  argv0: 'blz',
 });
 
 child.on('exit', (code) => {

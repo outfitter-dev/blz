@@ -205,7 +205,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
-        None => commands::handle_default_search(&cli.args, metrics, None).await?,
+        None => commands::handle_default_search(&cli.query, metrics, None).await?,
     }
 
     Ok(())

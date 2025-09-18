@@ -100,15 +100,17 @@ use std::path::PathBuf;
 #[command(name = "blz")]
 #[command(version)]
 #[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
-#[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
+#[command(
+    override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]"
+)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Arguments for default search command
-    #[arg(global = true)]
-    pub args: Vec<String>,
+    /// Positional query arguments used when no explicit command is provided
+    #[arg(value_name = "QUERY", trailing_var_arg = true)]
+    pub query: Vec<String>,
 
     #[arg(short = 'v', long, global = true)]
     pub verbose: bool,

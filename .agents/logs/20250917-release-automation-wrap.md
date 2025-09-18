@@ -21,3 +21,8 @@
 ## Follow-ups
 - None; monitor next real publish run for parity with dry-run results
 - If crates dry-run coverage required later, pre-seed registry or adjust test payload to skip until publish events
+
+## 2025-09-18
+- Patched npm wrapper to pass `argv0 = "blz"` so clap help consistently shows the canonical executable name even when dispatching arch-specific binaries.
+- Adjusted CLI usage banner to present command-first syntax with an alternate line for command-less searches and hide default-search args from subcommand help.
+- Investigated prior CLI formatting work: located `feat/cli-polish` branch with compact result formatting, alias grouping, summary tips, and JSON `json-full` envelope option that never merged to main.
