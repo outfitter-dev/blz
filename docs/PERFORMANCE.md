@@ -1,6 +1,6 @@
-# Performance in blz
+# Performance in BLZ
 
-This document describes the advanced performance optimizations implemented in the blz core system.
+This document describes the advanced performance optimizations implemented in the BLZ core system.
 
 ## Overview of Optimizations
 

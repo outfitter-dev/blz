@@ -1,4 +1,4 @@
-# blz Style Guide
+# BLZ Style Guide
 
 ## Core Principle: Honest & Humble
 
@@ -25,7 +25,36 @@ We write with clarity and honesty. We're building tools for developers who value
 
 ### Product References
 
-- Use `blz` (lowercase) when referring to the tool
+#### When to Use "BLZ" (Uppercase)
+Use uppercase "BLZ" when referring to the project or tool in prose:
+- Documentation headers and titles
+- README descriptions
+- Inline comments in code
+- CLI help strings and descriptions
+- General references in documentation text
+
+Examples:
+- "BLZ is a local-first search cache"
+- "Welcome to BLZ"
+- "What is BLZ?"
+- "BLZ indexes your documentation"
+
+#### When to Use "blz" (Lowercase)
+Keep lowercase `blz` for technical/code contexts:
+- CLI commands and examples: `blz add`, `blz search`
+- File paths: `/usr/local/bin/blz`
+- Package/crate names: `@outfitter/blz`, `blz-core`
+- Code identifiers and variables
+- URLs and domains
+- Inside code blocks or backticks
+
+Examples:
+```bash
+blz add react https://react.dev/llms.txt
+cargo install blz-cli
+```
+
+#### Pronunciation
 - Pronounced "blaze" but don't overexplain this
 - Don't overuse the blazing/fire metaphors
 
@@ -169,15 +198,15 @@ Not vague superlatives:
 
 ### Release Notes
 ✅ **Good**: "Fixed memory leak in search indexer, reducing memory usage by 40%"
-❌ **Bad**: "MASSIVE performance improvements that make blz even MORE BLAZING FAST!"
+❌ **Bad**: "MASSIVE performance improvements that make BLZ even MORE BLAZING FAST!"
 
 ## Examples
 
 ### Good Description
-> blz indexes your llms.txt documentation locally for fast, offline search. Returns exact line numbers in 6ms typical latency. Built with Rust and Tantivy for consistent, deterministic results.
+> BLZ indexes your llms.txt documentation locally for fast, offline search. Returns exact line numbers in 6ms typical latency. Built with Rust and Tantivy for consistent, deterministic results.
 
 ### Bad Description
-> 🔥 blz is the ULTIMATE BLAZINGLY FAST documentation tool that REVOLUTIONIZES how you search! With INSANE speeds and CUTTING-EDGE technology, it's the BEST tool you'll EVER use! 🚀🔥💯
+> 🔥 BLZ is the ULTIMATE BLAZINGLY FAST documentation tool that REVOLUTIONIZES how you search! With INSANE speeds and CUTTING-EDGE technology, it's the BEST tool you'll EVER use! 🚀🔥💯
 
 ## Final Note
 

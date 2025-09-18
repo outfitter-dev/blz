@@ -1,6 +1,6 @@
 ## Configuration Overview
 
-This section documents all configuration mechanisms for blz in one place: global config files, per-source settings, and environment variables. It also explains precedence and where files live on each platform.
+This section documents all configuration mechanisms for BLZ in one place: global config files, per-source settings, and environment variables. It also explains precedence and where files live on each platform.
 
 Index:
 - Global config: [global-config.md](./global-config.md)

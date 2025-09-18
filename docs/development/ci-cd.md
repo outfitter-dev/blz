@@ -1,6 +1,6 @@
 # CI/CD Pipeline
 
-This document describes the continuous integration and deployment setup for the blz project.
+This document describes the continuous integration and deployment setup for the BLZ project.
 
 ## Overview
 

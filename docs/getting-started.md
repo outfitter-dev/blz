@@ -1,4 +1,4 @@
-# Getting Started with `blz`
+# Getting Started with BLZ
 
 This guide will walk you through installing and using `blz` for the first time.
 
