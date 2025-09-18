@@ -6,12 +6,14 @@ use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::cli::ShowComponent;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 
 /// Search options
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
     pub alias: Option<String>,
@@ -19,8 +21,31 @@ pub struct SearchOptions {
     pub limit: usize,
     pub page: usize,
     pub top_percentile: Option<u8>,
-    pub output: OutputFormat,
+    pub format: OutputFormat,
+    pub show_url: bool,
+    pub show_lines: bool,
+    pub no_summary: bool,
     pub(crate) all: bool,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct ShowToggles {
+    url: bool,
+    lines: bool,
+}
+
+fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
+    let mut toggles = ShowToggles::default();
+    for component in components {
+        match component {
+            ShowComponent::Rank => {
+                // Rank is always displayed by default; accept the modifier for compatibility.
+            },
+            ShowComponent::Url => toggles.url = true,
+            ShowComponent::Lines => toggles.lines = true,
+        }
+    }
+    toggles
 }
 
 /// Execute a search across cached documentation
@@ -32,10 +57,13 @@ pub async fn execute(
     limit: usize,
     page: usize,
     top_percentile: Option<u8>,
-    output: OutputFormat,
+    format: OutputFormat,
+    show: &[ShowComponent],
+    no_summary: bool,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
+    let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
         alias: alias.map(String::from),
@@ -43,7 +71,10 @@ pub async fn execute(
         limit,
         page,
         top_percentile,
-        output,
+        format,
+        show_url: toggles.url,
+        show_lines: toggles.lines,
+        no_summary,
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
     };
 
@@ -110,6 +141,8 @@ pub async fn handle_default(
         1,
         None,
         OutputFormat::Text,
+        &[],
+        false,
         metrics,
         resource_monitor,
     )
@@ -163,7 +196,7 @@ async fn perform_search(
             Ok(None) => {
                 // Fallback: show hint and continue with zero sources handled below
                 let known = storage.list_sources();
-                if !known.contains(requested) && matches!(options.output, OutputFormat::Text) {
+                if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
                     eprintln!(
                         "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
                     );
@@ -366,7 +399,7 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
 ///     top_percentile: None,
-///     output: OutputFormat::Text,
+///     format: OutputFormat::Text,
 ///     all: false,
 /// };
 ///
@@ -396,8 +429,8 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
 
     if total_results == 0 {
         // Let formatter print the "No results" message
-        let formatter = SearchResultFormatter::new(options.output);
-        let suggestions = if matches!(options.output, OutputFormat::Json) {
+        let formatter = SearchResultFormatter::new(options.format);
+        let suggestions = if matches!(options.format, OutputFormat::Json) {
             let storage = Storage::new()?;
             Some(compute_suggestions(
                 &options.query,
@@ -413,13 +446,14 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             total_results,
             total_lines_searched: results.total_lines_searched,
             search_time: results.search_time,
-            show_pagination: false,
-            single_source: options.alias.is_some(),
             sources: &results.sources,
             start_idx: 0,
             page: 1,
-            limit: actual_limit,
             total_pages,
+            page_size: actual_limit,
+            show_url: options.show_url,
+            show_lines: options.show_lines,
+            no_summary: options.no_summary,
             suggestions,
         };
         formatter.format(&params)?;
@@ -431,7 +465,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
     if start_idx >= results.hits.len() {
-        if matches!(options.output, OutputFormat::Text) {
+        if matches!(options.format, OutputFormat::Text) {
             eprintln!(
                 "Page {} is beyond available results (Page {} of {})",
                 options.page, page, total_pages
@@ -443,9 +477,9 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
 
     let page_hits = &results.hits[start_idx..end_idx];
 
-    let formatter = SearchResultFormatter::new(options.output);
+    let formatter = SearchResultFormatter::new(options.format);
     // Compute simple fuzzy suggestions for JSON output when few/low-quality results
-    let suggestions = if matches!(options.output, OutputFormat::Json) {
+    let suggestions = if matches!(options.format, OutputFormat::Json) {
         let need_suggest =
             total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
         if need_suggest {
@@ -468,13 +502,15 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         total_results,
         total_lines_searched: results.total_lines_searched,
         search_time: results.search_time,
-        show_pagination: options.limit < ALL_RESULTS_LIMIT,
-        single_source: options.alias.is_some(),
         sources: &results.sources,
         start_idx,
         page,
-        limit: actual_limit,
         total_pages,
+        page_size: actual_limit,
+        // TODO(release-polish): revisit `show_lines` default and pagination story (docs/notes/release-polish-followups.md)
+        show_url: options.show_url,
+        show_lines: options.show_lines,
+        no_summary: options.no_summary,
         suggestions,
     };
     formatter.format(&params)?;
@@ -616,7 +652,10 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
@@ -636,7 +675,10 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
@@ -656,7 +698,10 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: true,
         };
 
@@ -673,7 +718,10 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: true,
         };
 
@@ -695,7 +743,10 @@ mod tests {
             limit: 2,
             page: 100, // Way beyond available pages
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
@@ -716,7 +767,10 @@ mod tests {
             limit: 5,
             page: 2,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
@@ -731,7 +785,10 @@ mod tests {
             limit: 5,
             page: 3,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
@@ -753,13 +810,16 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: false,
         };
 
-        // The actual_limit calculation from the code
+        let results1 = create_test_results(8);
         let actual_limit1 = if options1.limit >= ALL_RESULTS_LIMIT {
-            1 // Minimum limit is always 1
+            results1.hits.len().max(1)
         } else {
             options1.limit.max(1)
         };
@@ -773,12 +833,16 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            no_summary: false,
             all: true,
         };
 
+        let results2 = create_test_results(0);
         let actual_limit2 = if options2.limit >= ALL_RESULTS_LIMIT {
-            1 // Minimum limit is always 1
+            results2.hits.len().max(1)
         } else {
             options2.limit.max(1)
         };

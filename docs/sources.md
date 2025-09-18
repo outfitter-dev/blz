@@ -75,7 +75,7 @@ Cached sources:
 For scripting and automation:
 
 ```bash
-blz list --output json
+blz list --format json
 ```
 
 Output:

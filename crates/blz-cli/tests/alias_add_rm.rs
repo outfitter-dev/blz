@@ -40,7 +40,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     // List JSON should include aliases
     let out = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--output", "json"])
+        .args(["list", "--format", "json"])
         .assert()
         .success()
         .get_output()
@@ -67,7 +67,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     // List JSON no longer contains alias
     let out2 = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--output", "json"])
+        .args(["list", "--format", "json"])
         .assert()
         .success()
         .get_output()

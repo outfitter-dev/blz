@@ -11,5 +11,5 @@ These variables override configuration at runtime. All booleans accept: 1, true,
 - `BLZ_FOLLOW_LINKS` — Link policy: `none` | `first_party` | `allowlist`
 - `BLZ_ALLOWLIST` — Comma-separated list of domains (used with `allowlist`)
 - `BLZ_PREFER_LLMS_FULL` — Prefer llms-full.txt when available during updates (bool)
-- `BLZ_OUTPUT_FORMAT` — Default CLI output: `json` | `text` | `ndjson`
+- `BLZ_OUTPUT_FORMAT` — Default CLI output: `json` | `text` | `jsonl`
 - `NO_COLOR` — Disable ANSI colors in output

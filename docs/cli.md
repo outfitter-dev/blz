@@ -68,7 +68,7 @@ blz add node https://nodejs.org/llms.txt --yes
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY> [--output text|json|ndjson]
+blz lookup <QUERY> [--format text|json|jsonl]
 ```
 
 **Arguments:**
@@ -77,7 +77,7 @@ blz lookup <QUERY> [--output text|json|ndjson]
 
 **Options:**
 
-- `-o, --output <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
+- `-f, --format <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
 
 **Examples:**
 
@@ -86,7 +86,7 @@ blz lookup <QUERY> [--output text|json|ndjson]
 blz lookup typescript
 
 # Search for web frameworks (JSON for scripting)
-blz lookup react -o json | jq '.[0]'
+blz lookup react -f json | jq '.[0]'
 ```
 
 ### `blz search`
@@ -108,7 +108,7 @@ blz search <QUERY> [OPTIONS]
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
-- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson` to avoid passing `-o` each time
 
 **Examples:**
@@ -124,7 +124,7 @@ blz search "bundler" --source bun
 blz search "performance" --limit 100
 
 # JSON output for scripting
-blz search "async" --output json
+blz search "async" --format json
 
 # Top 10% of results only
 blz search "database" --top 10
@@ -151,7 +151,7 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 
 - `-l, --lines <RANGE>` - Line range(s) to retrieve
 - `-c, --context <N>` - Include N context lines around each range
-- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
 
 **Line Range Formats:**
 
@@ -173,7 +173,7 @@ blz get node --lines "10:20,50:60"
 blz get deno --lines 100-110 --context 3
 
 # JSON output for agents
-blz get bun --lines 42-55 -o json | jq '.content'
+blz get bun --lines 42-55 -f json | jq '.content'
 ```
 
 ### `blz list` / `blz sources`
@@ -186,7 +186,7 @@ blz list [OPTIONS]
 
 **Options:**
 
-- `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+- `-f, --format <FORMAT>` - Output format: `text` (default) or `json`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
 
 JSON keys
@@ -201,7 +201,7 @@ JSON keys
 blz list
 
 # JSON output for scripting
-blz list --output json
+blz list --format json
 ```
 
 ### `blz update`
@@ -478,7 +478,7 @@ blz instruct
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
 ### Setting a Global Default
 
-Set a single environment variable to control default output across commands that support `-o/--output`:
+Set a single environment variable to control default output across commands that support `-o/--format`:
 
 ```bash
 export BLZ_OUTPUT_FORMAT=json   # or text, ndjson

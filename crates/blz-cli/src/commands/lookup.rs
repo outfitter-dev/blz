@@ -15,31 +15,31 @@ pub async fn execute(
     query: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
-    output: OutputFormat,
+    format: OutputFormat,
 ) -> Result<()> {
     let registry = Registry::new();
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         println!("Searching registries...");
     }
     let results = registry.search(query);
 
     if results.is_empty() {
-        if matches!(output, OutputFormat::Text) && !quiet {
+        if matches!(format, OutputFormat::Text) && !quiet {
             println!("No matches found for '{query}'");
         }
-        if matches!(output, OutputFormat::Json) {
+        if matches!(format, OutputFormat::Json) {
             println!("[]");
         }
         return Ok(());
     }
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         display_results_with_health(&results).await?;
     }
 
     // Non-interactive JSON output for agents
-    if !matches!(output, OutputFormat::Text) {
+    if !matches!(format, OutputFormat::Text) {
         let fetcher = Fetcher::new()?;
         let mut out = Vec::new();
         for r in &results {
@@ -64,7 +64,7 @@ pub async fn execute(
             });
             out.push(obj);
         }
-        if matches!(output, OutputFormat::Json) {
+        if matches!(format, OutputFormat::Json) {
             println!("{}", serde_json::to_string_pretty(&out)?);
         } else {
             for o in out {
@@ -77,7 +77,7 @@ pub async fn execute(
     // Try interactive selection
     let Some(selected_entry) = try_interactive_selection(&results).ok() else {
         // Not interactive, show instructions
-        if matches!(output, OutputFormat::Text) && !quiet {
+        if matches!(format, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
         }
         return Ok(());
@@ -95,7 +95,7 @@ pub async fn execute(
     let final_alias = alias.trim();
     validate_alias(final_alias)?;
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         println!(
             "Adding {} from {}...",
             final_alias.green(),

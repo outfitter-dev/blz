@@ -180,7 +180,7 @@ pub struct Cli {
 /// ```bash
 /// # Source management
 /// blz add react https://react.dev/llms.txt
-/// blz sources --output json
+/// blz sources --format json
 /// blz update react
 /// blz rm react
 ///
@@ -206,13 +206,14 @@ pub enum Commands {
         list: bool,
         /// Output format for listing
         #[arg(
-            short = 'o',
-            long,
+            short = 'f',
+            long = "format",
+            alias = "output",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"
         )]
-        output: crate::output::OutputFormat,
+        format: crate::output::OutputFormat,
     },
 
     /// Manage aliases for a source
@@ -270,13 +271,14 @@ pub enum Commands {
         query: String,
         /// Output format
         #[arg(
-            short = 'o',
-            long,
+            short = 'f',
+            long = "format",
+            alias = "output",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"
         )]
-        output: OutputFormat,
+        format: OutputFormat,
     },
 
     /// Search across cached docs
@@ -301,15 +303,22 @@ pub enum Commands {
         /// Show only top N percentile of results (1-100)
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
-        /// Output format
+        /// Output format (text, json, jsonl)
         #[arg(
-            short = 'o',
-            long,
+            short = 'f',
+            long = "format",
+            alias = "output",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"
         )]
-        output: OutputFormat,
+        format: OutputFormat,
+        /// Additional columns to include in text output
+        #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+        show: Vec<ShowComponent>,
+        /// Hide the summary/footer line
+        #[arg(long = "no-summary")]
+        no_summary: bool,
     },
 
     /// Get exact lines from a source
@@ -324,13 +333,14 @@ pub enum Commands {
         context: Option<usize>,
         /// Output format
         #[arg(
-            short = 'o',
-            long,
+            short = 'f',
+            long = "format",
+            alias = "output",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"
         )]
-        output: OutputFormat,
+        format: OutputFormat,
     },
 
     /// List all cached sources
@@ -338,13 +348,14 @@ pub enum Commands {
     List {
         /// Output format
         #[arg(
-            short = 'o',
-            long,
+            short = 'f',
+            long = "format",
+            alias = "output",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"
         )]
-        output: OutputFormat,
+        format: OutputFormat,
         /// Include status/health information (etag, lastModified, checksum)
         #[arg(long)]
         status: bool,
@@ -381,6 +392,17 @@ pub enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+}
+
+/// Additional columns that can be displayed in text search results
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub enum ShowComponent {
+    /// Include the global rank prefix (1., 2., ...)
+    Rank,
+    /// Display the source URL header for aliases present on the page
+    Url,
+    /// Prefix snippet lines with their line numbers
+    Lines,
 }
 
 #[derive(Subcommand, Clone, Debug)]

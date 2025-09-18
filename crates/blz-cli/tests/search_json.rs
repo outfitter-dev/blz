@@ -36,7 +36,7 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
     // Search JSON
     let out = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["search", "alpha", "--alias", "e2e", "-o", "json"])
+        .args(["search", "alpha", "--alias", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()

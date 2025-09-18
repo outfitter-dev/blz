@@ -65,7 +65,7 @@ fn test_empty_results_pagination() {
         .arg("10")
         .arg("--page")
         .arg("1")
-        .arg("-o")
+        .arg("-f")
         .arg("json"); // Use JSON output to avoid display issues
 
     // Should handle gracefully with no panic
@@ -112,7 +112,7 @@ fn test_large_limit_with_small_results() {
         .arg("10000")  // ALL_RESULTS_LIMIT
         .arg("--page")
         .arg("1")
-        .arg("-o")
+        .arg("-f")
         .arg("json");
 
     // Should not panic even with large limit and no results
@@ -179,7 +179,7 @@ fn test_pagination_prevents_panic_on_edge_cases() {
             .arg(limit)
             .arg("--page")
             .arg(page)
-            .arg("-o")
+            .arg("-f")
             .arg("json");
 
         // None of these should panic - accept either success or no sources error

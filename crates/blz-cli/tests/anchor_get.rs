@@ -36,7 +36,7 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
     // Get anchors JSON
     let anchors_out = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["anchors", "e2e", "-o", "json"])
+        .args(["anchors", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()

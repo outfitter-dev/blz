@@ -62,7 +62,7 @@ What it adds:
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
-It reads from `blz list --output json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
+It reads from `blz list --format json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
 
 ## Configuration
 
@@ -96,14 +96,14 @@ alias bu='blz update --all'
 # Search function with fzf
 blz-fzf() {
     local query="$*"
-    blz search "$query" -o json | \
+    blz search "$query" -f json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 }
 
 # Quick search and display
 blz-quick() {
-    local result=$(blz search "$*" --limit 1 -o json | jq -r '.results[0] | "\(.alias) \(.lines)"')
+    local result=$(blz search "$*" --limit 1 -f json | jq -r '.results[0] | "\(.alias) \(.lines)"')
     if [[ -n "$result" ]]; then
         blz get $result
     else
@@ -119,7 +119,7 @@ Add to `~/.zshrc` for interactive search:
 ```zsh
 # Ctrl+B for blz search
 blz-search-widget() {
-    local selected=$(blz list -o json | jq -r '.[]' | fzf)
+    local selected=$(blz list -f json | jq -r '.[]' | fzf)
     if [[ -n "$selected" ]]; then
         BUFFER="blz search -s $selected "
         CURSOR=$#BUFFER

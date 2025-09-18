@@ -115,7 +115,7 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
     // Also verify CLI anchors output JSON shape
     let stdout = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["anchors", "e2e", "--mappings", "-o", "json"])
+        .args(["anchors", "e2e", "--mappings", "-f", "json"])
         .assert()
         .success()
         .get_output()

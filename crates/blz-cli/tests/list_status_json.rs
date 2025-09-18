@@ -32,7 +32,7 @@ async fn list_status_json_includes_source_and_keys() -> anyhow::Result<()> {
     // List with status JSON
     let out = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--status", "-o", "json"])
+        .args(["list", "--status", "-f", "json"])
         .assert()
         .success()
         .get_output()

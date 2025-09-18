@@ -41,7 +41,7 @@ fn bl { blz list }
 
 # Quick search function
 fn blz-quick [query]{
-    var result = (blz search $query --limit 1 -o json | from-json)
+    var result = (blz search $query --limit 1 -f json | from-json)
     if (not-eq $result []) {
         var hit = $result[0]
         blz get $hit[alias] --lines $hit[lines]
@@ -70,14 +70,14 @@ Create `~/.elvish/lib/blz-utils.elv`:
 ```elvish
 # Search with preview
 fn search-preview [query]{
-    blz search $query -o json |
+    blz search $query -f json |
         from-json |
         each [resp]{ each [hit]{ echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[headingPath]) } $resp[results] }
 }
 
 # List sources with details
 fn list-detailed {
-    blz list -o json | from-json | each [source]{
+    blz list -f json | from-json | each [source]{
         echo $source[alias]" - Fetched at: "$source[fetchedAt]
     }
 }
@@ -106,12 +106,12 @@ blz-utils:add-batch [react=https://react.dev/llms.txt vue=https://vuejs.org/llms
 
 ```elvish
 # Filter and process results
-blz search "async" -o json |
+blz search "async" -f json |
     from-json |
     each [resp]{ each [hit]{ if (> $hit[score] 50) { echo "High score: "$hit[alias]" "$hit[lines] } } $resp[results] }
 
 # Count results by source
-blz search "test" -o json |
+blz search "test" -f json |
     from-json |
     each [resp]{ each [hit]{ put $hit[alias] } $resp[results] } |
     sort | uniq -c
@@ -162,7 +162,7 @@ fn multi-search [queries]{
 
 # Interactive source selector
 fn select-source {
-    var sources = [(blz list -o json | from-json | each [s]{ put $s[alias] })]
+    var sources = [(blz list -f json | from-json | each [s]{ put $s[alias] })]
     var selected = (echo $@sources | tr ' ' '\n' | fzf)
     if (not-eq $selected "") {
         edit:replace-input "blz search -s "$selected" "

@@ -26,3 +26,7 @@
 - Patched npm wrapper to pass `argv0 = "blz"` so clap help consistently shows the canonical executable name even when dispatching arch-specific binaries.
 - Adjusted CLI usage banner to present command-first syntax with an alternate line for command-less searches and hide default-search args from subcommand help.
 - Investigated prior CLI formatting work: located `feat/cli-polish` branch with compact result formatting, alias grouping, summary tips, and JSON `json-full` envelope option that never merged to main.
+- Ported compact search formatter, `--format` flag rename, and `--show` modifiers into `gt-v0.2/feat/release-polish`; updated JSONL naming, docs, tests, and completions to match the new surface.
+- Trimmed `blz instruct` output to curated notes + docs pointer; refreshed shell scripts/docs to use `--format` and staged the new branch in Graphite.
+- Updated brief search layout to the latest scratchpad mock (rank/score banner, parenthetical path, hashed heading line, two-space indentation, arrow summary with source count) and removed the redundant `show_rank` toggle.
+- Added path truncation for deeply nested headings (keep first and last two segments with ellipsis) so parenthetical context stays readable.

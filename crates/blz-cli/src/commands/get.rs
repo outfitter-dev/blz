@@ -13,7 +13,7 @@ pub async fn execute(
     alias: &str,
     lines: &str,
     context: Option<usize>,
-    output: OutputFormat,
+    format: OutputFormat,
 ) -> Result<()> {
     let storage = Storage::new()?;
 
@@ -47,13 +47,13 @@ pub async fn execute(
     let file_content = storage.load_llms_txt(&canonical)?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
-    match output {
+    match format {
         OutputFormat::Text => {
             let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
             display_lines(&line_numbers, &all_lines);
             Ok(())
         },
-        OutputFormat::Json | OutputFormat::Ndjson => {
+        OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content for requested ranges and context
             let selected = collect_line_numbers(lines, context, all_lines.len())?;
             let mut body = String::new();
@@ -74,7 +74,7 @@ pub async fn execute(
                 "lineNumbers": selected.iter().copied().collect::<Vec<_>>(),
                 "content": body,
             });
-            if matches!(output, OutputFormat::Json) {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&obj)?);
             } else {
                 println!("{}", serde_json::to_string(&obj)?);

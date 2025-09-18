@@ -53,7 +53,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     // List should be empty now
     let out = assert_cmd::Command::cargo_bin("blz")?
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "-o", "json"])
+        .args(["list", "-f", "json"])
         .assert()
         .success()
         .get_output()

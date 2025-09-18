@@ -67,7 +67,7 @@ function Blz-Search {
 # Quick get function
 function Blz-Quick {
     param([string]$Query)
-    $result = blz search $Query --limit 1 -o json | ConvertFrom-Json
+    $result = blz search $Query --limit 1 -f json | ConvertFrom-Json
     if ($result) {
         blz get $result[0].alias --lines $result[0].lines
     } else {
@@ -124,7 +124,7 @@ This adds:
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
-It reads from `blz list --output json` and merges canonical + metadata aliases.
+It reads from `blz list --format json` and merges canonical + metadata aliases.
 ```
 
 ## Troubleshooting
@@ -167,13 +167,13 @@ Get-PSReadLineKeyHandler -Key Tab
 
 ```powershell
 # Parse JSON output
-$resp = blz search "hooks" -o json | ConvertFrom-Json
+$resp = blz search "hooks" -f json | ConvertFrom-Json
 $resp.results | ForEach-Object {
     Write-Host "$($_.alias): $($_.headingPath -join ' > ')"
 }
 
 # Filter high-score results
-$highScore = blz search "async" -o json | ConvertFrom-Json |
+$highScore = blz search "async" -f json | ConvertFrom-Json |
     Select-Object -ExpandProperty results |
     Where-Object { $_.score -gt 50 }
 ```
@@ -182,7 +182,7 @@ $highScore = blz search "async" -o json | ConvertFrom-Json |
 
 ```powershell
 # Search and select with Out-GridView
-blz search "react" -o json |
+blz search "react" -f json |
     ConvertFrom-Json |
     Select-Object -ExpandProperty results |
     Select-Object alias, lines, @{N='Path';E={$_.headingPath -join ' > '}} |

@@ -108,7 +108,7 @@ Fish completions are enhanced with runtime data:
 ```fish
 # This function queries your actual indexed sources
 function __fish_blz_complete_aliases
-    blz list --output json 2>/dev/null | python3 -c "
+    blz list --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -230,7 +230,7 @@ Create helpful functions:
 # Search and display best result
 function blz-best
     set -l query $argv
-    set -l result (blz search "$query" --limit 1 --output json | jq -r '.results[0]')
+    set -l result (blz search "$query" --limit 1 --format json | jq -r '.results[0]')
 
     if test "$result" != "null"
         set -l alias (echo $result | jq -r '.alias')
@@ -263,7 +263,7 @@ end
 ```bash
 # Fish/Bash/Zsh
 function blz-fzf
-    blz search "$1" --output json | \
+    blz search "$1" --format json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
@@ -278,7 +278,7 @@ Create a workflow script:
 # For Alfred/Raycast
 
 query="$1"
-results=$(blz search "$query" --output json)
+results=$(blz search "$query" --format json)
 
 echo "$results" | jq -r '.results[] | {
     title: .headingPath | join(" > "),
@@ -347,7 +347,7 @@ The dynamic completions query live data:
 
 ```fish
 # Test the query function
-blz list --output json
+blz list --format json
 
 # If this works, completions should work
 # If not, check that you have sources:

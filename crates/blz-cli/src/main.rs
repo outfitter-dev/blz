@@ -18,11 +18,10 @@ mod instruct_mod {
     pub fn print() {
         // Embed a simple, agent-friendly text with no special formatting.
         const INSTRUCT: &str = include_str!("../agent-instructions.txt");
-        println!("{INSTRUCT}");
-
-        // Append generated CLI docs for single-command onboarding
-        println!("\n=== CLI Docs ===\n");
-        let _ = crate::commands::generate_docs(crate::commands::DocsFormat::Markdown);
+        println!("{}", INSTRUCT.trim());
+        println!(
+            "\nNeed full command reference? Run `blz docs --format markdown` or `blz docs --format json`."
+        );
     }
 }
 
@@ -79,13 +78,13 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     if !(cli.verbose || cli.debug) {
         // Suppress logs when emitting machine-readable output across common commands
         if let Some(
-            Commands::Search { output, .. } | Commands::List { output, .. },
-            // | Commands::Anchors { output, .. }, // Disabled for v0.2
+            Commands::Search { format, .. } | Commands::List { format, .. },
+            // | Commands::Anchors { format, .. }, // Disabled for v0.2
         ) = &cli.command
         {
             if matches!(
-                output,
-                crate::output::OutputFormat::Json | crate::output::OutputFormat::Ndjson
+                format,
+                crate::output::OutputFormat::Json | crate::output::OutputFormat::Jsonl
             ) {
                 level = Level::ERROR;
                 machine_output = true;
@@ -143,15 +142,15 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::Completions {
             shell,
             list,
-            output,
+            format,
         }) => {
             if list {
-                commands::list_supported(output);
+                commands::list_supported(format);
             } else if let Some(shell) = shell {
                 commands::generate(shell);
             } else {
                 // Default to listing if no shell provided
-                commands::list_supported(output);
+                commands::list_supported(format);
             }
         },
         Some(Commands::Docs { format }) => handle_docs(format)?,
@@ -167,8 +166,8 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::Add { alias, url, yes }) => {
             commands::add_source(&alias, &url, yes, metrics).await?;
         },
-        Some(Commands::Lookup { query, output }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet, output).await?;
+        Some(Commands::Lookup { query, format }) => {
+            commands::lookup_registry(&query, metrics, cli.quiet, format).await?;
         },
         Some(Commands::Search {
             query,
@@ -178,18 +177,23 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             all,
             page,
             top,
-            output,
+            format,
+            show,
+            no_summary,
         }) => {
-            handle_search(query, alias, last, limit, all, page, top, output, metrics).await?;
+            handle_search(
+                query, alias, last, limit, all, page, top, format, show, no_summary, metrics,
+            )
+            .await?;
         },
         Some(Commands::Get {
             alias,
             lines,
             context,
-            output,
-        }) => commands::get_lines(&alias, &lines, context, output).await?,
-        Some(Commands::List { output, status }) => {
-            commands::list_sources(output, status).await?;
+            format,
+        }) => commands::get_lines(&alias, &lines, context, format).await?,
+        Some(Commands::List { format, status }) => {
+            commands::list_sources(format, status).await?;
         },
         Some(Commands::Update {
             alias,
@@ -259,7 +263,9 @@ async fn handle_search(
     all: bool,
     page: usize,
     top: Option<u8>,
-    output: crate::output::OutputFormat,
+    format: crate::output::OutputFormat,
+    show: Vec<crate::cli::ShowComponent>,
+    no_summary: bool,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
     let actual_limit = if all { 10_000 } else { limit };
@@ -270,7 +276,9 @@ async fn handle_search(
         actual_limit,
         page,
         top,
-        output,
+        format,
+        &show,
+        no_summary,
         metrics,
         None,
     )
@@ -561,7 +569,7 @@ mod tests {
             limit,
             page,
             all,
-            output,
+            format,
             ..
         }) = cli.command
         {
@@ -569,9 +577,9 @@ mod tests {
             assert_eq!(page, 1, "Default page should be 1");
             assert!(!all, "Default all should be false");
             assert_eq!(
-                output,
+                format,
                 crate::output::OutputFormat::Text,
-                "Default output should be text"
+                "Default format should be text"
             );
         } else {
             panic!("Expected search command");
@@ -641,26 +649,41 @@ mod tests {
         use clap::Parser;
 
         // Test all valid output formats
-        let output_formats = vec![
+        let format_options = vec![
             ("text", crate::output::OutputFormat::Text),
             ("json", crate::output::OutputFormat::Json),
+            ("jsonl", crate::output::OutputFormat::Jsonl),
         ];
 
-        for (format_str, expected_format) in output_formats {
-            let cli = Cli::try_parse_from(vec!["blz", "list", "--output", format_str]).unwrap();
+        for (format_str, expected_format) in &format_options {
+            let cli = Cli::try_parse_from(vec!["blz", "list", "--format", *format_str]).unwrap();
 
-            if let Some(Commands::List { output, .. }) = cli.command {
+            if let Some(Commands::List { format, .. }) = cli.command {
                 assert_eq!(
-                    output, expected_format,
-                    "Output format should match: {format_str}"
+                    format, *expected_format,
+                    "Format should match: {format_str}"
                 );
             } else {
                 panic!("Expected list command");
             }
         }
 
-        // Test invalid output format
-        let result = Cli::try_parse_from(vec!["blz", "list", "--output", "invalid"]);
+        // Alias --output should continue to work for compatibility
+        for (format_str, expected_format) in &format_options {
+            let cli = Cli::try_parse_from(vec!["blz", "list", "--output", *format_str]).unwrap();
+
+            if let Some(Commands::List { format, .. }) = cli.command {
+                assert_eq!(
+                    format, *expected_format,
+                    "Alias --output should map to {format_str}"
+                );
+            } else {
+                panic!("Expected list command");
+            }
+        }
+
+        // Test invalid format value
+        let result = Cli::try_parse_from(vec!["blz", "list", "--format", "invalid"]);
         assert!(result.is_err(), "Invalid output format should fail");
     }
 
@@ -727,7 +750,7 @@ mod tests {
         // Test search-specific flags
         let cli = Cli::try_parse_from(vec![
             "blz", "search", "rust", "--alias", "node", "--limit", "20", "--page", "2", "--top",
-            "10", "--output", "json",
+            "10", "--format", "json",
         ])
         .unwrap();
 
@@ -736,7 +759,7 @@ mod tests {
             limit,
             page,
             top,
-            output,
+            format,
             ..
         }) = cli.command
         {
@@ -744,7 +767,7 @@ mod tests {
             assert_eq!(limit, 20);
             assert_eq!(page, 2);
             assert!(top.is_some());
-            assert_eq!(output, crate::output::OutputFormat::Json);
+            assert_eq!(format, crate::output::OutputFormat::Json);
         } else {
             panic!("Expected search command");
         }
@@ -783,13 +806,13 @@ mod tests {
             alias,
             lines,
             context,
-            output,
+            format,
         }) = cli.command
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, "1-10");
             assert_eq!(context, Some(5));
-            let _ = output; // ignore
+            let _ = format; // ignore
         } else {
             panic!("Expected get command");
         }
@@ -841,7 +864,7 @@ mod tests {
             (vec!["blz", "search"], "required"),
             (vec!["blz", "get", "alias"], "required"),
             // Invalid values
-            (vec!["blz", "list", "--output", "invalid"], "invalid"),
+            (vec!["blz", "list", "--format", "invalid"], "invalid"),
         ];
 
         for (args, expected_error_content) in error_cases {
@@ -1039,7 +1062,16 @@ mod tests {
             .map(|arg| arg.get_id().as_str())
             .collect();
 
-        let expected_search_flags = vec!["alias", "limit", "all", "page", "top", "output"];
+        let expected_search_flags = vec![
+            "alias",
+            "limit",
+            "all",
+            "page",
+            "top",
+            "format",
+            "show",
+            "no_summary",
+        ];
         for expected_flag in expected_search_flags {
             assert!(
                 search_args.contains(&expected_flag),
@@ -1084,14 +1116,14 @@ mod tests {
         );
 
         // Check that output argument has value_enum (which provides completion values)
-        let output_arg = search_cmd
+        let format_arg = search_cmd
             .get_arguments()
-            .find(|arg| arg.get_id().as_str() == "output")
-            .expect("Search should have output argument");
+            .find(|arg| arg.get_id().as_str() == "format")
+            .expect("Search should have format argument");
 
         assert!(
-            !output_arg.get_possible_values().is_empty(),
-            "Output argument should have possible values for completion"
+            !format_arg.get_possible_values().is_empty(),
+            "Format argument should have possible values for completion"
         );
     }
 

@@ -174,13 +174,13 @@ IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
 # Search for documentation
-blz search "test runner" --alias bun --output json
+blz search "test runner" --alias bun --format json
 
 # Get exact line ranges
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --output json | jq '.sources | length'
+blz list --format json | jq '.sources | length'
 ```
 
 The JSON output is designed for easy parsing by agents:

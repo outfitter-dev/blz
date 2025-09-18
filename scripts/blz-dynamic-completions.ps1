@@ -9,7 +9,7 @@
 
 function Get-BlzAliases {
     try {
-        $json = blz list --output json 2>$null | ConvertFrom-Json
+        $json = blz list --format json 2>$null | ConvertFrom-Json
     } catch {
         return @()
     }
@@ -37,7 +37,7 @@ function Get-BlzAnchors {
     param([string]$Alias)
     if (-not $Alias) { return @() }
     try {
-        $json = blz anchors $Alias --output json 2>$null | ConvertFrom-Json
+        $json = blz anchors $Alias --format json 2>$null | ConvertFrom-Json
     } catch {
         return @()
     }

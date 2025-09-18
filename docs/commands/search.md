@@ -10,12 +10,12 @@ blz search <QUERY> [OPTIONS]
 - `-n, --limit <N>`: limit results (default: 50)
 - `--page <N>`: paginate (default: 1)
 - `--top <N>`: keep top percentile (1–100)
-- `-o, --output <FORMAT>`: `text` (default), `json`, `ndjson`
+- `-f, --format <FORMAT>`: `text` (default), `json`, `jsonl`
 
 Examples
 
 ```bash
-blz search "hooks" --source react -o json
+blz search "hooks" --source react -f json
 blz "async await" react
 blz react "server actions"
 ```

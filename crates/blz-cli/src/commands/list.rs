@@ -8,16 +8,16 @@ use crate::output::OutputFormat;
 use crate::utils::formatting::get_alias_color;
 
 /// Execute the list command to show all cached sources
-pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
+pub async fn execute(format: OutputFormat, status: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
     if sources.is_empty() {
-        match output {
+        match format {
             OutputFormat::Json => {
                 println!("[]");
             },
-            OutputFormat::Ndjson => {
+            OutputFormat::Jsonl => {
                 // No output when empty
             },
             OutputFormat::Text => {
@@ -58,12 +58,12 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
         }
     }
 
-    match output {
+    match format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&source_info)?;
             println!("{json}");
         },
-        OutputFormat::Ndjson => {
+        OutputFormat::Jsonl => {
             for info in source_info {
                 println!("{}", serde_json::to_string(&info)?);
             }
