@@ -52,12 +52,16 @@ jobs:
             ENABLED="${INPUT_ENABLED:-true}"
           fi
           if [[ "$ENABLED" != 'true' ]]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "enabled=false"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "enabled=true" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "enabled=true"
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Skip when disabled
         if: ${{ steps.resolve.outputs.enabled != 'true' }}
@@ -73,13 +77,17 @@ jobs:
         run: |
           set -euo pipefail
           TAG='${{ steps.resolve.outputs.tag }}'
-          ARM_COUNT=$(gh release view "$TAG" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length')
-          X64_COUNT=$(gh release view "$TAG" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length')
+          ARM_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length')
+          X64_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length')
           if [ "${ARM_COUNT:-0}" -eq 0 ] || [ "${X64_COUNT:-0}" -eq 0 ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "ready=false"
+            } >> "$GITHUB_OUTPUT"
             echo "Homebrew assets not ready for $TAG (arm64=$ARM_COUNT, x64=$X64_COUNT)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "ready=true"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout source (for scripts)
