@@ -248,6 +248,50 @@ jobs:
           locate_and_move "dist/blz-${VERSION}-linux-x64" "blz-${VERSION}-linux-x64.tar.gz" "dist/blz-${VERSION}-linux-x64.tar.gz"
           locate_and_move "dist/blz-${VERSION}-windows-x64" "blz-${VERSION}-windows-x64.zip" "dist/blz-${VERSION}-windows-x64.zip"
 
+          extract_binary() {
+            local archive_path="$1"
+            local desired_path="$2"
+            local archive_type="$3"
+            local tmp
+            tmp=$(mktemp -d)
+            case "$archive_type" in
+              tar)
+                tar -xzf "$archive_path" -C "$tmp"
+                ;;
+              zip)
+                unzip -qq "$archive_path" -d "$tmp"
+                ;;
+              *)
+                echo "::error::Unsupported archive type: $archive_type" >&2
+                rm -rf "$tmp"
+                exit 1
+                ;;
+            esac
+
+            local source
+            if [[ -f "$tmp/blz" ]]; then
+              source="$tmp/blz"
+            elif [[ -f "$tmp/blz.exe" ]]; then
+              source="$tmp/blz.exe"
+            else
+              echo "::group::Archive contents"
+              find "$tmp" -maxdepth 2 -type f -print || true
+              echo "::endgroup::"
+              echo "::error::Unable to locate extracted binary within $archive_path" >&2
+              rm -rf "$tmp"
+              exit 1
+            fi
+
+            mv "$source" "$desired_path"
+            chmod +x "$desired_path" || true
+            rm -rf "$tmp"
+          }
+
+          extract_binary "dist/blz-${VERSION}-darwin-arm64.tar.gz" "dist/blz-darwin-arm64" tar
+          extract_binary "dist/blz-${VERSION}-darwin-x64.tar.gz" "dist/blz-darwin-x64" tar
+          extract_binary "dist/blz-${VERSION}-linux-x64.tar.gz" "dist/blz-linux-x64" tar
+          extract_binary "dist/blz-${VERSION}-windows-x64.zip" "dist/blz-win32-x64.exe" zip
+
       - name: Assemble files list
         id: files
         run: |
@@ -258,7 +302,11 @@ jobs:
             "dist/blz-${VERSION}-darwin-arm64.tar.gz" \
             "dist/blz-${VERSION}-darwin-x64.tar.gz" \
             "dist/blz-${VERSION}-linux-x64.tar.gz" \
-            "dist/blz-${VERSION}-windows-x64.zip"
+            "dist/blz-${VERSION}-windows-x64.zip" \
+            "dist/blz-darwin-arm64" \
+            "dist/blz-darwin-x64" \
+            "dist/blz-linux-x64" \
+            "dist/blz-win32-x64.exe"
           do
             [[ -f "$f" ]] && echo "$f" >> files.txt
           done

@@ -15,7 +15,8 @@
 - `lefthook` pre-commit runs `actionlint` when workflow files change to catch structural errors early
 - Post-merge polish tightened reusable publish permissions, expanded tag validation, and fixed artifact flattening to handle nested `target/release` paths
 - Updated `publish.yml` to place downloaded artifacts in deterministic per-target directories and harden the flatten helper against missing Windows zips (with deeper search fallback + duplicate-safe moves)
-- Ran `scripts/release/semver-bump.sh patch` to advance the workspace to v0.2.2 ahead of the next tag cut (syncing Cargo manifests, lockfile, npm metadata, and CHANGELOG)
+- Publish workflow now extracts archives to provide raw platform binaries alongside compressed bundles (fixes npm postinstall 404s)
+- Ran `scripts/release/semver-bump.sh set 0.2.4` to prep the next release after the npm 0.2.1 asset gap (syncing Cargo manifests, lockfile, npm metadata, and CHANGELOG)
 
 ## Follow-ups
 - None; monitor next real publish run for parity with dry-run results
