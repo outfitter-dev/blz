@@ -1,4 +1,8 @@
 #![allow(missing_docs)]
+
+mod common;
+
+use common::blz_cmd;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -20,8 +24,8 @@ async fn update_preflight_fails_on_500() -> anyhow::Result<()> {
         .respond_with(ResponseTemplate::new(200).set_body_string("# T\n\n## A\nalpha\n"))
         .mount(&server)
         .await;
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
@@ -33,8 +37,8 @@ async fn update_preflight_fails_on_500() -> anyhow::Result<()> {
         .respond_with(ResponseTemplate::new(500))
         .mount(&server)
         .await;
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["update", "e2e", "--quiet"])
         .assert()
         .failure();
@@ -58,8 +62,8 @@ async fn update_preflight_no_content_length_still_proceeds() -> anyhow::Result<(
         .respond_with(ResponseTemplate::new(200).set_body_string("# T\n\n## A\nalpha\n"))
         .mount(&server)
         .await;
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
@@ -76,8 +80,8 @@ async fn update_preflight_no_content_length_still_proceeds() -> anyhow::Result<(
         .respond_with(ResponseTemplate::new(200).set_body_string("# T\n\n## A\nalpha\n"))
         .mount(&server)
         .await;
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["update", "e2e", "--quiet"])
         .assert()
         .success();

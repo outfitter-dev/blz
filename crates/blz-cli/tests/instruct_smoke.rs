@@ -1,8 +1,13 @@
 #![allow(missing_docs)]
 
+mod common;
+
+use common::blz_cmd;
+
 #[test]
 fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .arg("instruct")
         .assert()
         .success()

@@ -1,7 +1,9 @@
 #![allow(clippy::unwrap_used)]
 //! Tests for search pagination edge cases including divide-by-zero prevention
 
-use assert_cmd::Command;
+mod common;
+
+use common::blz_cmd;
 use predicates::prelude::*;
 use std::sync::Once;
 
@@ -10,7 +12,7 @@ static INIT: Once = Once::new();
 fn setup_test_data() {
     INIT.call_once(|| {
         // Set up test data once for all tests
-        let mut cmd = Command::cargo_bin("blz").unwrap();
+        let mut cmd = blz_cmd();
 
         // Create a minimal test source (using a local file)
         let test_content = "# Test Document\n\nThis is test content for search pagination tests.";
@@ -35,7 +37,7 @@ fn test_zero_limit_does_not_panic() {
     // Note: The CLI actually prevents limit=0 via clap validation,
     // but this test ensures the defensive programming in pagination logic works
 
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     // Try to trigger pagination with invalid limits
     // The actual CLI prevents this, but we're testing the defensive code
@@ -57,7 +59,7 @@ fn test_empty_results_pagination() {
     setup_test_data();
 
     // Test that pagination handles empty results gracefully
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("nonexistentquerythatwontmatchanything123456789")
@@ -84,7 +86,7 @@ fn test_single_result_pagination() {
     // This test would require setting up a test index with known data
     // For now, we just ensure the command structure is valid
 
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -104,7 +106,7 @@ fn test_large_limit_with_small_results() {
 
     // Regression test: when limit >= ALL_RESULTS_LIMIT (10,000) and results are empty or small,
     // the actual_limit calculation should not cause divide-by-zero
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("extremely_unlikely_search_term_that_wont_match_xyz123")
@@ -125,7 +127,7 @@ fn test_page_boundary_with_exact_division() {
     setup_test_data();
 
     // Test when results divide exactly by limit
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -144,7 +146,7 @@ fn test_minimum_limit_value() {
     setup_test_data();
 
     // Test with the minimum valid limit (1)
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -171,7 +173,7 @@ fn test_pagination_prevents_panic_on_edge_cases() {
     ];
 
     for (limit, page) in edge_cases {
-        let mut cmd = Command::cargo_bin("blz").unwrap();
+        let mut cmd = blz_cmd();
 
         cmd.arg("search")
             .arg("test")

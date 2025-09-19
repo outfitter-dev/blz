@@ -1,10 +1,10 @@
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tracing::warn;
 
-const POLL_INTERVAL: Duration = Duration::from_millis(750);
+const POLL_INTERVAL: Duration = Duration::from_millis(250); // Faster detection for tests
 
 /// Spawn a background watchdog that terminates the CLI when its parent process
 /// goes away. This prevents orphaned `blz` processes when test harnesses or
@@ -20,9 +20,15 @@ pub fn spawn_parent_exit_guard() {
     #[cfg(not(target_family = "wasm"))]
     {
         let current_pid = std::process::id();
+        let guard_timeout = std::env::var("BLZ_PARENT_GUARD_TIMEOUT_SECS")
+            .ok()
+            .and_then(|raw| raw.parse::<u64>().ok())
+            .filter(|&secs| secs > 0)
+            .map(Duration::from_secs);
+
         if thread::Builder::new()
             .name("blz-parent-guard".into())
-            .spawn(move || monitor_parent(current_pid))
+            .spawn(move || monitor_parent(current_pid, guard_timeout))
             .is_err()
         {
             warn!("failed to spawn parent exit guard; continuing without orphan protection");
@@ -30,7 +36,7 @@ pub fn spawn_parent_exit_guard() {
     }
 }
 
-fn monitor_parent(current_pid_raw: u32) {
+fn monitor_parent(current_pid_raw: u32, guard_timeout: Option<Duration>) {
     let mut system = System::new();
     let refresh_kind = ProcessRefreshKind::new();
     let current_pid = Pid::from(current_pid_raw as usize);
@@ -46,6 +52,9 @@ fn monitor_parent(current_pid_raw: u32) {
         // No parent detected (already orphaned or running under init). Nothing to monitor.
         return;
     };
+
+    // Optional timeout, primarily used by test harnesses when BLZ_PARENT_GUARD_TIMEOUT_SECS is set
+    let guard_deadline = guard_timeout.map(|timeout| Instant::now() + timeout);
 
     loop {
         let parent_update = [parent_pid];
@@ -78,6 +87,13 @@ fn monitor_parent(current_pid_raw: u32) {
                 // Our process no longer has a parent reference; exit to avoid misbehaving.
                 std::process::exit(0);
             },
+        }
+
+        if let Some(deadline) = guard_deadline {
+            if Instant::now() >= deadline {
+                warn!("parent guard timeout reached; terminating");
+                std::process::exit(0);
+            }
         }
 
         thread::sleep(POLL_INTERVAL);

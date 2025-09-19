@@ -1,5 +1,9 @@
 #![allow(missing_docs)]
 #![cfg(feature = "anchors")]
+
+mod common;
+
+use common::blz_cmd;
 use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
@@ -27,14 +31,15 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
         .await;
 
     // Add
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
 
     // Get anchors JSON
-    let anchors_out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let anchors_out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
         .args(["anchors", "e2e", "-f", "json"])
         .assert()
@@ -60,7 +65,8 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
     assert!(!anchor.is_empty(), "expected non-empty anchor for A");
 
     // Anchor get
-    let get_out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let get_out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
         .args(["anchor", "get", "e2e", &anchor, "--context", "1"])
         .assert()

@@ -1,5 +1,9 @@
 #![allow(missing_docs)]
 #![cfg(feature = "anchors")]
+
+mod common;
+
+use common::blz_cmd;
 use std::path::PathBuf;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
@@ -47,7 +51,7 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
         .await;
 
     // Run add via CLI (non-interactive)
-    let mut cmd = assert_cmd::Command::cargo_bin("blz")?;
+    let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
         .arg("add")
         .arg("e2e")
@@ -76,7 +80,7 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
         .await;
 
     // Run update via CLI
-    let mut cmd = assert_cmd::Command::cargo_bin("blz")?;
+    let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
         .arg("update")
         .arg("e2e")
@@ -113,7 +117,8 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
     }
 
     // Also verify CLI anchors output JSON shape
-    let stdout = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let stdout = cmd
         .env("BLZ_DATA_DIR", tmp.path())
         .args(["anchors", "e2e", "--mappings", "-f", "json"])
         .assert()
