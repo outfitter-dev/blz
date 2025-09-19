@@ -44,10 +44,12 @@ async fn main() -> Result<()> {
         eprintln!("{msg}");
     }));
 
+    // Spawn process guard as early as possible to catch orphaned processes
+    utils::process_guard::spawn_parent_exit_guard();
+
     let mut cli = Cli::parse();
 
     initialize_logging(&cli)?;
-    utils::process_guard::spawn_parent_exit_guard();
 
     let args: Vec<String> = std::env::args().collect();
     let mut cli_preferences = preferences::load();
@@ -211,6 +213,9 @@ async fn execute_command(
         },
         Some(Commands::History { limit, format }) => {
             commands::show_history(prefs, limit, format)?;
+        },
+        Some(Commands::Config { command }) => {
+            commands::run_config(command)?;
         },
         Some(Commands::Get {
             alias,

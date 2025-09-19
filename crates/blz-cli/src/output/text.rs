@@ -5,7 +5,10 @@ use blz_core::{SearchHit, Storage};
 use colored::Colorize;
 use std::collections::{BTreeSet, HashMap};
 
-use crate::utils::formatting::get_alias_color;
+use crate::utils::formatting::{format_heading_path, get_alias_color, terminal_width};
+
+const PATH_PREFIX_WIDTH: usize = 5; // "  in "
+const DEFAULT_TERMINAL_WIDTH: usize = 80;
 
 pub struct TextFormatter;
 
@@ -49,6 +52,8 @@ impl TextFormatter {
         }
 
         let mut rendered_groups: Vec<String> = Vec::with_capacity(groups.len());
+        let term_width = terminal_width().unwrap_or(DEFAULT_TERMINAL_WIDTH);
+        let path_width = term_width.saturating_sub(PATH_PREFIX_WIDTH);
 
         for (group_idx, (alias, heading_path, hits)) in groups.iter().enumerate() {
             let global_index = params.start_idx + group_idx + 1;
@@ -60,37 +65,37 @@ impl TextFormatter {
             let alias_colored = get_alias_color(alias, alias_idx);
             let first = hits[0];
 
-            let score_colored = format!("{:.1}", first.score).bright_blue();
+            let score_formatted = format_score_value(first.score, params.score_precision);
+            let score_colored = score_formatted.bright_blue();
             let mut block: Vec<String> = Vec::new();
 
             block.push(format!("◆ Rank {global_index} ─ Score {score_colored}"));
 
             block.push(format!("  {}:{}", alias_colored.bold(), first.lines));
 
+            if params.show_anchor {
+                if let Some(anchor) = first.anchor.as_deref() {
+                    block.push(format!("  #{}", anchor.bright_black()));
+                }
+            }
+
             if !heading_path.is_empty() {
-                // TODO(release-polish): replace ad-hoc truncation with width-aware helper (docs/notes/release-polish-followups.md)
-                let mut display_segments: Vec<String> = Vec::new();
-                if heading_path.len() <= 4 {
-                    display_segments.extend_from_slice(heading_path);
-                } else {
-                    display_segments.push(heading_path.first().cloned().unwrap_or_default());
-                    display_segments.push("...".to_string());
-                    display_segments.push(heading_path[heading_path.len() - 2].clone());
-                    display_segments.push(heading_path[heading_path.len() - 1].clone());
+                let path_line = format_heading_path(heading_path, path_width);
+                if !path_line.is_empty() {
+                    block.push(format!("  in {path_line}"));
                 }
-                if let Some(last) = display_segments.last_mut() {
-                    *last = last.bold().to_string();
-                }
-                let path_line = display_segments.join(" > ");
-                block.push(format!("  in {path_line}"));
             }
 
             let mut printed: BTreeSet<usize> = BTreeSet::new();
             let mut last_printed: Option<usize> = None;
             for hit in hits {
-                for (line_no, line_text) in
-                    extract_context_lines(storage.as_ref(), &mut content_cache, hit, params.query)
-                {
+                for (line_no, line_text) in extract_context_lines(
+                    storage.as_ref(),
+                    &mut content_cache,
+                    hit,
+                    params.query,
+                    params.snippet_lines,
+                ) {
                     if printed.insert(line_no) {
                         if let Some(prev) = last_printed {
                             if line_no > prev + 1 {
@@ -220,11 +225,17 @@ fn resolve_group_url(
     storage.load_llms_json(alias).ok().map(|doc| doc.source.url)
 }
 
+fn format_score_value(score: f32, precision: u8) -> String {
+    let clamped = usize::from(precision.min(4));
+    format!("{score:.clamped$}")
+}
+
 fn extract_context_lines(
     storage: Option<&Storage>,
     cache: &mut HashMap<String, Vec<String>>,
     hit: &SearchHit,
     query: &str,
+    max_lines: usize,
 ) -> Vec<(usize, String)> {
     let (start, end) = parse_line_range(&hit.lines);
     let lines = match storage {
@@ -234,10 +245,13 @@ fn extract_context_lines(
         None => return Vec::new(),
     };
 
+    let limit = max_lines.max(1);
+
     if lines.is_empty() {
         return hit
             .snippet
             .lines()
+            .take(limit)
             .enumerate()
             .map(|(idx, line)| (idx + 1, line.to_string()))
             .collect();
@@ -271,22 +285,23 @@ fn extract_context_lines(
         false
     };
 
-    let mut candidates = Vec::new();
+    let limit = max_lines.max(1);
+    let mut candidates = Vec::with_capacity(limit);
     let mut below = center;
     let mut above = center;
-    while candidates.len() < 3 {
+    while candidates.len() < limit {
         if candidates.is_empty() {
             if should_include(center) {
                 candidates.push(center);
             }
         } else {
-            if below + 1 < total && candidates.len() < 3 {
+            if below + 1 < total && candidates.len() < limit {
                 below += 1;
                 if should_include(below) {
                     candidates.push(below);
                 }
             }
-            if above > 0 && candidates.len() < 3 {
+            if above > 0 && candidates.len() < limit {
                 above = above.saturating_sub(1);
                 if should_include(above) {
                     candidates.push(above);
@@ -428,4 +443,21 @@ fn normalize(s: &str) -> String {
         }
     }
     out.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_score_value;
+
+    #[test]
+    fn respects_requested_precision() {
+        assert_eq!(format_score_value(14.456, 0), "14");
+        assert_eq!(format_score_value(14.456, 1), "14.5");
+        assert_eq!(format_score_value(14.456, 3), "14.456");
+    }
+
+    #[test]
+    fn clamps_precision_to_maximum() {
+        assert_eq!(format_score_value(3.14159, 8), "3.1416");
+    }
 }

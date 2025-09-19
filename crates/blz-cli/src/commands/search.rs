@@ -5,11 +5,16 @@ use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Stor
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::warn;
 
 use crate::cli::ShowComponent;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
+use crate::utils::flavor::resolve_flavor;
+use crate::utils::history_log;
+use crate::utils::preferences::{self, CliPreferences};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
+const DEFAULT_SCORE_PRECISION: u8 = 1;
 
 /// Search options
 #[derive(Debug, Clone)]
@@ -24,7 +29,10 @@ pub struct SearchOptions {
     pub format: OutputFormat,
     pub show_url: bool,
     pub show_lines: bool,
+    pub show_anchor: bool,
     pub no_summary: bool,
+    pub score_precision: Option<u8>,
+    pub snippet_lines: u8,
     pub(crate) all: bool,
 }
 
@@ -32,6 +40,7 @@ pub struct SearchOptions {
 struct ShowToggles {
     url: bool,
     lines: bool,
+    anchor: bool,
 }
 
 fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
@@ -43,6 +52,7 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
             },
             ShowComponent::Url => toggles.url = true,
             ShowComponent::Lines => toggles.lines = true,
+            ShowComponent::Anchor => toggles.anchor = true,
         }
     }
     toggles
@@ -60,6 +70,9 @@ pub async fn execute(
     format: OutputFormat,
     show: &[ShowComponent],
     no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
+    prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
@@ -74,12 +87,38 @@ pub async fn execute(
         format,
         show_url: toggles.url,
         show_lines: toggles.lines,
+        show_anchor: toggles.anchor,
         no_summary,
+        score_precision,
+        snippet_lines: snippet_lines.max(1),
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
     format_and_display(&results, &options)?;
+
+    if let Some(prefs) = prefs {
+        let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
+        let show_components = preferences::collect_show_components(
+            options.show_url,
+            options.show_lines,
+            options.show_anchor,
+        );
+        prefs.set_default_show(&show_components);
+        prefs.set_default_score_precision(precision);
+        prefs.set_default_snippet_lines(options.snippet_lines);
+        let history_entry = preferences::make_history_entry(
+            &options.query,
+            options.alias.as_deref(),
+            options.format,
+            &show_components,
+            options.snippet_lines as u8,
+            precision,
+        );
+        if let Err(err) = history_log::append(&history_entry) {
+            warn!("failed to persist search history: {err}");
+        }
+    }
 
     if let Some(monitor) = resource_monitor {
         monitor.print_resource_usage();
@@ -93,6 +132,7 @@ pub async fn handle_default(
     args: &[String],
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
+    prefs: &mut CliPreferences,
 ) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
@@ -133,6 +173,23 @@ pub async fn handle_default(
         }
     }
 
+    let score_precision_env = std::env::var("BLZ_SCORE_PRECISION")
+        .ok()
+        .and_then(|raw| raw.parse::<u8>().ok())
+        .filter(|value| *value <= 4);
+    let score_precision = score_precision_env.unwrap_or_else(|| prefs.default_score_precision());
+
+    let show_components = std::env::var("BLZ_SHOW").map_or_else(
+        |_| prefs.default_show_components(),
+        |raw| preferences::parse_show_list(&raw),
+    );
+
+    let snippet_lines_env = std::env::var("BLZ_SNIPPET_LINES")
+        .ok()
+        .and_then(|raw| raw.parse::<u8>().ok())
+        .filter(|value| (1..=10).contains(value));
+    let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
+
     execute(
         &query,
         alias.as_deref(),
@@ -141,8 +198,11 @@ pub async fn handle_default(
         1,
         None,
         OutputFormat::Text,
-        &[],
+        &show_components,
         false,
+        Some(score_precision),
+        snippet_lines,
+        Some(prefs),
         metrics,
         resource_monitor,
     )
@@ -251,8 +311,14 @@ async fn perform_search(
                             )
                         })?
                         .with_metrics(metrics);
+                    let desired_flavor = resolve_flavor(&storage, &source)?;
                     let hits = index
-                        .search(&query, Some(&source), effective_limit)
+                        .search(
+                            &query,
+                            Some(&source),
+                            Some(&desired_flavor),
+                            effective_limit,
+                        )
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -396,16 +462,24 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 /// let options = SearchOptions {
 ///     query: "test".to_string(),
 ///     alias: None,
+///     last: false,
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
 ///     top_percentile: None,
 ///     format: OutputFormat::Text,
+///     show_url: false,
+///     show_lines: false,
+///     show_anchor: false,
+///     no_summary: false,
+///     score_precision: None,
+///     snippet_lines: 3,
 ///     all: false,
 /// };
 ///
 /// // This will not panic even with empty results due to .max(1) guard
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
+#[allow(clippy::too_many_lines)]
 fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Result<()> {
     let total_results = results.hits.len();
 
@@ -453,7 +527,10 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             page_size: actual_limit,
             show_url: options.show_url,
             show_lines: options.show_lines,
+            show_anchor: options.show_anchor,
             no_summary: options.no_summary,
+            score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+            snippet_lines: usize::from(options.snippet_lines.max(1)),
             suggestions,
         };
         formatter.format(&params)?;
@@ -510,7 +587,10 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         // TODO(release-polish): revisit `show_lines` default and pagination story (docs/notes/release-polish-followups.md)
         show_url: options.show_url,
         show_lines: options.show_lines,
+        show_anchor: options.show_anchor,
         no_summary: options.no_summary,
+        score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+        snippet_lines: usize::from(options.snippet_lines.max(1)),
         suggestions,
     };
     formatter.format(&params)?;
@@ -630,6 +710,7 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
+                flavor: Some("llms".to_string()),
             })
             .collect();
 
@@ -655,7 +736,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -678,7 +762,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -701,7 +788,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: true,
         };
 
@@ -721,7 +811,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: true,
         };
 
@@ -746,7 +839,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -770,7 +866,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -788,7 +887,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -813,7 +915,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: false,
         };
 
@@ -836,7 +941,10 @@ mod tests {
             format: OutputFormat::Text,
             show_url: false,
             show_lines: false,
+            show_anchor: false,
             no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
             all: true,
         };
 

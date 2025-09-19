@@ -57,6 +57,7 @@
 
 use clap::{Parser, Subcommand};
 
+use crate::commands::ConfigCommand;
 use crate::output::OutputFormat;
 use std::path::PathBuf;
 
@@ -319,6 +320,45 @@ pub enum Commands {
         /// Hide the summary/footer line
         #[arg(long = "no-summary")]
         no_summary: bool,
+        /// Number of decimal places to show for scores (0-4)
+        #[arg(
+        long = "score-precision",
+        value_name = "PLACES",
+        value_parser = clap::value_parser!(u8).range(0..=4),
+        env = "BLZ_SCORE_PRECISION"
+    )]
+        score_precision: Option<u8>,
+        /// Maximum snippet lines to display around a hit (1-10)
+        #[arg(
+        long = "snippet-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(u8).range(1..=10),
+        env = "BLZ_SNIPPET_LINES",
+        default_value_t = 3
+    )]
+        snippet_lines: u8,
+    },
+
+    /// Show recent search history and defaults
+    History {
+        /// Maximum number of entries to display
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        /// Output format
+        #[arg(
+            short = 'f',
+            long = "format",
+            alias = "output",
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        format: OutputFormat,
+    },
+    /// Manage CLI configuration files and preferences
+    Config {
+        #[command(subcommand)]
+        command: Option<ConfigCommand>,
     },
 
     /// Get exact lines from a source
@@ -403,6 +443,8 @@ pub enum ShowComponent {
     Url,
     /// Prefix snippet lines with their line numbers
     Lines,
+    /// Show the hashed section anchor above the snippet
+    Anchor,
 }
 
 #[derive(Subcommand, Clone, Debug)]

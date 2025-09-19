@@ -1053,6 +1053,7 @@ mod tests {
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
             anchor: None,
+            flavor: Some("llms".to_string()),
         }];
         
         cache.cache_search_results("test query", Some("test"), results.clone()).await;
@@ -1111,6 +1112,7 @@ mod tests {
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
             anchor: None,
+            flavor: Some("llms".to_string()),
         }];
         
         let size = search_result_size(&results);

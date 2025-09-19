@@ -135,7 +135,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let index = OptimizedSearchIndex::create("./index").await?;
 
     // Index documents (automatically uses pools and caching)
-    index.index_blocks_optimized("alias", "file.md", &blocks).await?;
+    index
+        .index_blocks_optimized("alias", "file.md", &blocks, "llms")
+        .await?;
 
     // Search with full optimization pipeline
     let results = index.search_optimized("query", Some("alias"), 10).await?;

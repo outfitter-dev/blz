@@ -45,7 +45,10 @@
 //!     page_size: 10,
 //!     show_url: false,
 //!     show_lines: false,
+//!     show_anchor: false,
 //!     no_summary: false,
+//!     score_precision: 1,
+//!     snippet_lines: 3,
 //!     suggestions: None,
 //! };
 //! formatter.format(&params)?;
@@ -72,7 +75,10 @@ pub struct FormatParams<'a> {
     pub page_size: usize,
     pub show_url: bool,
     pub show_lines: bool,
+    pub show_anchor: bool,
     pub no_summary: bool,
+    pub score_precision: u8,
+    pub snippet_lines: usize,
     pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
 }
 
@@ -231,7 +237,10 @@ impl SearchResultFormatter {
     ///     page_size: 10,
     ///     show_url: false,
     ///     show_lines: false,
+    ///     show_anchor: false,
     ///     no_summary: false,
+    ///     score_precision: 1,
+    ///     snippet_lines: 3,
     ///     suggestions: None,
     /// };
     /// formatter.format(&params)?;

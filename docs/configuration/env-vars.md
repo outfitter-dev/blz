@@ -4,6 +4,7 @@ These variables override configuration at runtime. All booleans accept: 1, true,
 
 - `BLZ_CONFIG` — Absolute path to `config.toml`
 - `BLZ_CONFIG_DIR` — Directory containing `config.toml`
+- `BLZ_GLOBAL_CONFIG_DIR` — Override the global configuration directory used for `config.toml`
 - `BLZ_ROOT` — Override cache root directory
 - `BLZ_REFRESH_HOURS` — Integer hours between refresh checks
 - `BLZ_MAX_ARCHIVES` — Integer count of archived versions to keep per source

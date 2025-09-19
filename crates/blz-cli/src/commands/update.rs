@@ -2,14 +2,21 @@
 
 use anyhow::{Result, anyhow};
 use blz_core::{
-    FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser, ParseResult, PerformanceMetrics,
-    SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
+    FetchResult, Fetcher, LlmsJson, MarkdownParser, PerformanceMetrics, SearchIndex, Source,
+    Storage, build_anchors_map, compute_anchor_mappings,
 };
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
-use tracing::{debug, info};
+use tracing::info;
+
+use crate::utils::flavor::{
+    BASE_FLAVOR, FULL_FLAVOR, build_llms_json, discover_flavor_candidates, set_preferred_flavor,
+};
+use crate::utils::settings;
+use crate::utils::settings::PreferenceScope;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
 pub enum FlavorMode {
@@ -21,6 +28,21 @@ pub enum FlavorMode {
     Full,
     /// Force llms.txt if available
     Txt,
+}
+
+#[derive(Clone)]
+struct FlavorPlan {
+    flavor_id: String,
+    file_name: String,
+    url: String,
+    existing_json: Option<LlmsJson>,
+    existing_metadata: Option<Source>,
+}
+
+struct FlavorSummary {
+    flavor: String,
+    headings: usize,
+    lines: usize,
 }
 
 /// Execute update for a specific source
@@ -108,6 +130,7 @@ pub async fn execute_all(
 }
 
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)]
 async fn update_source(
     storage: &Storage,
     alias: &str,
@@ -117,20 +140,25 @@ async fn update_source(
     quiet: bool,
 ) -> Result<bool> {
     let start = Instant::now();
+    let pb = if quiet {
+        ProgressBar::hidden()
+    } else {
+        create_spinner(format!("Checking {alias}...").as_str())
+    };
 
-    // Load existing metadata
-    let existing_metadata = storage.load_source_metadata(alias)?;
-    let existing_json = storage.load_llms_json(alias)?;
+    let base_json = storage.load_llms_json(alias)?;
+    let base_metadata = storage
+        .load_source_metadata_for_flavor(alias, BASE_FLAVOR)?
+        .or_else(|| Some(base_json.source.clone()));
 
-    let mut url = existing_json.source.url.clone();
-    let pb = create_spinner(format!("Checking {alias}...").as_str());
+    let current_url = base_metadata
+        .as_ref()
+        .map(|meta| meta.url.clone())
+        .unwrap_or_else(|| base_json.source.url.clone());
 
-    // Create fetcher
     let fetcher = Fetcher::new()?;
 
-    // Optional flavor upgrade/selection (consider global config default)
     let effective_flavor = if matches!(flavor, FlavorMode::Current) {
-        // Respect config default if set
         if let Ok(cfg) = blz_core::Config::load() {
             if cfg.defaults.prefer_llms_full {
                 FlavorMode::Full
@@ -144,327 +172,314 @@ async fn update_source(
         flavor
     };
 
-    if let Some(new_url) =
-        select_update_flavor(&fetcher, &url, effective_flavor, yes, quiet).await?
-    {
-        url = new_url;
-    }
-
-    // Preflight HEAD summary (size/ETA) and early failure on non-2xx
-    if let Ok(meta) = crate::utils::http::head_with_retries(&fetcher, &url, 3, 200).await {
-        // Treat 2xx as OK; accept 3xx as soft-OK (redirects) to avoid false negatives
-        let status_u16 = meta.status;
-        let is_success = (200..=299).contains(&status_u16);
-        let is_redirect = (300..=399).contains(&status_u16);
+    if let Ok(meta) = crate::utils::http::head_with_retries(&fetcher, &current_url, 3, 200).await {
+        let status = meta.status;
+        let is_success = (200..=299).contains(&status);
+        let is_redirect = (300..=399).contains(&status);
         let size_text = meta
             .content_length
             .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
-
         if is_success || is_redirect {
-            if let Some(n) = meta.content_length {
-                // Show rough ETA assuming ~5 MB/s when size is known
-                let denom: u128 = 5u128 * 1024 * 1024; // bytes per second
-                let eta_ms_u128 = (u128::from(n) * 1000).div_ceil(denom);
+            if let Some(len) = meta.content_length {
+                let denom: u128 = 5u128 * 1024 * 1024;
+                let eta_ms_u128 = (u128::from(len) * 1000).div_ceil(denom);
                 let eta_ms = u64::try_from(eta_ms_u128).unwrap_or(u64::MAX);
-                if is_redirect {
+                if !quiet {
                     pb.set_message(format!(
-                        "Checking {alias}... • Preflight: [REDIRECT • {size_text}] (est ~{eta_ms}ms @5MB/s)"
-                    ));
-                } else {
-                    pb.set_message(format!(
-                        "Checking {alias}... • Preflight: [OK • {size_text}] (est ~{eta_ms}ms @5MB/s)"
+                        "Checking {alias}... • Preflight: [{} • {size_text}] (est ~{eta_ms}ms @5MB/s)",
+                        if is_redirect { "REDIRECT" } else { "OK" }
                     ));
                 }
-            } else if is_redirect {
+            } else if !quiet {
                 pb.set_message(format!(
-                    "Checking {alias}... • Preflight: [REDIRECT • {size_text}]"
-                ));
-            } else {
-                pb.set_message(format!(
-                    "Checking {alias}... • Preflight: [OK • {size_text}]"
+                    "Checking {alias}... • Preflight: [{} • {size_text}]",
+                    if is_redirect { "REDIRECT" } else { "OK" }
                 ));
             }
         } else {
-            // Fail fast for clearer errors before attempting fetch
             return Err(anyhow!(
-                "Preflight failed (HTTP {status}) for {url}. Verify the URL or update the source.",
-                status = meta.status
+                "Preflight failed (HTTP {status}) for {current_url}. Verify the URL or update the source."
             ));
         }
     }
 
-    // Try conditional fetch with ETag/Last-Modified
-    let (etag, last_modified) = if let Some(ref metadata) = existing_metadata {
-        (metadata.etag.as_deref(), metadata.last_modified.as_deref())
-    } else {
-        // Fall back to existing json source info
-        (
-            existing_json.source.etag.as_deref(),
-            existing_json.source.last_modified.as_deref(),
-        )
-    };
+    let available_flavors = storage.available_flavors(alias)?;
+    let mut plan_map: HashMap<String, FlavorPlan> = HashMap::new();
 
-    debug!(
-        "Fetching {} with ETag: {:?}, Last-Modified: {:?}",
-        url, etag, last_modified
-    );
-    let fetch_result = fetcher.fetch_with_cache(&url, etag, last_modified).await?;
+    for flavor_id in available_flavors {
+        let json = if flavor_id == BASE_FLAVOR {
+            base_json.clone()
+        } else {
+            storage
+                .load_flavor_json(alias, &flavor_id)?
+                .ok_or_else(|| anyhow!("Missing cached {flavor_id}.json for {alias}"))?
+        };
 
-    match fetch_result {
-        FetchResult::NotModified {
-            etag: new_etag,
-            last_modified: new_last_modified,
-        } => handle_not_modified(
-            storage,
-            alias,
-            &pb,
-            existing_metadata,
-            existing_json.source,
-            new_etag,
-            new_last_modified,
-        ),
-        FetchResult::Modified {
-            content,
-            etag: new_etag,
-            last_modified: new_last_modified,
-            sha256,
-        } => handle_modified(
-            storage,
-            alias,
-            &pb,
-            &url,
-            &existing_json,
-            &content,
-            new_etag,
-            new_last_modified,
-            sha256,
-            metrics,
-            start,
-        ),
+        let metadata = storage
+            .load_source_metadata_for_flavor(alias, &flavor_id)?
+            .or_else(|| Some(json.source.clone()));
+
+        let url = metadata
+            .as_ref()
+            .map(|meta| meta.url.clone())
+            .unwrap_or_else(|| json.source.url.clone());
+
+        let file_name = json
+            .files
+            .first()
+            .map(|f| f.path.clone())
+            .unwrap_or_else(|| format!("{flavor_id}.txt"));
+
+        plan_map.insert(
+            flavor_id.clone(),
+            FlavorPlan {
+                flavor_id,
+                file_name,
+                url,
+                existing_json: Some(json),
+                existing_metadata: metadata,
+            },
+        );
     }
-}
 
-/// Decide whether to change the URL flavor during update
-async fn select_update_flavor(
-    fetcher: &Fetcher,
-    current_url: &str,
-    flavor: FlavorMode,
-    yes: bool,
-    quiet: bool,
-) -> Result<Option<String>> {
-    match flavor {
-        FlavorMode::Current => Ok(None),
-        FlavorMode::Auto | FlavorMode::Full | FlavorMode::Txt => {
-            let flavors = fetcher.check_flavors(current_url).await.unwrap_or_default();
-            if flavors.is_empty() {
-                return Ok(None);
-            }
-            let want = match flavor {
-                FlavorMode::Auto => flavors.first().map(|f| f.url.clone()),
-                FlavorMode::Full => flavors
-                    .iter()
-                    .find(|f| f.name == "llms-full.txt")
-                    .map(|f| f.url.clone()),
-                FlavorMode::Txt => flavors
-                    .iter()
-                    .find(|f| f.name == "llms.txt")
-                    .map(|f| f.url.clone()),
-                FlavorMode::Current => None,
-            };
-            if let Some(candidate) = want {
-                if candidate != current_url {
-                    if yes {
-                        if !quiet {
-                            eprintln!("Upgrading flavor: {current_url} -> {candidate}");
-                        }
-                        return Ok(Some(candidate));
-                    } else if !quiet {
-                        eprintln!(
-                            "Flavor upgrade available (use --yes to apply): {current_url} -> {candidate}"
-                        );
-                    }
+    let prefer_full = settings::effective_prefer_llms_full();
+    let allow_auto_full = matches!(effective_flavor, FlavorMode::Auto) && (yes || prefer_full);
+    let include_new_full = plan_map.contains_key(FULL_FLAVOR)
+        || matches!(effective_flavor, FlavorMode::Full)
+        || allow_auto_full;
+
+    let candidates = discover_flavor_candidates(&fetcher, &current_url).await?;
+    for candidate in candidates {
+        let flavor_id = candidate.flavor_id.clone();
+        if plan_map.contains_key(&flavor_id) {
+            if flavor_id == BASE_FLAVOR {
+                if let Some(plan) = plan_map.get_mut(&flavor_id) {
+                    plan.url = candidate.url.clone();
+                    plan.file_name = candidate.file_name.clone();
                 }
             }
-            Ok(None)
-        },
-    }
-}
+            continue;
+        }
 
-fn handle_not_modified(
-    storage: &Storage,
-    alias: &str,
-    pb: &ProgressBar,
-    existing_metadata: Option<Source>,
-    existing_source: Source,
-    new_etag: Option<String>,
-    new_last_modified: Option<String>,
-) -> Result<bool> {
-    pb.finish_with_message(format!("{alias}: Up-to-date"));
-    info!("{} is up to date", alias);
-
-    // Update metadata timestamp and any new validator values
-    let current = existing_metadata.unwrap_or(existing_source);
-
-    let updated_metadata = Source {
-        fetched_at: Utc::now(),
-        etag: new_etag.or(current.etag),
-        last_modified: new_last_modified.or(current.last_modified),
-        ..current
-    };
-
-    storage.save_source_metadata(alias, &updated_metadata)?;
-    Ok(false)
-}
-
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn handle_modified(
-    storage: &Storage,
-    alias: &str,
-    pb: &ProgressBar,
-    url: &str,
-    existing_json: &LlmsJson,
-    content: &str,
-    new_etag: Option<String>,
-    new_last_modified: Option<String>,
-    sha256: String,
-    metrics: PerformanceMetrics,
-    start: Instant,
-) -> Result<bool> {
-    pb.set_message(format!("Updating {alias}..."));
-
-    // Check if content actually changed (SHA256 comparison)
-    if existing_json.source.sha256 == sha256 {
-        pb.finish_with_message(format!("{alias}: Content unchanged"));
-
-        // Update metadata even if content hasn't changed (server headers might have)
-        let new_metadata = Source {
-            url: url.to_string(),
-            etag: new_etag,
-            last_modified: new_last_modified,
-            fetched_at: Utc::now(),
-            sha256,
-            aliases: existing_json.source.aliases.clone(),
-        };
-        storage.save_source_metadata(alias, &new_metadata)?;
-
-        return Ok(false);
-    }
-
-    // Archive existing content before updating
-    pb.set_message(format!("Archiving {alias}..."));
-    storage.archive(alias)?;
-
-    // Parse new content
-    pb.set_message(format!("Parsing {alias}..."));
-    let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(content)?;
-
-    // Save new content
-    pb.set_message(format!("Saving {alias}..."));
-    storage.save_llms_txt(alias, content)?;
-
-    // Create and save updated JSON
-    let new_json = LlmsJson {
-        alias: alias.to_string(),
-        source: Source {
-            url: url.to_string(),
-            etag: new_etag.clone(),
-            last_modified: new_last_modified.clone(),
-            fetched_at: Utc::now(),
-            sha256: sha256.clone(),
-            aliases: existing_json.source.aliases.clone(),
-        },
-        toc: parse_result.toc.clone(),
-        files: vec![blz_core::FileInfo {
-            path: "llms.txt".to_string(),
-            sha256: sha256.clone(),
-        }],
-        line_index: LineIndex {
-            total_lines: parse_result.line_count,
-            byte_offsets: false,
-        },
-        diagnostics: parse_result.diagnostics.clone(),
-        parse_meta: Some(blz_core::ParseMeta {
-            parser_version: 1,
-            segmentation: "structured".to_string(),
-        }),
-    };
-    storage.save_llms_json(alias, &new_json)?;
-
-    // Build anchors remap from old -> new using core helper
-    if !existing_json.toc.is_empty() && !new_json.toc.is_empty() {
-        let mappings = compute_anchor_mappings(&existing_json.toc, &new_json.toc);
-        if !mappings.is_empty() {
-            let anchors_map = build_anchors_map(mappings, Utc::now());
-            let _ = storage.save_anchors_map(alias, &anchors_map);
+        if flavor_id == FULL_FLAVOR {
+            if include_new_full {
+                plan_map.insert(
+                    flavor_id.clone(),
+                    FlavorPlan {
+                        flavor_id,
+                        file_name: candidate.file_name.clone(),
+                        url: candidate.url.clone(),
+                        existing_json: None,
+                        existing_metadata: None,
+                    },
+                );
+            }
+        } else if flavor_id == BASE_FLAVOR {
+            plan_map.insert(
+                flavor_id.clone(),
+                FlavorPlan {
+                    flavor_id,
+                    file_name: candidate.file_name.clone(),
+                    url: candidate.url.clone(),
+                    existing_json: Some(base_json.clone()),
+                    existing_metadata: base_metadata.clone(),
+                },
+            );
         }
     }
 
-    // Rebuild search index
-    rebuild_index(storage, alias, &parse_result, metrics, pb)?;
+    if plan_map.is_empty() {
+        if !quiet {
+            pb.finish_with_message(format!("{alias}: no cached flavors"));
+        }
+        return Ok(false);
+    }
 
-    // Save metadata only after a successful index rebuild
-    let metadata = Source {
-        url: url.to_string(),
-        etag: new_etag,
-        last_modified: new_last_modified,
-        fetched_at: Utc::now(),
-        sha256,
-        aliases: new_json.source.aliases.clone(),
-    };
-    storage.save_source_metadata(alias, &metadata)?;
+    let mut plans: Vec<FlavorPlan> = plan_map.into_values().collect();
+    plans.sort_by(|a, b| flavor_sort_key(&a.flavor_id).cmp(&flavor_sort_key(&b.flavor_id)));
 
+    let index_dir = storage.index_dir(alias)?;
+    let index = SearchIndex::create_or_open(&index_dir)?.with_metrics(metrics.clone());
+    let mut summaries: Vec<FlavorSummary> = Vec::new();
+    let mut any_modified = false;
+    let mut archived = false;
+
+    for plan in plans.iter_mut() {
+        if !quiet {
+            let label = if plan.flavor_id == BASE_FLAVOR {
+                alias.to_string()
+            } else {
+                format!("{alias} [{}]", plan.flavor_id)
+            };
+            pb.set_message(format!("Fetching {label}..."));
+        }
+
+        let (etag_hint, last_modified_hint) = plan
+            .existing_metadata
+            .as_ref()
+            .map_or((None, None), |meta| {
+                (meta.etag.as_deref(), meta.last_modified.as_deref())
+            });
+
+        let fetch = fetcher
+            .fetch_with_cache(&plan.url, etag_hint, last_modified_hint)
+            .await?;
+
+        match fetch {
+            FetchResult::NotModified {
+                etag,
+                last_modified,
+            } => {
+                let json = plan.existing_json.as_ref().ok_or_else(|| {
+                    anyhow!(
+                        "Server reported 304 Not Modified for new flavor {}",
+                        plan.flavor_id
+                    )
+                })?;
+
+                if let Some(mut metadata) = plan.existing_metadata.clone() {
+                    metadata.etag = etag.or(metadata.etag);
+                    metadata.last_modified = last_modified.or(metadata.last_modified);
+                    metadata.fetched_at = Utc::now();
+                    storage.save_source_metadata_for_flavor(alias, &plan.flavor_id, &metadata)?;
+                    plan.existing_metadata = Some(metadata);
+                }
+
+                summaries.push(FlavorSummary {
+                    flavor: plan.flavor_id.clone(),
+                    headings: json.toc.len(),
+                    lines: json.line_index.total_lines,
+                });
+            },
+            FetchResult::Modified {
+                content,
+                etag,
+                last_modified,
+                sha256,
+            } => {
+                if !archived {
+                    storage.archive(alias)?;
+                    archived = true;
+                }
+
+                let mut parser = MarkdownParser::new()?;
+                let parse_result = parser.parse(&content)?;
+
+                storage.save_flavor_content(alias, &plan.file_name, &content)?;
+
+                let mut llms_json = build_llms_json(
+                    alias,
+                    &plan.url,
+                    &plan.file_name,
+                    sha256.clone(),
+                    etag.clone(),
+                    last_modified.clone(),
+                    &parse_result,
+                );
+                if let Some(existing) = plan.existing_json.as_ref() {
+                    llms_json.source.aliases = existing.source.aliases.clone();
+                }
+                storage.save_flavor_json(alias, &plan.flavor_id, &llms_json)?;
+
+                let aliases = plan
+                    .existing_metadata
+                    .as_ref()
+                    .map_or_else(Vec::new, |meta| meta.aliases.clone());
+
+                let metadata = Source {
+                    url: plan.url.clone(),
+                    etag,
+                    last_modified,
+                    fetched_at: Utc::now(),
+                    sha256,
+                    aliases,
+                };
+                storage.save_source_metadata_for_flavor(alias, &plan.flavor_id, &metadata)?;
+
+                let previous_json = plan.existing_json.clone();
+                plan.existing_metadata = Some(metadata);
+                plan.existing_json = Some(llms_json.clone());
+
+                index.index_blocks(
+                    alias,
+                    &plan.file_name,
+                    &parse_result.heading_blocks,
+                    &plan.flavor_id,
+                )?;
+
+                if plan.flavor_id == BASE_FLAVOR {
+                    if let Some(old_json) = previous_json {
+                        if !old_json.toc.is_empty() && !llms_json.toc.is_empty() {
+                            let mappings = compute_anchor_mappings(&old_json.toc, &llms_json.toc);
+                            if !mappings.is_empty() {
+                                let anchors_map = build_anchors_map(mappings, Utc::now());
+                                let _ = storage.save_anchors_map(alias, &anchors_map);
+                            }
+                        }
+                    }
+                }
+
+                summaries.push(FlavorSummary {
+                    flavor: plan.flavor_id.clone(),
+                    headings: llms_json.toc.len(),
+                    lines: llms_json.line_index.total_lines,
+                });
+
+                any_modified = true;
+            },
+        }
+    }
+
+    let summary_text = format_summary(&summaries);
     let elapsed = start.elapsed();
-    pb.finish_with_message(format!(
-        "✓ Updated {} ({} headings, {} lines) in {:.1}s",
-        alias.green(),
-        new_json.toc.len(),
-        new_json.line_index.total_lines,
-        elapsed.as_secs_f32()
-    ));
+
+    let available_flavors: HashSet<&str> = summaries.iter().map(|s| s.flavor.as_str()).collect();
+    match flavor {
+        FlavorMode::Full => {
+            if available_flavors.contains(FULL_FLAVOR) {
+                set_preferred_flavor(PreferenceScope::Local, alias, Some(FULL_FLAVOR))?;
+            } else if !quiet {
+                eprintln!(
+                    "{} Full flavor not available for {}; keeping existing preference",
+                    "Warning:".yellow(),
+                    alias
+                );
+            }
+        },
+        FlavorMode::Txt => {
+            if available_flavors.contains(BASE_FLAVOR) {
+                set_preferred_flavor(PreferenceScope::Local, alias, Some(BASE_FLAVOR))?;
+            }
+        },
+        FlavorMode::Auto => {
+            // Allow global/project defaults to drive resolution by clearing local override.
+            set_preferred_flavor(PreferenceScope::Local, alias, None)?;
+        },
+        FlavorMode::Current => {
+            // Leave per-source override untouched.
+        },
+    }
+
+    if quiet {
+        pb.finish_and_clear();
+    } else if any_modified {
+        pb.finish_with_message(format!(
+            "✓ Updated {} ({summary_text}) in {:.1}s",
+            alias.green(),
+            elapsed.as_secs_f32()
+        ));
+    } else {
+        pb.finish_with_message(format!("{alias}: Up-to-date ({summary_text})"));
+    }
 
     info!(
-        "Updated {} - {} headings, {} lines",
+        "Updated {} with {} flavor(s) in {:.2?}",
         alias,
-        new_json.toc.len(),
-        new_json.line_index.total_lines
+        summaries.len(),
+        elapsed
     );
 
-    Ok(true)
-}
-
-fn rebuild_index(
-    storage: &Storage,
-    alias: &str,
-    parse_result: &ParseResult,
-    metrics: PerformanceMetrics,
-    pb: &ProgressBar,
-) -> Result<()> {
-    pb.set_message(format!("Reindexing {alias}..."));
-    let index_path = storage.index_dir(alias)?;
-
-    // Build into temp path, then atomic swap
-    let tmp_index = index_path.with_extension("new");
-    if tmp_index.exists() {
-        std::fs::remove_dir_all(&tmp_index)
-            .map_err(|e| anyhow!("Failed to clean temp index: {}", e))?;
-    }
-
-    let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
-
-    // Ensure no open handles before swapping on Windows
-    drop(index);
-
-    // Swap in the new index
-    if index_path.exists() {
-        std::fs::remove_dir_all(&index_path)
-            .map_err(|e| anyhow!("Failed to remove old index: {}", e))?;
-    }
-    std::fs::rename(&tmp_index, &index_path)
-        .map_err(|e| anyhow!("Failed to move new index into place: {}", e))?;
-
-    Ok(())
+    Ok(any_modified)
 }
 
 fn create_spinner(message: &str) -> ProgressBar {
@@ -476,4 +491,23 @@ fn create_spinner(message: &str) -> ProgressBar {
     );
     pb.set_message(message.to_string());
     pb
+}
+
+fn flavor_sort_key(flavor: &str) -> u8 {
+    match flavor {
+        BASE_FLAVOR => 0,
+        FULL_FLAVOR => 1,
+        _ => 2,
+    }
+}
+
+fn format_summary(summaries: &[FlavorSummary]) -> String {
+    if summaries.is_empty() {
+        return "no flavors".to_string();
+    }
+    summaries
+        .iter()
+        .map(|s| format!("{}: {} headings, {} lines", s.flavor, s.headings, s.lines))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

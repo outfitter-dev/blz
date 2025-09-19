@@ -34,6 +34,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `alias` | | Manage aliases for a source |
 | `instruct` | | Print instructions for agent use of blz |
 | `history` | | Show recent searches and CLI defaults |
+| `config` | | Manage configuration (global/local/project scopes) |
 
 ## Command Reference
 
@@ -500,6 +501,29 @@ blz history -f json | jq '.[0]'
 ```
 
 Text output includes the stored defaults (show components, snippet lines, score precision) followed by the most recent entries (newest first).
+
+### `blz config`
+
+Manage configuration and per-scope preferences. Without subcommands, launches an interactive menu.
+
+```bash
+blz config [set|get]
+
+# Non-interactive: set prefer_full globally
+blz config set add.prefer_full true
+
+# Override for current directory only
+blz config set add.prefer_full false --scope local
+
+# Inspect all scopes
+blz config get
+```
+
+Scopes behave as follows:
+
+- `global`: writes to the global `config.toml`
+- `project`: writes to the project config (current `.blz/config.toml` or directory pointed to by `BLZ_CONFIG_DIR`/`BLZ_CONFIG`)
+- `local`: stores overrides in `blz.json`, keyed by the working directory
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
 ### Setting a Global Default

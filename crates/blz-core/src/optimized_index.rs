@@ -55,6 +55,8 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
+    flavor: Option<Field>,
+    alias_flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -130,6 +132,8 @@ impl OptimizedSearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
+        let flavor_field = schema_builder.add_text_field("flavor", STRING | STORED);
+        let alias_flavor_field = schema_builder.add_text_field("alias_flavor", STRING | STORED);
         let schema = schema_builder.build();
 
         let fields = IndexFields {
@@ -138,6 +142,8 @@ impl OptimizedSearchIndex {
             heading_path: heading_path_field,
             lines: lines_field,
             alias: alias_field,
+            flavor: Some(flavor_field),
+            alias_flavor: Some(alias_flavor_field),
         };
 
         // Create directory and index
@@ -172,6 +178,8 @@ impl OptimizedSearchIndex {
             alias: schema
                 .get_field("alias")
                 .map_err(|_| Error::Index("Missing alias field".into()))?,
+            flavor: schema.get_field("flavor").ok(),
+            alias_flavor: schema.get_field("alias_flavor").ok(),
         };
 
         Self::new_with_index(index, fields).await
@@ -342,6 +350,12 @@ impl OptimizedSearchIndex {
             let heading_path_str = self.get_field_text(&doc, self.fields.heading_path)?;
             let lines = self.get_field_text(&doc, self.fields.lines)?;
             let content = self.get_field_text(&doc, self.fields.content)?;
+            let flavor_value = self
+                .fields
+                .flavor
+                .and_then(|field| doc.get_first(field))
+                .and_then(|v| v.as_str())
+                .map(std::string::ToString::to_string);
 
             // Intern commonly used strings
             let alias_interned = self.string_pool.intern(&alias).await;
@@ -380,6 +394,7 @@ impl OptimizedSearchIndex {
                 source_url: None,
                 checksum: String::new(),
                 anchor: None,
+                flavor: flavor_value,
             });
         }
 
@@ -495,6 +510,7 @@ impl OptimizedSearchIndex {
         alias: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
+        flavor: &str,
     ) -> Result<()> {
         let start_time = Instant::now();
         self.stats.index_operations.fetch_add(1, Ordering::Relaxed);
@@ -507,7 +523,7 @@ impl OptimizedSearchIndex {
         let writer = self.writer_pool.get_writer().await?;
         let result = timeout(
             Duration::from_secs(120), // 2 minute timeout for indexing
-            self.index_blocks_with_writer(writer.clone(), alias, file_path, blocks),
+            self.index_blocks_with_writer(writer.clone(), alias, file_path, blocks, flavor),
         )
         .await
         .map_err(|_| Error::Timeout("Indexing operation timed out".into()))?;
@@ -558,14 +574,30 @@ impl OptimizedSearchIndex {
         alias: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
+        flavor: &str,
     ) -> Result<()> {
         // Delete existing documents for this alias
-        let alias_term = tantivy::Term::from_field_text(self.fields.alias, alias);
-        writer.delete_term(alias_term);
+        if let Some(field) = self.fields.alias_flavor {
+            let alias_flavor_value = format!("{alias}::{flavor}");
+            writer.delete_term(tantivy::Term::from_field_text(field, &alias_flavor_value));
+        } else {
+            let alias_term = tantivy::Term::from_field_text(self.fields.alias, alias);
+            writer.delete_term(alias_term);
+        }
 
         // Prepare interned strings for reuse
         let alias_interned = self.string_pool.intern(alias).await;
         let file_path_interned = self.string_pool.intern(file_path).await;
+        let flavor_interned = if self.fields.flavor.is_some() {
+            Some(self.string_pool.intern(flavor).await)
+        } else {
+            None
+        };
+        let alias_flavor_interned = if self.fields.alias_flavor.is_some() {
+            Some(self.string_pool.intern(&format!("{alias}::{flavor}")).await)
+        } else {
+            None
+        };
 
         // Batch document creation
         let mut total_content_bytes = 0;
@@ -580,13 +612,19 @@ impl OptimizedSearchIndex {
             let lines_str = format!("{}-{}", block.start_line, block.end_line);
 
             // Create document with interned strings where possible
-            let doc = doc!(
+            let mut doc = doc!(
                 self.fields.content => block.content.as_str(),
                 self.fields.path => file_path_interned.as_ref(),
                 self.fields.heading_path => heading_path_str,
                 self.fields.lines => lines_str,
                 self.fields.alias => alias_interned.as_ref()
             );
+            if let (Some(field), Some(value)) = (self.fields.flavor, &flavor_interned) {
+                doc.add_text(field, value.as_ref());
+            }
+            if let (Some(field), Some(value)) = (self.fields.alias_flavor, &alias_flavor_interned) {
+                doc.add_text(field, value.as_ref());
+            }
 
             writer
                 .add_document(doc)
@@ -611,14 +649,14 @@ impl OptimizedSearchIndex {
     /// Parallel indexing for multiple aliases
     pub async fn index_multiple_sources(
         &self,
-        sources: Vec<(String, String, Vec<HeadingBlock>)>, // (alias, file_path, blocks)
+        sources: Vec<(String, String, Vec<HeadingBlock>, String)>, // (alias, file_path, blocks, flavor)
     ) -> Result<()> {
         use futures::future::try_join_all;
 
         let tasks: Vec<_> = sources
             .into_iter()
-            .map(|(alias, file_path, blocks)| {
-                self.index_blocks_optimized(&alias, &file_path, &blocks)
+            .map(|(alias, file_path, blocks, flavor)| {
+                self.index_blocks_optimized(&alias, &file_path, &blocks, &flavor)
             })
             .collect();
 
@@ -907,7 +945,7 @@ mod tests {
 
         // Index blocks
         index
-            .index_blocks_optimized("test", "test.md", &blocks)
+            .index_blocks_optimized("test", "test.md", &blocks, "llms")
             .await
             .unwrap();
 
@@ -930,7 +968,7 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks_optimized("test", "test.md", &blocks)
+            .index_blocks_optimized("test", "test.md", &blocks, "llms")
             .await
             .unwrap();
 
@@ -959,8 +997,18 @@ mod tests {
         let index = OptimizedSearchIndex::create(&index_path).await.unwrap();
 
         let sources = vec![
-            ("source1".to_string(), "file1.md".to_string(), create_test_blocks()),
-            ("source2".to_string(), "file2.md".to_string(), create_test_blocks()),
+            (
+                "source1".to_string(),
+                "file1.md".to_string(),
+                create_test_blocks(),
+                "llms".to_string(),
+            ),
+            (
+                "source2".to_string(),
+                "file2.md".to_string(),
+                create_test_blocks(),
+                "llms".to_string(),
+            ),
         ];
 
         let result = index.index_multiple_sources(sources).await;
@@ -979,7 +1027,7 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks_optimized("test", "test.md", &blocks)
+            .index_blocks_optimized("test", "test.md", &blocks, "llms")
             .await
             .unwrap();
 
@@ -1006,7 +1054,7 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks_optimized("test", "test.md", &blocks)
+            .index_blocks_optimized("test", "test.md", &blocks, "llms")
             .await
             .unwrap();
 
@@ -1041,7 +1089,7 @@ mod tests {
         }
 
         index
-            .index_blocks_optimized("repeated_alias", "test.md", &blocks)
+            .index_blocks_optimized("repeated_alias", "test.md", &blocks, "llms")
             .await
             .unwrap();
 
@@ -1058,7 +1106,7 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks_optimized("test", "test.md", &blocks)
+            .index_blocks_optimized("test", "test.md", &blocks, "llms")
             .await
             .unwrap();
 

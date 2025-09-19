@@ -20,6 +20,16 @@ blz "async await" react
 blz react "server actions"
 ```
 
+## Flavor resolution
+
+`blz search` automatically scopes each source to its resolved flavor:
+
+- Per-source overrides stored in `blz.json` (set via `blz update --flavor …`) win first.
+- Otherwise the order is local → project → global config, then built-in defaults.
+- When a preferred flavor is missing on disk, search quietly falls back to `llms`.
+
+This keeps searches consistent with update preferences while still allowing future explicit `--flavor` controls.
+
 See also:
 - [Output formats](./output-formats.md)
 - [Global options](./global.md)

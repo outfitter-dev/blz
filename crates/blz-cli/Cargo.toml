@@ -29,6 +29,8 @@ tracing-subscriber.workspace = true
 chrono.workspace = true
 futures.workspace = true
 url.workspace = true
+toml_edit.workspace = true
+toml.workspace = true
 
 # CLI-specific
 colored = "2"

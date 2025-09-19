@@ -1,6 +1,6 @@
 # `blz history`
 
-Display recent searches and the CLI presentation defaults that will be applied to future runs. History entries are stored in `cli-preferences.json` under the active configuration directory (defaults to the platform config dir, or the directory pointed to by `BLZ_CONFIG_DIR` / `BLZ_CONFIG`).
+Display recent searches and the CLI presentation defaults that will be applied to future runs. Defaults live in `blz.json`; history entries are stored in `history.jsonl` under the active configuration directory (defaults to the platform config dir, or the directory pointed to by `BLZ_CONFIG_DIR` / `BLZ_CONFIG`).
 
 ## Usage
 

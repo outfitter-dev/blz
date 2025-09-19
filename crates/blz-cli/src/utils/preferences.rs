@@ -1,17 +1,26 @@
 use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::Utc;
-use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::cli::ShowComponent;
 use crate::output::OutputFormat;
+use crate::utils::store::{self, BlzStore};
+use chrono::Utc;
 
-const MAX_HISTORY_ENTRIES: usize = 50;
-const PREFS_FILENAME: &str = "cli-preferences.json";
+const GLOBAL_SCOPE_KEY: &str = "global";
+
+#[allow(clippy::struct_field_names)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliPreferences {
+    #[serde(default)]
+    default_show: Vec<String>,
+    #[serde(default = "default_precision")]
+    default_score_precision: u8,
+    #[serde(default = "default_snippet")]
+    default_snippet_lines: u8,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHistoryEntry {
@@ -25,23 +34,11 @@ pub struct SearchHistoryEntry {
     pub score_precision: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CliPreferences {
-    #[serde(default)]
-    default_show: Vec<String>,
-    #[serde(default = "default_precision")]
-    default_score_precision: u8,
-    #[serde(default = "default_snippet")]
-    default_snippet_lines: u8,
-    #[serde(default)]
-    history: Vec<SearchHistoryEntry>,
-}
-
-fn default_precision() -> u8 {
+const fn default_precision() -> u8 {
     1
 }
 
-fn default_snippet() -> u8 {
+const fn default_snippet() -> u8 {
     3
 }
 
@@ -51,7 +48,6 @@ impl Default for CliPreferences {
             default_show: Vec::new(),
             default_score_precision: default_precision(),
             default_snippet_lines: default_snippet(),
-            history: Vec::new(),
         }
     }
 }
@@ -83,86 +79,83 @@ impl CliPreferences {
     pub fn set_default_snippet_lines(&mut self, lines: u8) {
         self.default_snippet_lines = clamp_snippet(lines);
     }
-
-    pub fn record_history(&mut self, mut entry: SearchHistoryEntry) {
-        entry.snippet_lines = clamp_snippet(entry.snippet_lines);
-        entry.score_precision = clamp_precision(entry.score_precision);
-        self.history.push(entry);
-        if self.history.len() > MAX_HISTORY_ENTRIES {
-            let excess = self.history.len() - MAX_HISTORY_ENTRIES;
-            self.history.drain(0..excess);
-        }
-    }
-
-    pub fn history(&self) -> &[SearchHistoryEntry] {
-        &self.history
-    }
 }
 
 pub fn load() -> CliPreferences {
-    if let Some(path) = preferences_path() {
-        if let Ok(data) = fs::read(&path) {
-            match serde_json::from_slice::<CliPreferences>(&data) {
-                Ok(mut prefs) => {
-                    // sanitize
-                    prefs.default_score_precision = clamp_precision(prefs.default_score_precision);
-                    prefs.default_snippet_lines = clamp_snippet(prefs.default_snippet_lines);
-                    prefs.history = prefs
-                        .history
-                        .into_iter()
-                        .map(|mut entry| {
-                            entry.snippet_lines = clamp_snippet(entry.snippet_lines);
-                            entry.score_precision = clamp_precision(entry.score_precision);
-                            entry
-                        })
-                        .collect();
-                    return prefs;
-                },
-                Err(err) => warn!("failed to parse CLI preferences: {err}"),
+    let store = store::load_store();
+    load_from_store(&store)
+}
+
+fn load_from_store(store: &BlzStore) -> CliPreferences {
+    let mut prefs = CliPreferences::default();
+    for key in scope_chain() {
+        if let Some(record) = store.scopes.get(&key) {
+            if !record.cli_preferences.is_null() {
+                match serde_json::from_value::<CliPreferences>(record.cli_preferences.clone()) {
+                    Ok(scope_prefs) => {
+                        prefs = sanitize(scope_prefs);
+                    },
+                    Err(err) => {
+                        warn!("failed to deserialize CLI preferences for scope {key}: {err}");
+                    },
+                }
             }
         }
     }
-    CliPreferences::default()
+    prefs
+}
+
+fn sanitize(mut prefs: CliPreferences) -> CliPreferences {
+    prefs.default_score_precision = clamp_precision(prefs.default_score_precision);
+    prefs.default_snippet_lines = clamp_snippet(prefs.default_snippet_lines);
+    prefs
 }
 
 pub fn save(prefs: &CliPreferences) -> std::io::Result<()> {
-    if let Some(path) = preferences_path() {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let json = serde_json::to_string_pretty(prefs).unwrap_or_else(|_| "{}".to_string());
-        fs::write(path, json)?;
-    }
-    Ok(())
+    let mut store = store::load_store();
+    let key = active_scope_key();
+    let record = store.scopes.entry(key).or_default();
+    record.cli_preferences = serde_json::to_value(prefs).unwrap_or(serde_json::Value::Null);
+    store::save_store(&store)
 }
 
-pub fn preferences_path() -> Option<PathBuf> {
-    if let Ok(dir) = env::var("BLZ_CONFIG_DIR") {
-        let trimmed = dir.trim();
-        if !trimmed.is_empty() {
-            return Some(Path::new(trimmed).join(PREFS_FILENAME));
-        }
+pub fn make_history_entry(
+    query: &str,
+    alias: Option<&str>,
+    format: OutputFormat,
+    show: &[ShowComponent],
+    snippet_lines: u8,
+    score_precision: u8,
+) -> SearchHistoryEntry {
+    let timestamp = Utc::now().to_rfc3339();
+    SearchHistoryEntry {
+        timestamp,
+        query: query.to_string(),
+        alias: alias.map(std::string::ToString::to_string),
+        format: format_to_string(format),
+        show: components_to_strings(show),
+        snippet_lines: clamp_snippet(snippet_lines),
+        score_precision: clamp_precision(score_precision),
     }
+}
 
-    if let Ok(file) = env::var("BLZ_CONFIG") {
-        let path = PathBuf::from(file);
-        if let Some(parent) = path.parent() {
-            return Some(parent.join(PREFS_FILENAME));
-        }
+pub fn format_to_string(format: OutputFormat) -> String {
+    match format {
+        OutputFormat::Text => "text".to_string(),
+        OutputFormat::Json => "json".to_string(),
+        OutputFormat::Jsonl => "jsonl".to_string(),
     }
-
-    ProjectDirs::from("dev", "outfitter", "blz").map(|dirs| dirs.config_dir().join(PREFS_FILENAME))
 }
 
 pub fn components_to_strings(components: &[ShowComponent]) -> Vec<String> {
     components
         .iter()
-        .map(component_to_str)
+        .map(|component| component_to_str(*component))
         .map(str::to_string)
         .collect()
 }
 
-pub fn component_to_str(component: &ShowComponent) -> &'static str {
+pub const fn component_to_str(component: ShowComponent) -> &'static str {
     match component {
         ShowComponent::Url => "url",
         ShowComponent::Lines => "lines",
@@ -198,45 +191,9 @@ pub fn parse_show_list(raw: &str) -> Vec<ShowComponent> {
 pub fn format_show_components(components: &[ShowComponent]) -> String {
     components
         .iter()
-        .map(component_to_str)
+        .map(|component| component_to_str(*component))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-pub fn make_history_entry(
-    query: &str,
-    alias: Option<&str>,
-    format: OutputFormat,
-    show: &[ShowComponent],
-    snippet_lines: u8,
-    score_precision: u8,
-) -> SearchHistoryEntry {
-    let timestamp = Utc::now().to_rfc3339();
-    SearchHistoryEntry {
-        timestamp,
-        query: query.to_string(),
-        alias: alias.map(|a| a.to_string()),
-        format: format_to_string(format),
-        show: components_to_strings(show),
-        snippet_lines: clamp_snippet(snippet_lines),
-        score_precision: clamp_precision(score_precision),
-    }
-}
-
-pub fn format_to_string(format: OutputFormat) -> String {
-    match format {
-        OutputFormat::Text => "text".to_string(),
-        OutputFormat::Json => "json".to_string(),
-        OutputFormat::Jsonl => "jsonl".to_string(),
-    }
-}
-
-fn clamp_snippet(value: u8) -> u8 {
-    value.clamp(1, 10)
-}
-
-fn clamp_precision(value: u8) -> u8 {
-    value.min(4)
 }
 
 pub fn collect_show_components(url: bool, lines: bool, anchor: bool) -> Vec<ShowComponent> {
@@ -251,4 +208,69 @@ pub fn collect_show_components(url: bool, lines: bool, anchor: bool) -> Vec<Show
         components.push(ShowComponent::Anchor);
     }
     components
+}
+
+pub fn scope_chain() -> Vec<String> {
+    let mut chain = vec![GLOBAL_SCOPE_KEY.to_string()];
+    if let Some(project) = project_scope_key() {
+        chain.push(project);
+    }
+    if let Some(local) = local_scope_key() {
+        chain.push(local);
+    }
+    chain
+}
+
+pub fn active_scope_key() -> String {
+    scope_chain()
+        .into_iter()
+        .last()
+        .unwrap_or_else(|| GLOBAL_SCOPE_KEY.to_string())
+}
+
+pub fn project_scope_key() -> Option<String> {
+    if let Ok(dir) = env::var("BLZ_CONFIG_DIR") {
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            return Some(format!("project:{}", canonicalize(trimmed)));
+        }
+    }
+    if let Ok(file) = env::var("BLZ_CONFIG") {
+        let path = PathBuf::from(file);
+        if let Some(parent) = path.parent() {
+            return Some(format!("project:{}", canonicalize_path(parent)));
+        }
+    }
+    None
+}
+
+pub fn local_scope_key() -> Option<String> {
+    env::current_dir()
+        .ok()
+        .map(|dir| format!("local:{}", canonicalize_path(&dir)))
+}
+
+pub fn local_scope_path() -> Option<PathBuf> {
+    env::current_dir()
+        .ok()
+        .map(|dir| PathBuf::from(canonicalize_path(&dir)))
+}
+
+fn canonicalize(value: &str) -> String {
+    canonicalize_path(Path::new(value))
+}
+
+fn canonicalize_path(path: &Path) -> String {
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn clamp_snippet(value: u8) -> u8 {
+    value.clamp(1, 10)
+}
+
+fn clamp_precision(value: u8) -> u8 {
+    value.min(4)
 }

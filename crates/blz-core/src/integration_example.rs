@@ -63,7 +63,9 @@ impl HighPerformanceSearchSystem {
         let blocks = self.parse_content_optimized(&content).await?;
         
         // Index with all optimizations enabled
-        self.index.index_blocks_optimized(alias, url, &blocks).await?;
+        self.index
+            .index_blocks_optimized(alias, url, &blocks, "llms")
+            .await?;
         
         info!("Completed indexing {} blocks for {}", blocks.len(), alias);
         Ok(())
@@ -259,7 +261,7 @@ async fn example_usage() -> Result<()> {
     search_system.warm_up(common_queries).await?;
     
     // Perform optimized searches
-    let results = search_system.search("React hooks useState", Some("react"), 10).await?;
+    let results = search_system.search("React hooks useState", Some("react"), None, 10).await?;
     info!("Found {} results for React hooks search", results.len());
     
     // Check performance statistics

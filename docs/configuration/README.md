@@ -9,6 +9,8 @@ Index:
 - Defaults & precedence: [defaults.md](./defaults.md)
 - CLI preferences (history/defaults): see [`blz history`](../commands/history.md)
 
+State files managed by the CLI (`blz.json` for persisted defaults—UI preferences _and_ per-source `preferred_flavor` overrides—and `history.jsonl` for search history) live in the same directory as the resolved `config.toml` (global, local, or project scope).
+
 ### Precedence
 
 From lowest → highest priority:

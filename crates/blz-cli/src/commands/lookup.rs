@@ -4,6 +4,7 @@ use anyhow::Result;
 use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
 use dialoguer::{Input, Select};
+use serde_json::json;
 use std::io::IsTerminal;
 
 use crate::commands::add_source;
@@ -11,12 +12,50 @@ use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
+#[allow(clippy::too_many_lines)]
 pub async fn execute(
     query: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
     format: OutputFormat,
 ) -> Result<()> {
+    let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "on"))
+        .unwrap_or(false);
+
+    if !registry_enabled {
+        let _ = metrics; // keep signature for future use
+
+        if matches!(format, OutputFormat::Text) {
+            if !quiet {
+                println!("Registry lookup is coming soon.");
+                println!(
+                    "In the meantime, search upstream docs for an llms-full.txt (or llms.txt) URL and add it manually:"
+                );
+                println!("  blz add <alias> <https://example.com/llms-full.txt>");
+                println!("Coming soon: automatic registry search with health checks.");
+            }
+        } else {
+            let payload = json!({
+                "status": "coming_soon",
+                "message": "Registry lookup is temporarily disabled while we finish the new catalog flow.",
+                "nextSteps": [
+                    "Locate an llms-full.txt (or llms.txt) URL for the docs you need.",
+                    "Add it manually with: blz add <alias> <url>",
+                    "Agent-compatible registry search will return in an upcoming release."
+                ]
+            });
+
+            match format {
+                OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
+                OutputFormat::Jsonl => println!("{}", serde_json::to_string(&payload)?),
+                OutputFormat::Text => unreachable!(),
+            }
+        }
+
+        return Ok(());
+    }
+
     let registry = Registry::new();
 
     if matches!(format, OutputFormat::Text) && !quiet {

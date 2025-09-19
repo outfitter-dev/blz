@@ -135,6 +135,9 @@ blz get bun --lines 120-142 --context 3
 # Inspect recent searches and persisted defaults
 blz history --limit 5
 
+# Prefer llms-full.txt automatically
+blz config set add.prefer_full true
+
 # List all sources
 blz list
 

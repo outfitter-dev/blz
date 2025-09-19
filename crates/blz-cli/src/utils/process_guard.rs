@@ -48,7 +48,10 @@ fn monitor_parent(current_pid_raw: u32, guard_timeout: Option<Duration>) {
         refresh_kind,
     );
 
-    let Some(parent_pid) = system.process(current_pid).and_then(|proc| proc.parent()) else {
+    let Some(parent_pid) = system
+        .process(current_pid)
+        .and_then(sysinfo::Process::parent)
+    else {
         // No parent detected (already orphaned or running under init). Nothing to monitor.
         return;
     };
@@ -75,7 +78,10 @@ fn monitor_parent(current_pid_raw: u32, guard_timeout: Option<Duration>) {
             refresh_kind,
         );
 
-        match system.process(current_pid).and_then(|proc| proc.parent()) {
+        match system
+            .process(current_pid)
+            .and_then(sysinfo::Process::parent)
+        {
             Some(pid) if pid == parent_pid => {
                 // Parent unchanged; continue monitoring.
             },

@@ -3,6 +3,8 @@
 [build]
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
+# Share a single cargo target directory across worktrees to keep builds hot
+target-dir = "../.blz-target"
 
 [target.'cfg(all())']
 # Optimize for local CPU architecture in release builds
