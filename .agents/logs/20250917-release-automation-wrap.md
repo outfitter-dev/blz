@@ -38,3 +38,4 @@
 - ## 2025-09-19
 - Added a parent-process watchdog (`utils::process_guard::spawn_parent_exit_guard`) so CLI children terminate if the spawning test harness or shell dies (fixes GitHub issue #188). Updated docs/notes and bug tracker entry; ran `cargo test -p blz-cli --no-run` to ensure the guard builds across binaries without warnings.
 - Pulled orphan cleanup into a reusable `tests/common::blz_cmd()` helper that sets five-second timeouts and wires the guard env automatically. Updated every CLI integration test to use it and added `BLZ_PARENT_GUARD_TIMEOUT_SECS` support in the guard so runaway processes die within the configured window. Full `cargo test -p blz-cli` now completes without leaving stray `blz` binaries behind.
+- Implemented persisted CLI history and preferences support (`blz history`), added dedicated integration coverage, and refreshed user docs (README quick start, command reference, config docs) to highlight the new command.

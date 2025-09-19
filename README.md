@@ -132,6 +132,9 @@ blz search "concurrency" --alias bun
 blz get bun --lines 120-142
 blz get bun --lines 120-142 --context 3
 
+# Inspect recent searches and persisted defaults
+blz history --limit 5
+
 # List all sources
 blz list
 

@@ -11,6 +11,7 @@ This section lists individual command reference pages. For the single‑page ref
 - [Docs](./docs.md)
 - [Completions](./completions.md)
 - [Instruct](./instruct.md)
+- [History](./history.md)
 - [Global Options](./global.md)
 - [Output formats](./output-formats.md)
 - [Diff](./diff.md)

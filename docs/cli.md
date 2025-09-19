@@ -33,6 +33,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `docs` | | Generate CLI docs (Markdown/JSON) |
 | `alias` | | Manage aliases for a source |
 | `instruct` | | Print instructions for agent use of blz |
+| `history` | | Show recent searches and CLI defaults |
 
 ## Command Reference
 
@@ -474,6 +475,31 @@ Print instructions for agent use of blz, followed by the current `--help` conten
 ```bash
 blz instruct
 ```
+
+### `blz history`
+
+Display recent searches and CLI defaults.
+
+```bash
+blz history [--limit <N>] [-f text|json|jsonl]
+```
+
+**Options:**
+
+- `--limit <N>` – Maximum number of entries to display (default: 20)
+- `-f, --format <FORMAT>` – Output format (`text`, `json`, `jsonl`). Honors `BLZ_OUTPUT_FORMAT` when unset.
+
+**Examples:**
+
+```bash
+# Show the most recent searches in text mode
+blz history --limit 10
+
+# Inspect history for agents in JSON
+blz history -f json | jq '.[0]'
+```
+
+Text output includes the stored defaults (show components, snippet lines, score precision) followed by the most recent entries (newest first).
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
 ### Setting a Global Default

@@ -9,6 +9,7 @@ Key defaults:
 - follow_links = first_party
 - allowlist = []
 - prefer_llms_full = false
+- CLI presentation defaults (history): `show = []`, `snippet_lines = 3`, `score_precision = 1` (persisted per config dir in `cli-preferences.json`)
 
 Precedence (lowest → highest):
 1) Built-in defaults

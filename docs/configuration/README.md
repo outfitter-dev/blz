@@ -7,6 +7,7 @@ Index:
 - Per‑source settings: [per-source.md](./per-source.md)
 - Environment variables: [env-vars.md](./env-vars.md)
 - Defaults & precedence: [defaults.md](./defaults.md)
+- CLI preferences (history/defaults): see [`blz history`](../commands/history.md)
 
 ### Precedence
 
