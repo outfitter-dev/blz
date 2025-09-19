@@ -12,5 +12,6 @@ pub fn blz_cmd() -> Command {
     if std::env::var("BLZ_PARENT_GUARD_TIMEOUT_SECS").is_err() {
         cmd.env("BLZ_PARENT_GUARD_TIMEOUT_SECS", DEFAULT_GUARD_TIMEOUT_SECS);
     }
+    cmd.env("NO_COLOR", "1");
     cmd
 }
