@@ -10,17 +10,17 @@ _Tracking doc for the CLI polish changes landed on `gt-v0.2/feat/release-polish`
 ## Follow-up Items
 
 1. **Formatter cleanup**
-   - Consider re-introducing hashed heading line once compact path display is revisited.
-   - Evaluate configurable snippet length vs full-span printing (depending on user feedback).
+   - ✅ Hashed heading line available via `--show anchor`; snippet length now configurable (`--snippet-lines` / `BLZ_SNIPPET_LINES`).
 
 2. **Score presentation**
-   - Allow users to configure score precision (`--score-precision`?) or switch to raw Tantivy score in JSON only.
+   - ✅ Users can set score precision with `--score-precision` / `BLZ_SCORE_PRECISION` (JSON remains raw).
 
 3. **Path truncation**
-   - Replace current `first > ... > penultimate > last` heuristic with a reusable helper aware of CLI width.
+   - ✅ Width-aware helper landed in `utils::formatting::format_heading_path`.
 
 4. **History & pagination**
-   - Persist history toggles (e.g., remember `--show url`) and expose `blz history` command.
+   - ✅ CLI persists `--show`, score precision, snippet length defaults and ships a `blz history` command (text/json/jsonl).
+   - ✅ Added a parent-process watchdog so orphaned `blz search …` processes terminate automatically (GitHub issue #188).
 
 5. **Docs & examples**
    - Regenerate screenshots / asciicasts to reflect the new output.

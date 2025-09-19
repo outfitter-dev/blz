@@ -35,6 +35,11 @@ colored = "2"
 indicatif = "0.17"
 clap_complete = "4"
 dialoguer = "0.11"
+terminal_size = "0.3"
+unicode-width = "0.1"
+directories = { workspace = true }
+serde.workspace = true
+sysinfo.workspace = true
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
 pprof = { workspace = true, optional = true }

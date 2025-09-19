@@ -7,7 +7,7 @@ use anyhow::Result;
 use blz_core::PerformanceMetrics;
 use clap::Parser;
 use colored::control as color_control;
-use tracing::Level;
+use tracing::{Level, warn};
 use tracing_subscriber::FmtSubscriber;
 
 mod cli;
@@ -25,6 +25,7 @@ mod instruct_mod {
     }
 }
 
+use crate::utils::preferences::{self, CliPreferences};
 use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands};
 
 #[cfg(feature = "flamegraph")]
@@ -43,21 +44,30 @@ async fn main() -> Result<()> {
         eprintln!("{msg}");
     }));
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
 
     initialize_logging(&cli)?;
+    utils::process_guard::spawn_parent_exit_guard();
+
+    let args: Vec<String> = std::env::args().collect();
+    let mut cli_preferences = preferences::load();
+    apply_preference_defaults(&mut cli, &cli_preferences, &args);
 
     let metrics = PerformanceMetrics::default();
 
     #[cfg(feature = "flamegraph")]
     let profiler_guard = start_flamegraph_if_requested(&cli);
 
-    execute_command(cli.clone(), metrics.clone()).await?;
+    execute_command(cli.clone(), metrics.clone(), &mut cli_preferences).await?;
 
     #[cfg(feature = "flamegraph")]
     stop_flamegraph_if_started(profiler_guard);
 
     print_diagnostics(&cli, &metrics);
+
+    if let Err(err) = preferences::save(&cli_preferences) {
+        warn!("failed to persist CLI preferences: {err}");
+    }
 
     Ok(())
 }
@@ -78,7 +88,9 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     if !(cli.verbose || cli.debug) {
         // Suppress logs when emitting machine-readable output across common commands
         if let Some(
-            Commands::Search { format, .. } | Commands::List { format, .. },
+            Commands::Search { format, .. }
+            | Commands::List { format, .. }
+            | Commands::History { format, .. },
             // | Commands::Anchors { format, .. }, // Disabled for v0.2
         ) = &cli.command
         {
@@ -137,7 +149,11 @@ fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     }
 }
 
-async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
+async fn execute_command(
+    cli: Cli,
+    metrics: PerformanceMetrics,
+    prefs: &mut CliPreferences,
+) -> Result<()> {
     match cli.command {
         Some(Commands::Completions {
             shell,
@@ -149,19 +165,11 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             } else if let Some(shell) = shell {
                 commands::generate(shell);
             } else {
-                // Default to listing if no shell provided
                 commands::list_supported(format);
             }
         },
         Some(Commands::Docs { format }) => handle_docs(format)?,
-        // Anchor commands disabled for v0.2 release
-        // Some(Commands::Anchor { command }) => handle_anchor(command).await?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
-        // Some(Commands::Anchors {
-        //     alias,
-        //     output,
-        //     mappings,
-        // }) => commands::show_anchors(&alias, output, mappings).await?,
         Some(Commands::Instruct) => instruct_mod::print(),
         Some(Commands::Add { alias, url, yes }) => {
             commands::add_source(&alias, &url, yes, metrics).await?;
@@ -180,11 +188,29 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
             format,
             show,
             no_summary,
+            score_precision,
+            snippet_lines,
         }) => {
             handle_search(
-                query, alias, last, limit, all, page, top, format, show, no_summary, metrics,
+                query,
+                alias,
+                last,
+                limit,
+                all,
+                page,
+                top,
+                format,
+                show,
+                no_summary,
+                score_precision,
+                snippet_lines,
+                metrics,
+                prefs,
             )
             .await?;
+        },
+        Some(Commands::History { limit, format }) => {
+            commands::show_history(prefs, limit, format)?;
         },
         Some(Commands::Get {
             alias,
@@ -209,7 +235,7 @@ async fn execute_command(cli: Cli, metrics: PerformanceMetrics) -> Result<()> {
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
-        None => commands::handle_default_search(&cli.query, metrics, None).await?,
+        None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
     }
 
     Ok(())
@@ -266,7 +292,10 @@ async fn handle_search(
     format: crate::output::OutputFormat,
     show: Vec<crate::cli::ShowComponent>,
     no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
     metrics: PerformanceMetrics,
+    prefs: &mut CliPreferences,
 ) -> Result<()> {
     let actual_limit = if all { 10_000 } else { limit };
     commands::search(
@@ -279,6 +308,9 @@ async fn handle_search(
         format,
         &show,
         no_summary,
+        score_precision,
+        snippet_lines,
+        Some(prefs),
         metrics,
         None,
     )
@@ -306,6 +338,39 @@ fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
     if cli.debug {
         metrics.print_summary();
     }
+}
+
+fn apply_preference_defaults(cli: &mut Cli, prefs: &CliPreferences, args: &[String]) {
+    if let Some(Commands::Search {
+        show,
+        score_precision,
+        snippet_lines,
+        ..
+    }) = cli.command.as_mut()
+    {
+        let show_env = std::env::var("BLZ_SHOW").is_ok();
+        if show.is_empty() && !flag_present(args, "--show") && !show_env {
+            *show = prefs.default_show_components();
+        }
+
+        if score_precision.is_none()
+            && !flag_present(args, "--score-precision")
+            && std::env::var("BLZ_SCORE_PRECISION").is_err()
+        {
+            *score_precision = Some(prefs.default_score_precision());
+        }
+
+        if !flag_present(args, "--snippet-lines") && std::env::var("BLZ_SNIPPET_LINES").is_err() {
+            *snippet_lines = prefs.default_snippet_lines();
+        }
+    }
+}
+
+fn flag_present(args: &[String], flag: &str) -> bool {
+    let flag_eq = flag;
+    let flag_eq_with_equal = format!("{flag}=");
+    args.iter()
+        .any(|arg| arg == flag_eq || arg.starts_with(&flag_eq_with_equal))
 }
 
 #[cfg(test)]

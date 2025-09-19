@@ -59,6 +59,8 @@ pub mod constants;
 pub mod formatting;
 pub mod http;
 pub mod parsing;
+pub mod preferences;
+pub mod process_guard;
 pub mod resolver;
 pub mod validation;
 
