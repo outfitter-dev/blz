@@ -3,10 +3,11 @@
 use anyhow::Result;
 use blz_core::Storage;
 use colored::Colorize;
+use dialoguer::Confirm;
 use std::fs;
 
 /// Execute the remove command to delete a source
-pub async fn execute(alias: &str) -> Result<()> {
+pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
 
     // Resolve metadata alias to canonical if needed
@@ -14,21 +15,39 @@ pub async fn execute(alias: &str) -> Result<()> {
         .unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical) {
-        println!("Source '{alias}' not found");
+        if !quiet {
+            println!("Source '{alias}' not found");
+        }
         return Ok(());
     }
 
-    display_removal_info(&storage, &canonical);
+    display_removal_info(&storage, &canonical, quiet);
+
+    if !auto_yes {
+        let prompt = format!("Remove source '{canonical}' and all cached data?");
+        let confirmed = Confirm::new()
+            .with_prompt(prompt)
+            .default(false)
+            .interact()?;
+        if !confirmed {
+            if !quiet {
+                println!("Removal cancelled");
+            }
+            return Ok(());
+        }
+    }
 
     // Remove the entire source directory and all its contents
     let source_dir = storage.tool_dir(&canonical)?;
 
     match fs::remove_dir_all(&source_dir) {
         Ok(()) => {
-            println!(
-                "✓ Successfully removed source '{}' and all associated files",
-                canonical.green()
-            );
+            if !quiet {
+                println!(
+                    "✓ Successfully removed source '{}' and all associated files",
+                    canonical.green()
+                );
+            }
         },
         Err(e) => {
             return Err(anyhow::anyhow!(
@@ -42,7 +61,10 @@ pub async fn execute(alias: &str) -> Result<()> {
     Ok(())
 }
 
-fn display_removal_info(storage: &Storage, alias: &str) {
+fn display_removal_info(storage: &Storage, alias: &str, quiet: bool) {
+    if quiet {
+        return;
+    }
     if let Ok(llms_json) = storage.load_llms_json(alias) {
         println!(
             "Removing source '{}' ({})",

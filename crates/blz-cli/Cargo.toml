@@ -29,12 +29,19 @@ tracing-subscriber.workspace = true
 chrono.workspace = true
 futures.workspace = true
 url.workspace = true
+toml_edit.workspace = true
+toml.workspace = true
 
 # CLI-specific
 colored = "2"
 indicatif = "0.17"
 clap_complete = "4"
 dialoguer = "0.11"
+terminal_size = "0.3"
+unicode-width = "0.1"
+directories = { workspace = true }
+serde.workspace = true
+sysinfo.workspace = true
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
 pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }

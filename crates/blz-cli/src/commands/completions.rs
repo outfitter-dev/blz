@@ -37,7 +37,7 @@ pub fn list_supported(format: crate::output::OutputFormat) {
                 serde_json::to_string_pretty(&arr).unwrap_or_else(|_| "[]".to_string())
             );
         },
-        crate::output::OutputFormat::Ndjson => {
+        crate::output::OutputFormat::Jsonl => {
             for (name, path) in &shells {
                 println!("{}", json!({"shell": name, "installPath": path}));
             }
