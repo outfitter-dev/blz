@@ -219,7 +219,7 @@ async fn perform_search(
                         })?
                         .with_metrics(metrics);
                     let hits = index
-                        .search(&query, Some(&source), effective_limit)
+                        .search(&query, Some(&source), None, effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
