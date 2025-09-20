@@ -1,0 +1,42 @@
+name: Generate DotSlash files
+
+on:
+  workflow_run:
+    workflows: ["Auto Release"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  dotslash:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release_tag
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --quiet
+          TAGS=$(git tag --points-at HEAD)
+          if [[ -z "$TAGS" ]]; then
+            echo "Failed to discover release tag for commit $(git rev-parse --short HEAD)" >&2
+            exit 1
+          fi
+          TAG=$(echo "$TAGS" | head -n1)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate & upload DotSlash file(s)
+        uses: facebook/dotslash-publish-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config: .github/workflows/dotslash-config.json
+          tag: ${{ steps.release_tag.outputs.tag }}

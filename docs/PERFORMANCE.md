@@ -1,6 +1,6 @@
-# Performance in blz
+# Performance in BLZ
 
-This document describes the advanced performance optimizations implemented in the blz core system.
+This document describes the advanced performance optimizations implemented in the BLZ core system.
 
 ## Overview of Optimizations
 
@@ -135,7 +135,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let index = OptimizedSearchIndex::create("./index").await?;
 
     // Index documents (automatically uses pools and caching)
-    index.index_blocks_optimized("alias", "file.md", &blocks).await?;
+    index
+        .index_blocks_optimized("alias", "file.md", &blocks, "llms")
+        .await?;
 
     // Search with full optimization pipeline
     let results = index

@@ -1,6 +1,6 @@
-# blz CLI Reference
+# BLZ CLI Reference
 
-Complete command-line interface reference for `blz`.
+Complete command-line interface reference for BLZ.
 
 For enhanced productivity with tab completion and shell integration, see the [Shell Integration Guide](shell-integration/README.md).
 
@@ -32,7 +32,9 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `completions` | | Generate shell completions |
 | `docs` | | Generate CLI docs (Markdown/JSON) |
 | `alias` | | Manage aliases for a source |
-| `instruct` | | Print instructions for agent use of blz |
+| `instruct` | | Print instructions for BLZ agent use |
+| `history` | | Show recent searches and CLI defaults |
+| `config` | | Manage configuration (global/local/project scopes) |
 
 ## Command Reference
 
@@ -68,7 +70,7 @@ blz add node https://nodejs.org/llms.txt --yes
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY> [--output text|json|ndjson]
+blz lookup <QUERY> [--format text|json|jsonl]
 ```
 
 **Arguments:**
@@ -77,7 +79,7 @@ blz lookup <QUERY> [--output text|json|ndjson]
 
 **Options:**
 
-- `-o, --output <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
+- `-f, --format <FORMAT>` - Output format (defaults to `text`; use `BLZ_OUTPUT_FORMAT=json` for agents)
 
 **Examples:**
 
@@ -86,7 +88,7 @@ blz lookup <QUERY> [--output text|json|ndjson]
 blz lookup typescript
 
 # Search for web frameworks (JSON for scripting)
-blz lookup react -o json | jq '.[0]'
+blz lookup react -f json | jq '.[0]'
 ```
 
 ### `blz search`
@@ -108,7 +110,8 @@ blz search <QUERY> [OPTIONS]
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
-- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+- `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
+- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson` to avoid passing `-o` each time
 
 **Examples:**
@@ -124,7 +127,7 @@ blz search "bundler" --source bun
 blz search "performance" --limit 100
 
 # JSON output for scripting
-blz search "async" --output json
+blz search "async" --format json
 
 # Top 10% of results only
 blz search "database" --top 10
@@ -151,7 +154,7 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 
 - `-l, --lines <RANGE>` - Line range(s) to retrieve
 - `-c, --context <N>` - Include N context lines around each range
-- `-o, --output <FORMAT>` - Output format: `text` (default), `json`, or `ndjson`
+- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
 
 **Line Range Formats:**
 
@@ -173,7 +176,7 @@ blz get node --lines "10:20,50:60"
 blz get deno --lines 100-110 --context 3
 
 # JSON output for agents
-blz get bun --lines 42-55 -o json | jq '.content'
+blz get bun --lines 42-55 -f json | jq '.content'
 ```
 
 ### `blz list` / `blz sources`
@@ -186,7 +189,7 @@ blz list [OPTIONS]
 
 **Options:**
 
-- `-o, --output <FORMAT>` - Output format: `text` (default) or `json`
+- `-f, --format <FORMAT>` - Output format: `text` (default) or `json`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
 
 JSON keys
@@ -201,7 +204,7 @@ JSON keys
 blz list
 
 # JSON output for scripting
-blz list --output json
+blz list --format json
 ```
 
 ### `blz update`
@@ -235,8 +238,10 @@ blz update --all
 Remove an indexed source.
 
 ```bash
-blz remove <ALIAS>
+blz remove <ALIAS> [--yes]
 ```
+
+By default BLZ prompts before deleting a source. Supply `--yes` in headless or scripted workflows.
 
 **Arguments:**
 
@@ -428,7 +433,7 @@ blz search "complex query" --flamegraph
 
 ## Configuration
 
-`blz` stores data in platform-specific locations:
+BLZ stores data in platform-specific locations:
 
 ### Data Storage
 
@@ -458,7 +463,7 @@ Config discovery order:
 └── (global config is stored under XDG, not inside the data directory)
 ```
 
-**Note**: If upgrading from an earlier version, `blz` will automatically migrate your data from the old cache directory location.
+**Note**: If upgrading from an earlier version, BLZ will automatically migrate your data from the old cache directory location.
 
 ## Tips
 
@@ -469,16 +474,64 @@ Config discovery order:
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
 ### `blz instruct`
 
-Print instructions for agent use of blz, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
+Print instructions for agent use of BLZ, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
 
 ```bash
 blz instruct
 ```
 
+### `blz history`
+
+Display recent searches and CLI defaults.
+
+```bash
+blz history [--limit <N>] [-f text|json|jsonl]
+```
+
+**Options:**
+
+- `--limit <N>` – Maximum number of entries to display (default: 20)
+- `-f, --format <FORMAT>` – Output format (`text`, `json`, `jsonl`). Honors `BLZ_OUTPUT_FORMAT` when unset.
+
+**Examples:**
+
+```bash
+# Show the most recent searches in text mode
+blz history --limit 10
+
+# Inspect history for agents in JSON
+blz history -f json | jq '.[0]'
+```
+
+Text output includes the stored defaults (show components, snippet lines, score precision) followed by the most recent entries (newest first).
+
+### `blz config`
+
+Manage configuration and per-scope preferences. Without subcommands, launches an interactive menu.
+
+```bash
+blz config [set|get]
+
+# Non-interactive: set prefer_full globally
+blz config set add.prefer_full true
+
+# Override for current directory only
+blz config set add.prefer_full false --scope local
+
+# Inspect all scopes
+blz config get
+```
+
+Scopes behave as follows:
+
+- `global`: writes to the global `config.toml`
+- `project`: writes to the project config (current `.blz/config.toml` or directory pointed to by `BLZ_CONFIG_DIR`/`BLZ_CONFIG`)
+- `local`: stores overrides in `blz.json`, keyed by the working directory
+
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
 ### Setting a Global Default
 
-Set a single environment variable to control default output across commands that support `-o/--output`:
+Set a single environment variable to control default output across commands that support `-o/--format`:
 
 ```bash
 export BLZ_OUTPUT_FORMAT=json   # or text, ndjson

@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.5] - 2025-01-05
 
 ### Added
-- Initial public release of blz
+- Initial public release of BLZ
 - Fast local search for llms.txt documentation
 - Support for multiple documentation sources
 - Line-accurate search results with BM25 ranking

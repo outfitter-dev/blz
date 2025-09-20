@@ -1,12 +1,15 @@
 ## Configuration Overview
 
-This section documents all configuration mechanisms for blz in one place: global config files, per-source settings, and environment variables. It also explains precedence and where files live on each platform.
+This section documents all configuration mechanisms for BLZ in one place: global config files, per-source settings, and environment variables. It also explains precedence and where files live on each platform.
 
 Index:
 - Global config: [global-config.md](./global-config.md)
 - Per‑source settings: [per-source.md](./per-source.md)
 - Environment variables: [env-vars.md](./env-vars.md)
 - Defaults & precedence: [defaults.md](./defaults.md)
+- CLI preferences (history/defaults): see [`blz history`](../commands/history.md)
+
+State files managed by the CLI (`blz.json` for persisted defaults—UI preferences _and_ per-source `preferred_flavor` overrides—and `history.jsonl` for search history) live in the same directory as the resolved `config.toml` (global, local, or project scope).
 
 ### Precedence
 

@@ -11,7 +11,7 @@
 
 # Print aliases (canonical + metadata) as newline-separated list using JSON output.
 __blz_aliases() {
-  blz list --output json 2>/dev/null | python3 - <<'PY' 2>/dev/null
+  blz list --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
 import json, sys
 try:
   data = json.load(sys.stdin)
@@ -35,13 +35,13 @@ PY
 }
 
 # Print anchors for a given alias as newline-separated list by calling
-# `blz anchors <alias> --output json` and extracting the `anchor` field.
+# `blz anchors <alias> --format json` and extracting the `anchor` field.
 __blz_anchors_for_alias() {
   local alias="$1"
   if [[ -z "$alias" ]]; then
     return
   fi
-  blz anchors "$alias" --output json 2>/dev/null | python3 - <<'PY' 2>/dev/null
+  blz anchors "$alias" --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
 import json, sys
 try:
   data = json.load(sys.stdin)
