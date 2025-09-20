@@ -1,4 +1,8 @@
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
+
+mod common;
+
+use common::blz_cmd;
 use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
@@ -24,23 +28,24 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
         .await;
 
     // Add source
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
 
     // Add alias
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["alias", "add", "e2e", "@scope/package"])
         .assert()
         .success();
 
     // List JSON should include aliases
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--output", "json"])
+        .args(["list", "--format", "json"])
         .assert()
         .success()
         .get_output()
@@ -58,16 +63,17 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     assert!(aliases.iter().any(|a| a.as_str() == Some("@scope/package")));
 
     // Remove alias
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["alias", "rm", "e2e", "@scope/package"])
         .assert()
         .success();
 
     // List JSON no longer contains alias
-    let out2 = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out2 = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--output", "json"])
+        .args(["list", "--format", "json"])
         .assert()
         .success()
         .get_output()
