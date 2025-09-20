@@ -43,15 +43,16 @@ pub async fn execute(
         let fetcher = Fetcher::new()?;
         let mut out = Vec::new();
         for r in &results {
-            let mut head = serde_json::json!({});
-            if let Ok(meta) = fetcher.head_metadata(&r.entry.llms_url).await {
-                head = serde_json::json!({
+            let head = if let Ok(meta) = fetcher.head_metadata(&r.entry.llms_url).await {
+                serde_json::json!({
                     "status": meta.status,
                     "contentLength": meta.content_length,
                     "etag": meta.etag,
                     "lastModified": meta.last_modified,
-                });
-            }
+                })
+            } else {
+                serde_json::json!({})
+            };
             let obj = serde_json::json!({
                 "name": r.entry.name,
                 "slug": r.entry.slug,
@@ -117,15 +118,16 @@ async fn display_results_with_health(
 
     let fetcher = Fetcher::new()?;
     for (i, result) in results.iter().enumerate() {
-        let mut health = String::new();
-        if let Ok(meta) = fetcher.head_metadata(&result.entry.llms_url).await {
+        let health = if let Ok(meta) = fetcher.head_metadata(&result.entry.llms_url).await {
             let ok = (200..300).contains(&i32::from(meta.status));
             let size = meta
                 .content_length
                 .map_or_else(|| "unknown size".to_string(), |n| format!("{n} bytes"));
             let status = if ok { "OK" } else { "ERR" };
-            health = format!(" [{status} • {size}]");
-        }
+            format!(" [{status} • {size}]")
+        } else {
+            String::new()
+        };
 
         println!("{}. {}{}", i + 1, result.entry, health.bright_black());
         println!("   {}\n", result.entry.llms_url.bright_black());
