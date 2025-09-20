@@ -1,6 +1,6 @@
-# Zsh Shell Integration for blz
+# Zsh Shell Integration for BLZ
 
-This guide covers how to set up Zsh shell integration for `blz`, including completions and custom functions.
+This guide covers how to set up Zsh shell integration for BLZ, including completions and custom functions.
 
 ## Basic Completion Setup
 
@@ -121,7 +121,7 @@ chmod 644 ~/.zsh/completions/_blz
 
 ### Completions Out of Date
 
-Regenerate completions after updating blz:
+Regenerate completions after updating BLZ:
 
 ```bash
 blz completions zsh > ~/.zsh/completions/_blz

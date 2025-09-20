@@ -77,7 +77,7 @@ Add to `~/.config/fish/functions/`:
 ```fish
 # ~/.config/fish/functions/blz-quick.fish
 function blz-quick -d "Quick search and get first result"
-    set -l result (blz search $argv --limit 1 -o json | jq -r '.[] | "\(.alias) \(.lines)"')
+    set -l result (blz search $argv --limit 1 -f json | jq -r '.[] | "\(.alias) \(.lines)"')
     if test -n "$result"
         blz get $result
     else
@@ -87,7 +87,7 @@ end
 
 # ~/.config/fish/functions/blz-fzf.fish
 function blz-fzf -d "Search with fzf preview"
-    blz search $argv -o json | \
+    blz search $argv -f json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 end
@@ -132,7 +132,7 @@ end
 # Interactive search
 function blzi
     set -l query (commandline -b)
-    set -l result (blz search "$query" -o json | \
+    set -l result (blz search "$query" -f json | \
         jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"' | \
         fzf --preview 'echo {} | cut -d" " -f1-2 | xargs blz get' \
             --preview-window=right:60%)
@@ -151,7 +151,7 @@ bind \cb blzi
 ```fish
 # Open result in VS Code
 function blz-code
-    set -l result (blz search $argv --limit 1 -o json)
+    set -l result (blz search $argv --limit 1 -f json)
     if test -n "$result"
         set -l alias (echo $result | jq -r '.[0].alias')
         set -l lines (echo $result | jq -r '.[0].lines')

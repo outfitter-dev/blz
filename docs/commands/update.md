@@ -20,6 +20,8 @@ Options:
 Notes:
 - The global config key `defaults.prefer_llms_full = true` (or `BLZ_PREFER_LLMS_FULL=1`) makes `full` the implied default when `--flavor` is not provided.
 - Updates perform a HEAD preflight with size/ETA and fail fast on non-2xx responses.
+- When multiple flavors exist, `blz update` refreshes and reindexes each (e.g., `llms.txt` and `llms-full.txt`) in a single pass so both stay in sync.
+- Explicit `--flavor full` / `--flavor txt` writes a per-source override in `blz.json`, so future searches default to that variant. Use `--flavor auto` (or `current`) to clear the override and fall back to scope/global preferences.
 
 See also:
 - [Global options](./global.md)

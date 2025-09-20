@@ -3,5 +3,5 @@
 List all indexed sources.
 
 ```bash
-blz list [--status] [--output text|json|ndjson]
+blz list [--status] [--format text|json|jsonl]
 ```

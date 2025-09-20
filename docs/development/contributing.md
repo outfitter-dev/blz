@@ -1,6 +1,6 @@
-# Contributing to blz
+# Contributing to BLZ
 
-Thank you for your interest in contributing to blz! This guide will help you get started.
+Thank you for your interest in contributing to BLZ! This guide will help you get started.
 
 ## Code of Conduct
 

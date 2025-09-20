@@ -5,8 +5,8 @@
 
 # Complete aliases for commands that need them
 function __fish_blz_complete_aliases
-    # Get sources from blz list --output json and print canonical + metadata aliases
-    blz list --output json 2>/dev/null | python3 -c "
+    # Get sources from blz list --format json and print canonical + metadata aliases
+    blz list --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -36,7 +36,7 @@ function __fish_blz_complete_anchors_for_alias
     if test -z "$alias"
         return
     end
-    blz anchors $alias --output json 2>/dev/null | python3 -c "
+    blz anchors $alias --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
