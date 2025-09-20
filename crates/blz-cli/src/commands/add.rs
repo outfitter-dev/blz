@@ -234,7 +234,7 @@ async fn fetch_and_index(
 
     let index_path = storage.index_dir(alias)?;
     let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks, "llms")?;
 
     pb.finish_with_message(format!(
         "✓ Added {} ({} headings, {} lines)",

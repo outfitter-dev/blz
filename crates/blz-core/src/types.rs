@@ -53,6 +53,7 @@
 //!     source_url: Some("https://react.dev/hooks".to_string()),
 //!     checksum: "abc123".to_string(),
 //!     anchor: Some("react-hooks-usestate".to_string()),
+//!     flavor: Some("llms-full".to_string()),
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
@@ -403,6 +404,10 @@ pub struct SearchHit {
     /// Stable anchor for the section (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
+
+    /// Document flavor that produced this hit (e.g., `llms` or `llms-full`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flavor: Option<String>,
 }
 
 /// Mapping between stable content anchors and line ranges across updates.
@@ -558,6 +563,7 @@ mod tests {
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
+            flavor: Some("llms-full".to_string()),
         };
 
         let hit2 = SearchHit {
@@ -572,6 +578,7 @@ mod tests {
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
+            flavor: Some("llms-full".to_string()),
         };
 
         // Should be considered the same for deduplication (same alias, lines, heading_path)

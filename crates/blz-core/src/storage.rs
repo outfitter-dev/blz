@@ -14,6 +14,31 @@ pub struct Storage {
 }
 
 impl Storage {
+    fn sanitize_variant_file_name(name: &str) -> String {
+        let sanitized = name.replace(['\\', '/'], "_");
+        if sanitized.is_empty() {
+            "llms.txt".to_string()
+        } else {
+            sanitized
+        }
+    }
+
+    fn flavor_json_filename(flavor: &str) -> String {
+        if flavor.eq_ignore_ascii_case("llms") {
+            "llms.json".to_string()
+        } else {
+            format!("{flavor}.json")
+        }
+    }
+
+    fn flavor_metadata_filename(flavor: &str) -> String {
+        if flavor.eq_ignore_ascii_case("llms") {
+            "metadata.json".to_string()
+        } else {
+            format!("metadata-{flavor}.json")
+        }
+    }
+
     /// Creates a new storage instance with the default root directory
     pub fn new() -> Result<Self> {
         // Test/dev override: allow BLZ_DATA_DIR to set the root directory explicitly
@@ -46,6 +71,12 @@ impl Storage {
         // Validate alias to prevent directory traversal attacks
         Self::validate_alias(alias)?;
         Ok(self.root_dir.join(alias))
+    }
+
+    /// Resolve the on-disk path for a specific flavored content file.
+    fn variant_file_path(&self, alias: &str, file_name: &str) -> Result<PathBuf> {
+        let sanitized = Self::sanitize_variant_file_name(file_name);
+        Ok(self.tool_dir(alias)?.join(sanitized))
     }
 
     /// Ensures the directory for an alias exists and returns its path
@@ -127,12 +158,18 @@ impl Storage {
 
     /// Returns the path to the llms.txt file for an alias
     pub fn llms_txt_path(&self, alias: &str) -> Result<PathBuf> {
-        Ok(self.tool_dir(alias)?.join("llms.txt"))
+        self.variant_file_path(alias, "llms.txt")
     }
 
     /// Returns the path to the llms.json file for an alias
     pub fn llms_json_path(&self, alias: &str) -> Result<PathBuf> {
-        Ok(self.tool_dir(alias)?.join("llms.json"))
+        self.flavor_json_path(alias, "llms")
+    }
+
+    /// Compute the metadata JSON path for a given flavor.
+    pub fn flavor_json_path(&self, alias: &str, flavor: &str) -> Result<PathBuf> {
+        let file = Self::flavor_json_filename(flavor);
+        Ok(self.tool_dir(alias)?.join(file))
     }
 
     /// Returns the path to the search index directory for an alias
@@ -147,7 +184,13 @@ impl Storage {
 
     /// Returns the path to the metadata file for an alias
     pub fn metadata_path(&self, alias: &str) -> Result<PathBuf> {
-        Ok(self.tool_dir(alias)?.join("metadata.json"))
+        self.metadata_path_for_flavor(alias, "llms")
+    }
+
+    /// Compute the metadata path for a given flavor.
+    pub fn metadata_path_for_flavor(&self, alias: &str, flavor: &str) -> Result<PathBuf> {
+        let file = Self::flavor_metadata_filename(flavor);
+        Ok(self.tool_dir(alias)?.join(file))
     }
 
     /// Returns the path to the anchors mapping file for an alias
@@ -157,24 +200,29 @@ impl Storage {
 
     /// Saves the llms.txt content for an alias
     pub fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
+        self.save_flavor_content(alias, "llms.txt", content)
+    }
+
+    /// Saves content for a specific flavored variant (e.g., llms-full.txt)
+    pub fn save_flavor_content(&self, alias: &str, file_name: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(alias)?;
-        let path = self.llms_txt_path(alias)?;
+        let path = self.variant_file_path(alias, file_name)?;
 
-        // Write to temporary file first for atomic operation
-        let tmp_path = path.with_extension("txt.tmp");
+        let tmp_path = path.with_extension("tmp");
         fs::write(&tmp_path, content)
-            .map_err(|e| Error::Storage(format!("Failed to write llms.txt: {e}")))?;
+            .map_err(|e| Error::Storage(format!("Failed to write {file_name}: {e}")))?;
 
-        // Atomically rename temp file to final location (handle Windows overwrite)
         #[cfg(target_os = "windows")]
         if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| Error::Storage(format!("Failed to remove existing llms.txt: {e}")))?;
+            fs::remove_file(&path).map_err(|e| {
+                Error::Storage(format!("Failed to remove existing {file_name}: {e}"))
+            })?;
         }
-        fs::rename(&tmp_path, &path)
-            .map_err(|e| Error::Storage(format!("Failed to commit llms.txt: {e}")))?;
 
-        debug!("Saved llms.txt for {}", alias);
+        fs::rename(&tmp_path, &path)
+            .map_err(|e| Error::Storage(format!("Failed to commit {file_name}: {e}")))?;
+
+        debug!("Saved {file_name} for {}", alias);
         Ok(())
     }
 
@@ -185,44 +233,68 @@ impl Storage {
             .map_err(|e| Error::Storage(format!("Failed to read llms.txt: {e}")))
     }
 
-    /// Saves the parsed llms.json data for an alias
+    /// Saves the parsed llms.json data for the default flavor
     pub fn save_llms_json(&self, alias: &str, data: &LlmsJson) -> Result<()> {
+        self.save_flavor_json(alias, "llms", data)
+    }
+
+    /// Saves the parsed llms.json data for a specific flavor
+    pub fn save_flavor_json(&self, alias: &str, flavor: &str, data: &LlmsJson) -> Result<()> {
         self.ensure_tool_dir(alias)?;
-        let path = self.llms_json_path(alias)?;
+        let path = self.flavor_json_path(alias, flavor)?;
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| Error::Storage(format!("Failed to serialize JSON: {e}")))?;
 
-        // Write to temporary file first for atomic operation
         let tmp_path = path.with_extension("json.tmp");
         fs::write(&tmp_path, json)
-            .map_err(|e| Error::Storage(format!("Failed to write llms.json: {e}")))?;
+            .map_err(|e| Error::Storage(format!("Failed to write {flavor} metadata: {e}")))?;
 
-        // Atomically rename temp file to final location (handle Windows overwrite)
         #[cfg(target_os = "windows")]
         if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| Error::Storage(format!("Failed to remove existing llms.json: {e}")))?;
+            fs::remove_file(&path).map_err(|e| {
+                Error::Storage(format!("Failed to remove existing {flavor} metadata: {e}"))
+            })?;
         }
         fs::rename(&tmp_path, &path)
-            .map_err(|e| Error::Storage(format!("Failed to commit llms.json: {e}")))?;
+            .map_err(|e| Error::Storage(format!("Failed to commit {flavor} metadata: {e}")))?;
 
-        debug!("Saved llms.json for {}", alias);
+        debug!("Saved {flavor} metadata for {}", alias);
         Ok(())
     }
 
-    /// Loads the parsed llms.json data for an alias
+    /// Loads the parsed llms.json data for the default flavor
     pub fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
-        let path = self.llms_json_path(alias)?;
+        self.load_flavor_json(alias, "llms")
+            .and_then(|opt| opt.ok_or_else(|| Error::Storage("llms.json missing".into())))
+    }
+
+    /// Loads the parsed llms.json data for a specific flavor, returning None if absent
+    pub fn load_flavor_json(&self, alias: &str, flavor: &str) -> Result<Option<LlmsJson>> {
+        let path = self.flavor_json_path(alias, flavor)?;
+        if !path.exists() {
+            return Ok(None);
+        }
         let json = fs::read_to_string(&path)
-            .map_err(|e| Error::Storage(format!("Failed to read llms.json: {e}")))?;
-        serde_json::from_str(&json)
-            .map_err(|e| Error::Storage(format!("Failed to parse JSON: {e}")))
+            .map_err(|e| Error::Storage(format!("Failed to read {}: {e}", path.display())))?;
+        let data = serde_json::from_str(&json)
+            .map_err(|e| Error::Storage(format!("Failed to parse JSON: {e}")))?;
+        Ok(Some(data))
     }
 
     /// Saves source metadata for an alias
     pub fn save_source_metadata(&self, alias: &str, source: &Source) -> Result<()> {
+        self.save_source_metadata_for_flavor(alias, "llms", source)
+    }
+
+    /// Persist source metadata for a specific flavor.
+    pub fn save_source_metadata_for_flavor(
+        &self,
+        alias: &str,
+        flavor: &str,
+        source: &Source,
+    ) -> Result<()> {
         self.ensure_tool_dir(alias)?;
-        let path = self.metadata_path(alias)?;
+        let path = self.metadata_path_for_flavor(alias, flavor)?;
         let json = serde_json::to_string_pretty(source)
             .map_err(|e| Error::Storage(format!("Failed to serialize metadata: {e}")))?;
 
@@ -240,7 +312,7 @@ impl Storage {
         fs::rename(&tmp_path, &path)
             .map_err(|e| Error::Storage(format!("Failed to persist metadata: {e}")))?;
 
-        debug!("Saved metadata for {}", alias);
+        debug!("Saved {flavor} metadata for {}", alias);
         Ok(())
     }
 
@@ -257,7 +329,16 @@ impl Storage {
 
     /// Loads source metadata for an alias if it exists
     pub fn load_source_metadata(&self, alias: &str) -> Result<Option<Source>> {
-        let path = self.metadata_path(alias)?;
+        self.load_source_metadata_for_flavor(alias, "llms")
+    }
+
+    /// Load source metadata for a specific flavor if present.
+    pub fn load_source_metadata_for_flavor(
+        &self,
+        alias: &str,
+        flavor: &str,
+    ) -> Result<Option<Source>> {
+        let path = self.metadata_path_for_flavor(alias, flavor)?;
         if !path.exists() {
             return Ok(None);
         }
@@ -274,6 +355,58 @@ impl Storage {
         self.llms_json_path(alias)
             .map(|path| path.exists())
             .unwrap_or(false)
+    }
+
+    /// Lists all available documentation flavors persisted for a given alias.
+    ///
+    /// Flavors correspond to the JSON artifacts produced during ingest, e.g.
+    /// `llms.json` and `llms-full.json`. Metadata sidecars (like
+    /// `metadata.json`) and other auxiliary files are excluded.
+    pub fn available_flavors(&self, alias: &str) -> Result<Vec<String>> {
+        let dir = self.tool_dir(alias)?;
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut flavors = Vec::new();
+        let entries = fs::read_dir(&dir)
+            .map_err(|e| Error::Storage(format!("Failed to read tool directory: {e}")))?;
+
+        for entry in entries {
+            let entry = entry
+                .map_err(|e| Error::Storage(format!("Failed to read directory entry: {e}")))?;
+            let path = entry.path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if !path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+            {
+                continue;
+            }
+
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy();
+
+            if file_name.starts_with("metadata") || file_name == "anchors.json" {
+                continue;
+            }
+
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                let flavor = stem.trim().to_ascii_lowercase();
+                if !flavor.is_empty() {
+                    flavors.push(flavor);
+                }
+            }
+        }
+
+        flavors.sort();
+        flavors.dedup();
+        Ok(flavors)
     }
 
     /// Lists all cached source aliases
@@ -688,6 +821,39 @@ mod tests {
         let sources = storage.list_sources();
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0], "complete");
+    }
+
+    #[test]
+    fn test_available_flavors_empty_when_alias_missing() {
+        let (storage, _temp_dir) = create_test_storage();
+        let flavors = storage
+            .available_flavors("unknown")
+            .expect("should handle missing alias");
+        assert!(flavors.is_empty());
+    }
+
+    #[test]
+    fn test_available_flavors_lists_variants() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        let llms_json = create_test_llms_json("react");
+        storage
+            .save_flavor_json("react", "llms", &llms_json)
+            .expect("should save llms json");
+        storage
+            .save_flavor_json("react", "llms-full", &llms_json)
+            .expect("should save llms-full json");
+
+        // Metadata files should be ignored
+        let metadata_path = storage
+            .metadata_path_for_flavor("react", "llms-full")
+            .expect("metadata path");
+        fs::write(&metadata_path, "{}").expect("write metadata");
+
+        let flavors = storage
+            .available_flavors("react")
+            .expect("should list flavors");
+        assert_eq!(flavors, vec!["llms".to_string(), "llms-full".to_string()]);
     }
 
     #[test]

@@ -451,7 +451,7 @@ fn rebuild_index(
     }
 
     let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks, "llms")?;
 
     // Ensure no open handles before swapping on Windows
     drop(index);
