@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "blz-cli"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "blz-core"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -2443,7 +2443,7 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.17.14"
-source = "git+https://github.com/briansmith/ring?branch=main#1bb94b3b86380e398d2bc4cf61be7081ff4731a8"
+source = "git+https://github.com/briansmith/ring?rev=1bb94b3b86380e398d2bc4cf61be7081ff4731a8#1bb94b3b86380e398d2bc4cf61be7081ff4731a8"
 dependencies = [
  "cc",
  "cfg-if",

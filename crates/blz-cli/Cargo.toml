@@ -37,7 +37,7 @@ clap_complete = "4"
 dialoguer = "0.11"
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
-pprof = { workspace = true, optional = true }
+pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"], optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"
