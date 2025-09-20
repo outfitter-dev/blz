@@ -3,11 +3,11 @@
 Search registries for documentation to add.
 
 ```bash
-blz lookup <QUERY> [--output text|json|ndjson]
+blz lookup <QUERY> [--format text|json|jsonl]
 ```
 Examples
 
 ```bash
 blz lookup typescript
-blz lookup react -o json | jq '.[0]'
+blz lookup react -f json | jq '.[0]'
 ```

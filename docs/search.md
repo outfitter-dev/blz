@@ -1,6 +1,6 @@
 # Search Guide
 
-Master the art of searching your indexed documentation with blz's fast local search.
+Master the art of searching your indexed documentation with BLZ's fast local search.
 
 ## Basic Search
 
@@ -114,7 +114,7 @@ Bun Documentation > Guides > Test runner
 Machine-readable for scripting:
 
 ```bash
-blz search "test" --output json
+blz search "test" --format json
 ```
 
 Output:
@@ -258,7 +258,7 @@ blz node "file system"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(blz search "test runner" --limit 1 --output json)
+result=$(blz search "test runner" --limit 1 --format json)
 alias=$(echo "$result" | jq -r '.results[0].alias')
 lines=$(echo "$result" | jq -r '.results[0].lines')
 
@@ -273,7 +273,7 @@ blz get "$alias" --lines "$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --output json | jq -r '.results[0]')
+result=$(blz search "$query" --limit 1 --format json | jq -r '.results[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -293,7 +293,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(blz search "$query" --limit 5 --output json)
+results=$(blz search "$query" --limit 5 --format json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.results[] |

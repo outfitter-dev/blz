@@ -1,0 +1,22 @@
+name: Generate DotSlash files
+
+on:
+  workflow_run:
+    workflows: ["Auto Release"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  dotslash:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate & upload DotSlash file(s)
+        uses: facebook/dotslash-publish-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config: .github/workflows/dotslash-config.json
+          tag: ${{ github.event.workflow_run.head_branch }}

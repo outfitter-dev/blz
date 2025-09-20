@@ -1,6 +1,6 @@
 # Output formats
 
-The blz CLI supports multiple output formats to suit different use cases and integrations.
+The BLZ CLI supports multiple output formats to suit different use cases and integrations.
 
 ## Available formats
 
@@ -16,10 +16,10 @@ Machine-readable JSON output for programmatic consumption.
 
 ```bash
 # JSON (aggregated with metadata)
-blz search "async rust" --output json
+blz search "async rust" --format json
 
 # NDJSON (one hit per line)
-blz search "async rust" --output ndjson
+blz search "async rust" --format jsonl
 ```
 
 Output structure (JSON):
@@ -54,13 +54,13 @@ Output structure (JSON):
 
 Notes:
 - `suggestions` may be included when results are sparse or low-quality to aid discovery.
-- `ndjson` emits one SearchHit per line (no aggregation metadata).
+- `jsonl` emits one SearchHit per line (no aggregation metadata).
 
 ## Compact
 Minimal output showing only essential information.
 
 ```bash
-blz search "async rust" --output compact
+blz search "async rust" --format compact
 ```
 
 Format: `<alias>:<lines> <heading_path>`
