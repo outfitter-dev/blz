@@ -219,7 +219,7 @@ async fn perform_search(
                         })?
                         .with_metrics(metrics);
                     let hits = index
-                        .search(&query, Some(&source), effective_limit)
+                        .search(&query, Some(&source), None, effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -594,6 +594,7 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
+                flavor: None,
             })
             .collect();
 

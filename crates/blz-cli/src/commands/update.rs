@@ -2,8 +2,8 @@
 
 use anyhow::{Result, anyhow};
 use blz_core::{
-    FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser, ParseResult, PerformanceMetrics,
-    SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
+    FetchResult, Fetcher, Flavor, LineIndex, LlmsJson, MarkdownParser, ParseResult,
+    PerformanceMetrics, SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -330,6 +330,10 @@ fn handle_modified(
     metrics: PerformanceMetrics,
     start: Instant,
 ) -> Result<bool> {
+    // Determine flavor from the URL using centralized helper
+    let flavor = Storage::flavor_from_url(url);
+    let file_name = flavor.file_name();
+
     pb.set_message(format!("Updating {alias}..."));
 
     // Check if content actually changed (SHA256 comparison)
@@ -361,7 +365,7 @@ fn handle_modified(
 
     // Save new content
     pb.set_message(format!("Saving {alias}..."));
-    storage.save_llms_txt(alias, content)?;
+    storage.save_flavor_content(alias, file_name, content)?;
 
     // Create and save updated JSON
     let new_json = LlmsJson {
@@ -376,7 +380,7 @@ fn handle_modified(
         },
         toc: parse_result.toc.clone(),
         files: vec![blz_core::FileInfo {
-            path: "llms.txt".to_string(),
+            path: file_name.to_string(),
             sha256: sha256.clone(),
         }],
         line_index: LineIndex {
@@ -389,7 +393,7 @@ fn handle_modified(
             segmentation: "structured".to_string(),
         }),
     };
-    storage.save_llms_json(alias, &new_json)?;
+    storage.save_flavor_json(alias, flavor.as_str(), &new_json)?;
 
     // Build anchors remap from old -> new using core helper
     if !existing_json.toc.is_empty() && !new_json.toc.is_empty() {
@@ -401,7 +405,15 @@ fn handle_modified(
     }
 
     // Rebuild search index
-    rebuild_index(storage, alias, &parse_result, metrics, pb)?;
+    rebuild_index(
+        storage,
+        alias,
+        &parse_result,
+        metrics,
+        pb,
+        file_name,
+        flavor,
+    )?;
 
     // Save metadata only after a successful index rebuild
     let metadata = Source {
@@ -439,6 +451,8 @@ fn rebuild_index(
     parse_result: &ParseResult,
     metrics: PerformanceMetrics,
     pb: &ProgressBar,
+    file_name: &str,
+    flavor: Flavor,
 ) -> Result<()> {
     pb.set_message(format!("Reindexing {alias}..."));
     let index_path = storage.index_dir(alias)?;
@@ -451,7 +465,12 @@ fn rebuild_index(
     }
 
     let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+    index.index_blocks(
+        alias,
+        file_name,
+        &parse_result.heading_blocks,
+        flavor.as_str(),
+    )?;
 
     // Ensure no open handles before swapping on Windows
     drop(index);

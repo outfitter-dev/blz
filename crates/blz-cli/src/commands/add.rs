@@ -209,7 +209,12 @@ async fn fetch_and_index(
     pb.set_message("Building index");
 
     let storage = Storage::new()?;
-    storage.save_llms_txt(alias, &content)?;
+
+    // Determine flavor from the URL using centralized helper
+    let flavor = Storage::flavor_from_url(url);
+    let file_name = flavor.file_name();
+
+    storage.save_flavor_content(alias, file_name, &content)?;
 
     let llms_json = create_llms_json(
         alias,
@@ -219,7 +224,7 @@ async fn fetch_and_index(
         last_modified.clone(),
         parse_result.clone(),
     );
-    storage.save_llms_json(alias, &llms_json)?;
+    storage.save_flavor_json(alias, flavor.as_str(), &llms_json)?;
 
     // Also save metadata for efficient update checking
     let metadata = Source {
@@ -234,7 +239,12 @@ async fn fetch_and_index(
 
     let index_path = storage.index_dir(alias)?;
     let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+    index.index_blocks(
+        alias,
+        file_name,
+        &parse_result.heading_blocks,
+        flavor.as_str(),
+    )?;
 
     pb.finish_with_message(format!(
         "✓ Added {} ({} headings, {} lines)",

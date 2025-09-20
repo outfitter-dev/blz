@@ -138,7 +138,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     index.index_blocks_optimized("alias", "file.md", &blocks).await?;
 
     // Search with full optimization pipeline
-    let results = index.search_optimized("query", Some("alias"), 10).await?;
+    let results = index
+        .search_optimized("query", Some("alias"), None, 10)
+        .await?;
 
     // Get comprehensive performance statistics
     let stats = index.get_stats().await;

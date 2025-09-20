@@ -11,6 +11,8 @@ use std::hint::black_box;
 use std::time::Duration;
 use tempfile::TempDir;
 
+const BASE_FLAVOR: &str = "llms";
+
 // Create realistic test data
 fn create_test_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
     let mut blocks = Vec::new();
@@ -67,7 +69,7 @@ fn setup_index_with_blocks(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
         .with_metrics(PerformanceMetrics::default());
 
     index
-        .index_blocks("bench", "test.md", blocks)
+        .index_blocks("bench", "test.md", blocks, BASE_FLAVOR)
         .expect("Failed to index blocks");
 
     (temp_dir, index)
@@ -92,7 +94,7 @@ fn bench_search_scaling(c: &mut Criterion) {
             b.iter(|| {
                 let query = black_box("React hooks");
                 index
-                    .search(query, Some("bench"), 10)
+                    .search(query, Some("bench"), None, 10)
                     .expect("Search failed")
             });
         });
@@ -120,7 +122,7 @@ fn bench_query_complexity(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("query", name), query, |b, query| {
             b.iter(|| {
                 index
-                    .search(black_box(query), Some("bench"), 20)
+                    .search(black_box(query), Some("bench"), None, 20)
                     .expect("Search failed")
             });
         });
@@ -141,7 +143,7 @@ fn bench_result_limits(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("limit", limit), &limit, |b, &limit| {
             b.iter(|| {
                 index
-                    .search(black_box("performance"), Some("bench"), limit)
+                    .search(black_box("performance"), Some("bench"), None, limit)
                     .expect("Search failed")
             });
         });
@@ -166,7 +168,7 @@ fn bench_content_size_impact(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("content_size", size), &size, |b, _| {
             b.iter(|| {
                 index
-                    .search(black_box("authentication"), Some("bench"), 10)
+                    .search(black_box("authentication"), Some("bench"), None, 10)
                     .expect("Search failed")
             });
         });
@@ -197,7 +199,7 @@ fn bench_index_building(c: &mut Criterion) {
                 },
                 |(temp_dir, index)| {
                     index
-                        .index_blocks("bench", "test.md", black_box(blocks))
+                        .index_blocks("bench", "test.md", black_box(blocks), BASE_FLAVOR)
                         .expect("Failed to index blocks");
                     // Keep temp_dir alive
                     drop(temp_dir);
@@ -244,7 +246,7 @@ fn bench_realistic_workload(c: &mut Criterion) {
                     ];
                     for query in &queries {
                         let _results = index
-                            .search(black_box(query), Some("bench"), 10)
+                            .search(black_box(query), Some("bench"), None, 10)
                             .expect("Search failed");
                     }
                 });
@@ -267,7 +269,7 @@ fn bench_performance_targets(c: &mut Criterion) {
     group.bench_function("target_search_10ms", |b| {
         b.iter(|| {
             let result = index
-                .search(black_box("React hooks"), Some("bench"), 10)
+                .search(black_box("React hooks"), Some("bench"), None, 10)
                 .expect("Search failed");
             assert!(!result.is_empty());
         });
@@ -285,7 +287,7 @@ fn bench_performance_targets(c: &mut Criterion) {
             ];
             for query in &queries {
                 let _result = index
-                    .search(black_box(query), Some("bench"), 5)
+                    .search(black_box(query), Some("bench"), None, 5)
                     .expect("Search failed");
             }
         });

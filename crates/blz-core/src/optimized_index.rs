@@ -230,6 +230,7 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let start_time = Instant::now();
@@ -246,7 +247,7 @@ impl OptimizedSearchIndex {
         // Try cache first (versioned)
         if let Some(cached_results) = self
             .cache
-            .get_cached_results_v(query_str, alias, Some(&version_token))
+            .get_cached_results_v(query_str, alias, flavor, Some(&version_token))
             .await
         {
             self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
@@ -257,11 +258,13 @@ impl OptimizedSearchIndex {
         self.stats.cache_misses.fetch_add(1, Ordering::Relaxed);
 
         // Perform search with reader from pool
-        let results = self.search_with_reader_pool(query_str, alias, limit).await?;
+        let results = self
+            .search_with_reader_pool(query_str, alias, flavor, limit)
+            .await?;
 
         // Cache results for future use
         self.cache
-            .cache_search_results_v(query_str, alias, Some(&version_token), results.clone())
+            .cache_search_results_v(query_str, alias, flavor, Some(&version_token), results.clone())
             .await;
 
         // Update statistics
@@ -284,13 +287,14 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let reader = self.reader_pool.get_reader().await?;
 
         let result = timeout(
             Duration::from_secs(30),
-            self.execute_search_with_reader(reader.clone(), query_str, alias, limit),
+            self.execute_search_with_reader(reader.clone(), query_str, alias, flavor, limit),
         )
         .await
         .map_err(|_| Error::Timeout("Search operation timed out".into()))?;
@@ -306,13 +310,14 @@ impl OptimizedSearchIndex {
         reader: IndexReader,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let searcher = reader.searcher();
 
         // Build query using optimized string operations
         let mut query_buffer = self.memory_pool.get_string_buffer(query_str.len() * 2).await;
-        self.build_optimized_query(query_str, alias, &mut query_buffer)
+        self.build_optimized_query(query_str, alias, flavor, &mut query_buffer)
             .await;
 
         let query_parser = QueryParser::for_index(
@@ -391,6 +396,7 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         buffer: &mut PooledString<'_>,
     ) {
         // Check if escaping is needed (single pass)
@@ -419,13 +425,20 @@ impl OptimizedSearchIndex {
             buffer.as_mut().push_str(query_str);
         }
 
-        // Add alias filter if specified
-        if let Some(alias) = alias {
+        let mut filters = Vec::new();
+        if let Some(alias_value) = alias {
+            filters.push(format!("alias:{alias_value}"));
+        }
+        if let Some(flavor_value) = flavor.filter(|value| !value.is_empty()) {
+            filters.push(format!("flavor:{flavor_value}"));
+        }
+
+        if !filters.is_empty() {
             let escaped_query = buffer.as_str().to_string();
             buffer.as_mut().clear();
             buffer
                 .as_mut()
-                .push_str(&format!("alias:{} AND ({})", alias, escaped_query));
+                .push_str(&format!("{} AND ({})", filters.join(" AND "), escaped_query));
         }
     }
 
@@ -629,14 +642,14 @@ impl OptimizedSearchIndex {
     /// Concurrent search across multiple queries
     pub async fn search_multiple(
         &self,
-        queries: Vec<(String, Option<String>, usize)>, // (query, alias, limit)
+        queries: Vec<(String, Option<String>, Option<String>, usize)>, // (query, alias, flavor, limit)
     ) -> Result<Vec<Vec<SearchHit>>> {
         use futures::future::try_join_all;
 
         let tasks: Vec<_> = queries
             .into_iter()
-            .map(|(query, alias, limit)| {
-                self.search_optimized(&query, alias.as_deref(), limit)
+            .map(|(query, alias, flavor, limit)| {
+                self.search_optimized(&query, alias.as_deref(), flavor.as_deref(), limit)
             })
             .collect();
 
@@ -707,11 +720,14 @@ impl OptimizedSearchIndex {
     }
 
     /// Warm up caches with common queries
-    pub async fn warm_up(&self, common_queries: &[(&str, Option<&str>)]) -> Result<()> {
+    pub async fn warm_up(
+        &self,
+        common_queries: &[(&str, Option<&str>, Option<&str>)],
+    ) -> Result<()> {
         info!("Warming up index with {} common queries", common_queries.len());
         
-        for (query, alias) in common_queries {
-            let _ = self.search_optimized(query, *alias, 10).await;
+        for (query, alias, flavor) in common_queries {
+            let _ = self.search_optimized(query, *alias, *flavor, 10).await;
         }
         
         info!("Index warm-up completed");
@@ -913,7 +929,7 @@ mod tests {
 
         // Search
         let results = index
-            .search_optimized("useState", Some("test"), 10)
+            .search_optimized("useState", Some("test"), None, 10)
             .await
             .unwrap();
 
@@ -936,13 +952,13 @@ mod tests {
 
         // First search - should miss cache
         let _results1 = index
-            .search_optimized("React", Some("test"), 10)
+            .search_optimized("React", Some("test"), None, 10)
             .await
             .unwrap();
 
         // Second search - should hit cache
         let _results2 = index
-            .search_optimized("React", Some("test"), 10)
+            .search_optimized("React", Some("test"), None, 10)
             .await
             .unwrap();
 
@@ -984,9 +1000,24 @@ mod tests {
             .unwrap();
 
         let queries = vec![
-            ("React".to_string(), Some("test".to_string()), 10),
-            ("hooks".to_string(), Some("test".to_string()), 10),
-            ("components".to_string(), Some("test".to_string()), 10),
+            (
+                "React".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
+            (
+                "hooks".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
+            (
+                "components".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
         ];
 
         let results = index.search_multiple(queries).await.unwrap();
@@ -1013,7 +1044,7 @@ mod tests {
         // Perform multiple searches to test reader reuse
         for _ in 0..5 {
             let _ = index
-                .search_optimized("React", Some("test"), 10)
+                .search_optimized("React", Some("test"), None, 10)
                 .await
                 .unwrap();
         }
@@ -1063,9 +1094,9 @@ mod tests {
             .unwrap();
 
         let common_queries = [
-            ("React", Some("test")),
-            ("hooks", Some("test")),
-            ("components", Some("test")),
+            ("React", Some("test"), None),
+            ("hooks", Some("test"), None),
+            ("components", Some("test"), None),
         ];
 
         let result = index.warm_up(&common_queries).await;

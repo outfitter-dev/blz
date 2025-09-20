@@ -29,6 +29,8 @@ use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
+const BASE_FLAVOR: &str = "llms";
+
 /// Create realistic test data for benchmarking
 fn create_realistic_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
     let mut blocks = Vec::with_capacity(count);
@@ -93,7 +95,7 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
         .with_metrics(PerformanceMetrics::default());
 
     index
-        .index_blocks("bench", "test.md", blocks)
+        .index_blocks("bench", "test.md", blocks, BASE_FLAVOR)
         .expect("Failed to index blocks");
 
     (temp_dir, index)
@@ -141,7 +143,7 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
             b.iter(|| {
                 let query = black_box("React hooks");
                 original_index
-                    .search(query, Some("bench"), 10)
+                    .search(query, Some("bench"), None, 10)
                     .expect("Search failed")
             });
         });
@@ -153,7 +155,7 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
         //         rt.block_on(async {
         //             let query = black_box("React hooks");
         //             optimized_index
-        //                 .search_optimized(query, Some("bench"), 10)
+        //                 .search_optimized(query, Some("bench"), None, 10)
         //                 .await
         //                 .expect("Search failed")
         //         })
@@ -351,6 +353,7 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 source_url: Some(format!("https://example.com/{}", i)),
                 checksum: format!("checksum_{}", i),
                 anchor: Some("bench-anchor".to_string()),
+                flavor: Some(BASE_FLAVOR.to_string()),
             })
             .collect()
     };
@@ -433,7 +436,7 @@ fn bench_indexing_performance(c: &mut Criterion) {
                 },
                 |(temp_dir, index)| {
                     index
-                        .index_blocks("bench", "test.md", black_box(&blocks))
+                        .index_blocks("bench", "test.md", black_box(&blocks), BASE_FLAVOR)
                         .expect("Failed to index blocks");
                     drop(temp_dir);
                 },
