@@ -8,20 +8,22 @@ use crate::output::OutputFormat;
 use crate::utils::formatting::get_alias_color;
 
 /// Execute the list command to show all cached sources
-pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
+pub async fn execute(format: OutputFormat, status: bool, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
     if sources.is_empty() {
-        match output {
+        match format {
             OutputFormat::Json => {
                 println!("[]");
             },
-            OutputFormat::Ndjson => {
+            OutputFormat::Jsonl => {
                 // No output when empty
             },
             OutputFormat::Text => {
-                println!("No sources found. Use 'blz add' to add sources.");
+                if !quiet {
+                    println!("No sources found. Use 'blz add' to add sources.");
+                }
             },
         }
         return Ok(());
@@ -58,26 +60,28 @@ pub async fn execute(output: OutputFormat, status: bool) -> Result<()> {
         }
     }
 
-    match output {
+    match format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&source_info)?;
             println!("{json}");
         },
-        OutputFormat::Ndjson => {
+        OutputFormat::Jsonl => {
             for info in source_info {
                 println!("{}", serde_json::to_string(&info)?);
             }
         },
         OutputFormat::Text => {
-            display_sources_text(&sources, &storage, status);
+            display_sources_text(&sources, &storage, status, quiet);
         },
     }
 
     Ok(())
 }
 
-fn display_sources_text(sources: &[String], storage: &Storage, status: bool) {
-    println!("\nCached sources:\n");
+fn display_sources_text(sources: &[String], storage: &Storage, status: bool, quiet: bool) {
+    if !quiet {
+        println!("\nCached sources:\n");
+    }
 
     for (i, source) in sources.iter().enumerate() {
         if let Ok(llms_json) = storage.load_llms_json(source) {
@@ -102,7 +106,9 @@ fn display_sources_text(sources: &[String], storage: &Storage, status: bool) {
                 }
                 println!("    Checksum: {}", llms_json.source.sha256);
             }
-            println!();
+            if !quiet {
+                println!();
+            }
         }
     }
 }

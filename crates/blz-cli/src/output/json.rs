@@ -72,7 +72,7 @@ impl JsonFormatter {
     }
 
     /// Format search results as newline-delimited JSON
-    pub fn format_search_results_ndjson(hits: &[SearchHit]) -> Result<()> {
+    pub fn format_search_results_jsonl(hits: &[SearchHit]) -> Result<()> {
         for hit in hits {
             println!("{}", serde_json::to_string(hit)?);
         }
