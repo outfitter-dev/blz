@@ -1,8 +1,13 @@
 #![allow(missing_docs)]
 
+mod common;
+
+use common::blz_cmd;
+
 #[test]
 fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .arg("instruct")
         .assert()
         .success()
@@ -15,12 +20,12 @@ fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {
         "should include curated instructions"
     );
     assert!(
-        s.contains("=== CLI Docs ==="),
-        "should append CLI docs section"
+        s.contains("Need full command reference?"),
+        "should point to docs command for full reference"
     );
     assert!(
-        s.contains("Subcommands"),
-        "should include subcommands in docs"
+        !s.contains("=== CLI Docs ==="),
+        "should not append verbose CLI docs by default"
     );
     Ok(())
 }
