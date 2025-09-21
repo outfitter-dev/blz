@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::Path;
 
 use anyhow::{Result, anyhow};
 use blz_core::{
@@ -34,6 +35,14 @@ pub fn file_name_from_url(url: &str) -> Option<String> {
         .filter(|name| !name.is_empty())
 }
 
+fn fallback_flavor_id(name: &str) -> Option<String> {
+    let stem = Path::new(name).file_stem().and_then(|s| s.to_str())?.trim();
+    if stem.is_empty() {
+        return None;
+    }
+    Some(stem.to_ascii_lowercase())
+}
+
 fn push_candidate(
     candidates: &mut Vec<FlavorCandidate>,
     seen: &mut HashSet<String>,
@@ -41,7 +50,23 @@ fn push_candidate(
     url: String,
 ) {
     let flavor = Storage::flavor_from_url(&url);
-    let flavor_id = flavor.as_str().to_string();
+    let mut flavor_id = flavor.as_str().to_string();
+
+    // Preserve custom suffixes (e.g., llms-preview) when flavor detection falls back to base flavor.
+    if flavor == Flavor::Llms && !name.eq_ignore_ascii_case("llms.txt") {
+        if let Some(candidate) = fallback_flavor_id(&name) {
+            if candidate != BASE_FLAVOR {
+                flavor_id = candidate;
+            }
+        }
+    } else if flavor == Flavor::LlmsFull && !name.eq_ignore_ascii_case("llms-full.txt") {
+        if let Some(candidate) = fallback_flavor_id(&name) {
+            if candidate != FULL_FLAVOR {
+                flavor_id = candidate;
+            }
+        }
+    }
+
     if seen.insert(flavor_id.clone()) {
         candidates.push(FlavorCandidate {
             flavor_id,
