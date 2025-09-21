@@ -23,20 +23,6 @@ pub struct FlavorCandidate {
     pub url: String,
 }
 
-pub fn flavor_id_from_file_name(file_name: &str) -> String {
-    Flavor::from_file_name(file_name).map_or_else(
-        || {
-            let path = std::path::Path::new(file_name);
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .filter(|stem| !stem.is_empty())
-                .unwrap_or(BASE_FLAVOR)
-                .to_ascii_lowercase()
-        },
-        |flavor| flavor.as_str().to_string(),
-    )
-}
-
 pub fn file_name_from_url(url: &str) -> Option<String> {
     Url::parse(url)
         .ok()
@@ -54,7 +40,8 @@ fn push_candidate(
     name: String,
     url: String,
 ) {
-    let flavor_id = flavor_id_from_file_name(&name);
+    let flavor = Storage::flavor_from_url(&url);
+    let flavor_id = flavor.as_str().to_string();
     if seen.insert(flavor_id.clone()) {
         candidates.push(FlavorCandidate {
             flavor_id,
@@ -74,8 +61,8 @@ pub async fn discover_flavor_candidates(
     match fetcher.check_flavors(url).await {
         Ok(list) if !list.is_empty() => {
             for info in list {
-                let flavor_id = flavor_id_from_file_name(&info.name);
-                if flavor_id == BASE_FLAVOR || flavor_id == FULL_FLAVOR {
+                let flavor = Storage::flavor_from_url(&info.url);
+                if matches!(flavor, Flavor::Llms | Flavor::LlmsFull) {
                     push_candidate(
                         &mut candidates,
                         &mut seen,
