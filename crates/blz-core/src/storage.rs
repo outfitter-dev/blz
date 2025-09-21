@@ -272,8 +272,9 @@ impl Storage {
 
     /// Loads the parsed llms.json data for the default flavor
     pub fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
-        self.load_flavor_json(alias, "llms")
-            .and_then(|opt| opt.ok_or_else(|| Error::Storage("llms.json missing".into())))
+        self.load_flavor_json(alias, "llms").and_then(|opt| {
+            opt.ok_or_else(|| Error::Storage(format!("llms.json missing for alias '{alias}'")))
+        })
     }
 
     /// Loads the parsed llms.json data for a specific flavor, returning None if absent

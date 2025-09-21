@@ -276,16 +276,17 @@ impl SearchIndex {
         if let Some(alias) = alias {
             filter_clauses.push(format!("alias:{alias}"));
         }
-        if let Some(flavor_value) = flavor {
-            if self.flavor_field.is_some() {
-                filter_clauses.push(format!("flavor:{flavor_value}"));
-            } else if !flavor_value.is_empty() {
-                // Log warning if flavor filtering requested but index doesn't support it
+        match (self.flavor_field, flavor.filter(|value| !value.is_empty())) {
+            (Some(_), Some(value)) => {
+                filter_clauses.push(format!("flavor:{value}"));
+            },
+            (None, Some(value)) => {
                 tracing::warn!(
-                    "Flavor filtering requested but index doesn't have flavor field. Ignoring flavor filter: {}",
-                    flavor_value
+                    "Flavor filtering requested ({}) but index schema has no flavor field; ignoring",
+                    value
                 );
-            }
+            },
+            _ => {},
         }
 
         let sanitized_query = if needs_escaping {
