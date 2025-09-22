@@ -219,7 +219,7 @@ async fn update_source(
             alias,
             &pb,
             existing_metadata,
-            existing_json.source,
+            &existing_json.source,
             new_etag,
             new_last_modified,
         ),
@@ -295,7 +295,7 @@ fn handle_not_modified(
     alias: &str,
     pb: &ProgressBar,
     existing_metadata: Option<Source>,
-    existing_source: Source,
+    existing_source: &Source,
     new_etag: Option<String>,
     new_last_modified: Option<String>,
 ) -> Result<bool> {
@@ -303,7 +303,10 @@ fn handle_not_modified(
     info!("{} is up to date", alias);
 
     // Update metadata timestamp and any new validator values
-    let current = existing_metadata.unwrap_or(existing_source);
+    let current = existing_metadata.unwrap_or_else(|| existing_source.clone());
+
+    // Derive flavor from the existing URL since we're not modifying it
+    let flavor = Storage::flavor_from_url(&existing_source.url);
 
     let updated_metadata = Source {
         fetched_at: Utc::now(),
@@ -312,7 +315,7 @@ fn handle_not_modified(
         ..current
     };
 
-    storage.save_source_metadata(alias, &updated_metadata)?;
+    storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &updated_metadata)?;
     Ok(false)
 }
 
@@ -349,7 +352,7 @@ fn handle_modified(
             sha256,
             aliases: existing_json.source.aliases.clone(),
         };
-        storage.save_source_metadata(alias, &new_metadata)?;
+        storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &new_metadata)?;
 
         return Ok(false);
     }
@@ -424,7 +427,7 @@ fn handle_modified(
         sha256,
         aliases: new_json.source.aliases.clone(),
     };
-    storage.save_source_metadata(alias, &metadata)?;
+    storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &metadata)?;
 
     let elapsed = start.elapsed();
     pb.finish_with_message(format!(

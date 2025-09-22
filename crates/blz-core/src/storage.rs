@@ -464,8 +464,13 @@ impl Storage {
                 let name = entry.file_name();
                 let name_str = name.to_string_lossy().to_lowercase();
                 // Archive only llms*.json / llms*.txt (skip metadata/anchors)
-                let is_llms_artifact = (name_str.ends_with(".json") || name_str.ends_with(".txt"))
-                    && name_str.starts_with("llms");
+                let is_json = std::path::Path::new(&name_str)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("json"));
+                let is_txt = std::path::Path::new(&name_str)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("txt"));
+                let is_llms_artifact = (is_json || is_txt) && name_str.starts_with("llms");
                 if is_llms_artifact {
                     let archive_path =
                         archive_dir.join(format!("{timestamp}-{}", name.to_string_lossy()));
