@@ -449,18 +449,31 @@ impl Storage {
         // Include seconds for uniqueness and clearer chronology
         let timestamp = Utc::now().format("%Y-%m-%dT%H-%M-%SZ");
 
-        let llms_txt = self.llms_txt_path(alias)?;
-        if llms_txt.exists() {
-            let archive_path = archive_dir.join(format!("{timestamp}-llms.txt"));
-            fs::copy(&llms_txt, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.txt: {e}")))?;
-        }
-
-        let llms_json = self.llms_json_path(alias)?;
-        if llms_json.exists() {
-            let archive_path = archive_dir.join(format!("{timestamp}-llms.json"));
-            fs::copy(&llms_json, &archive_path)
-                .map_err(|e| Error::Storage(format!("Failed to archive llms.json: {e}")))?;
+        // Archive all llms*.json and llms*.txt files (multi-flavor support)
+        let dir = self.tool_dir(alias)?;
+        if dir.exists() {
+            for entry in fs::read_dir(&dir)
+                .map_err(|e| Error::Storage(format!("Failed to read dir for archive: {e}")))?
+            {
+                let entry =
+                    entry.map_err(|e| Error::Storage(format!("Failed to read entry: {e}")))?;
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy().to_lowercase();
+                // Archive only llms*.json / llms*.txt (skip metadata/anchors)
+                let is_llms_artifact = (name_str.ends_with(".json") || name_str.ends_with(".txt"))
+                    && name_str.starts_with("llms");
+                if is_llms_artifact {
+                    let archive_path =
+                        archive_dir.join(format!("{timestamp}-{}", name.to_string_lossy()));
+                    fs::copy(&path, &archive_path).map_err(|e| {
+                        Error::Storage(format!("Failed to archive {}: {e}", path.display()))
+                    })?;
+                }
+            }
         }
 
         info!("Archived {} at {}", alias, timestamp);

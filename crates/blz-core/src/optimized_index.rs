@@ -56,6 +56,7 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
+    flavor: Field,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -131,6 +132,7 @@ impl OptimizedSearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
+        let flavor_field = schema_builder.add_text_field("flavor", STRING | STORED);
         let schema = schema_builder.build();
 
         let fields = IndexFields {
@@ -139,6 +141,7 @@ impl OptimizedSearchIndex {
             heading_path: heading_path_field,
             lines: lines_field,
             alias: alias_field,
+            flavor: flavor_field,
         };
 
         // Create directory and index
@@ -173,6 +176,9 @@ impl OptimizedSearchIndex {
             alias: schema
                 .get_field("alias")
                 .map_err(|_| Error::Index("Missing alias field".into()))?,
+            flavor: schema
+                .get_field("flavor")
+                .map_err(|_| Error::Index("Missing flavor field".into()))?,
         };
 
         Self::new_with_index(index, fields).await
@@ -540,7 +546,7 @@ impl OptimizedSearchIndex {
         let writer = self.writer_pool.get_writer().await?;
         let result = timeout(
             Duration::from_secs(120), // 2 minute timeout for indexing
-            self.index_blocks_with_writer(writer.clone(), alias, file_path, blocks),
+            self.index_blocks_with_writer(writer.clone(), alias, "llms", file_path, blocks),
         )
         .await
         .map_err(|_| Error::Timeout("Indexing operation timed out".into()))?;
@@ -584,17 +590,92 @@ impl OptimizedSearchIndex {
         result
     }
 
+    /// Index blocks for a specific flavor (preferred for multi-flavor installs)
+    #[instrument(skip(self, blocks), fields(alias, flavor, block_count = blocks.len()))]
+    pub async fn index_blocks_optimized_flavored(
+        &self,
+        alias: &str,
+        flavor: &str,
+        file_path: &str,
+        blocks: &[HeadingBlock],
+    ) -> Result<()> {
+        let start_time = Instant::now();
+        self.stats.index_operations.fetch_add(1, Ordering::Relaxed);
+
+        if blocks.is_empty() {
+            return Ok(());
+        }
+
+        // Use writer from pool
+        let writer = self.writer_pool.get_writer().await?;
+        let result = timeout(
+            Duration::from_secs(120), // 2 minute timeout for indexing
+            self.index_blocks_with_writer(writer.clone(), alias, flavor, file_path, blocks),
+        )
+        .await
+        .map_err(|_| Error::Timeout("Indexing operation timed out".into()))?;
+        self.writer_pool.return_writer(writer).await;
+
+        // Update statistics
+        let index_time = start_time.elapsed();
+        self.stats
+            .total_index_time_ms
+            .fetch_add(index_time.as_millis() as usize, Ordering::Relaxed);
+        self.stats
+            .documents_indexed
+            .fetch_add(blocks.len(), Ordering::Relaxed);
+
+        // Invalidate cache entries for this alias (best-effort) and bump versions
+        let removed = self.cache.invalidate_alias(alias).await;
+        {
+            let mut map = self.alias_versions.write().await;
+            let e = map.entry(alias.to_string()).or_insert(1);
+            *e = e.saturating_add(1);
+        }
+        self.global_version.fetch_add(1, Ordering::Relaxed);
+        debug!(
+            "Invalidated {} cached entries for alias {}; versions -> alias={}, global={}",
+            removed,
+            alias,
+            {
+                let map = self.alias_versions.read().await;
+                *map.get(alias).unwrap_or(&1)
+            },
+            self.global_version.load(Ordering::Relaxed)
+        );
+
+        info!(
+            "Indexed {} blocks for {} (flavor: {}) in {:.2}ms",
+            blocks.len(),
+            alias,
+            flavor,
+            index_time.as_millis()
+        );
+
+        result
+    }
+
     /// Index blocks using specific writer
     async fn index_blocks_with_writer(
         &self,
         mut writer: IndexWriter,
         alias: &str,
+        flavor: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
     ) -> Result<()> {
-        // Delete existing documents for this alias
+        // Delete only documents matching both alias AND flavor
+        use tantivy::query::{BooleanQuery, Occur, Query, TermQuery};
+        use tantivy::schema::IndexRecordOption;
         let alias_term = tantivy::Term::from_field_text(self.fields.alias, alias);
-        writer.delete_term(alias_term);
+        let flavor_term = tantivy::Term::from_field_text(self.fields.flavor, flavor);
+        let query: BooleanQuery = BooleanQuery::new(vec![
+            (Occur::Must, Box::new(TermQuery::new(alias_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+            (Occur::Must, Box::new(TermQuery::new(flavor_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+        ]);
+        writer
+            .delete_documents(query)
+            .map_err(|e| Error::Index(format!("Failed to delete existing docs: {}", e)))?;
 
         // Prepare interned strings for reuse
         let alias_interned = self.string_pool.intern(alias).await;
@@ -618,7 +699,8 @@ impl OptimizedSearchIndex {
                 self.fields.path => file_path_interned.as_ref(),
                 self.fields.heading_path => heading_path_str,
                 self.fields.lines => lines_str,
-                self.fields.alias => alias_interned.as_ref()
+                self.fields.alias => alias_interned.as_ref(),
+                self.fields.flavor => flavor
             );
 
             writer
