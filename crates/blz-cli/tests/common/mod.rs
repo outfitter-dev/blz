@@ -31,6 +31,7 @@ pub fn blz_cmd() -> Command {
     if std::env::var_os("BLZ_CONFIG").is_none() && std::env::var_os("BLZ_CONFIG_DIR").is_none() {
         cmd.env("BLZ_CONFIG_DIR", dir);
     }
+    cmd.env("BLZ_SUPPRESS_DEPRECATIONS", "1");
     cmd.env("NO_COLOR", "1");
     cmd
 }
