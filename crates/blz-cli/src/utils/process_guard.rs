@@ -1,7 +1,9 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(not(target_family = "wasm"))]
 use sysinfo::{IS_SUPPORTED_SYSTEM, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+#[cfg(not(target_family = "wasm"))]
 use tracing::{info, warn};
 
 const DEFAULT_POLL_INTERVAL_MS: u64 = 500;
@@ -62,6 +64,7 @@ pub fn spawn_parent_exit_guard() {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn monitor_parent(current_pid_raw: u32, poll_interval_ms: u64, guard_timeout: Option<Duration>) {
     const EXIT_PARENT_LOST: i32 = 129;
     const EXIT_GUARD_TIMEOUT: i32 = 124;

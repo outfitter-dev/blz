@@ -71,6 +71,13 @@ async fn fetch_and_index_variants(
     }
 
     let storage = Storage::new()?;
+    if storage.exists(alias) {
+        anyhow::bail!(
+            "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
+            alias,
+            alias
+        );
+    }
     let index_path = storage.index_dir(alias)?;
     let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
 
@@ -91,8 +98,8 @@ async fn fetch_and_index_variants(
                 }
             },
             Err(err) => {
-                println!(
-                    "Warning: Preflight HEAD request failed for {}: {err}",
+                anyhow::bail!(
+                    "Preflight HEAD request failed for {}: {err}. Aborting this candidate.",
                     candidate.url
                 );
             },
@@ -165,6 +172,13 @@ async fn fetch_and_index_variants(
     }
 
     spinner.finish_and_clear();
+
+    if summaries.is_empty() {
+        anyhow::bail!(
+            "No reachable llms.txt variants for {}. Nothing was added.",
+            url
+        );
+    }
 
     let summary_text = summaries
         .iter()

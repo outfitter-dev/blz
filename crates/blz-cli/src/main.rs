@@ -92,7 +92,10 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
             Some(
                 Commands::Search { format, .. }
                 | Commands::List { format, .. }
-                | Commands::History { format, .. },
+                | Commands::History { format, .. }
+                | Commands::Lookup { format, .. }
+                | Commands::Get { format, .. }
+                | Commands::Completions { format, .. },
             ) => Some(format.resolve(cli.quiet)),
             _ => None,
         };

@@ -241,15 +241,16 @@ fn scope_display(scope: ConfigScopeArg) -> String {
 }
 
 fn project_scope_display() -> String {
-    if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
-        let trimmed = dir.trim();
+    if let Ok(file) = std::env::var("BLZ_CONFIG") {
+        let trimmed = file.trim();
         if !trimmed.is_empty() {
             return format!("project ({trimmed})");
         }
     }
-    if let Ok(file) = std::env::var("BLZ_CONFIG") {
-        if !file.trim().is_empty() {
-            return format!("project ({file})");
+    if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            return format!("project ({trimmed})");
         }
     }
     "project".to_string()

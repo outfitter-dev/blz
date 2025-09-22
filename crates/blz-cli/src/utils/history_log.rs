@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -79,16 +79,20 @@ fn write_all(records: &[HistoryRecord]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(&path)?;
+
+    // Use buffered writing for better performance
+    let mut buf = BufWriter::new(file);
     for record in records {
-        let line = serde_json::to_string(record).unwrap_or_else(|_| "{}".to_string());
-        file.write_all(line.as_bytes())?;
-        file.write_all(b"\n")?;
+        let line = serde_json::to_string(record)?;
+        buf.write_all(line.as_bytes())?;
+        buf.write_all(b"\n")?;
     }
+    buf.flush()?;
     Ok(())
 }
 

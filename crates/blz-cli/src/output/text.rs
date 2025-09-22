@@ -226,8 +226,8 @@ fn resolve_group_url(
 }
 
 fn format_score_value(score: f32, precision: u8) -> String {
-    let clamped = usize::from(precision.min(4));
-    format!("{score:.clamped$}")
+    let prec = usize::from(precision.min(4));
+    format!("{score:.prec$}", prec = prec)
 }
 
 fn extract_context_lines(
