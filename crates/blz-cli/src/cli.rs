@@ -55,30 +55,12 @@
 //! - Validation of inputs before execution
 //! - Helpful suggestions for common mistakes
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 use crate::commands::ConfigCommand;
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
-
-#[derive(Args, Clone, Debug, PartialEq, Eq)]
-pub struct FormatArg {
-    #[arg(
-        short = 'f',
-        long = "format",
-        alias = "output",
-        value_enum,
-        default_value = "text",
-        env = "BLZ_OUTPUT_FORMAT"
-    )]
-    pub format: OutputFormat,
-}
-
-impl From<FormatArg> for OutputFormat {
-    fn from(arg: FormatArg) -> Self {
-        arg.format
-    }
-}
 
 /// Main CLI structure for the `blz` command
 ///

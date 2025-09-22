@@ -88,16 +88,18 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
     let mut machine_output = false;
     if !(cli.verbose || cli.debug) {
-        // Suppress logs when emitting machine-readable output across common commands
-        if let Some(
-            Commands::Search { format, .. }
-            | Commands::List { format, .. }
-            | Commands::History { format, .. },
-            // | Commands::Anchors { format, .. }, // Disabled for v0.2
-        ) = &cli.command
-        {
+        let command_format = match &cli.command {
+            Some(
+                Commands::Search { format, .. }
+                | Commands::List { format, .. }
+                | Commands::History { format, .. },
+            ) => Some(format.resolve(cli.quiet)),
+            _ => None,
+        };
+
+        if let Some(fmt) = command_format {
             if matches!(
-                format.format,
+                fmt,
                 crate::output::OutputFormat::Json | crate::output::OutputFormat::Jsonl
             ) {
                 level = Level::ERROR;
@@ -162,12 +164,13 @@ async fn execute_command(
             list,
             format,
         }) => {
+            let resolved_format = format.resolve(cli.quiet);
             if list {
-                commands::list_supported(format.format);
+                commands::list_supported(resolved_format);
             } else if let Some(shell) = shell {
                 commands::generate(shell);
             } else {
-                commands::list_supported(format.format);
+                commands::list_supported(resolved_format);
             }
         },
         Some(Commands::Docs { format }) => handle_docs(format)?,
@@ -177,7 +180,8 @@ async fn execute_command(
             commands::add_source(&alias, &url, yes, metrics).await?;
         },
         Some(Commands::Lookup { query, format }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet, format.format).await?;
+            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))
+                .await?;
         },
         Some(Commands::Search {
             query,
@@ -194,6 +198,7 @@ async fn execute_command(
             score_precision,
             snippet_lines,
         }) => {
+            let resolved_format = format.resolve(cli.quiet);
             handle_search(
                 query,
                 alias,
@@ -202,7 +207,7 @@ async fn execute_command(
                 all,
                 page,
                 top,
-                format.format,
+                resolved_format,
                 flavor,
                 show,
                 no_summary,
@@ -214,7 +219,7 @@ async fn execute_command(
             .await?;
         },
         Some(Commands::History { limit, format }) => {
-            commands::show_history(prefs, limit, format.format)?;
+            commands::show_history(prefs, limit, format.resolve(cli.quiet))?;
         },
         Some(Commands::Config { command }) => {
             commands::run_config(command)?;
@@ -224,9 +229,9 @@ async fn execute_command(
             lines,
             context,
             format,
-        }) => commands::get_lines(&alias, &lines, context, format.format).await?,
+        }) => commands::get_lines(&alias, &lines, context, format.resolve(cli.quiet)).await?,
         Some(Commands::List { format, status }) => {
-            commands::list_sources(format.format, status, cli.quiet).await?;
+            commands::list_sources(format.resolve(cli.quiet), status, cli.quiet).await?;
         },
         Some(Commands::Update {
             alias,
@@ -652,7 +657,7 @@ mod tests {
             assert_eq!(page, 1, "Default page should be 1");
             assert!(!all, "Default all should be false");
             assert_eq!(
-                format.format,
+                format.resolve(false),
                 crate::output::OutputFormat::Text,
                 "Default format should be text"
             );
@@ -739,7 +744,8 @@ mod tests {
 
             if let Some(Commands::List { format, .. }) = cli.command {
                 assert_eq!(
-                    format.format, *expected_format,
+                    format.resolve(false),
+                    *expected_format,
                     "Format should match: {format_str}"
                 );
             } else {
@@ -753,7 +759,8 @@ mod tests {
 
             if let Some(Commands::List { format, .. }) = cli.command {
                 assert_eq!(
-                    format.format, *expected_format,
+                    format.resolve(false),
+                    *expected_format,
                     "Alias --output should map to {format_str}"
                 );
             } else {
@@ -846,7 +853,7 @@ mod tests {
             assert_eq!(limit, 20);
             assert_eq!(page, 2);
             assert!(top.is_some());
-            assert_eq!(format.format, crate::output::OutputFormat::Json);
+            assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);
         } else {
             panic!("Expected search command");
         }

@@ -20,10 +20,25 @@ pub enum PreferenceScope {
     Project,
 }
 
+fn parse_env_bool(raw: &str) -> Option<bool> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
 pub fn effective_prefer_llms_full() -> bool {
     if let Some(local) = local_prefer_llms_full() {
         return local;
     }
+
+    if let Ok(raw) = std::env::var("BLZ_PREFER_LLMS_FULL") {
+        if let Some(value) = parse_env_bool(&raw) {
+            return value;
+        }
+    }
+
     match Config::load() {
         Ok(cfg) => cfg.defaults.prefer_llms_full,
         Err(err) => {
@@ -62,17 +77,20 @@ fn global_config_path() -> PathBuf {
 }
 
 fn project_config_path() -> PathBuf {
+    if let Ok(file) = std::env::var("BLZ_CONFIG") {
+        let trimmed = file.trim();
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed);
+            if !path.as_os_str().is_empty() {
+                return path;
+            }
+        }
+    }
+
     if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
         let trimmed = dir.trim();
         if !trimmed.is_empty() {
             return Path::new(trimmed).join("config.toml");
-        }
-    }
-
-    if let Ok(file) = std::env::var("BLZ_CONFIG") {
-        let path = PathBuf::from(file);
-        if !path.as_os_str().is_empty() {
-            return path;
         }
     }
 
@@ -283,6 +301,64 @@ mod tests {
         let store_path = crate::utils::store::active_config_dir().join("blz.json");
         fs::write(&store_path, b"not json")?;
         assert!(!effective_prefer_llms_full());
+
+        Ok(())
+    }
+
+    #[test]
+    fn prefer_llms_full_env_overrides_and_invalid_values() -> Result<()> {
+        let _guard = crate::utils::test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let temp_dir = tempdir()?;
+        let config_path = temp_dir.path().join("config.toml");
+
+        let home_guard = EnvVarGuard::new("HOME");
+        home_guard.set(temp_dir.path());
+        let xdg_guard = EnvVarGuard::new("XDG_CONFIG_HOME");
+        xdg_guard.set(temp_dir.path());
+        let blz_config_guard = EnvVarGuard::new("BLZ_CONFIG");
+        blz_config_guard.set(config_path.as_os_str());
+        let blz_config_dir_guard = EnvVarGuard::new("BLZ_CONFIG_DIR");
+        blz_config_dir_guard.remove();
+        let prefer_env_guard = EnvVarGuard::new("BLZ_PREFER_LLMS_FULL");
+        prefer_env_guard.remove();
+
+        let mut cfg = Config::default();
+        cfg.defaults.prefer_llms_full = false;
+        write_config(&config_path, &cfg)?;
+
+        // Truthy environment values take precedence
+        prefer_env_guard.set("true");
+        assert!(effective_prefer_llms_full());
+
+        prefer_env_guard.set("off");
+        assert!(!effective_prefer_llms_full());
+
+        // Invalid env value falls back to config default (false)
+        prefer_env_guard.set("sometimes");
+        assert!(!effective_prefer_llms_full());
+
+        Ok(())
+    }
+
+    #[test]
+    fn project_config_path_prefers_explicit_file() -> Result<()> {
+        let _guard = crate::utils::test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let config_dir = tempdir()?;
+        let config_file_dir = tempdir()?;
+        let config_file = config_file_dir.path().join("custom-config.toml");
+
+        let blz_config_guard = EnvVarGuard::new("BLZ_CONFIG");
+        blz_config_guard.set(config_file.as_os_str());
+        let blz_config_dir_guard = EnvVarGuard::new("BLZ_CONFIG_DIR");
+        blz_config_dir_guard.set(config_dir.path());
+
+        assert_eq!(project_config_path(), config_file);
 
         Ok(())
     }

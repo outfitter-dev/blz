@@ -54,7 +54,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
     let llms: LlmsJson = storage.load_llms_json(&canonical)?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias for each entry in JSON/NDJSON
+    // Replace placeholder with actual alias for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
             if obj.get("source").is_some() {

@@ -22,7 +22,7 @@
 //!
 //! - Text formatting optimizes for readability over processing speed
 //! - JSON formatting prioritizes machine consumption and parsing speed
-//! - NDJSON enables streaming processing for large result sets
+//! - JSONL enables streaming processing for large result sets (alias: `ndjson`)
 //!
 //! ## Examples
 //!
@@ -98,8 +98,8 @@ pub struct FormatParams<'a> {
 ///   Suitable for programmatic consumption and further processing.
 ///   Output is pretty-printed for readability.
 ///
-/// - **Ndjson**: Newline-delimited JSON where each line is a separate
-///   JSON object. Enables streaming processing and is memory-efficient
+/// - **Jsonl**: Newline-delimited JSON (alias: `ndjson`) where each line is a
+///   separate JSON object. Enables streaming processing and is memory-efficient
 ///   for large result sets.
 ///
 /// # Usage in CLI
@@ -136,7 +136,7 @@ pub enum OutputFormat {
 /// - **Text**: Includes color coding, Unicode box drawing, line numbers,
 ///   performance statistics, and pagination information
 /// - **JSON**: Structured data suitable for programmatic processing
-/// - **NDJSON**: Streaming format for processing large result sets
+/// - **JSONL**: Streaming format for processing large result sets (alias: `ndjson`)
 ///
 /// # Performance Information
 ///
@@ -213,7 +213,7 @@ impl SearchResultFormatter {
     ///
     /// - Text formatting: Optimized for readability, includes syntax highlighting
     /// - JSON formatting: Single allocation for the entire result set
-    /// - NDJSON formatting: Streaming output, memory-efficient for large results
+    /// - JSONL formatting: Streaming output, memory-efficient for large results (alias: `ndjson`)
     ///
     /// # Examples
     ///
@@ -294,7 +294,7 @@ impl SearchResultFormatter {
 ///
 /// - **Text**: Tabular display with aligned columns and status indicators
 /// - **JSON**: Array of source objects with complete metadata
-/// - **NDJSON**: One source object per line for streaming processing
+/// - **JSONL**: One source object per line for streaming processing (alias: `ndjson`)
 ///
 /// # Examples
 ///
@@ -372,7 +372,7 @@ impl SourceInfoFormatter {
     /// // Output as pretty JSON
     /// SourceInfoFormatter::format(&sources, OutputFormat::Json)?;
     ///
-    /// // Output as streaming NDJSON
+    /// // Output as streaming JSONL
     /// SourceInfoFormatter::format(&sources, OutputFormat::Jsonl)?;
     /// ```
     #[allow(dead_code)]

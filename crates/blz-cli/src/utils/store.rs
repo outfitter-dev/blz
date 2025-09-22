@@ -89,17 +89,20 @@ fn store_path() -> PathBuf {
 }
 
 pub fn active_config_dir() -> PathBuf {
+    if let Ok(file) = std::env::var("BLZ_CONFIG") {
+        let trimmed = file.trim();
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed);
+            if let Some(parent) = path.parent() {
+                return parent.to_path_buf();
+            }
+        }
+    }
+
     if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
         let trimmed = dir.trim();
         if !trimmed.is_empty() {
             return Path::new(trimmed).to_path_buf();
-        }
-    }
-
-    if let Ok(file) = std::env::var("BLZ_CONFIG") {
-        let path = PathBuf::from(file);
-        if let Some(parent) = path.parent() {
-            return parent.to_path_buf();
         }
     }
 

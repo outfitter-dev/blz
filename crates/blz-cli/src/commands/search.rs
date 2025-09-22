@@ -144,7 +144,7 @@ pub async fn handle_default(
         println!("\nExamples:");
         println!("  blz hooks react");
         println!("  blz react hooks");
-        println!("  blz search \"async await\" --source react -o json");
+        println!("  blz search \"async await\" --source react --format json");
         println!("\nNotes:");
         println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
         println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");

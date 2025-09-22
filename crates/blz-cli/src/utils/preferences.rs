@@ -229,18 +229,23 @@ pub fn active_scope_key() -> String {
 }
 
 pub fn project_scope_key() -> Option<String> {
+    if let Ok(file) = env::var("BLZ_CONFIG") {
+        let trimmed = file.trim();
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed);
+            if let Some(parent) = path.parent() {
+                return Some(format!("project:{}", canonicalize_path(parent)));
+            }
+        }
+    }
+
     if let Ok(dir) = env::var("BLZ_CONFIG_DIR") {
         let trimmed = dir.trim();
         if !trimmed.is_empty() {
             return Some(format!("project:{}", canonicalize(trimmed)));
         }
     }
-    if let Ok(file) = env::var("BLZ_CONFIG") {
-        let path = PathBuf::from(file);
-        if let Some(parent) = path.parent() {
-            return Some(format!("project:{}", canonicalize_path(parent)));
-        }
-    }
+
     None
 }
 

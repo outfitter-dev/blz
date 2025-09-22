@@ -8,7 +8,7 @@
 //!
 //! - **Text**: Human-readable output with colors, alignment, and contextual information
 //! - **JSON**: Single JSON object/array for programmatic consumption
-//! - **NDJSON**: Newline-delimited JSON for streaming processing
+//! - **JSONL**: Newline-delimited JSON for streaming processing (alias: `ndjson`)
 //!
 //! ## Architecture
 //!

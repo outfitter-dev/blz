@@ -23,7 +23,9 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
 
     display_removal_info(&storage, &canonical, quiet);
 
-    if !auto_yes {
+    let non_interactive = std::env::var_os("BLZ_FORCE_NON_INTERACTIVE").is_some();
+
+    if !(auto_yes || non_interactive) {
         let prompt = format!("Remove source '{canonical}' and all cached data?");
         let confirmed = Confirm::new()
             .with_prompt(prompt)
