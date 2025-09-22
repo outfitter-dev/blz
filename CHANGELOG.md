@@ -72,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Developer Experience
 - **`blz instruct` command**: Append live CLI documentation to agent instructions
-- **Improved logging**: All logs go to stderr, keeping stdout clean for JSON/NDJSON output
+- **Improved logging**: All logs go to stderr, keeping stdout clean for JSON/JSONL output
 - **Better error messages**: More actionable error messages with suggestions
 
 ## [0.1.7] - 2025-09-12

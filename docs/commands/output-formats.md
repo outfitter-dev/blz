@@ -18,7 +18,7 @@ Machine-readable JSON output for programmatic consumption.
 # JSON (aggregated with metadata)
 blz search "async rust" --format json
 
-# NDJSON (one hit per line)
+# JSONL (one hit per line; alias `ndjson` still accepted)
 blz search "async rust" --format jsonl
 ```
 
