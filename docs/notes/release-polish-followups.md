@@ -19,8 +19,8 @@ _Tracking doc for the CLI polish changes landed on `gt-v0.3/mega`._
    - ✅ Width-aware helper landed in `utils::formatting::format_heading_path`.
 
 4. **History & pagination**
- - ✅ CLI persists `--show`, score precision, snippet length defaults and ships a `blz history` command (text/json/jsonl).
-  - ✅ Added a parent-process watchdog so orphaned `blz search …` processes terminate automatically (GitHub issue #188).
+   - ✅ CLI persists `--show`, score precision, snippet length defaults and ships a `blz history` command (text/json/jsonl).
+   - ✅ Added a parent-process watchdog so orphaned `blz search …` processes terminate automatically (GitHub issue #188).
 
 5. **Docs & examples**
    - Regenerate screenshots / asciicasts to reflect the new output.
