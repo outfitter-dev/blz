@@ -29,6 +29,9 @@ chrono = { version = "0.4", features = ["serde"] }
 directories = "5"
 futures = "0.3"
 
+# Profiling
+pprof = "0.15"
+
 # Parsing & indexing
 tree-sitter = "0.24"
 tree-sitter-md = "0.3"
@@ -47,7 +50,8 @@ blz-core = { path = "crates/blz-core", version = "0.3.0" }
 
 [patch.crates-io]
 # Work around macOS ARM CPU feature detection panic in ring 0.17.14
-# Use upstream ring main until a new patch release is cut on crates.io
+# TODO(@galligan): drop this override once a crates.io release includes commit
+# 1bb94b3b86380e398d2bc4cf61be7081ff4731a8 (tracked in release checklist).
 ring = { git = "https://github.com/briansmith/ring", rev = "1bb94b3b86380e398d2bc4cf61be7081ff4731a8" }
 
 

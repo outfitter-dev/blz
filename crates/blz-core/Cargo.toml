@@ -36,7 +36,7 @@ tempfile = "3"
 futures = "0.3"
 
 # Performance & profiling
-pprof = { version = "0.15", features = ["flamegraph", "protobuf-codec"], optional = true }
+pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }
 sysinfo.workspace = true
 
 [target.'cfg(windows)'.dependencies.reqwest]
