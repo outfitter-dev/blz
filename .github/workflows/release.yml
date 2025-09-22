@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
           VERSION="${TAG#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "📦 Version: $VERSION"
 
   build-darwin-arm64:
@@ -308,7 +308,8 @@ jobs:
 
   publish:
     name: "Publish: orchestrate"
-    needs: [build]
+    needs:
+      - build
     uses: ./.github/workflows/publish.yml
     permissions:
       contents: write

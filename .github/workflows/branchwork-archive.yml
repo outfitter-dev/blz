@@ -2,7 +2,8 @@ name: Archive Branchwork on Merge
 
 on:
   pull_request:
-    types: [closed]
+    types:
+      - "closed"
 
 permissions:
   contents: write
@@ -11,6 +12,8 @@ jobs:
   archive-branchwork:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    env:
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BRANCH="${{ github.event.pull_request.head.ref }}"
+          BRANCH="$PR_HEAD_REF"
           SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
           CURRENT_TARGET=".agents/logs/branchwork/CURRENT-${SLUG}.md"
           if [ ! -f "$CURRENT_TARGET" ]; then

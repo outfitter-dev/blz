@@ -112,7 +112,9 @@ blz search <QUERY> [OPTIONS]
 - `--top <N>` - Show only top N percentile of results (1-100)
 - `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
 - `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
-  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson` to avoid passing `-o` each time
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl` to avoid passing `--format` each time (alias `ndjson` still accepted)
+
+> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
 
 **Examples:**
 
@@ -190,7 +192,7 @@ blz list [OPTIONS]
 **Options:**
 
 - `-f, --format <FORMAT>` - Output format: `text` (default) or `json`
-  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|ndjson`
+  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl`
 
 JSON keys
 
@@ -531,10 +533,10 @@ Scopes behave as follows:
 Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
 ### Setting a Global Default
 
-Set a single environment variable to control default output across commands that support `-o/--format`:
+Set a single environment variable to control default output across commands that support `--format` (deprecated alias: `-o`/`--output`; JSONL accepts `jsonl` or `ndjson`):
 
 ```bash
-export BLZ_OUTPUT_FORMAT=json   # or text, ndjson
+export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 
 # Now these default to JSON unless overridden
 blz search "async"

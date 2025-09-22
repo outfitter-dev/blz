@@ -26,9 +26,11 @@ Typical agent flow:
 blz add react https://react.dev/llms-full.txt -y
 
 # Search and get exact lines
-blz "react hooks" -o json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
+blz "react hooks" --format json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
   xargs -n2 blz get --context 3
 ```
+
+> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` instead. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
 
 ### Wait, what's `llms.txt`?
 
@@ -381,7 +383,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 - [x] v0.1: Core CLI with search and retrieval (MVP)
 - [ ] v0.3+: Diff tracking and change journal
-- [ ] v0.3: MCP server with stdio transport
+- [ ] v0.3.x: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
 For detailed architecture and implementation details, see [docs/architecture.md](docs/architecture.md).

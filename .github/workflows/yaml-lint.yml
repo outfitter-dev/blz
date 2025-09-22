@@ -5,7 +5,8 @@ on:
       - '.github/**/*.yml'
       - '.github/**/*.yaml'
   push:
-    branches: [main]
+    branches:
+      - "main"
     paths:
       - '.github/**/*.yml'
       - '.github/**/*.yaml'

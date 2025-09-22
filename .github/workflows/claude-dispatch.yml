@@ -4,7 +4,8 @@ name: Claude Code Dispatch
 # IMPORTANT: Do not modify this `on` section!
 on:
   repository_dispatch:
-    types: [claude-dispatch]
+    types:
+      - "claude-dispatch"
 
 jobs:
   claude-dispatch:

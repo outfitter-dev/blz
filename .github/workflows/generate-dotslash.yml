@@ -2,8 +2,10 @@ name: Generate DotSlash files
 
 on:
   workflow_run:
-    workflows: ["Auto Release"]
-    types: [completed]
+    workflows:
+      - "Auto Release"
+    types:
+      - "completed"
 
 permissions:
   contents: write
