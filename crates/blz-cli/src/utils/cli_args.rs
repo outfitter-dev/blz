@@ -8,6 +8,7 @@ pub struct FormatArg {
     /// Output format
     #[arg(
         short = 'f',
+        short_alias = 'o',
         long = "format",
         alias = "output",
         value_enum,
