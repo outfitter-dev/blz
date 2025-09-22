@@ -110,6 +110,34 @@ impl Flavor {
     }
 }
 
+/// Normalize a raw flavor filter string into canonical identifiers.
+///
+/// Accepts comma-, pipe-, or semicolon-delimited lists, ignores empty entries,
+/// and filters out unknown identifiers. Returned identifiers are deduplicated
+/// while preserving order.
+pub fn normalize_flavor_filters(raw: &str) -> Vec<String> {
+    use std::collections::HashSet;
+
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+
+    for token in raw.split([',', '|', ';']) {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if let Some(flavor) = Flavor::from_identifier(trimmed) {
+            let canonical = flavor.as_str().to_string();
+            if seen.insert(canonical.clone()) {
+                normalized.push(canonical);
+            }
+        }
+    }
+
+    normalized
+}
+
 /// Information about a documentation source.
 ///
 /// Represents metadata about a fetched llms.txt source, including caching headers
@@ -630,6 +658,15 @@ mod tests {
         assert_eq!(hit1.alias, hit2.alias);
         assert_eq!(hit1.lines, hit2.lines);
         assert_eq!(hit1.heading_path, hit2.heading_path);
+    }
+
+    #[test]
+    fn test_normalize_flavor_filters_deduplicates_and_ignores_unknowns() {
+        let values = normalize_flavor_filters(" llms-full , unknown , llms , ndjson ");
+        assert_eq!(values, vec!["llms-full".to_string(), "llms".to_string()]);
+
+        let empty = normalize_flavor_filters(" , , ");
+        assert!(empty.is_empty());
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
+use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use sha2::{Digest, Sha256};
@@ -276,14 +277,39 @@ impl SearchIndex {
         if let Some(alias) = alias {
             filter_clauses.push(format!("alias:{alias}"));
         }
-        match (self.flavor_field, flavor.filter(|value| !value.is_empty())) {
-            (Some(_), Some(value)) => {
-                filter_clauses.push(format!("flavor:{value}"));
+
+        let normalized_flavors = flavor.and_then(|raw| {
+            let normalized = normalize_flavor_filters(raw);
+            if normalized.is_empty() {
+                if !raw.trim().is_empty() {
+                    tracing::debug!(
+                        filter = raw,
+                        "Ignoring flavor filter with no recognized values"
+                    );
+                }
+                None
+            } else {
+                Some(normalized)
+            }
+        });
+
+        match (self.flavor_field, normalized_flavors) {
+            (Some(_), Some(values)) => {
+                if values.len() == 1 {
+                    filter_clauses.push(format!("flavor:{}", values[0]));
+                } else {
+                    let clause = values
+                        .iter()
+                        .map(|value| format!("flavor:{value}"))
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                    filter_clauses.push(format!("({clause})"));
+                }
             },
-            (None, Some(value)) => {
+            (None, Some(values)) => {
                 tracing::warn!(
-                    "Flavor filtering requested ({}) but index schema has no flavor field; ignoring",
-                    value
+                    filters = %values.join(","),
+                    "Flavor filtering requested but index schema has no flavor field; ignoring"
                 );
             },
             _ => {},
@@ -722,6 +748,57 @@ mod tests {
         assert_eq!(base_hits.len(), 1);
         assert_eq!(base_hits[0].flavor.as_deref(), Some("llms"));
         assert_eq!(base_hits[0].file, "llms.txt");
+
+        let missing_hits = index
+            .search("flavor", Some("alias"), Some("nonexistent-flavor"), 10)
+            .expect("Should handle non-existent flavor");
+        assert_eq!(missing_hits.len(), 2);
+    }
+
+    #[test]
+    fn test_search_mixed_flavor_filters() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index_mixed");
+
+        let index = SearchIndex::create(&index_path).expect("Should create index");
+
+        let base_blocks = vec![HeadingBlock {
+            path: vec!["Docs".to_string()],
+            content: "base flavor content".to_string(),
+            start_line: 1,
+            end_line: 5,
+        }];
+
+        let full_blocks = vec![HeadingBlock {
+            path: vec!["Docs".to_string(), "Full".to_string()],
+            content: "full flavor content".to_string(),
+            start_line: 6,
+            end_line: 10,
+        }];
+
+        index
+            .index_blocks("alias", "llms.txt", &base_blocks, "llms")
+            .expect("Should index base flavor");
+        index
+            .index_blocks("alias", "llms-full.txt", &full_blocks, "llms-full")
+            .expect("Should index full flavor");
+
+        let mixed_full_hits = index
+            .search("flavor", Some("alias"), Some("llms-full,unknown"), 10)
+            .expect("Should ignore unknown flavor token");
+        assert_eq!(mixed_full_hits.len(), 1);
+        assert_eq!(mixed_full_hits[0].flavor.as_deref(), Some("llms-full"));
+
+        let mixed_base_hits = index
+            .search("flavor", Some("alias"), Some("unknown|llms"), 10)
+            .expect("Should ignore unknown flavor token and return base hits");
+        assert_eq!(mixed_base_hits.len(), 1);
+        assert_eq!(mixed_base_hits[0].flavor.as_deref(), Some("llms"));
+
+        let ignored_hits = index
+            .search("flavor", Some("alias"), Some("unknown"), 10)
+            .expect("Should ignore unknown-only filters");
+        assert_eq!(ignored_hits.len(), 2);
     }
 
     #[test]

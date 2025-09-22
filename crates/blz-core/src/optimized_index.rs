@@ -2,6 +2,7 @@
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
+use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
@@ -429,8 +430,27 @@ impl OptimizedSearchIndex {
         if let Some(alias_value) = alias {
             filters.push(format!("alias:{alias_value}"));
         }
-        if let Some(flavor_value) = flavor.filter(|value| !value.is_empty()) {
-            filters.push(format!("flavor:{flavor_value}"));
+        if let Some(values) = flavor.and_then(|raw| {
+            let normalized = normalize_flavor_filters(raw);
+            if normalized.is_empty() {
+                if !raw.trim().is_empty() {
+                    tracing::debug!(filter = raw, "Ignoring flavor filter with no recognized values");
+                }
+                None
+            } else {
+                Some(normalized)
+            }
+        }) {
+            if values.len() == 1 {
+                filters.push(format!("flavor:{}", values[0]));
+            } else {
+                let clause = values
+                    .iter()
+                    .map(|value| format!("flavor:{value}"))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
+                filters.push(format!("({clause})"));
+            }
         }
 
         if !filters.is_empty() {
