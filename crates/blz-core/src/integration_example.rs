@@ -74,11 +74,12 @@ impl HighPerformanceSearchSystem {
         &self,
         query: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<crate::SearchHit>> {
         // Use the fully optimized search pipeline
         self.index
-            .search_optimized(query, alias, None, limit)
+            .search_optimized(query, alias, flavor, limit)
             .await
     }
     

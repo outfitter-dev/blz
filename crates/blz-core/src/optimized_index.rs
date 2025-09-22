@@ -56,7 +56,7 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
-    flavor: Field,
+    flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -141,7 +141,7 @@ impl OptimizedSearchIndex {
             heading_path: heading_path_field,
             lines: lines_field,
             alias: alias_field,
-            flavor: flavor_field,
+            flavor: Some(flavor_field),
         };
 
         // Create directory and index
@@ -176,9 +176,7 @@ impl OptimizedSearchIndex {
             alias: schema
                 .get_field("alias")
                 .map_err(|_| Error::Index("Missing alias field".into()))?,
-            flavor: schema
-                .get_field("flavor")
-                .map_err(|_| Error::Index("Missing flavor field".into()))?,
+            flavor: schema.get_field("flavor").ok(),
         };
 
         Self::new_with_index(index, fields).await
@@ -436,27 +434,31 @@ impl OptimizedSearchIndex {
         if let Some(alias_value) = alias {
             filters.push(format!("alias:{alias_value}"));
         }
-        if let Some(values) = flavor.and_then(|raw| {
-            let normalized = normalize_flavor_filters(raw);
-            if normalized.is_empty() {
-                if !raw.trim().is_empty() {
-                    tracing::debug!(filter = raw, "Ignoring flavor filter with no recognized values");
+        if self.fields.flavor.is_some() {
+            if let Some(values) = flavor.and_then(|raw| {
+                let normalized = normalize_flavor_filters(raw);
+                if normalized.is_empty() {
+                    if !raw.trim().is_empty() {
+                        tracing::debug!(filter = raw, "Ignoring flavor filter with no recognized values");
+                    }
+                    None
+                } else {
+                    Some(normalized)
                 }
-                None
-            } else {
-                Some(normalized)
+            }) {
+                if values.len() == 1 {
+                    filters.push(format!("flavor:{}", values[0]));
+                } else {
+                    let clause = values
+                        .iter()
+                        .map(|value| format!("flavor:{value}"))
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                    filters.push(format!("({clause})"));
+                }
             }
-        }) {
-            if values.len() == 1 {
-                filters.push(format!("flavor:{}", values[0]));
-            } else {
-                let clause = values
-                    .iter()
-                    .map(|value| format!("flavor:{value}"))
-                    .collect::<Vec<_>>()
-                    .join(" OR ");
-                filters.push(format!("({clause})"));
-            }
+        } else if flavor.is_some() && !flavor.unwrap_or("").trim().is_empty() {
+            tracing::warn!("Flavor filtering requested but index doesn't support it. Ignoring flavor filter: {}", flavor.unwrap_or(""));
         }
 
         if !filters.is_empty() {
@@ -664,18 +666,25 @@ impl OptimizedSearchIndex {
         file_path: &str,
         blocks: &[HeadingBlock],
     ) -> Result<()> {
-        // Delete only documents matching both alias AND flavor
+        // Delete documents matching alias (and flavor if supported)
         use tantivy::query::{BooleanQuery, Occur, Query, TermQuery};
         use tantivy::schema::IndexRecordOption;
         let alias_term = tantivy::Term::from_field_text(self.fields.alias, alias);
-        let flavor_term = tantivy::Term::from_field_text(self.fields.flavor, flavor);
-        let query: BooleanQuery = BooleanQuery::new(vec![
-            (Occur::Must, Box::new(TermQuery::new(alias_term, IndexRecordOption::Basic)) as Box<dyn Query>),
-            (Occur::Must, Box::new(TermQuery::new(flavor_term, IndexRecordOption::Basic)) as Box<dyn Query>),
-        ]);
-        writer
-            .delete_documents(query)
-            .map_err(|e| Error::Index(format!("Failed to delete existing docs: {}", e)))?;
+
+        if let Some(flavor_field) = self.fields.flavor {
+            // Schema supports flavor - delete only matching alias AND flavor
+            let flavor_term = tantivy::Term::from_field_text(flavor_field, flavor);
+            let query: BooleanQuery = BooleanQuery::new(vec![
+                (Occur::Must, Box::new(TermQuery::new(alias_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+                (Occur::Must, Box::new(TermQuery::new(flavor_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+            ]);
+            writer
+                .delete_documents(query)
+                .map_err(|e| Error::Index(format!("Failed to delete existing docs: {}", e)))?;
+        } else {
+            // Legacy schema - delete all documents for alias
+            writer.delete_term(alias_term);
+        }
 
         // Prepare interned strings for reuse
         let alias_interned = self.string_pool.intern(alias).await;
@@ -694,14 +703,18 @@ impl OptimizedSearchIndex {
             let lines_str = format!("{}-{}", block.start_line, block.end_line);
 
             // Create document with interned strings where possible
-            let doc = doc!(
+            let mut doc = doc!(
                 self.fields.content => block.content.as_str(),
                 self.fields.path => file_path_interned.as_ref(),
                 self.fields.heading_path => heading_path_str,
                 self.fields.lines => lines_str,
-                self.fields.alias => alias_interned.as_ref(),
-                self.fields.flavor => flavor
+                self.fields.alias => alias_interned.as_ref()
             );
+
+            // Add flavor field if supported by schema
+            if let Some(flavor_field) = self.fields.flavor {
+                doc.add_text(flavor_field, flavor);
+            }
 
             writer
                 .add_document(doc)
