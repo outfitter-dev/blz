@@ -27,7 +27,7 @@ pub fn effective_prefer_llms_full() -> bool {
     match Config::load() {
         Ok(cfg) => cfg.defaults.prefer_llms_full,
         Err(err) => {
-            warn!("failed to load config: {err}");
+            warn!(error = %err, "failed to load blz config; using defaults");
             false
         },
     }
