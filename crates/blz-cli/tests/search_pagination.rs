@@ -9,6 +9,18 @@ use std::sync::Once;
 
 static INIT: Once = Once::new();
 
+macro_rules! assert_benign_stderr {
+    ($result:expr) => {
+        $result.stderr(
+            predicates::str::is_empty()
+                .or(predicates::str::contains("No sources found"))
+                .or(predicates::str::contains(
+                    "Flavor filtering requested (llms) but index schema has no flavor field; ignoring",
+                )),
+        );
+    };
+}
+
 fn setup_test_data() {
     INIT.call_once(|| {
         // Set up test data once for all tests
@@ -50,8 +62,8 @@ fn test_zero_limit_does_not_panic() {
 
     // Should not panic - either show appropriate message or no sources error
     let result = cmd.assert();
-    // Accept either success with message or error about no sources
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    // Accept either success with message or error about no sources (plus flavor fallback warnings)
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -73,7 +85,7 @@ fn test_empty_results_pagination() {
     // Should handle gracefully with no panic
     // Accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -97,7 +109,7 @@ fn test_single_result_pagination() {
 
     // Should run without panic - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -119,7 +131,7 @@ fn test_large_limit_with_small_results() {
 
     // Should not panic even with large limit and no results
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -138,7 +150,7 @@ fn test_page_boundary_with_exact_division() {
 
     // Should handle page boundary correctly - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -157,7 +169,7 @@ fn test_minimum_limit_value() {
 
     // Should handle minimum limit correctly - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -186,7 +198,6 @@ fn test_pagination_prevents_panic_on_edge_cases() {
 
         // None of these should panic - accept either success or no sources error
         let result = cmd.assert();
-        result
-            .stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+        assert_benign_stderr!(result);
     }
 }
