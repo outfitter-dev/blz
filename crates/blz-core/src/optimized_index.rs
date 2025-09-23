@@ -353,6 +353,13 @@ impl OptimizedSearchIndex {
             let lines = self.get_field_text(&doc, self.fields.lines)?;
             let content = self.get_field_text(&doc, self.fields.content)?;
 
+            // Extract flavor if the schema supports it
+            let flavor = if let Some(flavor_field) = self.fields.flavor {
+                self.get_field_text(&doc, flavor_field).ok()
+            } else {
+                None
+            };
+
             // Intern commonly used strings
             let alias_interned = self.string_pool.intern(&alias).await;
             let file_interned = self.string_pool.intern(&file).await;
@@ -390,6 +397,7 @@ impl OptimizedSearchIndex {
                 source_url: None,
                 checksum: String::new(),
                 anchor: None,
+                flavor,
             });
         }
 

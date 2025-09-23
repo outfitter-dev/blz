@@ -337,10 +337,18 @@ fn handle_modified(
     let flavor = Storage::flavor_from_url(url);
     let file_name = flavor.file_name();
 
+    // Prefer existing JSON for this specific flavor when available
+    let previous_json_for_flavor = storage.load_flavor_json(alias, flavor.as_str())?;
+
     pb.set_message(format!("Updating {alias}..."));
 
-    // Check if content actually changed (SHA256 comparison)
-    if existing_json.source.sha256 == sha256 {
+    // Check if content actually changed (SHA256 comparison) - prefer flavor-specific JSON
+    let previous_sha256 = previous_json_for_flavor.as_ref().map_or_else(
+        || existing_json.source.sha256.as_str(),
+        |j| j.source.sha256.as_str(),
+    );
+
+    if previous_sha256 == sha256.as_str() {
         pb.finish_with_message(format!("{alias}: Content unchanged"));
 
         // Update metadata even if content hasn't changed (server headers might have)
@@ -398,12 +406,15 @@ fn handle_modified(
     };
     storage.save_flavor_json(alias, flavor.as_str(), &new_json)?;
 
-    // Build anchors remap from old -> new using core helper
-    if !existing_json.toc.is_empty() && !new_json.toc.is_empty() {
-        let mappings = compute_anchor_mappings(&existing_json.toc, &new_json.toc);
-        if !mappings.is_empty() {
-            let anchors_map = build_anchors_map(mappings, Utc::now());
-            let _ = storage.save_anchors_map(alias, &anchors_map);
+    // Build anchors remap from old -> new using core helper - prefer flavor-specific JSON
+    if !new_json.toc.is_empty() {
+        let old_toc = previous_json_for_flavor.map_or_else(|| existing_json.toc.clone(), |j| j.toc);
+        if !old_toc.is_empty() {
+            let mappings = compute_anchor_mappings(&old_toc, &new_json.toc);
+            if !mappings.is_empty() {
+                let anchors_map = build_anchors_map(mappings, Utc::now());
+                let _ = storage.save_anchors_map(alias, &anchors_map);
+            }
         }
     }
 
