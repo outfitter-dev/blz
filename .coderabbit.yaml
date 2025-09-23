@@ -1,0 +1,3 @@
+reviews:
+  # Stop posting "Review skipped" status comments on non-default branches
+  review_status: false

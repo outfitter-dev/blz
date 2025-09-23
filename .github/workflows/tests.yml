@@ -9,6 +9,9 @@ jobs:
   tests:
     name: Cargo Tests
     runs-on: ubuntu-latest
+    env:
+      # Ensure cargo/nextest use a stable target dir to avoid nested target paths
+      CARGO_TARGET_DIR: target
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +24,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          prefix-key: v3-tests
+          # Include job name to prevent cache write conflicts across workflows
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ github.job }}
 
       - name: Install nextest
         run: |
