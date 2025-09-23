@@ -55,11 +55,21 @@
 //! - Colors are chosen for good terminal contrast and accessibility
 //! - Color output respects `NO_COLOR` and terminal capabilities
 
+pub mod cli_args;
 pub mod constants;
+pub mod flavor;
 pub mod formatting;
+pub mod history_log;
 pub mod http;
 pub mod parsing;
+pub mod preferences;
+pub mod process_guard;
 pub mod resolver;
+pub mod settings;
+pub mod store;
 pub mod validation;
+
+#[cfg(test)]
+pub mod test_support;
 
 // Re-export commonly used utilities

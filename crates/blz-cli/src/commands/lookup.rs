@@ -4,6 +4,7 @@ use anyhow::Result;
 use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
 use dialoguer::{Input, Select};
+use serde_json::json;
 use std::io::IsTerminal;
 
 use crate::commands::add_source;
@@ -11,35 +12,73 @@ use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
+#[allow(clippy::too_many_lines)]
 pub async fn execute(
     query: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
-    output: OutputFormat,
+    format: OutputFormat,
 ) -> Result<()> {
+    let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "on"))
+        .unwrap_or(false);
+
+    if !registry_enabled {
+        let _ = metrics; // keep signature for future use
+
+        if matches!(format, OutputFormat::Text) {
+            if !quiet {
+                println!("Registry lookup is coming soon.");
+                println!(
+                    "In the meantime, search upstream docs for an llms-full.txt (or llms.txt) URL and add it manually:"
+                );
+                println!("  blz add <alias> <https://example.com/llms-full.txt>");
+                println!("Coming soon: automatic registry search with health checks.");
+            }
+        } else {
+            let payload = json!({
+                "status": "coming_soon",
+                "message": "Registry lookup is temporarily disabled while we finish the new catalog flow.",
+                "nextSteps": [
+                    "Locate an llms-full.txt (or llms.txt) URL for the docs you need.",
+                    "Add it manually with: blz add <alias> <url>",
+                    "Agent-compatible registry search will return in an upcoming release."
+                ]
+            });
+
+            match format {
+                OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
+                OutputFormat::Jsonl => println!("{}", serde_json::to_string(&payload)?),
+                OutputFormat::Text => unreachable!(),
+            }
+        }
+
+        return Ok(());
+    }
+
     let registry = Registry::new();
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         println!("Searching registries...");
     }
     let results = registry.search(query);
 
     if results.is_empty() {
-        if matches!(output, OutputFormat::Text) && !quiet {
+        if matches!(format, OutputFormat::Text) && !quiet {
             println!("No matches found for '{query}'");
         }
-        if matches!(output, OutputFormat::Json) {
+        if matches!(format, OutputFormat::Json) {
             println!("[]");
         }
         return Ok(());
     }
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         display_results_with_health(&results).await?;
     }
 
     // Non-interactive JSON output for agents
-    if !matches!(output, OutputFormat::Text) {
+    if !matches!(format, OutputFormat::Text) {
         let fetcher = Fetcher::new()?;
         let mut out = Vec::new();
         for r in &results {
@@ -65,7 +104,7 @@ pub async fn execute(
             });
             out.push(obj);
         }
-        if matches!(output, OutputFormat::Json) {
+        if matches!(format, OutputFormat::Json) {
             println!("{}", serde_json::to_string_pretty(&out)?);
         } else {
             for o in out {
@@ -78,7 +117,7 @@ pub async fn execute(
     // Try interactive selection
     let Some(selected_entry) = try_interactive_selection(&results).ok() else {
         // Not interactive, show instructions
-        if matches!(output, OutputFormat::Text) && !quiet {
+        if matches!(format, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
         }
         return Ok(());
@@ -96,7 +135,7 @@ pub async fn execute(
     let final_alias = alias.trim();
     validate_alias(final_alias)?;
 
-    if matches!(output, OutputFormat::Text) && !quiet {
+    if matches!(format, OutputFormat::Text) && !quiet {
         println!(
             "Adding {} from {}...",
             final_alias.green(),
@@ -104,7 +143,7 @@ pub async fn execute(
         );
     }
 
-    add_source(final_alias, &selected_entry.llms_url, false, metrics).await
+    add_source(final_alias, &selected_entry.llms_url, false, quiet, metrics).await
 }
 
 async fn display_results_with_health(

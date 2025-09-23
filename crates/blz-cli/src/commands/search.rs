@@ -5,13 +5,21 @@ use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Stor
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::warn;
 
+use crate::cli::ShowComponent;
+use crate::commands::FlavorMode;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
+use crate::utils::flavor::{BASE_FLAVOR, FULL_FLAVOR, resolve_flavor};
+use crate::utils::history_log;
+use crate::utils::preferences::{self, CliPreferences};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
+const DEFAULT_SCORE_PRECISION: u8 = 1;
 
 /// Search options
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
     pub alias: Option<String>,
@@ -19,8 +27,37 @@ pub struct SearchOptions {
     pub limit: usize,
     pub page: usize,
     pub top_percentile: Option<u8>,
-    pub output: OutputFormat,
+    pub format: OutputFormat,
+    pub show_url: bool,
+    pub show_lines: bool,
+    pub show_anchor: bool,
+    pub no_summary: bool,
+    pub score_precision: Option<u8>,
+    pub snippet_lines: u8,
+    pub flavor: crate::commands::FlavorMode,
     pub(crate) all: bool,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct ShowToggles {
+    url: bool,
+    lines: bool,
+    anchor: bool,
+}
+
+fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
+    let mut toggles = ShowToggles::default();
+    for component in components {
+        match component {
+            ShowComponent::Rank => {
+                // Rank is always displayed by default; accept the modifier for compatibility.
+            },
+            ShowComponent::Url => toggles.url = true,
+            ShowComponent::Lines => toggles.lines = true,
+            ShowComponent::Anchor => toggles.anchor = true,
+        }
+    }
+    toggles
 }
 
 /// Execute a search across cached documentation
@@ -32,10 +69,17 @@ pub async fn execute(
     limit: usize,
     page: usize,
     top_percentile: Option<u8>,
-    output: OutputFormat,
+    format: OutputFormat,
+    flavor: FlavorMode,
+    show: &[ShowComponent],
+    no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
+    prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
+    let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
         alias: alias.map(String::from),
@@ -43,12 +87,42 @@ pub async fn execute(
         limit,
         page,
         top_percentile,
-        output,
+        format,
+        show_url: toggles.url,
+        show_lines: toggles.lines,
+        show_anchor: toggles.anchor,
+        no_summary,
+        score_precision,
+        snippet_lines: snippet_lines.max(1),
+        flavor,
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
     format_and_display(&results, &options)?;
+
+    if let Some(prefs) = prefs {
+        let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
+        let show_components = preferences::collect_show_components(
+            options.show_url,
+            options.show_lines,
+            options.show_anchor,
+        );
+        prefs.set_default_show(&show_components);
+        prefs.set_default_score_precision(precision);
+        prefs.set_default_snippet_lines(options.snippet_lines);
+        let history_entry = preferences::make_history_entry(
+            &options.query,
+            options.alias.as_deref(),
+            options.format,
+            &show_components,
+            options.snippet_lines as u8,
+            precision,
+        );
+        if let Err(err) = history_log::append(&history_entry) {
+            warn!("failed to persist search history: {err}");
+        }
+    }
 
     if let Some(monitor) = resource_monitor {
         monitor.print_resource_usage();
@@ -62,6 +136,7 @@ pub async fn handle_default(
     args: &[String],
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
+    prefs: &mut CliPreferences,
 ) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
@@ -69,7 +144,7 @@ pub async fn handle_default(
         println!("\nExamples:");
         println!("  blz hooks react");
         println!("  blz react hooks");
-        println!("  blz search \"async await\" --source react -o json");
+        println!("  blz search \"async await\" --source react --format json");
         println!("\nNotes:");
         println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
         println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
@@ -102,6 +177,23 @@ pub async fn handle_default(
         }
     }
 
+    let score_precision_env = std::env::var("BLZ_SCORE_PRECISION")
+        .ok()
+        .and_then(|raw| raw.parse::<u8>().ok())
+        .filter(|value| *value <= 4);
+    let score_precision = score_precision_env.unwrap_or_else(|| prefs.default_score_precision());
+
+    let show_components = std::env::var("BLZ_SHOW").map_or_else(
+        |_| prefs.default_show_components(),
+        |raw| preferences::parse_show_list(&raw),
+    );
+
+    let snippet_lines_env = std::env::var("BLZ_SNIPPET_LINES")
+        .ok()
+        .and_then(|raw| raw.parse::<u8>().ok())
+        .filter(|value| (1..=10).contains(value));
+    let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
+
     execute(
         &query,
         alias.as_deref(),
@@ -110,6 +202,12 @@ pub async fn handle_default(
         1,
         None,
         OutputFormat::Text,
+        FlavorMode::Current,
+        &show_components,
+        false,
+        Some(score_precision),
+        snippet_lines,
+        Some(prefs),
         metrics,
         resource_monitor,
     )
@@ -163,7 +261,7 @@ async fn perform_search(
             Ok(None) => {
                 // Fallback: show hint and continue with zero sources handled below
                 let known = storage.list_sources();
-                if !known.contains(requested) && matches!(options.output, OutputFormat::Text) {
+                if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
                     eprintln!(
                         "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
                     );
@@ -196,10 +294,13 @@ async fn perform_search(
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
+    let warn_missing = matches!(options.format, OutputFormat::Text);
+
     let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
         let query = options.query.clone();
+        let flavor_mode = options.flavor;
 
         async move {
             tokio::task::spawn_blocking(
@@ -218,15 +319,27 @@ async fn perform_search(
                             )
                         })?
                         .with_metrics(metrics);
+                    let desired_flavor =
+                        select_flavor_for_search(&storage, &source, flavor_mode, warn_missing)?;
                     let hits = index
-                        .search(&query, Some(&source), None, effective_limit)
+                        .search(
+                            &query,
+                            Some(&source),
+                            Some(&desired_flavor),
+                            effective_limit,
+                        )
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
                     let total_lines = storage
-                        .load_llms_json(&source)
-                        .map(|json| json.line_index.total_lines)
-                        .unwrap_or(0);
+                        .load_flavor_json(&source, &desired_flavor)?
+                        .or_else(|| {
+                            storage
+                                .load_flavor_json(&source, BASE_FLAVOR)
+                                .ok()
+                                .flatten()
+                        })
+                        .map_or(0, |json| json.line_index.total_lines);
 
                     Ok((hits, total_lines, source))
                 },
@@ -293,6 +406,51 @@ async fn perform_search(
         search_time: start_time.elapsed(),
         sources: sources_searched,
     })
+}
+
+fn select_flavor_for_search(
+    storage: &Storage,
+    alias: &str,
+    mode: FlavorMode,
+    warn_missing: bool,
+) -> Result<String> {
+    match mode {
+        FlavorMode::Current => resolve_flavor(storage, alias),
+        FlavorMode::Auto => {
+            let available = storage.available_flavors(alias)?;
+            if available.iter().any(|f| f == FULL_FLAVOR) {
+                Ok(FULL_FLAVOR.to_string())
+            } else {
+                resolve_flavor(storage, alias)
+            }
+        },
+        FlavorMode::Full => {
+            let available = storage.available_flavors(alias)?;
+            if available.iter().any(|f| f == FULL_FLAVOR) {
+                Ok(FULL_FLAVOR.to_string())
+            } else {
+                if warn_missing {
+                    eprintln!(
+                        "Warning: full flavor not available for '{alias}', using resolved default."
+                    );
+                }
+                resolve_flavor(storage, alias)
+            }
+        },
+        FlavorMode::Txt => {
+            let available = storage.available_flavors(alias)?;
+            if available.iter().any(|f| f == BASE_FLAVOR) {
+                Ok(BASE_FLAVOR.to_string())
+            } else {
+                if warn_missing {
+                    eprintln!(
+                        "Warning: base flavor not available for '{alias}', using resolved default."
+                    );
+                }
+                resolve_flavor(storage, alias)
+            }
+        },
+    }
 }
 
 fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
@@ -363,16 +521,24 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 /// let options = SearchOptions {
 ///     query: "test".to_string(),
 ///     alias: None,
+///     last: false,
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
 ///     top_percentile: None,
-///     output: OutputFormat::Text,
+///     format: OutputFormat::Text,
+///     show_url: false,
+///     show_lines: false,
+///     show_anchor: false,
+///     no_summary: false,
+///     score_precision: None,
+///     snippet_lines: 3,
 ///     all: false,
 /// };
 ///
 /// // This will not panic even with empty results due to .max(1) guard
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
+#[allow(clippy::too_many_lines)]
 fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Result<()> {
     let total_results = results.hits.len();
 
@@ -396,8 +562,8 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
 
     if total_results == 0 {
         // Let formatter print the "No results" message
-        let formatter = SearchResultFormatter::new(options.output);
-        let suggestions = if matches!(options.output, OutputFormat::Json) {
+        let formatter = SearchResultFormatter::new(options.format);
+        let suggestions = if matches!(options.format, OutputFormat::Json) {
             let storage = Storage::new()?;
             Some(compute_suggestions(
                 &options.query,
@@ -413,13 +579,17 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             total_results,
             total_lines_searched: results.total_lines_searched,
             search_time: results.search_time,
-            show_pagination: false,
-            single_source: options.alias.is_some(),
             sources: &results.sources,
             start_idx: 0,
             page: 1,
-            limit: actual_limit,
             total_pages,
+            page_size: actual_limit,
+            show_url: options.show_url,
+            show_lines: options.show_lines,
+            show_anchor: options.show_anchor,
+            no_summary: options.no_summary,
+            score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+            snippet_lines: usize::from(options.snippet_lines.max(1)),
             suggestions,
         };
         formatter.format(&params)?;
@@ -431,7 +601,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
     if start_idx >= results.hits.len() {
-        if matches!(options.output, OutputFormat::Text) {
+        if matches!(options.format, OutputFormat::Text) {
             eprintln!(
                 "Page {} is beyond available results (Page {} of {})",
                 options.page, page, total_pages
@@ -443,9 +613,9 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
 
     let page_hits = &results.hits[start_idx..end_idx];
 
-    let formatter = SearchResultFormatter::new(options.output);
+    let formatter = SearchResultFormatter::new(options.format);
     // Compute simple fuzzy suggestions for JSON output when few/low-quality results
-    let suggestions = if matches!(options.output, OutputFormat::Json) {
+    let suggestions = if matches!(options.format, OutputFormat::Json) {
         let need_suggest =
             total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
         if need_suggest {
@@ -468,13 +638,18 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         total_results,
         total_lines_searched: results.total_lines_searched,
         search_time: results.search_time,
-        show_pagination: options.limit < ALL_RESULTS_LIMIT,
-        single_source: options.alias.is_some(),
         sources: &results.sources,
         start_idx,
         page,
-        limit: actual_limit,
         total_pages,
+        page_size: actual_limit,
+        // TODO(release-polish): revisit `show_lines` default and pagination story (docs/notes/release-polish-followups.md)
+        show_url: options.show_url,
+        show_lines: options.show_lines,
+        show_anchor: options.show_anchor,
+        no_summary: options.no_summary,
+        score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+        snippet_lines: usize::from(options.snippet_lines.max(1)),
         suggestions,
     };
     formatter.format(&params)?;
@@ -594,7 +769,7 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
-                flavor: None,
+                flavor: Some(BASE_FLAVOR.to_string()),
             })
             .collect();
 
@@ -617,7 +792,14 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -637,7 +819,14 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -657,7 +846,14 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: true,
         };
 
@@ -674,7 +870,14 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: true,
         };
 
@@ -696,7 +899,14 @@ mod tests {
             limit: 2,
             page: 100, // Way beyond available pages
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -717,7 +927,14 @@ mod tests {
             limit: 5,
             page: 2,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -732,7 +949,14 @@ mod tests {
             limit: 5,
             page: 3,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -754,13 +978,20 @@ mod tests {
             limit: 10,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: false,
         };
 
-        // The actual_limit calculation from the code
+        let results1 = create_test_results(8);
         let actual_limit1 = if options1.limit >= ALL_RESULTS_LIMIT {
-            1 // Minimum limit is always 1
+            results1.hits.len().max(1)
         } else {
             options1.limit.max(1)
         };
@@ -774,12 +1005,20 @@ mod tests {
             limit: ALL_RESULTS_LIMIT,
             page: 1,
             top_percentile: None,
-            output: OutputFormat::Text,
+            format: OutputFormat::Text,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            no_summary: false,
+            score_precision: None,
+            snippet_lines: 3,
+            flavor: FlavorMode::Current,
             all: true,
         };
 
+        let results2 = create_test_results(0);
         let actual_limit2 = if options2.limit >= ALL_RESULTS_LIMIT {
-            1 // Minimum limit is always 1
+            results2.hits.len().max(1)
         } else {
             options2.limit.max(1)
         };

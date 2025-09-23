@@ -22,7 +22,7 @@
 //!
 //! - Text formatting optimizes for readability over processing speed
 //! - JSON formatting prioritizes machine consumption and parsing speed
-//! - NDJSON enables streaming processing for large result sets
+//! - JSONL enables streaming processing for large result sets (alias: `ndjson`)
 //!
 //! ## Examples
 //!
@@ -38,10 +38,18 @@
 //!     total_results: 100,
 //!     total_lines_searched: 50_000,
 //!     search_time: Duration::from_millis(5),
-//!     show_pagination: true,
-//!     single_source: false,
 //!     sources: &["react".to_string()],
 //!     start_idx: 0,
+//!     page: 1,
+//!     total_pages: 10,
+//!     page_size: 10,
+//!     show_url: false,
+//!     show_lines: false,
+//!     show_anchor: false,
+//!     no_summary: false,
+//!     score_precision: 1,
+//!     snippet_lines: 3,
+//!     suggestions: None,
 //! };
 //! formatter.format(&params)?;
 //! ```
@@ -53,19 +61,24 @@ use std::time::Duration;
 use super::{json::JsonFormatter, text::TextFormatter};
 
 /// Parameters for formatting search results
+#[allow(clippy::struct_excessive_bools)]
 pub struct FormatParams<'a> {
     pub hits: &'a [SearchHit],
     pub query: &'a str,
     pub total_results: usize,
     pub total_lines_searched: usize,
     pub search_time: Duration,
-    pub show_pagination: bool,
-    pub single_source: bool,
     pub sources: &'a [String],
     pub start_idx: usize,
     pub page: usize,
-    pub limit: usize,
     pub total_pages: usize,
+    pub page_size: usize,
+    pub show_url: bool,
+    pub show_lines: bool,
+    pub show_anchor: bool,
+    pub no_summary: bool,
+    pub score_precision: u8,
+    pub snippet_lines: usize,
     pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
 }
 
@@ -85,8 +98,8 @@ pub struct FormatParams<'a> {
 ///   Suitable for programmatic consumption and further processing.
 ///   Output is pretty-printed for readability.
 ///
-/// - **Ndjson**: Newline-delimited JSON where each line is a separate
-///   JSON object. Enables streaming processing and is memory-efficient
+/// - **Jsonl**: Newline-delimited JSON (alias: `ndjson`) where each line is a
+///   separate JSON object. Enables streaming processing and is memory-efficient
 ///   for large result sets.
 ///
 /// # Usage in CLI
@@ -96,10 +109,10 @@ pub struct FormatParams<'a> {
 /// blz search "useEffect"
 ///
 /// # JSON output for scripting
-/// blz search "useEffect" --output json | jq '.[0].content'
+/// blz search "useEffect" --format json | jq '.[0].content'
 ///
-/// # NDJSON for streaming
-/// blz search "useEffect" --output ndjson | head -5
+/// # JSON Lines for streaming
+/// blz search "useEffect" --format jsonl | head -5
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
@@ -107,8 +120,9 @@ pub enum OutputFormat {
     Text,
     /// Single JSON array
     Json,
-    /// Newline-delimited JSON
-    Ndjson,
+    /// Newline-delimited JSON (aka JSON Lines)
+    #[value(name = "jsonl", alias = "ndjson")]
+    Jsonl,
 }
 
 /// Formatter for search results with multiple output format support
@@ -122,7 +136,7 @@ pub enum OutputFormat {
 /// - **Text**: Includes color coding, Unicode box drawing, line numbers,
 ///   performance statistics, and pagination information
 /// - **JSON**: Structured data suitable for programmatic processing
-/// - **NDJSON**: Streaming format for processing large result sets
+/// - **JSONL**: Streaming format for processing large result sets (alias: `ndjson`)
 ///
 /// # Performance Information
 ///
@@ -199,7 +213,7 @@ impl SearchResultFormatter {
     ///
     /// - Text formatting: Optimized for readability, includes syntax highlighting
     /// - JSON formatting: Single allocation for the entire result set
-    /// - NDJSON formatting: Streaming output, memory-efficient for large results
+    /// - JSONL formatting: Streaming output, memory-efficient for large results (alias: `ndjson`)
     ///
     /// # Examples
     ///
@@ -210,32 +224,26 @@ impl SearchResultFormatter {
     /// let search_time = Duration::from_millis(12);
     ///
     /// // Display first page of results
-    /// let p1 = FormatParams {
+    /// let params = FormatParams {
     ///     hits: &hits[0..10],
     ///     query: "useEffect cleanup",
     ///     total_results: 156,
     ///     total_lines_searched: 38_000,
     ///     search_time,
-    ///     show_pagination: true,
-    ///     single_source: false,
     ///     sources: &["react".to_string(), "next".to_string()],
     ///     start_idx: 0,
+    ///     page: 1,
+    ///     total_pages: 16,
+    ///     page_size: 10,
+    ///     show_url: false,
+    ///     show_lines: false,
+    ///     show_anchor: false,
+    ///     no_summary: false,
+    ///     score_precision: 1,
+    ///     snippet_lines: 3,
+    ///     suggestions: None,
     /// };
-    /// formatter.format(&p1)?;
-    ///
-    /// // Display a later page
-    /// let p3 = FormatParams {
-    ///     hits: &hits[20..30],
-    ///     query: "useEffect cleanup",
-    ///     total_results: 156,
-    ///     total_lines_searched: 38_000,
-    ///     search_time,
-    ///     show_pagination: true,
-    ///     single_source: false,
-    ///     sources: &["react".to_string(), "next".to_string()],
-    ///     start_idx: 20,
-    /// };
-    /// formatter.format(&p3)?;
+    /// formatter.format(&params)?;
     /// ```
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
@@ -248,14 +256,14 @@ impl SearchResultFormatter {
                     params.total_lines_searched,
                     params.search_time,
                     params.page,
-                    params.limit,
+                    params.page_size,
                     params.total_pages,
                     params.sources,
                     suggestions_ref,
                 )?;
             },
-            OutputFormat::Ndjson => {
-                JsonFormatter::format_search_results_ndjson(params.hits)?;
+            OutputFormat::Jsonl => {
+                JsonFormatter::format_search_results_jsonl(params.hits)?;
             },
             OutputFormat::Text => {
                 TextFormatter::format_search_results(params);
@@ -286,7 +294,7 @@ impl SearchResultFormatter {
 ///
 /// - **Text**: Tabular display with aligned columns and status indicators
 /// - **JSON**: Array of source objects with complete metadata
-/// - **NDJSON**: One source object per line for streaming processing
+/// - **JSONL**: One source object per line for streaming processing (alias: `ndjson`)
 ///
 /// # Examples
 ///
@@ -364,8 +372,8 @@ impl SourceInfoFormatter {
     /// // Output as pretty JSON
     /// SourceInfoFormatter::format(&sources, OutputFormat::Json)?;
     ///
-    /// // Output as streaming NDJSON
-    /// SourceInfoFormatter::format(&sources, OutputFormat::Ndjson)?;
+    /// // Output as streaming JSONL
+    /// SourceInfoFormatter::format(&sources, OutputFormat::Jsonl)?;
     /// ```
     #[allow(dead_code)]
     pub fn format(source_info: &[serde_json::Value], format: OutputFormat) -> Result<()> {
@@ -374,7 +382,7 @@ impl SourceInfoFormatter {
                 let json = serde_json::to_string_pretty(source_info)?;
                 println!("{json}");
             },
-            OutputFormat::Ndjson => {
+            OutputFormat::Jsonl => {
                 for info in source_info {
                     println!("{}", serde_json::to_string(info)?);
                 }

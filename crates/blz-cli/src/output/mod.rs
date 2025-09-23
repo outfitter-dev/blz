@@ -8,7 +8,7 @@
 //!
 //! - **Text**: Human-readable output with colors, alignment, and contextual information
 //! - **JSON**: Single JSON object/array for programmatic consumption
-//! - **NDJSON**: Newline-delimited JSON for streaming processing
+//! - **JSONL**: Newline-delimited JSON for streaming processing (alias: `ndjson`)
 //!
 //! ## Architecture
 //!
@@ -21,17 +21,17 @@
 //!
 //! ## Usage Patterns
 //!
-//! Most commands accept an `--output` flag to specify the desired format:
+//! Most commands accept a `--format` flag to specify the desired format:
 //!
 //! ```bash
 //! # Human-readable output (default)
-//! blz search "useEffect" --output text
+//! blz search "useEffect" --format text
 //!
 //! # JSON for scripts
-//! blz list --output json | jq '.[] | .alias'
+//! blz list --format json | jq '.[] | .alias'
 //!
 //! # Streaming JSON for processing
-//! blz search "async" --output ndjson | while read line; do
+//! blz search "async" --format jsonl | while read line; do
 //!     echo "$line" | jq .score
 //! done
 //! ```

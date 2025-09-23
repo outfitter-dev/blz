@@ -25,7 +25,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
             OutputFormat::Json => {
                 println!("{}", serde_json::to_string_pretty(&map)?);
             },
-            OutputFormat::Ndjson => {
+            OutputFormat::Jsonl => {
                 for m in map.mappings {
                     println!("{}", serde_json::to_string(&m)?);
                 }
@@ -54,7 +54,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
     let llms: LlmsJson = storage.load_llms_json(&canonical)?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias for each entry in JSON/NDJSON
+    // Replace placeholder with actual alias for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
             if obj.get("source").is_some() {
@@ -70,7 +70,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&entries)?);
         },
-        OutputFormat::Ndjson => {
+        OutputFormat::Jsonl => {
             for e in entries {
                 println!("{}", serde_json::to_string(&e)?);
             }
@@ -154,7 +154,7 @@ pub async fn get_by_anchor(
             // Use existing 'get' implementation to print lines with context
             get_lines(&canonical, &entry.lines, context, OutputFormat::Text).await
         },
-        OutputFormat::Json | OutputFormat::Ndjson => {
+        OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
             let file_content = storage.load_llms_txt(&canonical)?;
             let all_lines: Vec<&str> = file_content.lines().collect();

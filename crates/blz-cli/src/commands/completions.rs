@@ -11,7 +11,7 @@ pub fn generate(shell: Shell) {
     clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
 }
 
-/// List supported shells as text/JSON/NDJSON
+/// List supported shells as text/JSON/JSONL
 pub fn list_supported(format: crate::output::OutputFormat) {
     let shells = vec![
         ("bash", "~/.local/share/bash-completion/completions/blz"),
@@ -37,7 +37,7 @@ pub fn list_supported(format: crate::output::OutputFormat) {
                 serde_json::to_string_pretty(&arr).unwrap_or_else(|_| "[]".to_string())
             );
         },
-        crate::output::OutputFormat::Ndjson => {
+        crate::output::OutputFormat::Jsonl => {
             for (name, path) in &shells {
                 println!("{}", json!({"shell": name, "installPath": path}));
             }

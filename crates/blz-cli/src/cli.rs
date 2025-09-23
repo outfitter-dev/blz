@@ -57,7 +57,9 @@
 
 use clap::{Parser, Subcommand};
 
+use crate::commands::ConfigCommand;
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
 /// Main CLI structure for the `blz` command
@@ -100,15 +102,17 @@ use std::path::PathBuf;
 #[command(name = "blz")]
 #[command(version)]
 #[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
-#[command(override_usage = "blz [OPTIONS] [QUERY]... [COMMAND]")]
+#[command(
+    override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]"
+)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Arguments for default search command
-    #[arg(global = true)]
-    pub args: Vec<String>,
+    /// Positional query arguments used when no explicit command is provided
+    #[arg(value_name = "QUERY", trailing_var_arg = true)]
+    pub query: Vec<String>,
 
     #[arg(short = 'v', long, global = true)]
     pub verbose: bool,
@@ -178,7 +182,7 @@ pub struct Cli {
 /// ```bash
 /// # Source management
 /// blz add react https://react.dev/llms.txt
-/// blz sources --output json
+/// blz sources --format json
 /// blz update react
 /// blz rm react
 ///
@@ -203,14 +207,8 @@ pub enum Commands {
         #[arg(long)]
         list: bool,
         /// Output format for listing
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: crate::output::OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
     },
 
     /// Manage aliases for a source
@@ -267,14 +265,8 @@ pub enum Commands {
         /// Search query (tool name, partial name, etc.)
         query: String,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
     },
 
     /// Search across cached docs
@@ -299,15 +291,50 @@ pub enum Commands {
         /// Show only top N percentile of results (1-100)
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
-        /// Output format
+        /// Output format (text, json, jsonl)
+        #[command(flatten)]
+        format: FormatArg,
+        /// Additional columns to include in text output
+        #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+        show: Vec<ShowComponent>,
+        /// Hide the summary/footer line
+        #[arg(long = "no-summary")]
+        no_summary: bool,
+        /// Override the flavor used for this search
+        #[arg(long = "flavor", value_enum, default_value = "current")]
+        flavor: crate::commands::FlavorMode,
+        /// Number of decimal places to show for scores (0-4)
         #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+            long = "score-precision",
+            value_name = "PLACES",
+            value_parser = clap::value_parser!(u8).range(0..=4),
+        env = "BLZ_SCORE_PRECISION"
+    )]
+        score_precision: Option<u8>,
+        /// Maximum snippet lines to display around a hit (1-10)
+        #[arg(
+        long = "snippet-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(u8).range(1..=10),
+        env = "BLZ_SNIPPET_LINES",
+        default_value_t = 3
+    )]
+        snippet_lines: u8,
+    },
+
+    /// Show recent search history and defaults
+    History {
+        /// Maximum number of entries to display
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+    /// Manage CLI configuration files and preferences
+    Config {
+        #[command(subcommand)]
+        command: Option<ConfigCommand>,
     },
 
     /// Get exact lines from a source
@@ -321,28 +348,16 @@ pub enum Commands {
         #[arg(short = 'c', long)]
         context: Option<usize>,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
     },
 
     /// List all cached sources
     #[command(visible_alias = "sources")]
     List {
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
         /// Include status/health information (etag, lastModified, checksum)
         #[arg(long)]
         status: bool,
@@ -368,6 +383,9 @@ pub enum Commands {
     Remove {
         /// Source alias
         alias: String,
+        /// Apply removal without prompting
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
     },
 
     /// View diffs (coming soon)
@@ -379,6 +397,19 @@ pub enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+}
+
+/// Additional columns that can be displayed in text search results
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub enum ShowComponent {
+    /// Include the global rank prefix (1., 2., ...)
+    Rank,
+    /// Display the source URL header for aliases present on the page
+    Url,
+    /// Prefix snippet lines with their line numbers
+    Lines,
+    /// Show the hashed section anchor above the snippet
+    Anchor,
 }
 
 #[derive(Subcommand, Clone, Debug)]
