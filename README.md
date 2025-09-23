@@ -26,8 +26,8 @@ Typical agent flow:
 blz add react https://react.dev/llms-full.txt -y
 
 # Search and get exact lines
-blz "react hooks" --format json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
-  xargs -n2 blz get --context 3
+blz "react hooks" --format json | jq -r '.[0] | "\(.alias) --lines \(.lines)"' | \
+  xargs -n3 blz get --context 3
 ```
 
 > ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` instead. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
@@ -189,7 +189,7 @@ blz search "test runner" --alias bun --format json
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --format json | jq '.sources | length'
+blz list --format json | jq 'length'
 ```
 
 The JSON output is designed for easy parsing by agents:
