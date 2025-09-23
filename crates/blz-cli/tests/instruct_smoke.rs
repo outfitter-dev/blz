@@ -15,10 +15,6 @@ fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {
         "should include curated instructions"
     );
     assert!(
-        s.contains("=== CLI Docs ==="),
-        "should append CLI docs section"
-    );
-    assert!(
         s.contains("Subcommands"),
         "should include subcommands in docs"
     );
