@@ -115,6 +115,8 @@ cargo deny check
 cargo shear
 ```
 
+> Tip: export `CARGO_TARGET_DIR=target` before running `cargo nextest` or `cargo test` locally. Our GitHub Actions jobs do the same to avoid creating nested `target/tests/target` directories, which previously triggered ENOENT warnings during cache cleanup.
+
 ## Best Practices
 
 ### For Contributors

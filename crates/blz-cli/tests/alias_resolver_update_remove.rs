@@ -1,4 +1,8 @@
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
+
+mod common;
+
+use common::blz_cmd;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -23,37 +27,38 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
         .await;
 
     // Add canonical
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "canon", &url, "-y"])
         .assert()
         .success();
 
     // Add metadata alias
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["alias", "add", "canon", "@scope/pkg"])
         .assert()
         .success();
 
     // Update using metadata alias
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["update", "@scope/pkg", "--quiet"])
         .assert()
         .success();
 
     // Remove using metadata alias
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
-        .args(["remove", "@scope/pkg"]) // should resolve to canonical and delete
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
+        .args(["remove", "@scope/pkg", "-y"]) // should resolve to canonical and delete
         .assert()
         .success();
 
     // List should be empty now
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "-o", "json"])
+        .args(["list", "-f", "json"])
         .assert()
         .success()
         .get_output()

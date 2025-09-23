@@ -1,16 +1,30 @@
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::unwrap_used)]
 //! Tests for search pagination edge cases including divide-by-zero prevention
 
-use assert_cmd::Command;
+mod common;
+
+use common::blz_cmd;
 use predicates::prelude::*;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
 
+macro_rules! assert_benign_stderr {
+    ($result:expr) => {
+        $result.stderr(
+            predicates::str::is_empty()
+                .or(predicates::str::contains("No sources found"))
+                .or(predicates::str::contains(
+                    "Flavor filtering requested (llms) but index schema has no flavor field; ignoring",
+                )),
+        );
+    };
+}
+
 fn setup_test_data() {
     INIT.call_once(|| {
         // Set up test data once for all tests
-        let mut cmd = Command::cargo_bin("blz").unwrap();
+        let mut cmd = blz_cmd();
 
         // Create a minimal test source (using a local file)
         let test_content = "# Test Document\n\nThis is test content for search pagination tests.";
@@ -35,7 +49,7 @@ fn test_zero_limit_does_not_panic() {
     // Note: The CLI actually prevents limit=0 via clap validation,
     // but this test ensures the defensive programming in pagination logic works
 
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     // Try to trigger pagination with invalid limits
     // The actual CLI prevents this, but we're testing the defensive code
@@ -48,8 +62,8 @@ fn test_zero_limit_does_not_panic() {
 
     // Should not panic - either show appropriate message or no sources error
     let result = cmd.assert();
-    // Accept either success with message or error about no sources
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    // Accept either success with message or error about no sources (plus flavor fallback warnings)
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -57,7 +71,7 @@ fn test_empty_results_pagination() {
     setup_test_data();
 
     // Test that pagination handles empty results gracefully
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("nonexistentquerythatwontmatchanything123456789")
@@ -65,13 +79,13 @@ fn test_empty_results_pagination() {
         .arg("10")
         .arg("--page")
         .arg("1")
-        .arg("-o")
+        .arg("-f")
         .arg("json"); // Use JSON output to avoid display issues
 
     // Should handle gracefully with no panic
     // Accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -84,7 +98,7 @@ fn test_single_result_pagination() {
     // This test would require setting up a test index with known data
     // For now, we just ensure the command structure is valid
 
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -95,7 +109,7 @@ fn test_single_result_pagination() {
 
     // Should run without panic - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -104,7 +118,7 @@ fn test_large_limit_with_small_results() {
 
     // Regression test: when limit >= ALL_RESULTS_LIMIT (10,000) and results are empty or small,
     // the actual_limit calculation should not cause divide-by-zero
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("extremely_unlikely_search_term_that_wont_match_xyz123")
@@ -112,12 +126,12 @@ fn test_large_limit_with_small_results() {
         .arg("10000")  // ALL_RESULTS_LIMIT
         .arg("--page")
         .arg("1")
-        .arg("-o")
+        .arg("-f")
         .arg("json");
 
     // Should not panic even with large limit and no results
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -125,7 +139,7 @@ fn test_page_boundary_with_exact_division() {
     setup_test_data();
 
     // Test when results divide exactly by limit
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -136,7 +150,7 @@ fn test_page_boundary_with_exact_division() {
 
     // Should handle page boundary correctly - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -144,7 +158,7 @@ fn test_minimum_limit_value() {
     setup_test_data();
 
     // Test with the minimum valid limit (1)
-    let mut cmd = Command::cargo_bin("blz").unwrap();
+    let mut cmd = blz_cmd();
 
     cmd.arg("search")
         .arg("test")
@@ -155,7 +169,7 @@ fn test_minimum_limit_value() {
 
     // Should handle minimum limit correctly - accept either success or no sources error
     let result = cmd.assert();
-    result.stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+    assert_benign_stderr!(result);
 }
 
 #[test]
@@ -171,7 +185,7 @@ fn test_pagination_prevents_panic_on_edge_cases() {
     ];
 
     for (limit, page) in edge_cases {
-        let mut cmd = Command::cargo_bin("blz").unwrap();
+        let mut cmd = blz_cmd();
 
         cmd.arg("search")
             .arg("test")
@@ -179,12 +193,11 @@ fn test_pagination_prevents_panic_on_edge_cases() {
             .arg(limit)
             .arg("--page")
             .arg(page)
-            .arg("-o")
+            .arg("-f")
             .arg("json");
 
         // None of these should panic - accept either success or no sources error
         let result = cmd.assert();
-        result
-            .stderr(predicates::str::contains("No sources found").or(predicates::str::is_empty()));
+        assert_benign_stderr!(result);
     }
 }

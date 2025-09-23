@@ -1,4 +1,8 @@
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
+
+mod common;
+
+use common::blz_cmd;
 use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
@@ -23,16 +27,17 @@ async fn list_status_json_includes_source_and_keys() -> anyhow::Result<()> {
         .await;
 
     // Add a source
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
 
     // List with status JSON
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["list", "--status", "-o", "json"])
+        .args(["list", "--status", "-f", "json"])
         .assert()
         .success()
         .get_output()

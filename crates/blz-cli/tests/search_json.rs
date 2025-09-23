@@ -1,4 +1,8 @@
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
+
+mod common;
+
+use common::blz_cmd;
 use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
@@ -27,16 +31,17 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
         .await;
 
     // Add
-    assert_cmd::Command::cargo_bin("blz")?
-        .env("BLZ_DATA_DIR", tmp.path())
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
 
     // Search JSON
-    let out = assert_cmd::Command::cargo_bin("blz")?
+    let mut cmd = blz_cmd();
+    let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["search", "alpha", "--alias", "e2e", "-o", "json"])
+        .args(["search", "alpha", "--alias", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()
