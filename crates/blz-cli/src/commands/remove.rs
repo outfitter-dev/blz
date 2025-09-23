@@ -5,6 +5,7 @@ use blz_core::Storage;
 use colored::Colorize;
 use dialoguer::Confirm;
 use std::fs;
+use std::io::IsTerminal;
 
 /// Execute the remove command to delete a source
 pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
@@ -23,9 +24,11 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
 
     display_removal_info(&storage, &canonical, quiet);
 
-    let non_interactive = std::env::var_os("BLZ_FORCE_NON_INTERACTIVE").is_some();
+    // Treat auto-yes, explicit non-interactive env, or the absence of a TTY as approval.
+    let force_non_interactive = std::env::var_os("BLZ_FORCE_NON_INTERACTIVE").is_some();
+    let no_tty = !std::io::stdin().is_terminal();
 
-    if !(auto_yes || non_interactive) {
+    if !(auto_yes || force_non_interactive || no_tty) {
         let prompt = format!("Remove source '{canonical}' and all cached data?");
         let confirmed = Confirm::new()
             .with_prompt(prompt)

@@ -62,6 +62,7 @@ pub async fn execute(
     fetch_and_index_variants(&normalized_alias, url, quiet, fetcher, metrics).await
 }
 
+#[allow(clippy::too_many_lines)]
 async fn fetch_and_index_variants(
     alias: &str,
     url: &str,
@@ -75,7 +76,7 @@ async fn fetch_and_index_variants(
     }
 
     let storage = Storage::new()?;
-    if storage.exists(alias) {
+    if storage.exists_any_flavor(alias) {
         anyhow::bail!(
             "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
             alias,

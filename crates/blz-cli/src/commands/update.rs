@@ -66,7 +66,7 @@ pub async fn execute(
     flavor: FlavorMode,
     yes: bool,
 ) -> Result<()> {
-    let storage = Storage::load()?;
+    let storage = Storage::new()?;
 
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .unwrap_or_else(|| alias.to_string());
@@ -253,9 +253,7 @@ async fn update_source(
             let json = llms_json
                 .clone()
                 .ok_or_else(|| anyhow!("Missing cached {BASE_FLAVOR}.json for {alias}"))?;
-            let metadata = llms_metadata
-                .clone()
-                .or_else(|| Some(json.source.clone()));
+            let metadata = llms_metadata.clone().or_else(|| Some(json.source.clone()));
             (json, metadata)
         } else if flavor_id.as_str() == FULL_FLAVOR {
             let json = llms_full_json
