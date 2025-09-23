@@ -15,6 +15,7 @@ use tracing::info;
 use crate::utils::flavor::{
     BASE_FLAVOR, FULL_FLAVOR, build_llms_json, discover_flavor_candidates, set_preferred_flavor,
 };
+use crate::utils::resolver;
 use crate::utils::settings;
 use crate::utils::settings::PreferenceScope;
 
@@ -67,15 +68,14 @@ pub async fn execute(
     yes: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
+    let canonical_alias =
+        resolver::resolve_source(&storage, alias)?.unwrap_or_else(|| alias.to_string());
 
-    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
-        .unwrap_or_else(|| alias.to_string());
-
-    if !storage.exists_any_flavor(&canonical) {
+    if !storage.exists_any_flavor(&canonical_alias) {
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
-    update_source(&storage, &canonical, metrics, flavor, yes, quiet)
+    update_source(&storage, &canonical_alias, metrics, flavor, yes, quiet)
         .await
         .map(|_| ())
 }
