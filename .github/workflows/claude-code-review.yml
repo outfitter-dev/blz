@@ -2,9 +2,13 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, ready_for_review, review_requested] # Trigger on open, draft→ready, or review request
+    types:
+      - "opened"
+      - "ready_for_review"
+      - "review_requested" # Trigger on open, draft→ready, or review request
   issue_comment:
-    types: [created]
+    types:
+      - "created"
 
 jobs:
   optimize_ci:

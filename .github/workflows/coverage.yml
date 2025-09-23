@@ -2,9 +2,11 @@ name: Coverage
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   schedule:
     - cron: '0 3 * * MON'
   workflow_dispatch:
@@ -82,7 +84,7 @@ jobs:
           ./target/debug/blz add turbo file:///tmp/turbo-llms.txt || true
 
           # Export environment variable for tests
-          echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> $GITHUB_ENV
+          echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> "$GITHUB_ENV"
 
       - name: Generate coverage
         run: |
@@ -125,25 +127,26 @@ jobs:
       - name: Coverage summary
         if: always()
         run: |
+          # shellcheck disable=SC2129
           if [ -f lcov.info ]; then
-            echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📈 Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
 
             # Extract coverage percentage from lcov.info
-            TOTAL_LINES=$(grep -c "^DA:" lcov.info || echo "0")
-            COVERED_LINES=$(grep "^DA:" lcov.info | grep -v ",0$" | wc -l || echo "0")
+            TOTAL_LINES=$(grep -c '^DA:' lcov.info || echo "0")
+            COVERED_LINES=$(grep -c '^DA:.*,[1-9][0-9]*$' lcov.info || echo "0")
 
             if [ "$TOTAL_LINES" -gt 0 ]; then
               COVERAGE=$((COVERED_LINES * 100 / TOTAL_LINES))
-              echo "**Coverage:** ${COVERAGE}% (${COVERED_LINES}/${TOTAL_LINES} lines)" >> $GITHUB_STEP_SUMMARY
+              echo "**Coverage:** ${COVERAGE}% (${COVERED_LINES}/${TOTAL_LINES} lines)" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "**Coverage:** Unable to calculate" >> $GITHUB_STEP_SUMMARY
+              echo "**Coverage:** Unable to calculate" >> "$GITHUB_STEP_SUMMARY"
             fi
 
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Report size:** $(du -h lcov.info | cut -f1)" >> $GITHUB_STEP_SUMMARY
-            echo "**Total entries:** $(wc -l < lcov.info)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Report size:** $(du -h lcov.info | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Total entries:** $(wc -l < lcov.info)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### ⚠️ Coverage Report Failed" >> $GITHUB_STEP_SUMMARY
-            echo "Unable to generate coverage report. Check logs for details." >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Coverage Report Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Unable to generate coverage report. Check logs for details." >> "$GITHUB_STEP_SUMMARY"
           fi

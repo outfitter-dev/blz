@@ -1,14 +1,14 @@
-# blz ※
+# BLZ ※
 
 > **blaze** */bleɪz/* (verb, noun)
 >
 > 1. **verb** – Move or proceed at high speed; achieve something rapidly
 > 2. **noun** – A trail marker, typically painted on trees with specific colors and patterns; a mark to guide explorers on their journey
-> 3. **abbr.** – `blz` – A local-first search tool that indexes llms.txt documentation for instant, line-accurate retrieval
+> 3. **abbr.** – BLZ – A local-first search tool that indexes llms.txt documentation for instant, line-accurate retrieval
 
 ---
 
-## What is `blz`?
+## What is BLZ?
 
 A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` files locally to enable fast documentation search with line-accurate retrieval.
 
@@ -26,9 +26,11 @@ Typical agent flow:
 blz add react https://react.dev/llms-full.txt -y
 
 # Search and get exact lines
-blz "react hooks" -o json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
-  xargs -n2 blz get --context 3
+blz "react hooks" --format json | jq -r '.[0] | "\(.alias) --lines \(.lines)"' | \
+  xargs -n3 blz get --context 3
 ```
+
+> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` instead. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
 
 ### Wait, what's `llms.txt`?
 
@@ -42,9 +44,9 @@ blz "react hooks" -o json | jq -r '.[0] | "\(.alias) \(.lines)"' | \
     - Example: the [Model Context Protocol llms-full.txt](https://modelcontextprotocol.io/llms-full.txt) is nearly 12,000 lines long, and is over 200,000 tokens, which coincidentally was Claude 3.7 Sonnet's token limit.
   - They can change often (which is a good thing), so if you want to download them as reference, keeping them up to date is a pain.
 
-### Why `blz`?
+### Why BLZ?
 
-`llms.txt` files are great, but they're not immediately useful for coding agents as a source for documentation. Context limits alone are enough to make them impractical. Using MCP servers to get docs is the gold-standard today, but they can often return lots of token-heavy results, which isn't ideal for context management in agents. So that's where `blz` comes in:
+`llms.txt` files are great, but they're not immediately useful for coding agents as a source for documentation. Context limits alone are enough to make them impractical. Using MCP servers to get docs is the gold-standard today, but they can often return lots of token-heavy results, which isn't ideal for context management in agents. So that's where BLZ comes in:
 
 ```bash
 # Add Bun's llms.txt to blz
@@ -70,6 +72,7 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 - **Fast Search**: 6ms typical search latency (yes, milliseconds)
 - **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
+- **Dual-Flavor Sync**: Automatically indexes both `llms.txt` and `llms-full.txt` when a project publishes expanded docs.
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
 - **Change Tracking**: Track source changes with `blz diff` command showing moved, added, and removed sections
@@ -132,14 +135,20 @@ blz search "concurrency" --alias bun
 blz get bun --lines 120-142
 blz get bun --lines 120-142 --context 3
 
+# Inspect recent searches and persisted defaults
+blz history --limit 5
+
+# Prefer llms-full.txt automatically
+blz config set add.prefer_full true
+
 # List all sources
 blz list
 
-# Update sources (coming in v0.2)
-#   blz update bun
-#   blz update --all
+# Update sources
+blz update bun
+blz update --all --quiet --yes
 
-# View changes (coming soon in v0.2)
+# View changes (planned)
 # blz diff bun --since "2025-08-20"   # YYYY-MM-DD (RFC 3339 timestamps also supported)
 ```
 
@@ -155,7 +164,7 @@ blz list
 │ ├ Fetcher (ETag)        │    │  (Tantivy)  │
 │ ├ Parser  (tree-sitter) │    └─────────────┘
 │ ├ Search  (BM25)        │
-│ └ *Diff   (v0.2, soon)  │
+│ └ *Diff   (planned)     │
 └──────────┬──────────────┘
            │
 ┌──────────▼──────────────┐
@@ -174,13 +183,13 @@ IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
 # Search for documentation
-blz search "test runner" --alias bun --output json
+blz search "test runner" --alias bun --format json
 
 # Get exact line ranges
 blz get bun --lines 423-445
 
 # List all indexed sources
-blz list --output json | jq '.sources | length'
+blz list --format json | jq 'length'
 ```
 
 The JSON output is designed for easy parsing by agents:
@@ -373,8 +382,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] v0.1: Core CLI with search and retrieval (MVP)
-- [ ] v0.2: Diff tracking and change journal
-- [ ] v0.3: MCP server with stdio transport
+- [ ] v0.3+: Diff tracking and change journal
+- [ ] v0.3.x: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
 
 For detailed architecture and implementation details, see [docs/architecture.md](docs/architecture.md).

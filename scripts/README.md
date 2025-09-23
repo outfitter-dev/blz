@@ -71,6 +71,25 @@ Bootstrap script specifically designed for AI coding agents (Devin.ai, Factory.a
 ./scripts/agent-bootstrap.sh
 ```
 
+### `blz-style.ts`
+Automates the BLZ vs. `blz` stylization rules across Markdown, Rust comments, and shell comments.
+- Rewrites prose occurrences of `blz` to `BLZ` while skipping code examples and identifiers
+- Supports `--check` mode for CI/linting
+
+**Usage:**
+```bash
+bun scripts/blz-style.ts        # auto-fix
+bun scripts/blz-style.ts --check
+```
+
+### `check-blz-style.sh`
+Convenience wrapper for enforcing BLZ stylization in CI pipelines or local checks.
+
+**Usage:**
+```bash
+./scripts/check-blz-style.sh
+```
+
 ### `install-completions.sh`
 Installs shell completions for bash, zsh, and fish.
 

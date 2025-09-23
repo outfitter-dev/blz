@@ -1,8 +1,8 @@
 # docs/why-blz.md
 
-## Why `blz`?
+## Why BLZ?
 
-Agents don’t need pages—they need the *right lines*. `blz` is a local, line-exact retriever for the `llms.txt` ecosystem that delivers millisecond lookups and tiny, auditable snippets for coding agents.
+Agents don’t need pages—they need the *right lines*. BLZ is a local, line-exact retriever for the `llms.txt` ecosystem that delivers millisecond lookups and tiny, auditable snippets for coding agents.
 
 ## The status quo (how IDE agents use docs today)
 
@@ -24,7 +24,7 @@ Most coding tools fetch documentation (or search the web), then *paste large chu
 
 ## A different retrieval model (span-first, local-first)
 
-`blz` flips the pattern:
+BLZ flips the pattern:
 
 1) **Preload & index** `llms.txt` / `llms-full.txt` locally (ETag/If-Modified-Since for freshness).  
 2) **Search in ~6 ms** using Tantivy over *heading-sized blocks* (BM25).  
@@ -55,16 +55,16 @@ Bun > CLI > Test runner
 - **Freshness without spam**: conditional GETs + diff journal; only re-index when the ETag changes.  
 - **Scope control**: repo-scoped preload means your agent only searches relevant tool docs.
 
-## How blz integrates with IDE agents
+## How BLZ integrates with IDE agents
 
 - **Direct CLI**: Agents can run `blz` commands directly—no server needed. Simple `blz search "query"` and `blz get alias --lines 123-145` commands return results in milliseconds.
 - **Context strategy**: instead of dumping pages, agents call `search → get` to stitch 2–5 *spans* into a prompt.  
 - **MCP server** (coming soon): For deeper integration, an MCP server will expose tools like `search`, `get_lines`, `update`, `diff`, `list_sources` via stdio.
-- **Optional RAG**: if you need semantic retrieval, plug spans into your existing AI SDK RAG flow—`blz` still supplies the precise citations.
+- **Optional RAG**: if you need semantic retrieval, plug spans into your existing AI SDK RAG flow—BLZ still supplies the precise citations.
 
 ## Comparison
 
-| Concern | Fetch-and-stuff (typical) | `blz` span-first |
+| Concern | Fetch-and-stuff (typical) | BLZ span-first |
 |---|---|---|
 | **Latency** | 100-500ms network fetch | ~6ms local search |
 | **Token usage** | 1000s (full pages/sections) | 10s-100s (exact spans) |

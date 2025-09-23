@@ -1,5 +1,6 @@
 # Build artifacts
 target/
+.blz-target/
 ## Track lockfile for deterministic releases
 # (Do not ignore Cargo.lock)
 

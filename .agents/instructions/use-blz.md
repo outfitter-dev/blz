@@ -17,7 +17,7 @@ blz add react https://react.dev/llms-full.txt -y
 
 # List all sources
 blz list
-blz list -o json  # machine-readable
+blz list --format json  # machine-readable
 ```
 
 ## Search
@@ -36,9 +36,11 @@ blz "async" --limit 20 --page 2
 blz "async" --last  # jump to last page
 
 # Output formats
-blz "routing" -o json   # JSON array
-blz "routing" -o jsonl  # newline-delimited
+blz "routing" --format json   # JSON array
+blz "routing" --format jsonl  # newline-delimited
 blz "routing" --json    # shortcut
+
+> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
 ```
 
 ## Get Exact Lines

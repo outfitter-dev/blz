@@ -64,9 +64,11 @@ jobs:
           CARGO_LOCK_HASH=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${COMMIT_SHA}/Cargo.lock" | sha256sum | cut -d' ' -f1 | head -c 8)
           CACHE_KEY="rust-build-${COMMIT_SHA:0:8}-${CARGO_LOCK_HASH}"
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          echo "cache_key=$CACHE_KEY" >> $GITHUB_OUTPUT
+          {
+            echo "version=$VERSION"
+            echo "commit_sha=$COMMIT_SHA"
+            echo "cache_key=$CACHE_KEY"
+          } >> "$GITHUB_OUTPUT"
           echo "📦 Version: $VERSION"
           echo "🔖 Commit: $COMMIT_SHA"
           echo "🔑 Cache key: $CACHE_KEY"
@@ -101,7 +103,11 @@ jobs:
 
   # Create GitHub release
   create-release:
-    needs: [verify-tag, build-darwin-arm64, build-linux-x64, build-windows-x64]
+    needs:
+      - verify-tag
+      - build-darwin-arm64
+      - build-linux-x64
+      - build-windows-x64
     name: "Release: Create GitHub Release"
     runs-on: ubuntu-latest
     steps:

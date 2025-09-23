@@ -1,6 +1,6 @@
 # Development Workflow
 
-This document describes our development workflow, tools, and processes for the blz project.
+This document describes our development workflow, tools, and processes for the BLZ project.
 
 ## Workflow Overview
 

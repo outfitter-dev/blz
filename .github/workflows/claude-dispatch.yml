@@ -4,7 +4,8 @@ name: Claude Code Dispatch
 # IMPORTANT: Do not modify this `on` section!
 on:
   repository_dispatch:
-    types: [claude-dispatch]
+    types:
+      - "claude-dispatch"
 
 jobs:
   claude-dispatch:
@@ -20,11 +21,11 @@ jobs:
         with:
           fetch-depth: 1
 
-        # - name: Preliminary Setup
-        #   run: |
-        #     echo "Setting up environment..."
-        #     # Add any preliminary setup commands here to setup Claude's dev environment
-        #     # e.g., npm install, etc.
+      # - name: Preliminary Setup
+      #   run: |
+      #     echo "Setting up environment..."
+      #     # Add any preliminary setup commands here to setup Claude's dev environment
+      #     # e.g., npm install, etc.
 
       - name: Run Claude Code
         id: claude
