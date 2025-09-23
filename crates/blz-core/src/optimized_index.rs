@@ -2,6 +2,7 @@
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
+use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
@@ -55,6 +56,7 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
+    flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -130,6 +132,7 @@ impl OptimizedSearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
+        let flavor_field = schema_builder.add_text_field("flavor", STRING | STORED);
         let schema = schema_builder.build();
 
         let fields = IndexFields {
@@ -138,6 +141,7 @@ impl OptimizedSearchIndex {
             heading_path: heading_path_field,
             lines: lines_field,
             alias: alias_field,
+            flavor: Some(flavor_field),
         };
 
         // Create directory and index
@@ -172,6 +176,7 @@ impl OptimizedSearchIndex {
             alias: schema
                 .get_field("alias")
                 .map_err(|_| Error::Index("Missing alias field".into()))?,
+            flavor: schema.get_field("flavor").ok(),
         };
 
         Self::new_with_index(index, fields).await
@@ -230,6 +235,7 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let start_time = Instant::now();
@@ -246,7 +252,7 @@ impl OptimizedSearchIndex {
         // Try cache first (versioned)
         if let Some(cached_results) = self
             .cache
-            .get_cached_results_v(query_str, alias, Some(&version_token))
+            .get_cached_results_v(query_str, alias, flavor, Some(&version_token))
             .await
         {
             self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
@@ -257,11 +263,13 @@ impl OptimizedSearchIndex {
         self.stats.cache_misses.fetch_add(1, Ordering::Relaxed);
 
         // Perform search with reader from pool
-        let results = self.search_with_reader_pool(query_str, alias, limit).await?;
+        let results = self
+            .search_with_reader_pool(query_str, alias, flavor, limit)
+            .await?;
 
         // Cache results for future use
         self.cache
-            .cache_search_results_v(query_str, alias, Some(&version_token), results.clone())
+            .cache_search_results_v(query_str, alias, flavor, Some(&version_token), results.clone())
             .await;
 
         // Update statistics
@@ -284,13 +292,14 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let reader = self.reader_pool.get_reader().await?;
 
         let result = timeout(
             Duration::from_secs(30),
-            self.execute_search_with_reader(reader.clone(), query_str, alias, limit),
+            self.execute_search_with_reader(reader.clone(), query_str, alias, flavor, limit),
         )
         .await
         .map_err(|_| Error::Timeout("Search operation timed out".into()))?;
@@ -306,13 +315,14 @@ impl OptimizedSearchIndex {
         reader: IndexReader,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let searcher = reader.searcher();
 
         // Build query using optimized string operations
         let mut query_buffer = self.memory_pool.get_string_buffer(query_str.len() * 2).await;
-        self.build_optimized_query(query_str, alias, &mut query_buffer)
+        self.build_optimized_query(query_str, alias, flavor, &mut query_buffer)
             .await;
 
         let query_parser = QueryParser::for_index(
@@ -342,6 +352,13 @@ impl OptimizedSearchIndex {
             let heading_path_str = self.get_field_text(&doc, self.fields.heading_path)?;
             let lines = self.get_field_text(&doc, self.fields.lines)?;
             let content = self.get_field_text(&doc, self.fields.content)?;
+
+            // Extract flavor if the schema supports it
+            let flavor = if let Some(flavor_field) = self.fields.flavor {
+                self.get_field_text(&doc, flavor_field).ok()
+            } else {
+                None
+            };
 
             // Intern commonly used strings
             let alias_interned = self.string_pool.intern(&alias).await;
@@ -380,6 +397,7 @@ impl OptimizedSearchIndex {
                 source_url: None,
                 checksum: String::new(),
                 anchor: None,
+                flavor,
             });
         }
 
@@ -391,6 +409,7 @@ impl OptimizedSearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
+        flavor: Option<&str>,
         buffer: &mut PooledString<'_>,
     ) {
         // Check if escaping is needed (single pass)
@@ -419,13 +438,43 @@ impl OptimizedSearchIndex {
             buffer.as_mut().push_str(query_str);
         }
 
-        // Add alias filter if specified
-        if let Some(alias) = alias {
+        let mut filters = Vec::new();
+        if let Some(alias_value) = alias {
+            filters.push(format!("alias:{alias_value}"));
+        }
+        if self.fields.flavor.is_some() {
+            if let Some(values) = flavor.and_then(|raw| {
+                let normalized = normalize_flavor_filters(raw);
+                if normalized.is_empty() {
+                    if !raw.trim().is_empty() {
+                        tracing::debug!(filter = raw, "Ignoring flavor filter with no recognized values");
+                    }
+                    None
+                } else {
+                    Some(normalized)
+                }
+            }) {
+                if values.len() == 1 {
+                    filters.push(format!("flavor:{}", values[0]));
+                } else {
+                    let clause = values
+                        .iter()
+                        .map(|value| format!("flavor:{value}"))
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                    filters.push(format!("({clause})"));
+                }
+            }
+        } else if flavor.is_some() && !flavor.unwrap_or("").trim().is_empty() {
+            tracing::warn!("Flavor filtering requested but index doesn't support it. Ignoring flavor filter: {}", flavor.unwrap_or(""));
+        }
+
+        if !filters.is_empty() {
             let escaped_query = buffer.as_str().to_string();
             buffer.as_mut().clear();
             buffer
                 .as_mut()
-                .push_str(&format!("alias:{} AND ({})", alias, escaped_query));
+                .push_str(&format!("{} AND ({})", filters.join(" AND "), escaped_query));
         }
     }
 
@@ -507,7 +556,7 @@ impl OptimizedSearchIndex {
         let writer = self.writer_pool.get_writer().await?;
         let result = timeout(
             Duration::from_secs(120), // 2 minute timeout for indexing
-            self.index_blocks_with_writer(writer.clone(), alias, file_path, blocks),
+            self.index_blocks_with_writer(writer.clone(), alias, "llms", file_path, blocks),
         )
         .await
         .map_err(|_| Error::Timeout("Indexing operation timed out".into()))?;
@@ -551,17 +600,99 @@ impl OptimizedSearchIndex {
         result
     }
 
+    /// Index blocks for a specific flavor (preferred for multi-flavor installs)
+    #[instrument(skip(self, blocks), fields(alias, flavor, block_count = blocks.len()))]
+    pub async fn index_blocks_optimized_flavored(
+        &self,
+        alias: &str,
+        flavor: &str,
+        file_path: &str,
+        blocks: &[HeadingBlock],
+    ) -> Result<()> {
+        let start_time = Instant::now();
+        self.stats.index_operations.fetch_add(1, Ordering::Relaxed);
+
+        if blocks.is_empty() {
+            return Ok(());
+        }
+
+        // Use writer from pool
+        let writer = self.writer_pool.get_writer().await?;
+        let result = timeout(
+            Duration::from_secs(120), // 2 minute timeout for indexing
+            self.index_blocks_with_writer(writer.clone(), alias, flavor, file_path, blocks),
+        )
+        .await
+        .map_err(|_| Error::Timeout("Indexing operation timed out".into()))?;
+        self.writer_pool.return_writer(writer).await;
+
+        // Update statistics
+        let index_time = start_time.elapsed();
+        self.stats
+            .total_index_time_ms
+            .fetch_add(index_time.as_millis() as usize, Ordering::Relaxed);
+        self.stats
+            .documents_indexed
+            .fetch_add(blocks.len(), Ordering::Relaxed);
+
+        // Invalidate cache entries for this alias (best-effort) and bump versions
+        let removed = self.cache.invalidate_alias(alias).await;
+        {
+            let mut map = self.alias_versions.write().await;
+            let e = map.entry(alias.to_string()).or_insert(1);
+            *e = e.saturating_add(1);
+        }
+        self.global_version.fetch_add(1, Ordering::Relaxed);
+        debug!(
+            "Invalidated {} cached entries for alias {}; versions -> alias={}, global={}",
+            removed,
+            alias,
+            {
+                let map = self.alias_versions.read().await;
+                *map.get(alias).unwrap_or(&1)
+            },
+            self.global_version.load(Ordering::Relaxed)
+        );
+
+        info!(
+            "Indexed {} blocks for {} (flavor: {}) in {:.2}ms",
+            blocks.len(),
+            alias,
+            flavor,
+            index_time.as_millis()
+        );
+
+        result
+    }
+
     /// Index blocks using specific writer
     async fn index_blocks_with_writer(
         &self,
         mut writer: IndexWriter,
         alias: &str,
+        flavor: &str,
         file_path: &str,
         blocks: &[HeadingBlock],
     ) -> Result<()> {
-        // Delete existing documents for this alias
+        // Delete documents matching alias (and flavor if supported)
+        use tantivy::query::{BooleanQuery, Occur, Query, TermQuery};
+        use tantivy::schema::IndexRecordOption;
         let alias_term = tantivy::Term::from_field_text(self.fields.alias, alias);
-        writer.delete_term(alias_term);
+
+        if let Some(flavor_field) = self.fields.flavor {
+            // Schema supports flavor - delete only matching alias AND flavor
+            let flavor_term = tantivy::Term::from_field_text(flavor_field, flavor);
+            let query: BooleanQuery = BooleanQuery::new(vec![
+                (Occur::Must, Box::new(TermQuery::new(alias_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+                (Occur::Must, Box::new(TermQuery::new(flavor_term, IndexRecordOption::Basic)) as Box<dyn Query>),
+            ]);
+            writer
+                .delete_documents(query)
+                .map_err(|e| Error::Index(format!("Failed to delete existing docs: {}", e)))?;
+        } else {
+            // Legacy schema - delete all documents for alias
+            writer.delete_term(alias_term);
+        }
 
         // Prepare interned strings for reuse
         let alias_interned = self.string_pool.intern(alias).await;
@@ -580,13 +711,18 @@ impl OptimizedSearchIndex {
             let lines_str = format!("{}-{}", block.start_line, block.end_line);
 
             // Create document with interned strings where possible
-            let doc = doc!(
+            let mut doc = doc!(
                 self.fields.content => block.content.as_str(),
                 self.fields.path => file_path_interned.as_ref(),
                 self.fields.heading_path => heading_path_str,
                 self.fields.lines => lines_str,
                 self.fields.alias => alias_interned.as_ref()
             );
+
+            // Add flavor field if supported by schema
+            if let Some(flavor_field) = self.fields.flavor {
+                doc.add_text(flavor_field, flavor);
+            }
 
             writer
                 .add_document(doc)
@@ -629,14 +765,14 @@ impl OptimizedSearchIndex {
     /// Concurrent search across multiple queries
     pub async fn search_multiple(
         &self,
-        queries: Vec<(String, Option<String>, usize)>, // (query, alias, limit)
+        queries: Vec<(String, Option<String>, Option<String>, usize)>, // (query, alias, flavor, limit)
     ) -> Result<Vec<Vec<SearchHit>>> {
         use futures::future::try_join_all;
 
         let tasks: Vec<_> = queries
             .into_iter()
-            .map(|(query, alias, limit)| {
-                self.search_optimized(&query, alias.as_deref(), limit)
+            .map(|(query, alias, flavor, limit)| {
+                self.search_optimized(&query, alias.as_deref(), flavor.as_deref(), limit)
             })
             .collect();
 
@@ -707,11 +843,14 @@ impl OptimizedSearchIndex {
     }
 
     /// Warm up caches with common queries
-    pub async fn warm_up(&self, common_queries: &[(&str, Option<&str>)]) -> Result<()> {
+    pub async fn warm_up(
+        &self,
+        common_queries: &[(&str, Option<&str>, Option<&str>)],
+    ) -> Result<()> {
         info!("Warming up index with {} common queries", common_queries.len());
         
-        for (query, alias) in common_queries {
-            let _ = self.search_optimized(query, *alias, 10).await;
+        for (query, alias, flavor) in common_queries {
+            let _ = self.search_optimized(query, *alias, *flavor, 10).await;
         }
         
         info!("Index warm-up completed");
@@ -913,7 +1052,7 @@ mod tests {
 
         // Search
         let results = index
-            .search_optimized("useState", Some("test"), 10)
+            .search_optimized("useState", Some("test"), None, 10)
             .await
             .unwrap();
 
@@ -936,13 +1075,13 @@ mod tests {
 
         // First search - should miss cache
         let _results1 = index
-            .search_optimized("React", Some("test"), 10)
+            .search_optimized("React", Some("test"), None, 10)
             .await
             .unwrap();
 
         // Second search - should hit cache
         let _results2 = index
-            .search_optimized("React", Some("test"), 10)
+            .search_optimized("React", Some("test"), None, 10)
             .await
             .unwrap();
 
@@ -984,9 +1123,24 @@ mod tests {
             .unwrap();
 
         let queries = vec![
-            ("React".to_string(), Some("test".to_string()), 10),
-            ("hooks".to_string(), Some("test".to_string()), 10),
-            ("components".to_string(), Some("test".to_string()), 10),
+            (
+                "React".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
+            (
+                "hooks".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
+            (
+                "components".to_string(),
+                Some("test".to_string()),
+                None,
+                10,
+            ),
         ];
 
         let results = index.search_multiple(queries).await.unwrap();
@@ -1013,7 +1167,7 @@ mod tests {
         // Perform multiple searches to test reader reuse
         for _ in 0..5 {
             let _ = index
-                .search_optimized("React", Some("test"), 10)
+                .search_optimized("React", Some("test"), None, 10)
                 .await
                 .unwrap();
         }
@@ -1063,9 +1217,9 @@ mod tests {
             .unwrap();
 
         let common_queries = [
-            ("React", Some("test")),
-            ("hooks", Some("test")),
-            ("components", Some("test")),
+            ("React", Some("test"), None),
+            ("hooks", Some("test"), None),
+            ("components", Some("test"), None),
         ];
 
         let result = index.warm_up(&common_queries).await;

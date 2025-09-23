@@ -2,8 +2,8 @@
 
 use anyhow::{Result, anyhow};
 use blz_core::{
-    FetchResult, Fetcher, LineIndex, LlmsJson, MarkdownParser, ParseResult, PerformanceMetrics,
-    SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
+    FetchResult, Fetcher, Flavor, LineIndex, LlmsJson, MarkdownParser, ParseResult,
+    PerformanceMetrics, SearchIndex, Source, Storage, build_anchors_map, compute_anchor_mappings,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -37,7 +37,7 @@ pub async fn execute(
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .unwrap_or_else(|| alias.to_string());
 
-    if !storage.exists(&canonical) {
+    if !storage.exists_any_flavor(&canonical) {
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
@@ -118,9 +118,13 @@ async fn update_source(
 ) -> Result<bool> {
     let start = Instant::now();
 
-    // Load existing metadata
-    let existing_metadata = storage.load_source_metadata(alias)?;
-    let existing_json = storage.load_llms_json(alias)?;
+    // Load existing metadata and JSON for the active flavor (llms or llms-full).
+    let default_metadata = storage.load_source_metadata(alias)?;
+    let ExistingState {
+        json: existing_json,
+        flavor: _initial_flavor,
+        metadata: existing_metadata,
+    } = resolve_existing_state(storage, alias, default_metadata.as_ref())?;
 
     let mut url = existing_json.source.url.clone();
     let pb = create_spinner(format!("Checking {alias}...").as_str());
@@ -219,7 +223,7 @@ async fn update_source(
             alias,
             &pb,
             existing_metadata,
-            existing_json.source,
+            &existing_json.source,
             new_etag,
             new_last_modified,
         ),
@@ -290,12 +294,62 @@ async fn select_update_flavor(
     }
 }
 
+struct ExistingState {
+    json: LlmsJson,
+    flavor: Flavor,
+    metadata: Option<Source>,
+}
+
+fn resolve_existing_state(
+    storage: &Storage,
+    alias: &str,
+    default_metadata: Option<&Source>,
+) -> Result<ExistingState> {
+    fn push_candidate(candidates: &mut Vec<Flavor>, flavor: Flavor) {
+        if !candidates.contains(&flavor) {
+            candidates.push(flavor);
+        }
+    }
+
+    let mut candidates = Vec::new();
+
+    if let Some(metadata) = default_metadata {
+        push_candidate(&mut candidates, Storage::flavor_from_url(&metadata.url));
+    }
+
+    push_candidate(&mut candidates, Flavor::Llms);
+    push_candidate(&mut candidates, Flavor::LlmsFull);
+
+    let available = storage.available_flavors(alias)?;
+    for identifier in available {
+        if let Some(flavor) = Flavor::from_identifier(&identifier) {
+            push_candidate(&mut candidates, flavor);
+        }
+    }
+
+    for flavor in candidates {
+        if let Some(json) = storage.load_flavor_json(alias, flavor.as_str())? {
+            let metadata = storage
+                .load_source_metadata_for_flavor(alias, flavor.as_str())?
+                .or_else(|| default_metadata.cloned());
+
+            return Ok(ExistingState {
+                json,
+                flavor,
+                metadata,
+            });
+        }
+    }
+
+    Err(anyhow!("llms*.json missing for alias '{}'", alias))
+}
+
 fn handle_not_modified(
     storage: &Storage,
     alias: &str,
     pb: &ProgressBar,
     existing_metadata: Option<Source>,
-    existing_source: Source,
+    existing_source: &Source,
     new_etag: Option<String>,
     new_last_modified: Option<String>,
 ) -> Result<bool> {
@@ -303,7 +357,10 @@ fn handle_not_modified(
     info!("{} is up to date", alias);
 
     // Update metadata timestamp and any new validator values
-    let current = existing_metadata.unwrap_or(existing_source);
+    let current = existing_metadata.unwrap_or_else(|| existing_source.clone());
+
+    // Derive flavor from the existing URL since we're not modifying it
+    let flavor = Storage::flavor_from_url(&existing_source.url);
 
     let updated_metadata = Source {
         fetched_at: Utc::now(),
@@ -312,7 +369,7 @@ fn handle_not_modified(
         ..current
     };
 
-    storage.save_source_metadata(alias, &updated_metadata)?;
+    storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &updated_metadata)?;
     Ok(false)
 }
 
@@ -330,10 +387,22 @@ fn handle_modified(
     metrics: PerformanceMetrics,
     start: Instant,
 ) -> Result<bool> {
+    // Determine flavor from the URL using centralized helper
+    let flavor = Storage::flavor_from_url(url);
+    let file_name = flavor.file_name();
+
+    // Prefer existing JSON for this specific flavor when available
+    let previous_json_for_flavor = storage.load_flavor_json(alias, flavor.as_str())?;
+
     pb.set_message(format!("Updating {alias}..."));
 
-    // Check if content actually changed (SHA256 comparison)
-    if existing_json.source.sha256 == sha256 {
+    // Check if content actually changed (SHA256 comparison) - prefer flavor-specific JSON
+    let previous_sha256 = previous_json_for_flavor.as_ref().map_or_else(
+        || existing_json.source.sha256.as_str(),
+        |j| j.source.sha256.as_str(),
+    );
+
+    if previous_sha256 == sha256.as_str() {
         pb.finish_with_message(format!("{alias}: Content unchanged"));
 
         // Update metadata even if content hasn't changed (server headers might have)
@@ -345,7 +414,7 @@ fn handle_modified(
             sha256,
             aliases: existing_json.source.aliases.clone(),
         };
-        storage.save_source_metadata(alias, &new_metadata)?;
+        storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &new_metadata)?;
 
         return Ok(false);
     }
@@ -361,7 +430,7 @@ fn handle_modified(
 
     // Save new content
     pb.set_message(format!("Saving {alias}..."));
-    storage.save_llms_txt(alias, content)?;
+    storage.save_flavor_content(alias, file_name, content)?;
 
     // Create and save updated JSON
     let new_json = LlmsJson {
@@ -376,7 +445,7 @@ fn handle_modified(
         },
         toc: parse_result.toc.clone(),
         files: vec![blz_core::FileInfo {
-            path: "llms.txt".to_string(),
+            path: file_name.to_string(),
             sha256: sha256.clone(),
         }],
         line_index: LineIndex {
@@ -389,19 +458,22 @@ fn handle_modified(
             segmentation: "structured".to_string(),
         }),
     };
-    storage.save_llms_json(alias, &new_json)?;
+    storage.save_flavor_json(alias, flavor.as_str(), &new_json)?;
 
-    // Build anchors remap from old -> new using core helper
-    if !existing_json.toc.is_empty() && !new_json.toc.is_empty() {
-        let mappings = compute_anchor_mappings(&existing_json.toc, &new_json.toc);
-        if !mappings.is_empty() {
-            let anchors_map = build_anchors_map(mappings, Utc::now());
-            let _ = storage.save_anchors_map(alias, &anchors_map);
+    // Build anchors remap from old -> new using core helper - prefer flavor-specific JSON
+    if !new_json.toc.is_empty() {
+        let old_toc = previous_json_for_flavor.map_or_else(|| existing_json.toc.clone(), |j| j.toc);
+        if !old_toc.is_empty() {
+            let mappings = compute_anchor_mappings(&old_toc, &new_json.toc);
+            if !mappings.is_empty() {
+                let anchors_map = build_anchors_map(mappings, Utc::now());
+                let _ = storage.save_anchors_map(alias, &anchors_map);
+            }
         }
     }
 
     // Rebuild search index
-    rebuild_index(storage, alias, &parse_result, metrics, pb)?;
+    rebuild_index(storage, alias, &parse_result, metrics, pb, flavor)?;
 
     // Save metadata only after a successful index rebuild
     let metadata = Source {
@@ -412,7 +484,7 @@ fn handle_modified(
         sha256,
         aliases: new_json.source.aliases.clone(),
     };
-    storage.save_source_metadata(alias, &metadata)?;
+    storage.save_source_metadata_for_flavor(alias, flavor.as_str(), &metadata)?;
 
     let elapsed = start.elapsed();
     pb.finish_with_message(format!(
@@ -439,7 +511,9 @@ fn rebuild_index(
     parse_result: &ParseResult,
     metrics: PerformanceMetrics,
     pb: &ProgressBar,
+    flavor: Flavor,
 ) -> Result<()> {
+    let file_name = flavor.file_name();
     pb.set_message(format!("Reindexing {alias}..."));
     let index_path = storage.index_dir(alias)?;
 
@@ -451,7 +525,12 @@ fn rebuild_index(
     }
 
     let index = SearchIndex::create(&tmp_index)?.with_metrics(metrics);
-    index.index_blocks(alias, "llms.txt", &parse_result.heading_blocks)?;
+    index.index_blocks(
+        alias,
+        file_name,
+        &parse_result.heading_blocks,
+        flavor.as_str(),
+    )?;
 
     // Ensure no open handles before swapping on Windows
     drop(index);

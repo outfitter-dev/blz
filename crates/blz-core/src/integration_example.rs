@@ -70,9 +70,17 @@ impl HighPerformanceSearchSystem {
     }
     
     /// Perform optimized search with full pipeline
-    pub async fn search(&self, query: &str, alias: Option<&str>, limit: usize) -> Result<Vec<crate::SearchHit>> {
+    pub async fn search(
+        &self,
+        query: &str,
+        alias: Option<&str>,
+        flavor: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<crate::SearchHit>> {
         // Use the fully optimized search pipeline
-        self.index.search_optimized(query, alias, limit).await
+        self.index
+            .search_optimized(query, alias, flavor, limit)
+            .await
     }
     
     /// Batch index multiple sources concurrently
@@ -90,7 +98,10 @@ impl HighPerformanceSearchSystem {
     }
     
     /// Warm up the system with common queries
-    pub async fn warm_up(&self, common_queries: &[(&str, Option<&str>)]) -> Result<()> {
+    pub async fn warm_up(
+        &self,
+        common_queries: &[(&str, Option<&str>, Option<&str>)],
+    ) -> Result<()> {
         info!("Warming up system with {} queries", common_queries.len());
         self.index.warm_up(common_queries).await
     }
@@ -251,15 +262,17 @@ async fn example_usage() -> Result<()> {
     
     // Warm up with common queries
     let common_queries = &[
-        ("React hooks", Some("react")),
-        ("TypeScript interfaces", Some("typescript")),
-        ("useState", Some("react")),
+        ("React hooks", Some("react"), None),
+        ("TypeScript interfaces", Some("typescript"), None),
+        ("useState", Some("react"), None),
     ];
     
     search_system.warm_up(common_queries).await?;
     
     // Perform optimized searches
-    let results = search_system.search("React hooks useState", Some("react"), 10).await?;
+    let results = search_system
+        .search("React hooks useState", Some("react"), None, 10)
+        .await?;
     info!("Found {} results for React hooks search", results.len());
     
     // Check performance statistics
