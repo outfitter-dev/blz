@@ -15,7 +15,29 @@ pub struct Storage {
 
 impl Storage {
     fn sanitize_variant_file_name(name: &str) -> String {
-        let sanitized = name.replace(['\\', '/'], "_");
+        // Only allow a conservative set of filename characters to avoid
+        // accidentally writing outside the tool directory or producing
+        // surprising paths. Anything else becomes an underscore so that the
+        // resulting filename stays predictable and safe to use across
+        // platforms.
+        let mut sanitized: String = name
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+
+        // Collapse any ".." segments that could be introduced either by the
+        // caller or by the substitution above. This keeps the path rooted at
+        // the alias directory even if callers pass traversal attempts.
+        while sanitized.contains("..") {
+            sanitized = sanitized.replace("..", "_");
+        }
+
         if sanitized.is_empty() {
             "llms.txt".to_string()
         } else {
@@ -366,6 +388,18 @@ impl Storage {
             .unwrap_or(false)
     }
 
+    /// Checks if any flavor has been persisted for the alias.
+    #[must_use]
+    pub fn exists_any_flavor(&self, alias: &str) -> bool {
+        if self.exists(alias) {
+            return true;
+        }
+
+        self.available_flavors(alias)
+            .map(|flavors| !flavors.is_empty())
+            .unwrap_or(false)
+    }
+
     /// Lists all available documentation flavors persisted for a given alias.
     ///
     /// Flavors correspond to the JSON artifacts produced during ingest, e.g.
@@ -428,7 +462,7 @@ impl Storage {
             for entry in entries.flatten() {
                 if entry.path().is_dir() {
                     if let Some(name) = entry.file_name().to_str() {
-                        if !name.starts_with('.') && self.exists(name) {
+                        if !name.starts_with('.') && self.exists_any_flavor(name) {
                             sources.push(name.to_string());
                         }
                     }

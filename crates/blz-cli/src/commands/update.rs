@@ -37,7 +37,7 @@ pub async fn execute(
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .unwrap_or_else(|| alias.to_string());
 
-    if !storage.exists(&canonical) {
+    if !storage.exists_any_flavor(&canonical) {
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
@@ -118,9 +118,13 @@ async fn update_source(
 ) -> Result<bool> {
     let start = Instant::now();
 
-    // Load existing metadata
-    let existing_metadata = storage.load_source_metadata(alias)?;
-    let existing_json = storage.load_llms_json(alias)?;
+    // Load existing metadata and JSON for the active flavor (llms or llms-full).
+    let default_metadata = storage.load_source_metadata(alias)?;
+    let ExistingState {
+        json: existing_json,
+        flavor: _initial_flavor,
+        metadata: existing_metadata,
+    } = resolve_existing_state(storage, alias, default_metadata.as_ref())?;
 
     let mut url = existing_json.source.url.clone();
     let pb = create_spinner(format!("Checking {alias}...").as_str());
@@ -290,6 +294,56 @@ async fn select_update_flavor(
     }
 }
 
+struct ExistingState {
+    json: LlmsJson,
+    flavor: Flavor,
+    metadata: Option<Source>,
+}
+
+fn resolve_existing_state(
+    storage: &Storage,
+    alias: &str,
+    default_metadata: Option<&Source>,
+) -> Result<ExistingState> {
+    fn push_candidate(candidates: &mut Vec<Flavor>, flavor: Flavor) {
+        if !candidates.contains(&flavor) {
+            candidates.push(flavor);
+        }
+    }
+
+    let mut candidates = Vec::new();
+
+    if let Some(metadata) = default_metadata {
+        push_candidate(&mut candidates, Storage::flavor_from_url(&metadata.url));
+    }
+
+    push_candidate(&mut candidates, Flavor::Llms);
+    push_candidate(&mut candidates, Flavor::LlmsFull);
+
+    let available = storage.available_flavors(alias)?;
+    for identifier in available {
+        if let Some(flavor) = Flavor::from_identifier(&identifier) {
+            push_candidate(&mut candidates, flavor);
+        }
+    }
+
+    for flavor in candidates {
+        if let Some(json) = storage.load_flavor_json(alias, flavor.as_str())? {
+            let metadata = storage
+                .load_source_metadata_for_flavor(alias, flavor.as_str())?
+                .or_else(|| default_metadata.cloned());
+
+            return Ok(ExistingState {
+                json,
+                flavor,
+                metadata,
+            });
+        }
+    }
+
+    Err(anyhow!("llms*.json missing for alias '{}'", alias))
+}
+
 fn handle_not_modified(
     storage: &Storage,
     alias: &str,
@@ -419,15 +473,7 @@ fn handle_modified(
     }
 
     // Rebuild search index
-    rebuild_index(
-        storage,
-        alias,
-        &parse_result,
-        metrics,
-        pb,
-        file_name,
-        flavor,
-    )?;
+    rebuild_index(storage, alias, &parse_result, metrics, pb, flavor)?;
 
     // Save metadata only after a successful index rebuild
     let metadata = Source {
@@ -465,9 +511,9 @@ fn rebuild_index(
     parse_result: &ParseResult,
     metrics: PerformanceMetrics,
     pb: &ProgressBar,
-    file_name: &str,
     flavor: Flavor,
 ) -> Result<()> {
+    let file_name = flavor.file_name();
     pb.set_message(format!("Reindexing {alias}..."));
     let index_path = storage.index_dir(alias)?;
 
