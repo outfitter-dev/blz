@@ -180,7 +180,7 @@ async fn execute_command(
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Instruct) => instruct_mod::print(),
         Some(Commands::Add { alias, url, yes }) => {
-            commands::add_source(&alias, &url, yes, metrics).await?;
+            commands::add_source(&alias, &url, yes, cli.quiet, metrics).await?;
         },
         Some(Commands::Lookup { query, format }) => {
             commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))

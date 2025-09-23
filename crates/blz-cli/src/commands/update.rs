@@ -87,8 +87,8 @@ pub async fn execute_all(
     flavor: FlavorMode,
     yes: bool,
 ) -> Result<()> {
-    let storage = Storage::load()?;
-    let sources = storage.list_sources()?;
+    let storage = Storage::new()?;
+    let sources = storage.list_sources();
 
     if sources.is_empty() {
         anyhow::bail!("No sources configured. Use 'blz add' to add sources.");
@@ -98,9 +98,8 @@ pub async fn execute_all(
     let mut skipped_count = 0;
     let mut error_count = 0;
 
-    for source in sources {
-        let alias = &source.alias;
-        match update_source(&storage, alias, metrics.clone(), flavor, yes, quiet).await {
+    for alias in sources {
+        match update_source(&storage, &alias, metrics.clone(), flavor, yes, quiet).await {
             Ok(true) => updated_count += 1,
             Ok(false) => skipped_count += 1,
             Err(e) => {

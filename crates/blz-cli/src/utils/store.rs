@@ -85,20 +85,16 @@ pub fn save_store(store: &BlzStore) -> std::io::Result<()> {
 }
 
 fn store_path() -> PathBuf {
+    if let Ok(file) = std::env::var("BLZ_CONFIG") {
+        let trimmed = file.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
     active_config_dir().join(STORE_FILENAME)
 }
 
 pub fn active_config_dir() -> PathBuf {
-    if let Ok(file) = std::env::var("BLZ_CONFIG") {
-        let trimmed = file.trim();
-        if !trimmed.is_empty() {
-            let path = PathBuf::from(trimmed);
-            if let Some(parent) = path.parent() {
-                return parent.to_path_buf();
-            }
-        }
-    }
-
     if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
         let trimmed = dir.trim();
         if !trimmed.is_empty() {
@@ -210,6 +206,22 @@ mod tests {
             let loaded = load_store();
             assert_eq!(loaded.schema_version, CURRENT_SCHEMA_VERSION);
             assert!(loaded.scopes.contains_key("local:/tmp"));
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn store_path_prefers_blz_config_file() -> Result<()> {
+        with_temp_config_dir(|dir| {
+            let file = dir.join("custom-store.json");
+            unsafe {
+                std::env::set_var("BLZ_CONFIG", &file);
+            }
+            let resolved = super::store_path();
+            unsafe {
+                std::env::remove_var("BLZ_CONFIG");
+            }
+            assert_eq!(resolved, file);
             Ok(())
         })
     }
