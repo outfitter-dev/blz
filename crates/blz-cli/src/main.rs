@@ -31,6 +31,254 @@ use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands};
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
 
+/// Preprocess command-line arguments so shorthand search syntax and format aliases work.
+///
+/// When search-only flags (for example `-s`, `--limit`, `--json`) are used without explicitly
+/// writing the `search` subcommand, we inject it and normalise aliases so clap parses them
+/// correctly.
+fn preprocess_args() -> Vec<String> {
+    let raw: Vec<String> = std::env::args().collect();
+    preprocess_args_from(&raw)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FlagKind {
+    Switch,
+    TakesValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SearchFlagMatch {
+    None,
+    RequiresValue {
+        flag: &'static str,
+        attached: Option<String>,
+    },
+    NoValue(&'static str),
+    FormatAlias(&'static str),
+}
+
+fn preprocess_args_from(raw: &[String]) -> Vec<String> {
+    if raw.len() <= 1 {
+        return raw.to_vec();
+    }
+
+    let mut first_non_global_idx = raw.len();
+    let mut search_flag_found = false;
+    let mut idx = 1;
+
+    while idx < raw.len() {
+        let arg = raw[idx].as_str();
+        if arg == "--" {
+            break;
+        }
+
+        if let Some(kind) = classify_global_flag(arg) {
+            if kind == FlagKind::TakesValue && idx + 1 < raw.len() {
+                idx += 1;
+            }
+            idx += 1;
+            continue;
+        }
+
+        if first_non_global_idx == raw.len() {
+            first_non_global_idx = idx;
+        }
+
+        if matches!(classify_search_flag(arg), SearchFlagMatch::None) {
+            // keep scanning
+        } else {
+            search_flag_found = true;
+        }
+
+        idx += 1;
+    }
+
+    if first_non_global_idx == raw.len() && idx < raw.len() {
+        first_non_global_idx = idx;
+    }
+
+    // Continue scanning from the first non-global argument for additional search flags
+    for arg in raw.iter().skip(first_non_global_idx) {
+        if arg == "--" {
+            break;
+        }
+        if !matches!(classify_search_flag(arg), SearchFlagMatch::None) {
+            search_flag_found = true;
+        }
+    }
+
+    let explicit_subcommand =
+        first_non_global_idx < raw.len() && is_known_subcommand(raw[first_non_global_idx].as_str());
+    let mut result = Vec::with_capacity(raw.len() + 4);
+
+    result.push(raw[0].clone());
+
+    // Copy leading global flags so we can insert `search` after them if needed
+    for arg in raw.iter().take(first_non_global_idx).skip(1) {
+        result.push(arg.clone());
+    }
+
+    let should_inject_search = search_flag_found && !explicit_subcommand;
+    if should_inject_search {
+        result.push("search".to_string());
+    }
+
+    let mut idx = first_non_global_idx;
+    let mut encountered_sentinel = false;
+
+    while idx < raw.len() {
+        let arg = raw[idx].as_str();
+        if arg == "--" {
+            result.push(raw[idx].clone());
+            idx += 1;
+            encountered_sentinel = true;
+            break;
+        }
+
+        match classify_search_flag(arg) {
+            SearchFlagMatch::None => {
+                result.push(raw[idx].clone());
+                idx += 1;
+            },
+            SearchFlagMatch::NoValue(flag) => {
+                result.push(flag.to_string());
+                idx += 1;
+            },
+            SearchFlagMatch::FormatAlias(format) => {
+                result.push("--format".to_string());
+                result.push(format.to_string());
+                idx += 1;
+            },
+            SearchFlagMatch::RequiresValue { flag, attached } => {
+                result.push(flag.to_string());
+                if let Some(value) = attached {
+                    result.push(value);
+                    idx += 1;
+                } else if idx + 1 < raw.len() {
+                    result.push(raw[idx + 1].clone());
+                    idx += 2;
+                } else {
+                    idx += 1;
+                }
+            },
+        }
+    }
+
+    if encountered_sentinel {
+        result.extend(raw.iter().skip(idx).cloned());
+    }
+
+    result
+}
+
+fn is_known_subcommand(value: &str) -> bool {
+    matches!(
+        value,
+        "add"
+            | "alias"
+            | "completions"
+            | "config"
+            | "diff"
+            | "docs"
+            | "get"
+            | "history"
+            | "instruct"
+            | "list"
+            | "lookup"
+            | "remove"
+            | "rm"
+            | "delete"
+            | "search"
+            | "sources"
+            | "update"
+    )
+}
+
+fn classify_global_flag(arg: &str) -> Option<FlagKind> {
+    match arg {
+        "-v" | "--verbose" | "-q" | "--quiet" | "--debug" | "--profile" | "--no-color" | "-h"
+        | "--help" | "-V" | "--version" | "--flamegraph" => Some(FlagKind::Switch),
+        "--config" | "--config-dir" => Some(FlagKind::TakesValue),
+        _ if arg.starts_with("--config=") || arg.starts_with("--config-dir=") => {
+            Some(FlagKind::Switch)
+        },
+        _ => None,
+    }
+}
+
+fn classify_search_flag(arg: &str) -> SearchFlagMatch {
+    match arg {
+        "--last" => return SearchFlagMatch::NoValue("--last"),
+        "--all" => return SearchFlagMatch::NoValue("--all"),
+        "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
+        "--json" => return SearchFlagMatch::FormatAlias("json"),
+        "--jsonl" => return SearchFlagMatch::FormatAlias("jsonl"),
+        "--text" => return SearchFlagMatch::FormatAlias("text"),
+        _ => {},
+    }
+
+    if let Some(value) = arg.strip_prefix("--json=") {
+        if !value.is_empty() {
+            return SearchFlagMatch::FormatAlias("json");
+        }
+    }
+    if let Some(value) = arg.strip_prefix("--jsonl=") {
+        if !value.is_empty() {
+            return SearchFlagMatch::FormatAlias("jsonl");
+        }
+    }
+    if let Some(value) = arg.strip_prefix("--text=") {
+        if !value.is_empty() {
+            return SearchFlagMatch::FormatAlias("text");
+        }
+    }
+
+    for (flag, canonical) in [
+        ("--alias", "--alias"),
+        ("--source", "--source"),
+        ("--limit", "--limit"),
+        ("--page", "--page"),
+        ("--top", "--top"),
+        ("--format", "--format"),
+        ("--output", "--output"),
+        ("--show", "--show"),
+        ("--flavor", "--flavor"),
+        ("--score-precision", "--score-precision"),
+        ("--snippet-lines", "--snippet-lines"),
+    ] {
+        if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: Some(value.to_string()),
+            };
+        }
+        if arg == flag {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: None,
+            };
+        }
+    }
+
+    for (prefix, canonical) in [("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")] {
+        if arg == prefix {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: None,
+            };
+        }
+        if arg.starts_with(prefix) && arg.len() > prefix.len() {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: Some(arg[prefix.len()..].to_string()),
+            };
+        }
+    }
+
+    SearchFlagMatch::None
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Convert Broken pipe panics into a clean exit
@@ -47,7 +295,9 @@ async fn main() -> Result<()> {
     // Spawn process guard as early as possible to catch orphaned processes
     utils::process_guard::spawn_parent_exit_guard();
 
-    let mut cli = Cli::parse();
+    // Preprocess arguments to handle shorthand search with flags
+    let args = preprocess_args();
+    let mut cli = Cli::parse_from(args);
 
     initialize_logging(&cli)?;
 
@@ -774,6 +1024,80 @@ mod tests {
         // Test invalid format value
         let result = Cli::try_parse_from(vec!["blz", "list", "--format", "invalid"]);
         assert!(result.is_err(), "Invalid output format should fail");
+    }
+
+    fn to_string_vec(items: &[&str]) -> Vec<String> {
+        items.iter().copied().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn preprocess_injects_search_for_shorthand_flags() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "query", "-s", "react"]);
+        let processed = preprocess_args_from(&raw);
+
+        let expected = to_string_vec(&["blz", "search", "query", "-s", "react"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { alias, .. }) => {
+                assert_eq!(alias.as_deref(), Some("react"));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_preserves_global_flags_order() {
+        let raw = to_string_vec(&["blz", "--quiet", "query", "-s", "docs"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "--quiet", "search", "query", "-s", "docs"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_converts_json_aliases() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "query", "--json"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--format", "json"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { format, .. }) => {
+                assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_list_subcommand_without_injection() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "list", "--jsonl"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "list", "--format", "jsonl"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::List { format, .. }) => {
+                assert_eq!(format.resolve(false), crate::output::OutputFormat::Jsonl);
+            },
+            _ => panic!("expected list command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_respects_sentinel() {
+        let raw = to_string_vec(&["blz", "query", "--", "-s", "react"]);
+        let processed = preprocess_args_from(&raw);
+        assert_eq!(processed, raw);
     }
 
     #[test]
