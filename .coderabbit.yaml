@@ -7,5 +7,5 @@ reviews:
     # Base branches to review (accepts regex patterns)
     base_branches:
       - "main"         # Default branch
-      - "gt/.*"        # Matches Graphite branches like gt/feature-name
-      - "gt-.*/.*"     # Matches Graphite stacks like gt-v0.3/branch-name
+      - "^gt/.*$"      # Matches Graphite branches like gt/feature-name
+      - "^gt-.+/.+$"   # Matches Graphite stacks like gt-v0.3/branch-name
