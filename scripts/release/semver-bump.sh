@@ -24,12 +24,11 @@ read_current_version() {
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-NODE_SCRIPT="$REPO_ROOT/scripts/release/semver-bump.mjs"
 META_PATH="$REPO_ROOT/.semver-meta.json"
-
-if [[ ! -f "$NODE_SCRIPT" ]]; then
-  echo "Missing helper script: $NODE_SCRIPT" >&2
-  exit 1
+if command -v blz-release >/dev/null 2>&1; then
+  RELEASE_TOOL=(blz-release)
+else
+  RELEASE_TOOL=(cargo run --quiet -p blz-release --)
 fi
 
 CHECK=0
@@ -47,11 +46,7 @@ if [[ $CHECK -eq 1 && -z "$MODE" ]]; then
     echo "Unable to determine current version from Cargo.toml" >&2
     exit 1
   fi
-  if ! command -v node >/dev/null 2>&1; then
-    echo "node is required to run version helper scripts" >&2
-    exit 1
-  fi
-  node "$NODE_SCRIPT" check --expect "$CURRENT_VERSION" --repo-root "$REPO_ROOT"
+  "${RELEASE_TOOL[@]}" check --expect "$CURRENT_VERSION" --repo-root "$REPO_ROOT"
   exit 0
 fi
 
@@ -80,11 +75,6 @@ if [[ $CHECK -eq 0 ]]; then
   fi
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "node is required to run version helper scripts" >&2
-  exit 1
-fi
-
 CURRENT_VERSION=$(read_current_version)
 if [[ -z "$CURRENT_VERSION" ]]; then
   echo "Unable to determine current version from Cargo.toml" >&2
@@ -101,7 +91,7 @@ if [[ "$MODE" == "set" ]]; then
   NEXT_ARGS+=(--value "$VALUE")
 fi
 
-NEW_VERSION=$(node "$NODE_SCRIPT" "${NEXT_ARGS[@]}")
+NEW_VERSION=$("${RELEASE_TOOL[@]}" "${NEXT_ARGS[@]}")
 
 if [[ -z "$NEW_VERSION" ]]; then
   echo "Failed to compute new version" >&2
@@ -110,41 +100,12 @@ fi
 
 cargo set-version --workspace "$NEW_VERSION"
 
-node "$NODE_SCRIPT" sync --version "$NEW_VERSION" --repo-root "$REPO_ROOT"
-
-python3 - "$NEW_VERSION" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-version = sys.argv[1]
-lock_path = Path('Cargo.lock')
-if not lock_path.exists():
-    raise SystemExit("Cargo.lock not found; refusing to proceed. Generate it first.")
-
-data = lock_path.read_text(encoding="utf-8").replace("\r\n", "\n")
-
-def bump_in_block(pkg: str, text: str) -> str:
-    # Constrain replacement to the matching [[package]] block for `pkg`
-    block = re.compile(
-        r'^\[\[package\]\]\n'                              # block start
-        r'(?:(?!^\[\[package\]\]\n).)*?'                   # until next block
-        rf'\bname\s*=\s*"{re.escape(pkg)}"\b'              # name match
-        r'(?:(?!^\[\[package\]\]\n).)*?'                   # still within block
-        r'(\bversion\s*=\s*")([^"\n]+)(")',                # capture version value
-        re.M | re.S
-    )
-    def _sub(m):
-        return f'{m.group(1)}{version}{m.group(3)}'
-    new_text, n = block.subn(_sub, text, count=1)
-    if n != 1:
-        raise SystemExit(f"Failed to update exactly one block for {pkg} in Cargo.lock (updated {n}).")
-    return new_text
-
-for pkg in ('blz-cli', 'blz-core'):
-    data = bump_in_block(pkg, data)
-
-lock_path.write_text(data, encoding="utf-8")
-PY
+"${RELEASE_TOOL[@]}" sync --version "$NEW_VERSION" --repo-root "$REPO_ROOT"
+"${RELEASE_TOOL[@]}" update-lock \
+  --version "$NEW_VERSION" \
+  --lock-path "$REPO_ROOT/Cargo.lock" \
+  --package blz-cli \
+  --package blz-core \
+  --package blz-release
 
 echo "$NEW_VERSION"
