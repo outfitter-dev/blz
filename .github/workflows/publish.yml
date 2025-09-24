@@ -355,6 +355,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  publish_release:
+    name: Publish GitHub Release
+    permissions:
+      contents: write
+    needs:
+      - prepare
+      - upload_release_assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Publishing release ${{ needs.prepare.outputs.tag }}..."
+          if ! gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --repo "${{ github.repository }}"; then
+            echo "❌ Failed to publish release ${{ needs.prepare.outputs.tag }}"
+            exit 1
+          fi
+          echo "✅ Release ${{ needs.prepare.outputs.tag }} has been published"
+
+          # Add a short delay to ensure GitHub API propagation
+          sleep 5
+
   publish_npm:
     name: npm
     permissions:
@@ -362,7 +386,7 @@ jobs:
       id-token: write
     needs:
       - prepare
-      - upload_release_assets
+      - publish_release
     uses: ./.github/workflows/publish-npm.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
@@ -375,7 +399,7 @@ jobs:
     name: crates.io
     needs:
       - prepare
-      - upload_release_assets
+      - publish_release
     uses: ./.github/workflows/publish-crates.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
@@ -388,6 +412,7 @@ jobs:
     needs:
       - prepare
       - upload_release_assets
+      - publish_release
     if: ${{ needs.prepare.outputs.publish_homebrew == 'true' }}
     uses: ./.github/workflows/publish-homebrew.yml
     with:
@@ -407,8 +432,8 @@ jobs:
       pull-requests: read
     needs:
       - prepare
-      - upload_release_assets
-    if: ${{ always() && needs.upload_release_assets.result == 'success' }}
+      - publish_release
+    if: ${{ always() && needs.publish_release.result == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       body: ${{ steps.notes.outputs.body }}
@@ -496,17 +521,17 @@ jobs:
             core.setOutput('body', body);
 
   finalize:
-    name: Finalize GitHub Release
+    name: Update Release Notes
     permissions:
       contents: write
     needs:
       - prepare
-      - upload_release_assets
+      - publish_release
       - publish_npm
       - publish_crates
       - publish_homebrew
       - release_notes
-    if: ${{ always() && needs.upload_release_assets.result == 'success' && (needs.publish_npm.result == 'success' || needs.publish_crates.result == 'success' || needs.publish_homebrew.result == 'success') }}
+    if: ${{ always() && needs.publish_release.result == 'success' && (needs.publish_npm.result == 'success' || needs.publish_crates.result == 'success' || needs.publish_homebrew.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Generate Release Status Report
@@ -515,7 +540,7 @@ jobs:
             echo "## Release Status for ${{ needs.prepare.outputs.tag }}"
             echo ""
             echo "### Core Assets"
-            echo "- ✅ GitHub Release Assets: Uploaded"
+            echo "- ✅ GitHub Release: Published"
             echo ""
             echo "### Registry Publishing"
             if [[ "${{ needs.publish_npm.result }}" == "success" ]]; then
@@ -541,7 +566,8 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish release
+      - name: Update release notes
+        if: ${{ needs.release_notes.outputs.body != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
