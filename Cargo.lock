@@ -353,6 +353,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "blz-release"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "semver",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "time",
+ "toml_edit",
+]
+
+[[package]]
 name = "brotli"
 version = "8.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2644,6 +2658,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
 name = "serde"
