@@ -54,7 +54,7 @@ struct NextArgs {
     mode: Mode,
     #[arg(long)]
     current: Version,
-    #[arg(long)]
+    #[arg(long, required_if_eq("mode", "set"))]
     value: Option<Version>,
     #[arg(long)]
     meta: Option<PathBuf>,
@@ -106,7 +106,7 @@ fn main() -> Result<()> {
         Command::Next(args) => {
             let next = compute_next_version(args)?;
             print!("{next}");
-            std::io::stdout().flush().ok();
+            std::io::stdout().flush()?;
         },
         Command::Sync(args) => sync_npm_files(&args.version, args.repo_root.as_deref())?,
         Command::Check(args) => check_npm_files(&args.expect, args.repo_root.as_deref())?,
@@ -219,7 +219,7 @@ fn read_meta(path: Option<&Path>) -> Result<MetaFile> {
     Ok(meta)
 }
 
-/// Write canary metadata back to disk when a backing file exists.
+/// Write canary metadata when a meta file path is provided.
 fn write_meta(path: Option<&Path>, meta: &MetaFile) -> Result<()> {
     let Some(path) = path else {
         return Ok(());
@@ -248,7 +248,7 @@ fn write_json_file(path: &Path, value: &JsonValue) -> Result<()> {
 }
 
 fn sync_npm_files(version: &Version, repo_root: Option<&Path>) -> Result<()> {
-    let root = repo_root.map_or_else(|| Path::new(".").to_path_buf(), ToOwned::to_owned);
+    let root = repo_root.map_or_else(|| Path::new(".").to_path_buf(), |p| p.to_path_buf());
     update_json_version(root.join(PACKAGE_JSON), version)?;
     if let Some(lock) = update_package_lock(root.join(PACKAGE_LOCK_JSON), version)? {
         fs::write(&lock.path, &lock.contents)
@@ -258,11 +258,14 @@ fn sync_npm_files(version: &Version, repo_root: Option<&Path>) -> Result<()> {
 }
 
 fn update_json_version(path: PathBuf, version: &Version) -> Result<()> {
-    let Some(JsonValue::Object(mut json)) = read_json_file(&path)? else {
+    let Some(mut value) = read_json_file(&path)? else {
         return Ok(());
     };
-    json.insert("version".into(), JsonValue::String(version.to_string()));
-    write_json_file(&path, &JsonValue::Object(json))?;
+    let obj = value
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("{} was not a JSON object", path.display()))?;
+    obj.insert("version".into(), JsonValue::String(version.to_string()));
+    write_json_file(&path, &value)?;
     Ok(())
 }
 
@@ -290,9 +293,9 @@ fn update_package_lock(path: PathBuf, version: &Version) -> Result<Option<LockUp
 }
 
 fn check_npm_files(expected: &Version, repo_root: Option<&Path>) -> Result<()> {
-    let root = repo_root.map_or_else(|| Path::new(".").to_path_buf(), ToOwned::to_owned);
-    check_json_version(root.join("package.json"), expected)?;
-    check_package_lock(root.join("package-lock.json"), expected)?;
+    let root = repo_root.map_or_else(|| Path::new(".").to_path_buf(), |p| p.to_path_buf());
+    check_json_version(root.join(PACKAGE_JSON), expected)?;
+    check_package_lock(root.join(PACKAGE_LOCK_JSON), expected)?;
     Ok(())
 }
 
