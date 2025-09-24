@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/blz-core",
     "crates/blz-cli",
+    "crates/blz-release",
 ]
 
 [workspace.package]
@@ -29,6 +30,8 @@ tracing-subscriber = { version = "0.3.20", features = ["fmt", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
 directories = "5"
 futures = "0.3"
+semver = "1"
+time = { version = "0.3", features = ["formatting"] }
 
 # Profiling
 pprof = "0.15"

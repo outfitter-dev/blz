@@ -33,3 +33,7 @@ Reviewed sequentially via `gt up` starting from `main`.
 ## gt/ci_consolidate_workflows
 - ✅ Looks good
 - Notes: `publish_release` now runs when assets are skipped (publish-only mode) while still honoring dry-run and successful asset uploads in full mode.
+
+## main (post-merge follow-up)
+- ✅ Looks good
+- Notes: Replaced the Node/Python helpers with the new `blz-release` Rust binary; `scripts/release/semver-bump.sh` now shells out to it for version math, npm sync, and Cargo.lock updates.
