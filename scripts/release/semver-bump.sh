@@ -118,33 +118,44 @@ import sys
 from pathlib import Path
 
 version = sys.argv[1]
-lock_path = Path('Cargo.lock')
+lock_path = Path("Cargo.lock")
 if not lock_path.exists():
     raise SystemExit("Cargo.lock not found; refusing to proceed. Generate it first.")
 
-data = lock_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+raw = lock_path.read_text(encoding="utf-8")
+separator = "[[package]]"
+parts = raw.split(separator)
+if len(parts) <= 1:
+    raise SystemExit("Unexpected Cargo.lock format: no [[package]] blocks found.")
 
-def bump_in_block(pkg: str, text: str) -> str:
-    # Constrain replacement to the matching [[package]] block for `pkg`
-    block = re.compile(
-        r'^\[\[package\]\]\n'                              # block start
-        r'(?:(?!^\[\[package\]\]\n).)*?'                   # until next block
-        rf'\bname\s*=\s*"{re.escape(pkg)}"\b'              # name match
-        r'(?:(?!^\[\[package\]\]\n).)*?'                   # still within block
-        r'(\bversion\s*=\s*")([^"\n]+)(")',                # capture version value
-        re.M | re.S
+def update_block(block: str, package: str) -> tuple[str, bool]:
+    if f'name = "{package}"' not in block:
+        return block, False
+    new_block, count = re.subn(
+        r'(\bversion\s*=\s*")([^"\n]+)(")',
+        rf"\\1{version}\\3",
+        block,
+        count=1,
     )
-    def _sub(m):
-        return f'{m.group(1)}{version}{m.group(3)}'
-    new_text, n = block.subn(_sub, text, count=1)
-    if n != 1:
-        raise SystemExit(f"Failed to update exactly one block for {pkg} in Cargo.lock (updated {n}).")
-    return new_text
+    if count != 1:
+        raise SystemExit(f"Failed to update version for {package} in Cargo.lock (updated {count}).")
+    return new_block, True
 
-for pkg in ('blz-cli', 'blz-core'):
-    data = bump_in_block(pkg, data)
+updated = {"blz-cli": False, "blz-core": False}
+for index, block in enumerate(parts):
+    for package in list(updated):
+        if updated[package]:
+            continue
+        new_block, did_update = update_block(block, package)
+        if did_update:
+            parts[index] = new_block
+            updated[package] = True
 
-lock_path.write_text(data, encoding="utf-8")
+missing = [pkg for pkg, done in updated.items() if not done]
+if missing:
+    raise SystemExit(f"Failed to locate package block(s) in Cargo.lock: {', '.join(missing)}")
+
+lock_path.write_text(separator.join(parts), encoding="utf-8")
 PY
 
 echo "$NEW_VERSION"
