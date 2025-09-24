@@ -368,8 +368,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           echo "Publishing release ${{ needs.prepare.outputs.tag }}..."
-          gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --repo "${{ github.repository }}"
+          if ! gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --repo "${{ github.repository }}"; then
+            echo "❌ Failed to publish release ${{ needs.prepare.outputs.tag }}"
+            exit 1
+          fi
           echo "✅ Release ${{ needs.prepare.outputs.tag }} has been published"
 
           # Add a short delay to ensure GitHub API propagation
