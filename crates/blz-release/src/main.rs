@@ -284,6 +284,7 @@ fn check_npm_files(expected: &Version, repo_root: Option<&Path>) -> Result<()> {
 }
 
 fn check_json_version(path: PathBuf, expected: &Version) -> Result<()> {
+    let expected_s = expected.to_string();
     if !path.exists() {
         return Ok(());
     }
@@ -295,16 +296,17 @@ fn check_json_version(path: PathBuf, expected: &Version) -> Result<()> {
         bail!("{} missing version field", path.display());
     };
     ensure!(
-        actual == expected.to_string(),
+        actual == expected_s,
         "{} version {} does not match {}",
         path.display(),
         actual,
-        expected
+        expected_s
     );
     Ok(())
 }
 
 fn check_package_lock(path: PathBuf, expected: &Version) -> Result<()> {
+    let expected_s = expected.to_string();
     if !path.exists() {
         return Ok(());
     }
@@ -317,10 +319,10 @@ fn check_package_lock(path: PathBuf, expected: &Version) -> Result<()> {
         .and_then(JsonValue::as_str)
         .context("package-lock.json missing version field")?;
     ensure!(
-        version == expected.to_string(),
+        version == expected_s,
         "package-lock.json version {} does not match {}",
         version,
-        expected
+        expected_s
     );
     if let Some(root_version) = json
         .get("packages")
@@ -331,10 +333,10 @@ fn check_package_lock(path: PathBuf, expected: &Version) -> Result<()> {
         .and_then(JsonValue::as_str)
     {
         ensure!(
-            root_version == expected.to_string(),
+            root_version == expected_s,
             "Root entry in package-lock.json is {}, expected {}",
             root_version,
-            expected
+            expected_s
         );
     }
     Ok(())

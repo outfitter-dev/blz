@@ -31,7 +31,7 @@ chrono = { version = "0.4", features = ["serde"] }
 directories = "5"
 futures = "0.3"
 semver = "1"
-time = { version = "0.3", features = ["formatting"] }
+time = "0.3"
 
 # Profiling
 pprof = "0.15"

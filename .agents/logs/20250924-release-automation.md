@@ -56,3 +56,6 @@ Reviewed sequentially via `gt up` starting from `main`.
 
 - ✅ Test cleanup & diagnostics
 - Notes: Added contextual read errors for npm manifest checks and converted release-tool tests to return `anyhow::Result` instead of `unwrap`, following repository lint policy.
+
+- ✅ Polish after review
+- Notes: Marked `blz-release` as `publish = false`, cached `Version` string comparisons, preferred installed binaries in the semver script, and trimmed the unused `time` formatting feature per review nitpicks.

@@ -25,7 +25,11 @@ read_current_version() {
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 META_PATH="$REPO_ROOT/.semver-meta.json"
-RELEASE_TOOL=(cargo run --quiet -p blz-release --)
+if command -v blz-release >/dev/null 2>&1; then
+  RELEASE_TOOL=(blz-release)
+else
+  RELEASE_TOOL=(cargo run --quiet -p blz-release --)
+fi
 
 CHECK=0
 if [[ ${1-} == "--check" ]]; then
