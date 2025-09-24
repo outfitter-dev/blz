@@ -125,9 +125,39 @@ jobs:
         run: |
           set -euo pipefail
           TAG='${{ steps.resolve.outputs.tag }}'
-          ARM_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length')
-          X64_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length')
-          LINUX_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-linux-x64.tar.gz"))) | length')
+
+          # Retry function for gh release view with exponential backoff
+          retry_gh_release_view() {
+            local max_attempts=5
+            for attempt in $(seq 1 "$max_attempts"); do
+              echo "Checking release assets (attempt $attempt/$max_attempts)..." >> "$GITHUB_STEP_SUMMARY"
+              if gh release view "$TAG" --repo "${{ github.repository }}" --json assets > /tmp/release-assets.json 2>/tmp/gh-release-error; then
+                echo "Successfully retrieved release assets on attempt $attempt" >> "$GITHUB_STEP_SUMMARY"
+                return 0
+              fi
+              local err=$(cat /tmp/gh-release-error 2>/dev/null || echo "unknown error")
+              echo "::warning::gh release view failed for $TAG on attempt $attempt/$max_attempts: $err"
+              if [[ "$attempt" -lt "$max_attempts" ]]; then
+                local wait_time=$((2 ** attempt))
+                echo "Retrying in ${wait_time}s..."
+                sleep "$wait_time"
+              fi
+            done
+            echo "::error::Failed to retrieve release assets for $TAG after $max_attempts attempts. Last error: $(cat /tmp/gh-release-error 2>/dev/null || echo 'unknown')" >> "$GITHUB_STEP_SUMMARY"
+            return 1
+          }
+
+          # Retry the release view operation
+          if ! retry_gh_release_view; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Parse asset counts from the retrieved data
+          ARM_COUNT=$(jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length' /tmp/release-assets.json)
+          X64_COUNT=$(jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length' /tmp/release-assets.json)
+          LINUX_COUNT=$(jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-linux-x64.tar.gz"))) | length' /tmp/release-assets.json)
+
           if [ "${ARM_COUNT:-0}" -eq 0 ] || [ "${X64_COUNT:-0}" -eq 0 ] || [ "${LINUX_COUNT:-0}" -eq 0 ]; then
             {
               echo "ready=false"
@@ -137,7 +167,11 @@ jobs:
             {
               echo "ready=true"
             } >> "$GITHUB_OUTPUT"
+            echo "All Homebrew assets ready for $TAG (arm64=$ARM_COUNT, x64=$X64_COUNT, linux=$LINUX_COUNT)" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+          # Clean up temp files
+          rm -f /tmp/release-assets.json /tmp/gh-release-error
 
       - name: Checkout source (for scripts)
         if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
@@ -156,9 +190,59 @@ jobs:
           set -euo pipefail
           TAG='${{ steps.resolve.outputs.tag }}'
           VERSION='${{ steps.resolve.outputs.version }}'
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-arm64.tar.gz" --dir . --clobber
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-x64.tar.gz" --dir . --clobber
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-linux-x64.tar.gz" --dir . --clobber
+
+          # Retry function for gh release download with exponential backoff
+          retry_gh_release_download() {
+            local pattern="$1"
+            local filename=$(basename "$pattern")
+            local max_attempts=5
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              echo "Downloading $filename (attempt $attempt/$max_attempts)..." >> "$GITHUB_STEP_SUMMARY"
+              if gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$pattern" --dir . --clobber 2>/tmp/gh-download-error; then
+                if [[ -f "$filename" ]]; then
+                  echo "Successfully downloaded $filename on attempt $attempt" >> "$GITHUB_STEP_SUMMARY"
+                  return 0
+                else
+                  echo "::warning::Download succeeded but $filename not found on attempt $attempt/$max_attempts"
+                fi
+              else
+                local err=$(cat /tmp/gh-download-error 2>/dev/null || echo "unknown error")
+                echo "::warning::gh release download failed for $filename on attempt $attempt/$max_attempts: $err"
+              fi
+
+              if [[ "$attempt" -lt "$max_attempts" ]]; then
+                local wait_time=$((2 ** attempt))
+                echo "Retrying download of $filename in ${wait_time}s..."
+                sleep "$wait_time"
+              fi
+            done
+
+            local err=$(cat /tmp/gh-download-error 2>/dev/null || echo "unknown error")
+            echo "::error::Failed to download $filename after $max_attempts attempts. Last error: $err" >> "$GITHUB_STEP_SUMMARY"
+            return 1
+          }
+
+          # Download each asset with retry logic
+          echo "Starting asset downloads for $TAG..." >> "$GITHUB_STEP_SUMMARY"
+
+          if ! retry_gh_release_download "blz-${VERSION}-darwin-arm64.tar.gz"; then
+            echo "::error::Failed to download darwin-arm64 asset"
+            exit 1
+          fi
+
+          if ! retry_gh_release_download "blz-${VERSION}-darwin-x64.tar.gz"; then
+            echo "::error::Failed to download darwin-x64 asset"
+            exit 1
+          fi
+
+          if ! retry_gh_release_download "blz-${VERSION}-linux-x64.tar.gz"; then
+            echo "::error::Failed to download linux-x64 asset"
+            exit 1
+          fi
+
+          echo "All assets downloaded successfully, computing SHA256 hashes..." >> "$GITHUB_STEP_SUMMARY"
+
           SHA_ARM64=$(sha256sum "blz-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
           SHA_X64=$(sha256sum "blz-${VERSION}-darwin-x64.tar.gz" | awk '{print $1}')
           SHA_LINUX=$(sha256sum "blz-${VERSION}-linux-x64.tar.gz" | awk '{print $1}')
@@ -170,6 +254,11 @@ jobs:
             echo "sha_x64=$SHA_X64"
             echo "sha_linux=$SHA_LINUX"
           } >> "$GITHUB_OUTPUT"
+
+          echo "SHA256 hashes computed successfully (arm64: $SHA_ARM64, x64: $SHA_X64, linux: $SHA_LINUX)" >> "$GITHUB_STEP_SUMMARY"
+
+          # Clean up temp files
+          rm -f /tmp/gh-download-error
 
       - name: Checkout tap repository
         if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
