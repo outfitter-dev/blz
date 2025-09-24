@@ -181,6 +181,8 @@ fn is_known_subcommand(value: &str) -> bool {
             | "config"
             | "diff"
             | "docs"
+            | "anchors"
+            | "anchor"
             | "get"
             | "history"
             | "instruct"
@@ -1096,6 +1098,13 @@ mod tests {
     #[test]
     fn preprocess_respects_sentinel() {
         let raw = to_string_vec(&["blz", "query", "--", "-s", "react"]);
+        let processed = preprocess_args_from(&raw);
+        assert_eq!(processed, raw);
+    }
+
+    #[test]
+    fn preprocess_does_not_inject_hidden_subcommands() {
+        let raw = to_string_vec(&["blz", "anchors", "e2e", "-f", "json"]);
         let processed = preprocess_args_from(&raw);
         assert_eq!(processed, raw);
     }
