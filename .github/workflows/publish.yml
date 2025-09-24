@@ -1,5 +1,14 @@
 name: Publish Release
 
+# Consolidated release workflow that supports multiple release modes:
+# - full: Complete release (build + upload + publish all) [default]
+# - assets-only: Build and upload GitHub release assets only
+# - publish-only: Publish to registries from existing release
+# - Individual skip flags: skip_npm, skip_crates, skip_homebrew
+# - dry_run: Validate but don't actually publish
+#
+# Replaces: release.yml, release-simplified.yml, manual-publish.yml
+
 on:
   push:
     tags:
@@ -10,10 +19,39 @@ on:
         description: 'Tag to release (e.g., v0.2.0)'
         required: true
         type: string
+      mode:
+        description: 'Release mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - 'full' # Complete release: build + upload + publish all
+          - 'assets-only' # Build and upload GitHub release assets only
+          - 'publish-only' # Publish to registries from existing release
       dist_tag:
         description: 'Override npm dist-tag (defaults based on version)'
         required: false
         type: string
+      skip_npm:
+        description: 'Skip npm publishing'
+        required: false
+        default: false
+        type: boolean
+      skip_crates:
+        description: 'Skip crates.io publishing'
+        required: false
+        default: false
+        type: boolean
+      skip_homebrew:
+        description: 'Skip Homebrew publishing'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Dry run (validate but do not publish)'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     # Enables release.yml or other orchestrators to invoke this pipeline directly
     # Callers must grant pull-requests: read so the release_notes job can enumerate PRs
@@ -21,9 +59,29 @@ on:
       tag:
         required: true
         type: string
+      mode:
+        required: false
+        type: string
+        default: 'full'
       dist_tag:
         required: false
         type: string
+      skip_npm:
+        required: false
+        type: boolean
+        default: false
+      skip_crates:
+        required: false
+        type: boolean
+        default: false
+      skip_homebrew:
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        required: false
+        type: boolean
+        default: false
     secrets:
       NPM_TOKEN:
         required: false
@@ -48,13 +106,23 @@ jobs:
       version: ${{ steps.vars.outputs.version }}
       dist_tag: ${{ steps.vars.outputs.dist_tag }}
       prerelease: ${{ steps.vars.outputs.prerelease }}
-      publish_homebrew: ${{ steps.vars.outputs.publish_homebrew }}
+      mode: ${{ steps.vars.outputs.mode }}
+      skip_assets: ${{ steps.vars.outputs.skip_assets }}
+      skip_npm: ${{ steps.vars.outputs.skip_npm }}
+      skip_crates: ${{ steps.vars.outputs.skip_crates }}
+      skip_homebrew: ${{ steps.vars.outputs.skip_homebrew }}
+      dry_run: ${{ steps.vars.outputs.dry_run }}
     steps:
       - name: Resolve tag
         id: vars
         env:
           INPUT_TAG: ${{ inputs.tag }}
+          INPUT_MODE: ${{ inputs.mode || 'full' }}
           INPUT_DIST_TAG: ${{ inputs.dist_tag }}
+          INPUT_SKIP_NPM: ${{ inputs.skip_npm || false }}
+          INPUT_SKIP_CRATES: ${{ inputs.skip_crates || false }}
+          INPUT_SKIP_HOMEBREW: ${{ inputs.skip_homebrew || false }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run || false }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
@@ -67,8 +135,13 @@ jobs:
             echo "::error::Missing tag input"
             exit 1
           fi
+          # Tag length limit: 64 chars covers most semver patterns including:
+          # - Standard: v1.2.3 (7 chars)
+          # - Pre-release: v1.2.3-beta.4+build.1234567890 (35 chars)
+          # - Canary: v1.2.3-canary.20250924.123456 (30 chars)
+          # Increase this limit if your versioning scheme requires more characters
           if (( ${#TAG} > 64 )); then
-            echo "::error::Invalid tag: $TAG (too long)"
+            echo "::error::Invalid tag: $TAG exceeds 64 character limit"
             exit 1
           fi
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
@@ -96,31 +169,76 @@ jobs:
           else
             PRERELEASE='false'
           fi
-          if [[ "$PRERELEASE" == 'true' ]]; then
-            PUBLISH_HOMEBREW='false'
-          else
-            PUBLISH_HOMEBREW='true'
+          # Determine mode and skip flags
+          MODE="${INPUT_MODE:-full}"
+
+          # Set skip flags based on mode and inputs
+          case "$MODE" in
+            "publish-only")
+              SKIP_ASSETS="true"
+              ;;
+            "assets-only")
+              SKIP_NPM="true"
+              SKIP_CRATES="true"
+              SKIP_HOMEBREW="true"
+              ;;
+            *)
+              SKIP_ASSETS="false"
+              ;;
+          esac
+
+          # Apply user overrides
+          SKIP_NPM="${INPUT_SKIP_NPM:-${SKIP_NPM:-false}}"
+          SKIP_CRATES="${INPUT_SKIP_CRATES:-${SKIP_CRATES:-false}}"
+          SKIP_HOMEBREW="${INPUT_SKIP_HOMEBREW:-${SKIP_HOMEBREW:-false}}"
+          DRY_RUN="${INPUT_DRY_RUN:-false}"
+
+          # For prerelease versions, skip Homebrew by default unless explicitly enabled
+          if [[ "$PRERELEASE" == 'true' && "$INPUT_SKIP_HOMEBREW" != 'false' ]]; then
+            SKIP_HOMEBREW="true"
           fi
+
+          # Validate parameter combinations
+          if [[ "$MODE" == "assets-only" && "$DRY_RUN" == "true" ]]; then
+            echo "::error::Invalid combination: assets-only mode with dry_run=true would create a draft release without publishing it"
+            exit 1
+          fi
+
+          if [[ "$MODE" == "publish-only" && "$SKIP_NPM" == "true" && "$SKIP_CRATES" == "true" && "$SKIP_HOMEBREW" == "true" ]]; then
+            echo "::warning::publish-only mode with all registries skipped - nothing will be published"
+          fi
+
           # Emit all outputs atomically to keep ShellCheck happy and avoid partial writes
           printf '%s\n' \
             "tag=$TAG" \
             "version=$VERSION" \
             "dist_tag=$DIST_TAG" \
             "prerelease=$PRERELEASE" \
-            "publish_homebrew=$PUBLISH_HOMEBREW" \
+            "mode=$MODE" \
+            "skip_assets=$SKIP_ASSETS" \
+            "skip_npm=$SKIP_NPM" \
+            "skip_crates=$SKIP_CRATES" \
+            "skip_homebrew=$SKIP_HOMEBREW" \
+            "dry_run=$DRY_RUN" \
             >> "$GITHUB_OUTPUT"
           {
             echo "### Publish Parameters"
             echo "- Tag: $TAG"
             echo "- Version: $VERSION"
+            echo "- Mode: $MODE"
             echo "- npm dist-tag: $DIST_TAG"
             echo "- Pre-release: $PRERELEASE"
-            echo "- Publish Homebrew: $PUBLISH_HOMEBREW"
+            echo "- Skip assets: $SKIP_ASSETS"
+            echo "- Skip npm: $SKIP_NPM"
+            echo "- Skip crates: $SKIP_CRATES"
+            echo "- Skip Homebrew: $SKIP_HOMEBREW"
+            echo "- Dry run: $DRY_RUN"
           } >> "$GITHUB_STEP_SUMMARY"
 
   build_darwin_arm64:
     name: Build macOS arm64 binary
     needs: prepare
+    if: ${{ needs.prepare.outputs.skip_assets != 'true' }}
     uses: ./.github/workflows/reusable-build.yml
     with:
       target: darwin-arm64
@@ -132,6 +250,7 @@ jobs:
   build_darwin_x64:
     name: Build macOS x64 binary
     needs: prepare
+    if: ${{ needs.prepare.outputs.skip_assets != 'true' }}
     uses: ./.github/workflows/reusable-build.yml
     with:
       target: darwin-x64
@@ -143,6 +262,7 @@ jobs:
   build_linux_x64:
     name: Build Linux x64 binary
     needs: prepare
+    if: ${{ needs.prepare.outputs.skip_assets != 'true' }}
     uses: ./.github/workflows/reusable-build.yml
     with:
       target: linux-x64
@@ -154,6 +274,7 @@ jobs:
   build_windows_x64:
     name: Build Windows x64 binary
     needs: prepare
+    if: ${{ needs.prepare.outputs.skip_assets != 'true' }}
     uses: ./.github/workflows/reusable-build.yml
     with:
       target: windows-x64
@@ -172,6 +293,7 @@ jobs:
       - build_darwin_x64
       - build_linux_x64
       - build_windows_x64
+    if: ${{ always() && needs.prepare.outputs.skip_assets != 'true' && (needs.build_darwin_arm64.result == 'success' || needs.build_darwin_x64.result == 'success' || needs.build_linux_x64.result == 'success' || needs.build_windows_x64.result == 'success') }}
     runs-on: ubuntu-latest
     outputs:
       sha_arm64: ${{ steps.asset_shas.outputs.sha_arm64 }}
@@ -209,7 +331,11 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare.outputs.version }}"
-          # All builds run via reusable-build; fail immediately if expected payloads go missing
+          # Asset flattening logic:
+          # Build jobs may place artifacts in nested directories (e.g., artifacts/blz-version-platform/)
+          # This function flattens the structure by finding assets regardless of directory depth
+          # and moving them to the expected dist/ location for upload to GitHub releases.
+          # This handles variations in how different CI runners package artifacts.
           locate_and_move() {
             local search_hint="$1"
             local filename="$2"
@@ -363,6 +489,7 @@ jobs:
       - prepare
       - upload_release_assets
     runs-on: ubuntu-latest
+    if: ${{ always() && needs.prepare.outputs.dry_run != 'true' && (needs.prepare.outputs.skip_assets == 'true' || needs.upload_release_assets.result == 'success' || needs.upload_release_assets.result == 'skipped') }}
     steps:
       - name: Publish release
         env:
@@ -379,6 +506,60 @@ jobs:
           # Add a short delay to ensure GitHub API propagation
           sleep 5
 
+  # Compute SHAs from existing release assets when in publish-only mode
+  compute_release_shas:
+    name: Compute SHA256 from Release
+    permissions:
+      contents: read
+    needs:
+      - prepare
+      - publish_release
+    if: ${{ needs.prepare.outputs.mode == 'publish-only' && needs.prepare.outputs.skip_homebrew != 'true' && needs.prepare.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      sha_arm64: ${{ steps.compute.outputs.sha_arm64 }}
+      sha_x64: ${{ steps.compute.outputs.sha_x64 }}
+      sha_linux: ${{ steps.compute.outputs.sha_linux }}
+    steps:
+      - name: Download and compute SHAs
+        id: compute
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG='${{ needs.prepare.outputs.tag }}'
+          VERSION='${{ needs.prepare.outputs.version }}'
+
+          echo "Downloading release assets for SHA computation..."
+
+          # Download the release assets
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "blz-${VERSION}-darwin-arm64.tar.gz" \
+            --pattern "blz-${VERSION}-darwin-x64.tar.gz" \
+            --pattern "blz-${VERSION}-linux-x64.tar.gz" \
+            --dir .
+
+          # Compute SHA256 checksums
+          sha_arm64=$(sha256sum "blz-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
+          sha_x64=$(sha256sum "blz-${VERSION}-darwin-x64.tar.gz" | awk '{print $1}')
+          sha_linux=$(sha256sum "blz-${VERSION}-linux-x64.tar.gz" | awk '{print $1}')
+
+          # Output the SHAs
+          {
+            echo "sha_arm64=$sha_arm64"
+            echo "sha_x64=$sha_x64"
+            echo "sha_linux=$sha_linux"
+          } >> "$GITHUB_OUTPUT"
+
+          # Add to step summary
+          {
+            echo "### Computed SHA256 from Release Assets"
+            echo "- darwin-arm64: $sha_arm64"
+            echo "- darwin-x64:   $sha_x64"
+            echo "- linux-x64:    $sha_linux"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish_npm:
     name: npm
     permissions:
@@ -387,6 +568,7 @@ jobs:
     needs:
       - prepare
       - publish_release
+    if: ${{ always() && needs.prepare.outputs.skip_npm != 'true' && needs.prepare.outputs.dry_run != 'true' && needs.publish_release.result == 'success' }}
     uses: ./.github/workflows/publish-npm.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
@@ -400,6 +582,7 @@ jobs:
     needs:
       - prepare
       - publish_release
+    if: ${{ always() && needs.prepare.outputs.skip_crates != 'true' && needs.prepare.outputs.dry_run != 'true' && needs.publish_release.result == 'success' }}
     uses: ./.github/workflows/publish-crates.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
@@ -412,16 +595,19 @@ jobs:
     needs:
       - prepare
       - upload_release_assets
+      - compute_release_shas
       - publish_release
-    if: ${{ needs.prepare.outputs.publish_homebrew == 'true' }}
+    if: ${{ always() && needs.prepare.outputs.skip_homebrew != 'true' && needs.prepare.outputs.dry_run != 'true' && needs.publish_release.result == 'success' }}
     uses: ./.github/workflows/publish-homebrew.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
       version: ${{ needs.prepare.outputs.version }}
       enabled: true
-      sha_arm64: ${{ needs.upload_release_assets.outputs.sha_arm64 }}
-      sha_x64: ${{ needs.upload_release_assets.outputs.sha_x64 }}
-      sha_linux: ${{ needs.upload_release_assets.outputs.sha_linux }}
+      # Use SHAs from upload_release_assets if available (full or assets-only mode)
+      # Otherwise use SHAs from compute_release_shas (publish-only mode)
+      sha_arm64: ${{ needs.upload_release_assets.outputs.sha_arm64 || needs.compute_release_shas.outputs.sha_arm64 }}
+      sha_x64: ${{ needs.upload_release_assets.outputs.sha_x64 || needs.compute_release_shas.outputs.sha_x64 }}
+      sha_linux: ${{ needs.upload_release_assets.outputs.sha_linux || needs.compute_release_shas.outputs.sha_linux }}
     secrets:
       homebrew-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
