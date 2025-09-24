@@ -173,6 +173,10 @@ jobs:
       - build_linux_x64
       - build_windows_x64
     runs-on: ubuntu-latest
+    outputs:
+      sha_arm64: ${{ steps.asset_shas.outputs.sha_arm64 }}
+      sha_x64: ${{ steps.asset_shas.outputs.sha_x64 }}
+      sha_linux: ${{ steps.asset_shas.outputs.sha_linux }}
     steps:
       - name: Create dist directory
         run: mkdir -p dist
@@ -292,6 +296,29 @@ jobs:
           extract_binary "dist/blz-${VERSION}-linux-x64.tar.gz" "dist/blz-linux-x64" tar
           extract_binary "dist/blz-${VERSION}-windows-x64.zip" "dist/blz-win32-x64.exe" zip
 
+      - name: Compute asset checksums
+        id: asset_shas
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.prepare.outputs.version }}'
+          sha_arm64=$(sha256sum "dist/blz-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
+          sha_x64=$(sha256sum "dist/blz-${VERSION}-darwin-x64.tar.gz" | awk '{print $1}')
+          sha_linux=$(sha256sum "dist/blz-${VERSION}-linux-x64.tar.gz" | awk '{print $1}')
+          echo "::add-mask::$sha_arm64"
+          echo "::add-mask::$sha_x64"
+          echo "::add-mask::$sha_linux"
+          {
+            echo "sha_arm64=$sha_arm64"
+            echo "sha_x64=$sha_x64"
+            echo "sha_linux=$sha_linux"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Asset SHA256"
+            echo "- darwin-arm64: $sha_arm64"
+            echo "- darwin-x64:   $sha_x64"
+            echo "- linux-x64:    $sha_linux"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Assemble files list
         id: files
         run: |
@@ -367,6 +394,9 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
       version: ${{ needs.prepare.outputs.version }}
       enabled: true
+      sha_arm64: ${{ needs.upload_release_assets.outputs.sha_arm64 }}
+      sha_x64: ${{ needs.upload_release_assets.outputs.sha_x64 }}
+      sha_linux: ${{ needs.upload_release_assets.outputs.sha_linux }}
     secrets:
       homebrew-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
