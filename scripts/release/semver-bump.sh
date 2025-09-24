@@ -87,7 +87,7 @@ if [[ "$MODE" == "set" ]]; then
   NEXT_ARGS+=(--value "$VALUE")
 fi
 
-NEW_VERSION=$(node "$NODE_SCRIPT" "${NEXT_ARGS[@]}")
+NEW_VERSION=$("${RELEASE_TOOL[@]}" "${NEXT_ARGS[@]}")
 
 if [[ -z "$NEW_VERSION" ]]; then
   echo "Failed to compute new version" >&2
@@ -97,6 +97,11 @@ fi
 cargo set-version --workspace "$NEW_VERSION"
 
 "${RELEASE_TOOL[@]}" sync --version "$NEW_VERSION" --repo-root "$REPO_ROOT"
-"${RELEASE_TOOL[@]}" update-lock --version "$NEW_VERSION" --lock-path "$REPO_ROOT/Cargo.lock"
+"${RELEASE_TOOL[@]}" update-lock \
+  --version "$NEW_VERSION" \
+  --lock-path "$REPO_ROOT/Cargo.lock" \
+  --package blz-cli \
+  --package blz-core \
+  --package blz-release
 
 echo "$NEW_VERSION"

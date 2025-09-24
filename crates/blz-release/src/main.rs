@@ -34,6 +34,7 @@ enum Command {
     UpdateLock(UpdateLockArgs),
 }
 
+/// Strategies for computing the next semantic version.
 #[derive(Debug, Clone, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 enum Mode {
@@ -80,7 +81,16 @@ struct UpdateLockArgs {
     version: Version,
     #[arg(long, value_name = "PATH", default_value = "Cargo.lock")]
     lock_path: PathBuf,
-    #[arg(long = "package", value_name = "NAME", num_args = 1.., default_values_t = vec!["blz-cli".to_owned(), "blz-core".to_owned()])]
+    #[arg(
+        long = "package",
+        value_name = "NAME",
+        num_args = 1..,
+        default_values_t = vec![
+            "blz-cli".to_owned(),
+            "blz-core".to_owned(),
+            "blz-release".to_owned(),
+        ]
+    )]
     packages: Vec<String>,
 }
 
@@ -115,9 +125,8 @@ fn compute_next_version(args: NextArgs) -> Result<Version> {
                 .value
                 .ok_or_else(|| anyhow::anyhow!("--value is required when mode=set"))?;
             ensure!(
-                value > args.current,
-                "Target version {value} must be greater than current {}",
-                args.current
+                value >= current,
+                "Target version {value} must be at least current {current}"
             );
             value
         },
@@ -176,6 +185,7 @@ struct MetaFile {
     last_canary: Option<CanaryMeta>,
 }
 
+/// Metadata written to `.semver-meta.json` for canary sequencing.
 #[derive(Debug, Serialize, Deserialize)]
 struct CanaryMeta {
     base: String,
@@ -184,6 +194,8 @@ struct CanaryMeta {
     last_updated: i64,
 }
 
+const PACKAGE_JSON: &str = "package.json";
+const PACKAGE_LOCK_JSON: &str = "package-lock.json";
 fn read_meta(path: Option<&Path>) -> Result<MetaFile> {
     let Some(path) = path else {
         return Ok(MetaFile::default());
@@ -207,26 +219,38 @@ fn write_meta(path: Option<&Path>, meta: &MetaFile) -> Result<()> {
         .with_context(|| format!("Failed to write meta file {}", path.display()))
 }
 
+fn read_json_file(path: &Path) -> Result<Option<JsonValue>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let contents =
+        fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let value = serde_json::from_str(&contents)
+        .with_context(|| format!("Failed to parse {}", path.display()))?;
+    Ok(Some(value))
+}
+
+fn write_json_file(path: &Path, value: &JsonValue) -> Result<()> {
+    let contents = format!("{}\n", serde_json::to_string_pretty(value)?);
+    fs::write(path, contents).with_context(|| format!("Failed to write {}", path.display()))
+}
+
 fn sync_npm_files(version: &Version, repo_root: Option<&Path>) -> Result<()> {
     let root = repo_root.map_or_else(|| Path::new(".").to_path_buf(), ToOwned::to_owned);
-    update_json_version(root.join("package.json"), version)?;
-    if let Some(lock) = update_package_lock(root.join("package-lock.json"), version)? {
-        fs::write(lock.path, lock.contents)?;
+    update_json_version(root.join(PACKAGE_JSON), version)?;
+    if let Some(lock) = update_package_lock(root.join(PACKAGE_LOCK_JSON), version)? {
+        fs::write(&lock.path, &lock.contents)
+            .with_context(|| format!("Failed to write {}", lock.path.display()))?;
     }
     Ok(())
 }
 
 fn update_json_version(path: PathBuf, version: &Version) -> Result<()> {
-    if !path.exists() {
+    let Some(JsonValue::Object(mut json)) = read_json_file(&path)? else {
         return Ok(());
-    }
-    let mut json: JsonValue = serde_json::from_str(&fs::read_to_string(&path)?)
-        .with_context(|| format!("Failed to parse JSON file {}", path.display()))?;
-    if let Some(obj) = json.as_object_mut() {
-        obj.insert("version".into(), JsonValue::String(version.to_string()));
-        fs::write(&path, format!("{}\n", serde_json::to_string_pretty(&json)?))
-            .with_context(|| format!("Failed to write {}", path.display()))?;
-    }
+    };
+    json.insert("version".into(), JsonValue::String(version.to_string()));
+    write_json_file(&path, &JsonValue::Object(json))?;
     Ok(())
 }
 
@@ -236,22 +260,20 @@ struct LockUpdate {
 }
 
 fn update_package_lock(path: PathBuf, version: &Version) -> Result<Option<LockUpdate>> {
-    if !path.exists() {
+    let Some(mut json) = read_json_file(&path)? else {
         return Ok(None);
-    }
-    let mut json: JsonValue = serde_json::from_str(&fs::read_to_string(&path)?)
-        .with_context(|| format!("Failed to parse package-lock.json at {}", path.display()))?;
-    if let Some(obj) = json.as_object_mut() {
-        obj.insert("version".into(), JsonValue::String(version.to_string()));
-        if let Some(packages) = obj.get_mut("packages").and_then(|v| v.as_object_mut()) {
-            if let Some(root) = packages.get_mut("").and_then(|v| v.as_object_mut()) {
-                root.insert("version".into(), JsonValue::String(version.to_string()));
-            }
+    };
+    let JsonValue::Object(ref mut obj) = json else {
+        bail!("package-lock.json was not an object");
+    };
+    obj.insert("version".into(), JsonValue::String(version.to_string()));
+    if let Some(packages) = obj.get_mut("packages").and_then(JsonValue::as_object_mut) {
+        if let Some(root) = packages.get_mut("").and_then(JsonValue::as_object_mut) {
+            root.insert("version".into(), JsonValue::String(version.to_string()));
         }
-        let contents = format!("{}\n", serde_json::to_string_pretty(&json)?);
-        return Ok(Some(LockUpdate { path, contents }));
     }
-    Ok(None)
+    let contents = format!("{}\n", serde_json::to_string_pretty(&json)?);
+    Ok(Some(LockUpdate { path, contents }))
 }
 
 fn check_npm_files(expected: &Version, repo_root: Option<&Path>) -> Result<()> {
@@ -265,7 +287,9 @@ fn check_json_version(path: PathBuf, expected: &Version) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    let json: JsonValue = serde_json::from_str(&fs::read_to_string(&path)?)
+    let contents =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let json: JsonValue = serde_json::from_str(&contents)
         .with_context(|| format!("Failed to parse {}", path.display()))?;
     let Some(actual) = json.get("version").and_then(JsonValue::as_str) else {
         bail!("{} missing version field", path.display());
@@ -284,7 +308,9 @@ fn check_package_lock(path: PathBuf, expected: &Version) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    let json: JsonValue = serde_json::from_str(&fs::read_to_string(&path)?)
+    let contents =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let json: JsonValue = serde_json::from_str(&contents)
         .with_context(|| format!("Failed to parse {}", path.display()))?;
     let version = json
         .get("version")
@@ -362,48 +388,51 @@ fn update_cargo_lock(version: &Version, path: &Path, packages: &[String]) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    type TestResult<T> = anyhow::Result<T>;
 
     #[test]
-    fn next_patch_clears_prerelease() {
+    fn next_patch_clears_prerelease() -> TestResult<()> {
         let args = NextArgs {
             mode: Mode::Patch,
-            current: Version::parse("1.2.3-beta.1").unwrap(),
+            current: Version::parse("1.2.3-beta.1")?,
             value: None,
             meta: None,
             write_meta: false,
         };
-        let next = compute_next_version(args).unwrap();
-        assert_eq!(next, Version::parse("1.2.4").unwrap());
+        let next = compute_next_version(args)?;
+        assert_eq!(next, Version::parse("1.2.4")?);
+        Ok(())
     }
 
     #[test]
-    fn next_canary_increments_meta() {
-        let temp = tempfile::tempdir().unwrap();
+    fn next_canary_increments_meta() -> TestResult<()> {
+        let temp = tempfile::tempdir()?;
         let meta_path = temp.path().join("meta.json");
         let args = NextArgs {
             mode: Mode::Canary,
-            current: Version::parse("0.3.1").unwrap(),
+            current: Version::parse("0.3.1")?,
             value: None,
             meta: Some(meta_path.clone()),
             write_meta: true,
         };
-        let v1 = compute_next_version(args).unwrap();
+        let v1 = compute_next_version(args)?;
         assert_eq!(v1.to_string(), "0.3.1-canary.1");
 
         let args = NextArgs {
             mode: Mode::Canary,
-            current: Version::parse("0.3.1").unwrap(),
+            current: Version::parse("0.3.1")?,
             value: None,
             meta: Some(meta_path.clone()),
             write_meta: true,
         };
-        let v2 = compute_next_version(args).unwrap();
+        let v2 = compute_next_version(args)?;
         assert_eq!(v2.to_string(), "0.3.1-canary.2");
+        Ok(())
     }
 
     #[test]
-    fn update_lock_updates_packages() {
-        let temp = tempfile::tempdir().unwrap();
+    fn update_lock_updates_packages() -> TestResult<()> {
+        let temp = tempfile::tempdir()?;
         let lock_path = temp.path().join("Cargo.lock");
         fs::write(
             &lock_path,
@@ -417,24 +446,23 @@ version = "0.3.1"
 name = "blz-core"
 version = "0.3.1"
 "#,
-        )
-        .unwrap();
+        )?;
 
         update_cargo_lock(
-            &Version::parse("0.3.2").unwrap(),
+            &Version::parse("0.3.2")?,
             &lock_path,
             &["blz-cli".into(), "blz-core".into()],
-        )
-        .unwrap();
-        let updated = fs::read_to_string(lock_path).unwrap();
+        )?;
+        let updated = fs::read_to_string(lock_path)?;
         assert!(updated.contains("name = \"blz-cli\""));
         assert!(updated.contains("name = \"blz-core\""));
         assert!(updated.contains("version = \"0.3.2\""));
+        Ok(())
     }
 
     #[test]
-    fn update_lock_missing_package_errors() {
-        let temp = tempfile::tempdir().unwrap();
+    fn update_lock_missing_package_errors() -> TestResult<()> {
+        let temp = tempfile::tempdir()?;
         let lock_path = temp.path().join("Cargo.lock");
         fs::write(
             &lock_path,
@@ -444,15 +472,13 @@ version = "0.3.1"
 name = "other"
 version = "0.3.1"
 "#,
-        )
-        .unwrap();
+        )?;
 
-        let err = update_cargo_lock(
-            &Version::parse("0.3.2").unwrap(),
-            &lock_path,
-            &["blz-cli".into()],
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("blz-cli"));
+        let result = update_cargo_lock(&Version::parse("0.3.2")?, &lock_path, &["blz-cli".into()]);
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(err.to_string().contains("blz-cli"));
+        }
+        Ok(())
     }
 }
