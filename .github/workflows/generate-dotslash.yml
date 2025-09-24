@@ -1,39 +1,63 @@
 name: Generate DotSlash files
 
 on:
-  workflow_run:
-    workflows:
-      - "Auto Release"
+  release:
     types:
-      - "completed"
+      - published
 
 permissions:
   contents: write
 
 jobs:
   dotslash:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ !github.event.release.draft }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release commit
+      - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
 
       - name: Resolve release tag
         id: release_tag
         run: |
           set -euo pipefail
-          git fetch --tags --force --quiet
-          TAGS=$(git tag --points-at HEAD)
-          if [[ -z "$TAGS" ]]; then
-            echo "Failed to discover release tag for commit $(git rev-parse --short HEAD)" >&2
+          TAG='${{ github.event.release.tag_name }}'
+          if [[ -z "$TAG" ]]; then
+            echo "Failed to discover release tag from event payload" >&2
             exit 1
           fi
-          TAG=$(echo "$TAGS" | head -n1)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Resolved release tag: $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify release assets ready
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          MAX_ATTEMPTS=5
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            rm -f /tmp/assets-count /tmp/gh-release-error
+            if gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets | length' 1>/tmp/assets-count 2>/tmp/gh-release-error; then
+              count=$(cat /tmp/assets-count)
+              rm -f /tmp/assets-count /tmp/gh-release-error
+              if [[ "$count" -gt 0 ]]; then
+                echo "Release assets detected for $TAG (count=$count)" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              echo "::warning::Release $TAG has no assets yet (attempt $attempt/$MAX_ATTEMPTS)" >&2
+            else
+              err=$(cat /tmp/gh-release-error 2>/dev/null || true)
+              echo "::warning::gh release view failed for $TAG on attempt $attempt/$MAX_ATTEMPTS: $err" >&2
+            fi
+            if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
+              sleep $((attempt * 5))
+            fi
+          done
+          echo "::error::GitHub release $TAG is not yet accessible or has no assets after $MAX_ATTEMPTS attempts" >&2
+          exit 1
 
       - name: Generate & upload DotSlash file(s)
         uses: facebook/dotslash-publish-release@v1
