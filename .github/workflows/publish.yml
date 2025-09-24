@@ -235,6 +235,23 @@ jobs:
             echo "- Dry run: $DRY_RUN"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Persist release tag artifact
+        if: ${{ steps.vars.outputs.tag != '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-tag
+          printf '%s\n' "${{ steps.vars.outputs.tag }}" > release-tag/release-tag.txt
+          printf '%s\n' "Stored release tag artifact: ${{ steps.vars.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release tag artifact
+        if: ${{ steps.vars.outputs.tag != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tag
+          path: release-tag/release-tag.txt
+          retention-days: 3
+          if-no-files-found: error
+
   build_darwin_arm64:
     name: Build macOS arm64 binary
     needs: prepare
