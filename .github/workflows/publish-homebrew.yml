@@ -16,6 +16,18 @@ on:
         required: false
         default: true
         type: boolean
+      sha_arm64:
+        description: 'SHA256 for blz-${version}-darwin-arm64.tar.gz'
+        required: false
+        type: string
+      sha_x64:
+        description: 'SHA256 for blz-${version}-darwin-x64.tar.gz'
+        required: false
+        type: string
+      sha_linux:
+        description: 'SHA256 for blz-${version}-linux-x64.tar.gz'
+        required: false
+        type: string
     secrets:
       homebrew-token:
         required: true
@@ -24,6 +36,18 @@ on:
       tag:
         description: 'Tag to publish (e.g., v0.2.0)'
         required: true
+        type: string
+      sha_arm64:
+        description: 'Optional sha256 for darwin-arm64 artifact (fallback to release assets when omitted)'
+        required: false
+        type: string
+      sha_x64:
+        description: 'Optional sha256 for darwin-x64 artifact (fallback to release assets when omitted)'
+        required: false
+        type: string
+      sha_linux:
+        description: 'Optional sha256 for linux-x64 artifact (fallback to release assets when omitted)'
+        required: false
         type: string
 
 permissions:
@@ -40,6 +64,9 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_ENABLED: ${{ inputs.enabled }}
+          INPUT_SHA_ARM64: ${{ inputs.sha_arm64 }}
+          INPUT_SHA_X64: ${{ inputs.sha_x64 }}
+          INPUT_SHA_LINUX: ${{ inputs.sha_linux }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -57,10 +84,31 @@ jobs:
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          SHA_MODE='download'
+          if [[ -n "${INPUT_SHA_ARM64:-}" || -n "${INPUT_SHA_X64:-}" || -n "${INPUT_SHA_LINUX:-}" ]]; then
+            if [[ -z "${INPUT_SHA_ARM64:-}" || -z "${INPUT_SHA_X64:-}" || -z "${INPUT_SHA_LINUX:-}" ]]; then
+              echo "::error::All SHA inputs required together. Missing: arm64=${INPUT_SHA_ARM64:-<empty>}, x64=${INPUT_SHA_X64:-<empty>}, linux=${INPUT_SHA_LINUX:-<empty>}" >&2
+              exit 1
+            fi
+            SHA_MODE='provided'
+          fi
+
+          if [[ "$EVENT_NAME" != "workflow_dispatch" && "$SHA_MODE" != 'provided' ]]; then
+            echo "::error::Missing SHA inputs; publish workflow must supply sha_arm64/sha_x64/sha_linux" >&2
+            exit 1
+          fi
+
           {
             echo "enabled=true"
             echo "tag=$TAG"
             echo "version=$VERSION"
+            echo "sha_mode=$SHA_MODE"
+            if [[ "$SHA_MODE" == 'provided' ]]; then
+              echo "sha_arm64=$INPUT_SHA_ARM64"
+              echo "sha_x64=$INPUT_SHA_X64"
+              echo "sha_linux=$INPUT_SHA_LINUX"
+            fi
           } >> "$GITHUB_OUTPUT"
 
       - name: Skip when disabled
@@ -68,7 +116,7 @@ jobs:
         run: echo "Homebrew publication disabled for this release."
 
       - name: Check release assets exist
-        if: ${{ steps.resolve.outputs.enabled == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.resolve.outputs.sha_mode != 'provided' }}
         id: assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,14 +140,14 @@ jobs:
           fi
 
       - name: Checkout source (for scripts)
-        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve.outputs.tag }}
           path: src
 
       - name: Compute shas and download assets
-        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.resolve.outputs.sha_mode != 'provided' && steps.assets.outputs.ready == 'true' }}
         id: tar
         shell: bash
         env:
@@ -111,9 +159,12 @@ jobs:
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-arm64.tar.gz" --dir . --clobber
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-x64.tar.gz" --dir . --clobber
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-linux-x64.tar.gz" --dir . --clobber
-          SHA_ARM64=$(shasum -a 256 blz-${VERSION}-darwin-arm64.tar.gz | cut -d' ' -f1)
-          SHA_X64=$(shasum -a 256 blz-${VERSION}-darwin-x64.tar.gz | cut -d' ' -f1)
-          SHA_LINUX=$(shasum -a 256 blz-${VERSION}-linux-x64.tar.gz | cut -d' ' -f1)
+          SHA_ARM64=$(sha256sum "blz-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
+          SHA_X64=$(sha256sum "blz-${VERSION}-darwin-x64.tar.gz" | awk '{print $1}')
+          SHA_LINUX=$(sha256sum "blz-${VERSION}-linux-x64.tar.gz" | awk '{print $1}')
+          echo "::add-mask::$SHA_ARM64"
+          echo "::add-mask::$SHA_X64"
+          echo "::add-mask::$SHA_LINUX"
           {
             echo "sha_arm64=$SHA_ARM64"
             echo "sha_x64=$SHA_X64"
@@ -121,7 +172,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout tap repository
-        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
         uses: actions/checkout@v4
         with:
           repository: outfitter-dev/homebrew-tap
@@ -129,20 +180,20 @@ jobs:
           path: homebrew-tap
 
       - name: Update formula
-        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
         shell: bash
         env:
           REPO: ${{ github.repository }}
           VERSION: ${{ steps.resolve.outputs.version }}
-          SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 }}
-          SHA_X64: ${{ steps.tar.outputs.sha_x64 }}
-          SHA_LINUX: ${{ steps.tar.outputs.sha_linux }}
+          SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 || steps.resolve.outputs.sha_arm64 }}
+          SHA_X64: ${{ steps.tar.outputs.sha_x64 || steps.resolve.outputs.sha_x64 }}
+          SHA_LINUX: ${{ steps.tar.outputs.sha_linux || steps.resolve.outputs.sha_linux }}
           TAP_DIR: homebrew-tap
         run: |
           bash src/scripts/release/update-brew.sh
 
       - name: Create tap PR
-        if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
+        if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.homebrew-token }}
@@ -152,6 +203,6 @@ jobs:
           title: "blz ${{ steps.resolve.outputs.version }}"
           body: |
             Bump blz formula to ${{ steps.resolve.outputs.version }}.
-            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
-            - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
-            - linux sha256: ${{ steps.tar.outputs.sha_linux }}
+            - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 || steps.resolve.outputs.sha_arm64 }}
+            - x64   sha256: ${{ steps.tar.outputs.sha_x64 || steps.resolve.outputs.sha_x64 }}
+            - linux sha256: ${{ steps.tar.outputs.sha_linux || steps.resolve.outputs.sha_linux }}
