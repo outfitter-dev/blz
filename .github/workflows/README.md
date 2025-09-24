@@ -50,7 +50,12 @@ graph TD
 
 **Workflow Dispatch Parameters**:
 - `tag` (required): Git tag to release (e.g., v0.2.0)
+- `mode` (optional): Release mode - `full` (default), `assets-only`, `publish-only`
 - `dist_tag` (optional): Override npm dist-tag (defaults based on version)
+- `skip_npm` (optional): Skip npm publishing (default: false)
+- `skip_crates` (optional): Skip crates.io publishing (default: false)
+- `skip_homebrew` (optional): Skip Homebrew publishing (default: false)
+- `dry_run` (optional): Validate but don't actually publish (default: false)
 
 #### auto-release.yml
 **Purpose**: Automatically creates releases when PRs with release labels are merged
@@ -283,23 +288,31 @@ graph TD
 ### Manual Release
 
 ```bash
-# Trigger manual release
+# Full release (default)
 gh workflow run publish.yml -f tag=v1.0.0
+
+# Build and upload assets only
+gh workflow run publish.yml -f tag=v1.0.0 -f mode=assets-only
+
+# Publish to registries only (from existing release)
+gh workflow run publish.yml -f tag=v1.0.0 -f mode=publish-only
+
+# Skip specific registries
+gh workflow run publish.yml -f tag=v1.0.0 -f skip_homebrew=true -f skip_npm=true
+
+# Dry run for validation
+gh workflow run publish.yml -f tag=v1.0.0 -f dry_run=true
 
 # Check status
 gh run list --workflow=publish.yml
 ```
 
-### Individual Publishing
+### Individual Publishing (Legacy - use publish.yml modes instead)
 
 ```bash
-# Publish only to npm
+# These workflows still exist but publish.yml modes are preferred
 gh workflow run publish-npm.yml -f tag=v1.0.0
-
-# Publish only to crates.io
 gh workflow run publish-crates.yml -f tag=v1.0.0
-
-# Publish only to Homebrew
 gh workflow run publish-homebrew.yml -f tag=v1.0.0
 ```
 

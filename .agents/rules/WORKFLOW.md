@@ -265,8 +265,8 @@ git push origin v0.1.0                         # or: git push --follow-tags
 - **Release labels:** The automation only fires for labels matching `release:(major|minor|patch|canary)` (see `.github/workflows/auto-release.yml`, `allowed` array). Use one of those exact labels per PR; anything else is ignored.
 - **Required secrets:**
   - `secrets.GITHUB_TOKEN` (GitHub-provided) — used across auto-release, publish, and manual workflows for repo access.
-  - `secrets.NPM_TOKEN` — consumed by `publish.yml` and `manual-publish.yml` when pushing npm packages (also wired as `NODE_AUTH_TOKEN`).
-  - `secrets.CARGO_REGISTRY_TOKEN` — required for crates.io publishes in `publish.yml` and `manual-publish.yml`.
+  - `secrets.NPM_TOKEN` — consumed by `publish.yml` when pushing npm packages (also wired as `NODE_AUTH_TOKEN`).
+  - `secrets.CARGO_REGISTRY_TOKEN` — required for crates.io publishes in `publish.yml`.
   - `secrets.cargo-token` — legacy name referenced in `publish-crates.yml`; point it at the same value as `CARGO_REGISTRY_TOKEN` until we consolidate on one secret.
   - Homebrew flows (`publish-homebrew.yml`) require `secrets.homebrew-token` (for tap checkout + PR creation) in addition to the default `GITHUB_TOKEN` (`GH_TOKEN`).
 - **Raw binaries for npm:** The publish workflow now extracts archives and uploads platform-specific binaries (`blz-darwin-arm64`, etc.). Without those, npm global installs hit 404s (observed on v0.2.1). Do not remove this extraction step.
