@@ -5,10 +5,13 @@
 //! better maintainability and single responsibility.
 use anyhow::Result;
 use blz_core::PerformanceMetrics;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use colored::control as color_control;
 use tracing::{Level, warn};
 use tracing_subscriber::FmtSubscriber;
+
+use std::collections::BTreeSet;
+use std::sync::OnceLock;
 
 mod cli;
 mod commands;
@@ -173,28 +176,26 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
 }
 
 fn is_known_subcommand(value: &str) -> bool {
-    matches!(
-        value,
-        "add"
-            | "alias"
-            | "completions"
-            | "config"
-            | "diff"
-            | "docs"
-            | "anchors"
-            | "anchor"
-            | "get"
-            | "history"
-            | "instruct"
-            | "list"
-            | "lookup"
-            | "remove"
-            | "rm"
-            | "delete"
-            | "search"
-            | "sources"
-            | "update"
-    )
+    known_subcommands().contains(value)
+}
+
+const RESERVED_SUBCOMMANDS: &[&str] = &["anchors", "anchor"];
+
+fn known_subcommands() -> &'static BTreeSet<String> {
+    static CACHE: OnceLock<BTreeSet<String>> = OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut names = BTreeSet::new();
+        for sub in Cli::command().get_subcommands() {
+            names.insert(sub.get_name().to_owned());
+            for alias in sub.get_all_aliases() {
+                names.insert(alias.to_owned());
+            }
+        }
+        for extra in RESERVED_SUBCOMMANDS {
+            names.insert((*extra).to_owned());
+        }
+        names
+    })
 }
 
 fn classify_global_flag(arg: &str) -> Option<FlagKind> {
@@ -1107,6 +1108,39 @@ mod tests {
         let raw = to_string_vec(&["blz", "anchors", "e2e", "-f", "json"]);
         let processed = preprocess_args_from(&raw);
         assert_eq!(processed, raw);
+    }
+
+    #[test]
+    fn preprocess_retains_hidden_subcommand_with_search_flags() {
+        let raw = to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--json"]);
+        let processed = preprocess_args_from(&raw);
+        let expected =
+            to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--format", "json"]);
+        assert_eq!(
+            processed, expected,
+            "hidden subcommands must not trigger shorthand injection"
+        );
+    }
+
+    #[test]
+    fn known_subcommands_cover_clap_definitions() {
+        use clap::CommandFactory;
+
+        let command = Cli::command();
+        for sub in command.get_subcommands() {
+            let name = sub.get_name();
+            assert!(
+                is_known_subcommand(name),
+                "expected known subcommand to include {name}"
+            );
+
+            for alias in sub.get_all_aliases() {
+                assert!(
+                    is_known_subcommand(alias),
+                    "expected alias {alias} to be recognized"
+                );
+            }
+        }
     }
 
     #[test]
