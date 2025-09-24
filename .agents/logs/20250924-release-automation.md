@@ -59,3 +59,6 @@ Reviewed sequentially via `gt up` starting from `main`.
 
 - ✅ Polish after review
 - Notes: Marked `blz-release` as `publish = false`, cached `Version` string comparisons, preferred installed binaries in the semver script, and trimmed the unused `time` formatting feature per review nitpicks.
+
+- ✅ Docstring coverage
+- Notes: Added doc comments across the release helper CLI types and helpers to keep documentation coverage healthy.

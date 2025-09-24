@@ -15,6 +15,7 @@ use serde_json::Value as JsonValue;
 use time::OffsetDateTime;
 use toml_edit::{DocumentMut, value};
 
+/// Command-line interface definition for the release automation helper.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Release tooling for the blz workspace")]
 struct Cli {
@@ -22,6 +23,7 @@ struct Cli {
     command: Command,
 }
 
+/// Top-level actions supported by the release automation helper.
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Compute the next semantic version
@@ -45,6 +47,7 @@ enum Mode {
     Set,
 }
 
+/// Arguments used for computing the next semantic version.
 #[derive(Parser, Debug)]
 struct NextArgs {
     #[arg(long)]
@@ -59,6 +62,7 @@ struct NextArgs {
     write_meta: bool,
 }
 
+/// Arguments used to synchronise npm manifests with a version.
 #[derive(Parser, Debug)]
 struct SyncArgs {
     #[arg(long)]
@@ -67,6 +71,7 @@ struct SyncArgs {
     repo_root: Option<PathBuf>,
 }
 
+/// Arguments used for verifying npm manifests against the expected version.
 #[derive(Parser, Debug)]
 struct CheckArgs {
     #[arg(long)]
@@ -75,6 +80,7 @@ struct CheckArgs {
     repo_root: Option<PathBuf>,
 }
 
+/// Arguments controlling how Cargo.lock entries should be updated.
 #[derive(Parser, Debug)]
 struct UpdateLockArgs {
     #[arg(long)]
@@ -179,6 +185,7 @@ fn bump_major(current: &Version) -> Version {
     next
 }
 
+/// On-disk metadata persisted between canary builds.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct MetaFile {
     #[serde(rename = "lastCanary")]
@@ -196,6 +203,8 @@ struct CanaryMeta {
 
 const PACKAGE_JSON: &str = "package.json";
 const PACKAGE_LOCK_JSON: &str = "package-lock.json";
+
+/// Read persisted canary metadata if a path is provided, falling back to defaults.
 fn read_meta(path: Option<&Path>) -> Result<MetaFile> {
     let Some(path) = path else {
         return Ok(MetaFile::default());
@@ -210,6 +219,7 @@ fn read_meta(path: Option<&Path>) -> Result<MetaFile> {
     Ok(meta)
 }
 
+/// Write canary metadata back to disk when a backing file exists.
 fn write_meta(path: Option<&Path>, meta: &MetaFile) -> Result<()> {
     let Some(path) = path else {
         return Ok(());
@@ -219,6 +229,7 @@ fn write_meta(path: Option<&Path>, meta: &MetaFile) -> Result<()> {
         .with_context(|| format!("Failed to write meta file {}", path.display()))
 }
 
+/// Load and parse a JSON document, returning `None` if it does not exist.
 fn read_json_file(path: &Path) -> Result<Option<JsonValue>> {
     if !path.exists() {
         return Ok(None);
@@ -230,6 +241,7 @@ fn read_json_file(path: &Path) -> Result<Option<JsonValue>> {
     Ok(Some(value))
 }
 
+/// Serialise a JSON document with a trailing newline to stabilise diffs.
 fn write_json_file(path: &Path, value: &JsonValue) -> Result<()> {
     let contents = format!("{}\n", serde_json::to_string_pretty(value)?);
     fs::write(path, contents).with_context(|| format!("Failed to write {}", path.display()))
@@ -254,6 +266,7 @@ fn update_json_version(path: PathBuf, version: &Version) -> Result<()> {
     Ok(())
 }
 
+/// Buffer representing a pending package-lock update.
 struct LockUpdate {
     path: PathBuf,
     contents: String,
