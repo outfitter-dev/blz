@@ -31,6 +31,82 @@ use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands};
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
 
+/// Preprocess command-line arguments to handle shorthand search with flags
+///
+/// When the user provides search flags without the "search" subcommand,
+/// we inject "search" to make clap parse the flags correctly.
+///
+/// For example:
+/// - `blz "query" -s source` becomes `blz search "query" -s source`
+/// - `blz "query" --limit 10` becomes `blz search "query" --limit 10`
+fn preprocess_args() -> Vec<String> {
+    let args: Vec<String> = std::env::args().collect();
+
+    // If we have less than 2 args, no preprocessing needed
+    if args.len() < 2 {
+        return args;
+    }
+
+    // Known subcommands that should not trigger preprocessing
+    let known_subcommands = [
+        "add",
+        "alias",
+        "completions",
+        "config",
+        "diff",
+        "docs",
+        "get",
+        "history",
+        "instruct",
+        "list",
+        "lookup",
+        "remove",
+        "rm",
+        "delete",
+        "search",
+        "sources",
+        "update",
+    ];
+
+    // Check if the first non-program argument is a known subcommand
+    if known_subcommands.contains(&args[1].as_str()) {
+        return args;
+    }
+
+    // Check if any of the arguments look like search flags
+    let search_flags = [
+        "-s",
+        "--source",
+        "--alias",
+        "-n",
+        "--limit",
+        "--last",
+        "--all",
+        "--page",
+        "--top",
+        "-f",
+        "--format",
+        "--output",
+        "-o",
+        "--show",
+        "--no-summary",
+        "--flavor",
+        "--score-precision",
+        "--snippet-lines",
+    ];
+
+    let has_search_flags = args.iter().any(|arg| search_flags.contains(&arg.as_str()));
+
+    // If we have search flags but no search subcommand, inject "search"
+    if has_search_flags {
+        let mut new_args = vec![args[0].clone(), "search".to_string()];
+        new_args.extend_from_slice(&args[1..]);
+        return new_args;
+    }
+
+    args
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Convert Broken pipe panics into a clean exit
@@ -47,7 +123,9 @@ async fn main() -> Result<()> {
     // Spawn process guard as early as possible to catch orphaned processes
     utils::process_guard::spawn_parent_exit_guard();
 
-    let mut cli = Cli::parse();
+    // Preprocess arguments to handle shorthand search with flags
+    let args = preprocess_args();
+    let mut cli = Cli::parse_from(args);
 
     initialize_logging(&cli)?;
 
