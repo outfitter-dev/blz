@@ -1,3 +1,15 @@
 reviews:
   # Stop posting "Review skipped" status comments on non-default branches
   review_status: false
+
+  # Configure path-based review triggers
+  path_filters:
+    # Review all file changes by default
+    - "**/*"
+
+  # Enable reviews for all branches including feature branches
+  branch_filters:
+    - "gt/*"     # Match Graphite branch naming pattern: gt/branch-name
+    - "gt-*"     # Match Graphite branch naming pattern: gt-prefix/branch-name
+    - "main"
+    - "master"
