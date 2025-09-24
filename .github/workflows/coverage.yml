@@ -40,6 +40,10 @@ jobs:
           toolchain: stable
           components: llvm-tools-preview
 
+      - name: Prepare cache directories
+        run: |
+          mkdir -p target/tests/target
+
       # Use Swatinem cache for better performance
       - uses: Swatinem/rust-cache@v2
         with:
