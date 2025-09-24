@@ -79,11 +79,12 @@ jobs:
           TAG='${{ steps.resolve.outputs.tag }}'
           ARM_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-arm64.tar.gz"))) | length')
           X64_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-darwin-x64.tar.gz"))) | length')
-          if [ "${ARM_COUNT:-0}" -eq 0 ] || [ "${X64_COUNT:-0}" -eq 0 ]; then
+          LINUX_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets | jq -r --arg version "$VERSION" '.assets | map(select(.name == ("blz-"+$version+"-linux-x64.tar.gz"))) | length')
+          if [ "${ARM_COUNT:-0}" -eq 0 ] || [ "${X64_COUNT:-0}" -eq 0 ] || [ "${LINUX_COUNT:-0}" -eq 0 ]; then
             {
               echo "ready=false"
             } >> "$GITHUB_OUTPUT"
-            echo "Homebrew assets not ready for $TAG (arm64=$ARM_COUNT, x64=$X64_COUNT)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Homebrew assets not ready for $TAG (arm64=$ARM_COUNT, x64=$X64_COUNT, linux=$LINUX_COUNT)" >> "$GITHUB_STEP_SUMMARY"
           else
             {
               echo "ready=true"
@@ -109,10 +110,15 @@ jobs:
           VERSION='${{ steps.resolve.outputs.version }}'
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-arm64.tar.gz" --dir . --clobber
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-darwin-x64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "blz-${VERSION}-linux-x64.tar.gz" --dir . --clobber
           SHA_ARM64=$(shasum -a 256 blz-${VERSION}-darwin-arm64.tar.gz | cut -d' ' -f1)
           SHA_X64=$(shasum -a 256 blz-${VERSION}-darwin-x64.tar.gz | cut -d' ' -f1)
-          echo "sha_arm64=$SHA_ARM64" >> "$GITHUB_OUTPUT"
-          echo "sha_x64=$SHA_X64" >> "$GITHUB_OUTPUT"
+          SHA_LINUX=$(shasum -a 256 blz-${VERSION}-linux-x64.tar.gz | cut -d' ' -f1)
+          {
+            echo "sha_arm64=$SHA_ARM64"
+            echo "sha_x64=$SHA_X64"
+            echo "sha_linux=$SHA_LINUX"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout tap repository
         if: ${{ steps.resolve.outputs.enabled == 'true' && steps.assets.outputs.ready == 'true' }}
@@ -130,6 +136,7 @@ jobs:
           VERSION: ${{ steps.resolve.outputs.version }}
           SHA_ARM64: ${{ steps.tar.outputs.sha_arm64 }}
           SHA_X64: ${{ steps.tar.outputs.sha_x64 }}
+          SHA_LINUX: ${{ steps.tar.outputs.sha_linux }}
           TAP_DIR: homebrew-tap
         run: |
           bash src/scripts/release/update-brew.sh
@@ -147,3 +154,4 @@ jobs:
             Bump blz formula to ${{ steps.resolve.outputs.version }}.
             - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 }}
             - x64   sha256: ${{ steps.tar.outputs.sha_x64 }}
+            - linux sha256: ${{ steps.tar.outputs.sha_linux }}
