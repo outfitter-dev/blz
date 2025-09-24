@@ -321,12 +321,16 @@ jobs:
             --pattern "blz-darwin-arm64.tar.gz" --dir . --clobber
           gh release download "$TAG" --repo "${{ github.repository }}" \
             --pattern "blz-darwin-x64.tar.gz" --dir . --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "blz-linux-x64.tar.gz" --dir . --clobber
 
           SHA_ARM64=$(shasum -a 256 blz-darwin-arm64.tar.gz | cut -d' ' -f1)
           SHA_X64=$(shasum -a 256 blz-darwin-x64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX=$(shasum -a 256 blz-linux-x64.tar.gz | cut -d' ' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "sha_arm64=$SHA_ARM64" >> $GITHUB_OUTPUT
           echo "sha_x64=$SHA_X64" >> $GITHUB_OUTPUT
+          echo "sha_linux=$SHA_LINUX" >> $GITHUB_OUTPUT
 
       - name: "Publish: Checkout tap repo"
         uses: actions/checkout@v4
@@ -352,14 +356,21 @@ jobs:
                   url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-darwin-x64.tar.gz"
                   sha256 "${SHA_X64}"
                 end
+              end
 
-                def install
-                  bin.install "blz"
+              on_linux do
+                on_intel do
+                  url "https://github.com/outfitter-dev/blz/releases/download/v${VERSION}/blz-linux-x64.tar.gz"
+                  sha256 "${SHA_LINUX}"
                 end
+              end
 
-                test do
-                  assert_match version.to_s, shell_output("#{bin}/blz --version")
-                end
+              def install
+                bin.install "blz"
+              end
+
+              test do
+                assert_match version.to_s, shell_output("#{bin}/blz --version")
               end
             end
         run: |
@@ -367,11 +378,13 @@ jobs:
           VERSION="${{ steps.tar.outputs.version }}"
           SHA_ARM64="${{ steps.tar.outputs.sha_arm64 }}"
           SHA_X64="${{ steps.tar.outputs.sha_x64 }}"
+          SHA_LINUX="${{ steps.tar.outputs.sha_linux }}"
           printf "%s\n" "$FORMULA" > homebrew-tap/Formula/blz.rb
           # Substitute placeholders after write to appease linters
           sed -i.bak "s/\${VERSION}/${VERSION}/g" homebrew-tap/Formula/blz.rb
           sed -i.bak "s/\${SHA_ARM64}/${SHA_ARM64}/g" homebrew-tap/Formula/blz.rb
           sed -i.bak "s/\${SHA_X64}/${SHA_X64}/g" homebrew-tap/Formula/blz.rb
+          sed -i.bak "s/\${SHA_LINUX}/${SHA_LINUX}/g" homebrew-tap/Formula/blz.rb
           rm -f homebrew-tap/Formula/blz.rb.bak
 
       - name: "Publish: Create PR in tap repo"

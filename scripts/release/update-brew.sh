@@ -9,6 +9,7 @@ set -euo pipefail
 # - VERSION: version string without leading v (e.g., 0.2.0)
 # - SHA_ARM64: sha256 for blz-${VERSION}-darwin-arm64.tar.gz
 # - SHA_X64: sha256 for blz-${VERSION}-darwin-x64.tar.gz
+# - SHA_LINUX: sha256 for blz-${VERSION}-linux-x64.tar.gz
 
 TAP_DIR=${TAP_DIR:-homebrew-tap}
 REPO=${REPO:?REPO is required (e.g., outfitter-dev/blz)}
@@ -23,9 +24,10 @@ if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}([.-][0-9A-Za-z.-]+)?$ ]]; then
 fi
 SHA_ARM64=${SHA_ARM64:?SHA_ARM64 is required}
 SHA_X64=${SHA_X64:?SHA_X64 is required}
+SHA_LINUX=${SHA_LINUX:?SHA_LINUX is required}
 
 # Validate SHA256 inputs to fail fast on bad data (each must be 64 hex chars)
-for var in SHA_ARM64 SHA_X64; do
+for var in SHA_ARM64 SHA_X64 SHA_LINUX; do
   val="${!var}"
   if [[ ! "$val" =~ ^[0-9a-fA-F]{64}$ ]]; then
     echo "Invalid $var: must be 64 hex characters" >&2
@@ -58,6 +60,13 @@ class Blz < Formula
     on_intel do
       url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-darwin-x64.tar.gz"
       sha256 "${SHA_X64}"
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+      sha256 "${SHA_LINUX}"
     end
   end
 
