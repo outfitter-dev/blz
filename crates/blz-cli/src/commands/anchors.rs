@@ -2,7 +2,7 @@ use anyhow::Result;
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
-use crate::commands::get_lines;
+use crate::commands::{FlavorMode, get_lines};
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -152,7 +152,14 @@ pub async fn get_by_anchor(
     match output {
         OutputFormat::Text => {
             // Use existing 'get' implementation to print lines with context
-            get_lines(&canonical, &entry.lines, context, OutputFormat::Text).await
+            get_lines(
+                &canonical,
+                &entry.lines,
+                context,
+                FlavorMode::Current,
+                OutputFormat::Text,
+            )
+            .await
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context

@@ -45,6 +45,14 @@ impl Storage {
         }
     }
 
+    fn flavor_file_name(flavor: &str) -> String {
+        if flavor.eq_ignore_ascii_case("llms") {
+            "llms.txt".to_string()
+        } else {
+            format!("{flavor}.txt")
+        }
+    }
+
     fn flavor_json_filename(flavor: &str) -> String {
         if flavor.eq_ignore_ascii_case("llms") {
             "llms.json".to_string()
@@ -254,6 +262,12 @@ impl Storage {
 
         debug!("Saved {file_name} for {}", alias);
         Ok(())
+    }
+
+    /// Returns the path to the persisted text content for the given flavor.
+    pub fn flavor_file_path(&self, alias: &str, flavor: &str) -> Result<PathBuf> {
+        let file_name = Self::flavor_file_name(flavor);
+        self.variant_file_path(alias, &file_name)
     }
 
     /// Loads the llms.txt content for an alias

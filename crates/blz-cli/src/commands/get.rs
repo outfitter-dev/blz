@@ -5,7 +5,9 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
+use crate::commands::FlavorMode;
 use crate::output::OutputFormat;
+use crate::utils::flavor::resolve_flavor;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
@@ -13,6 +15,7 @@ pub async fn execute(
     alias: &str,
     lines: &str,
     context: Option<usize>,
+    flavor: FlavorMode,
     format: OutputFormat,
 ) -> Result<()> {
     let storage = Storage::new()?;
@@ -44,7 +47,41 @@ pub async fn execute(
         return Ok(());
     }
 
-    let file_content = storage.load_llms_txt(&canonical)?;
+    // Determine which flavor to load based on the mode
+    let effective_flavor = match flavor {
+        FlavorMode::Current => resolve_flavor(&storage, &canonical)?,
+        FlavorMode::Auto => {
+            // Auto prefers full if available
+            let available = storage.available_flavors(&canonical)?;
+            if available.iter().any(|f| f == "llms-full") {
+                "llms-full".to_string()
+            } else {
+                resolve_flavor(&storage, &canonical)?
+            }
+        },
+        FlavorMode::Full => {
+            let available = storage.available_flavors(&canonical)?;
+            if available.iter().any(|f| f == "llms-full") {
+                "llms-full".to_string()
+            } else {
+                // Fall back to resolved default if full not available
+                resolve_flavor(&storage, &canonical)?
+            }
+        },
+        FlavorMode::Txt => {
+            let available = storage.available_flavors(&canonical)?;
+            if available.iter().any(|f| f == "llms") {
+                "llms".to_string()
+            } else {
+                // Fall back to resolved default if txt not available
+                resolve_flavor(&storage, &canonical)?
+            }
+        },
+    };
+
+    // Load the appropriate flavor file
+    let file_path = storage.flavor_file_path(&canonical, &effective_flavor)?;
+    let file_content = std::fs::read_to_string(&file_path)?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
     match format {
@@ -69,6 +106,7 @@ pub async fn execute(
             let obj = serde_json::json!({
                 "alias": canonical,
                 "source": canonical,
+                "flavor": effective_flavor,
                 "lines": lines,
                 "context": context,
                 "lineNumbers": selected.iter().copied().collect::<Vec<_>>(),

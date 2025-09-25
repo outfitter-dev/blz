@@ -484,8 +484,11 @@ async fn execute_command(
             alias,
             lines,
             context,
+            flavor,
             format,
-        }) => commands::get_lines(&alias, &lines, context, format.resolve(cli.quiet)).await?,
+        }) => {
+            commands::get_lines(&alias, &lines, context, flavor, format.resolve(cli.quiet)).await?;
+        },
         Some(Commands::List { format, status }) => {
             commands::list_sources(format.resolve(cli.quiet), status, cli.quiet).await?;
         },
@@ -1262,12 +1265,14 @@ mod tests {
             alias,
             lines,
             context,
+            flavor,
             format,
         }) = cli.command
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, "1-10");
             assert_eq!(context, Some(5));
+            let _ = flavor; // ignore
             let _ = format; // ignore
         } else {
             panic!("Expected get command");

@@ -116,8 +116,7 @@ async fn add_fetches_all_discovered_flavors() -> anyhow::Result<()> {
             entry
                 .get("flavor")
                 .and_then(|v| v.as_str())
-                .map(|name| name.eq_ignore_ascii_case("llms-full"))
-                .unwrap_or(false)
+                .is_some_and(|name| name.eq_ignore_ascii_case("llms-full"))
         }),
         "expected list output to include llms-full flavor"
     );
