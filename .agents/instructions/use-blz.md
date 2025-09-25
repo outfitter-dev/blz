@@ -27,6 +27,12 @@ blz list --format json  # machine-readable
 blz "react hooks"
 blz "useEffect cleanup"
 
+# Exact phrase (single quotes around double quotes)
+blz '"claude code"'
+
+# Require phrases/terms
+blz '+"claude code" +"computer use"'
+
 # Search specific source
 blz "server components" -s nextjs
 blz "query invalidation" -s tanstack
@@ -80,10 +86,11 @@ blz list --json | jq '.[] | select((.last_updated | fromdate) < (now - 604800))'
 
 ## Search Tips
 
-1. **Exact phrases**: Search terms are matched as-is
-2. **Case-insensitive**: "React" = "react" = "REACT"
-3. **Scoring**: Higher scores = better matches (BM25 algorithm)
-4. **Line citations**: Results show exact line numbers for verification
+1. **Phrase search**: Use `blz '"exact phrase"'` (single quotes outside, double inside)
+2. **Require terms**: Prefix with `+` or use `AND`, e.g. `blz '+api +key'`
+3. **Case-insensitive**: "React" = "react" = "REACT"
+4. **Scoring**: Higher scores = better matches (BM25 algorithm)
+5. **Line citations**: Results show exact line numbers for verification
 
 ## Performance Expectations
 

@@ -268,7 +268,7 @@ fn extract_context_lines(
         .map(|s| normalize(&strip_markdown(s)))
         .unwrap_or_default();
 
-    let should_include = |idx: usize| -> bool {
+    let mut should_include = |idx: usize| -> bool {
         if let Some(raw) = lines.get(idx) {
             if raw.trim().is_empty() {
                 return false;
@@ -286,36 +286,7 @@ fn extract_context_lines(
     };
 
     let limit = max_lines.max(1);
-    let mut candidates = Vec::with_capacity(limit);
-    let mut below = center;
-    let mut above = center;
-    while candidates.len() < limit {
-        if candidates.is_empty() {
-            if should_include(center) {
-                candidates.push(center);
-            }
-        } else {
-            if below + 1 < total && candidates.len() < limit {
-                below += 1;
-                if should_include(below) {
-                    candidates.push(below);
-                }
-            }
-            if above > 0 && candidates.len() < limit {
-                above = above.saturating_sub(1);
-                if should_include(above) {
-                    candidates.push(above);
-                }
-            }
-            if (below + 1 >= total) && above == 0 {
-                break;
-            }
-        }
-        if (below + 1 >= total) && above == 0 {
-            break;
-        }
-    }
-    candidates.sort_unstable();
+    let candidates = collect_candidate_indices(total, center, limit, &mut should_include);
 
     let tokens: Vec<String> = query
         .split_whitespace()
@@ -324,12 +295,29 @@ fn extract_context_lines(
         .collect();
 
     let mut result = Vec::with_capacity(candidates.len());
-    for idx in candidates {
-        let raw = lines.get(idx).map_or("", |s| s.as_str());
+    for idx in &candidates {
+        let raw = lines.get(*idx).map_or("", |s| s.as_str());
         let cleaned = strip_markdown(raw);
         let highlighted = highlight_matches(&cleaned, query, &tokens);
-        result.push((idx + 1, highlighted));
+        result.push((*idx + 1, highlighted));
     }
+
+    if result.is_empty() {
+        return hit
+            .snippet
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .take(limit)
+            .enumerate()
+            .map(|(idx, line)| {
+                (
+                    idx + 1,
+                    highlight_matches(&strip_markdown(line), query, &tokens),
+                )
+            })
+            .collect();
+    }
+
     result
 }
 
@@ -356,6 +344,56 @@ fn load_llms_lines(storage: &Storage, alias: &str) -> Vec<String> {
         }
     }
     Vec::new()
+}
+
+fn collect_candidate_indices(
+    total: usize,
+    center: usize,
+    limit: usize,
+    mut should_include: impl FnMut(usize) -> bool,
+) -> Vec<usize> {
+    if total == 0 || limit == 0 {
+        return Vec::new();
+    }
+
+    let mut selected = BTreeSet::new();
+    let mut step = 0usize;
+
+    loop {
+        let mut reached_any_side = false;
+
+        if center + step < total {
+            reached_any_side = true;
+            let idx = center + step;
+            if should_include(idx) {
+                selected.insert(idx);
+            }
+        }
+
+        if step > 0 {
+            if let Some(idx) = center.checked_sub(step) {
+                reached_any_side = true;
+                if should_include(idx) {
+                    selected.insert(idx);
+                }
+            }
+        }
+
+        if selected.len() >= limit {
+            break;
+        }
+
+        if !reached_any_side {
+            break;
+        }
+
+        step = step.saturating_add(1);
+        if step > total {
+            break;
+        }
+    }
+
+    selected.into_iter().take(limit).collect()
 }
 
 fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str) -> Option<usize> {

@@ -133,7 +133,17 @@ blz search "async" --format json
 
 # Top 10% of results only
 blz search "database" --top 10
+
+# Exact phrase (single quotes around double quotes)
+blz search '"test runner"'
+
+# Require both phrases
+blz search '+"test runner" +"cli output"'
 ```
+
+> **Query tips:** Space-separated terms are ORed by default. Prefix them with `+`
+> or use `AND` to require all words. Keep phrase searches intact by wrapping the
+> phrase in double quotes and surrounding the whole query with single quotes.
 
 Aliases and resolution
 
