@@ -289,11 +289,12 @@ fn extract_context_lines(
     let candidates = collect_candidate_indices(total, center, limit, &mut should_include);
 
     // Clean and normalize tokens for highlighting (strip quotes/operators, lowercase)
-    let tokens: Vec<String> = query
+    let mut tokens: Vec<String> = query
         .split_whitespace()
         .map(|t| t.trim_matches('"').trim_start_matches('+').to_lowercase())
         .filter(|t| !t.is_empty() && t != "and" && t != "or")
         .collect();
+    tokens.sort_by_key(|t| std::cmp::Reverse(t.len()));
 
     let mut result = Vec::with_capacity(candidates.len());
     for idx in &candidates {
@@ -304,17 +305,17 @@ fn extract_context_lines(
     }
 
     if result.is_empty() {
-        return hit
-            .snippet
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .take(limit)
-            .enumerate()
-            .map(|(idx, line)| {
-                (
-                    idx + 1,
-                    highlight_matches(&strip_markdown(line), query, &tokens),
-                )
+        let mut include_all = |_: usize| true;
+        let fallback = collect_candidate_indices(total, center, limit, &mut include_all);
+        return fallback
+            .into_iter()
+            .filter_map(|idx| {
+                lines.get(idx).map(|raw| {
+                    (
+                        idx + 1,
+                        highlight_matches(&strip_markdown(raw), query, &tokens),
+                    )
+                })
             })
             .collect();
     }
@@ -399,7 +400,8 @@ fn collect_candidate_indices(
 
 fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str) -> Option<usize> {
     let q_trim = query.trim();
-    let query_lower = q_trim.to_lowercase();
+    let normalized_for_contains = q_trim.replace('+', " ").replace('"', "").to_lowercase();
+    let normalized_for_contains = normalized_for_contains.trim().to_string();
 
     // Prefer exact phrase match when the entire query is quoted
     let phrase = if q_trim.len() >= 2 && q_trim.starts_with('"') && q_trim.ends_with('"') {
@@ -416,16 +418,18 @@ fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str)
                 if lower.contains(ph) {
                     return Some(idx);
                 }
-            } else if lower.contains(&query_lower) {
+            } else if !normalized_for_contains.is_empty()
+                && lower.contains(&normalized_for_contains)
+            {
                 return Some(idx);
             }
         }
     }
 
-    let tokens: Vec<String> = query_lower
+    let tokens: Vec<String> = normalized_for_contains
         .split_whitespace()
-        .map(|t| t.trim_matches('"').trim_start_matches('+').to_string())
-        .filter(|t| !t.is_empty())
+        .map(std::string::ToString::to_string)
+        .filter(|t| !t.is_empty() && t != "and" && t != "or")
         .collect();
     let mut best: Option<(usize, usize)> = None;
     for idx in range {

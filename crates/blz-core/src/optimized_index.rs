@@ -830,7 +830,7 @@ impl OptimizedSearchIndex {
         let writer = self.writer_pool.get_writer().await?;
 
         // Merge segments for better query performance
-        let (writer, result) = tokio::task::spawn_blocking(move || {
+        let (writer, merge_result) = tokio::task::spawn_blocking(move || {
             let res = writer
                 .merge(&tantivy::merge_policy::DefaultMergePolicy::default())
                 .map_err(|e| Error::Index(format!("Failed to optimize index: {}", e)));
@@ -839,10 +839,11 @@ impl OptimizedSearchIndex {
         .await
         .map_err(|e| Error::Index(format!("Optimization task failed: {}", e)))?;
 
-        // Propagate the merge operation result
-        result?;
-
+        // Always return writer to pool, even if merge failed
         self.writer_pool.return_writer(writer).await;
+
+        // Now propagate the merge operation result
+        merge_result?;
 
         info!("Index optimization completed");
         Ok(())

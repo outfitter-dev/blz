@@ -551,7 +551,7 @@ async fn handle_alias(command: AliasCommands) -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 async fn handle_search(
     query: String,
-    alias: Option<String>,
+    source: Option<String>,
     last: bool,
     limit: usize,
     all: bool,
@@ -569,7 +569,7 @@ async fn handle_search(
     let actual_limit = if all { 10_000 } else { limit };
     commands::search(
         &query,
-        alias.as_deref(),
+        source.as_deref(),
         last,
         actual_limit,
         page,

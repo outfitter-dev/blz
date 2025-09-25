@@ -67,7 +67,7 @@ Fish users get the best experience with dynamic completions:
 blz <TAB>                    # Shows all commands
 blz search --<TAB>           # Shows all options for search
 
-# Dynamic alias completions
+# Dynamic source completions
 blz search --source <TAB>    # Shows: bun, node, test (your actual sources!)
 blz get <TAB>                # Completes with your indexed aliases
 blz update <TAB>             # Shows available sources to update

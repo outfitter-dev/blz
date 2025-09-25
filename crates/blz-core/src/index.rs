@@ -459,22 +459,68 @@ impl SearchIndex {
             .next()
             .and_then(|s| s.trim().parse::<usize>().ok())?;
 
-        // Tokenize query naively by whitespace; normalize tokens by removing surrounding quotes
-        // and a leading '+' (required-term marker) before matching. This improves phrase/required-term UX.
-        let mut best_pos: Option<usize> = None;
-        for token in query
-            .split_whitespace()
-            .map(|t| t.trim_matches('"').trim_start_matches('+'))
-        {
-            if token.is_empty() {
-                continue;
+        // Tokenize while preserving quoted phrases so we prefer the full phrase when present.
+        let mut phrases = Vec::new();
+        let mut terms = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        for ch in query.chars() {
+            match ch {
+                '"' => {
+                    if in_quotes {
+                        if !current.is_empty() {
+                            phrases.push(current.clone());
+                            current.clear();
+                        }
+                        in_quotes = false;
+                    } else {
+                        in_quotes = true;
+                    }
+                },
+                ch if ch.is_whitespace() && !in_quotes => {
+                    if !current.is_empty() {
+                        terms.push(current.clone());
+                        current.clear();
+                    }
+                },
+                _ => current.push(ch),
             }
+        }
+        if !current.is_empty() {
+            if in_quotes {
+                phrases.push(current);
+            } else {
+                terms.push(current);
+            }
+        }
+
+        let phrases: Vec<String> = phrases
+            .into_iter()
+            .map(|token| {
+                token
+                    .trim_matches('"')
+                    .trim_start_matches(['+', '-'])
+                    .trim()
+                    .to_string()
+            })
+            .filter(|s| !s.is_empty())
+            .collect();
+        let terms: Vec<String> = terms
+            .into_iter()
+            .map(|token| {
+                token
+                    .trim_matches('"')
+                    .trim_start_matches(['+', '-'])
+                    .trim()
+                    .to_string()
+            })
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let mut best_pos: Option<usize> = None;
+        for token in phrases.iter().chain(terms.iter()) {
             if let Some(pos) = content.find(token) {
-                match best_pos {
-                    Some(cur) if pos < cur => best_pos = Some(pos),
-                    None => best_pos = Some(pos),
-                    _ => {},
-                }
+                best_pos = Some(best_pos.map_or(pos, |cur| pos.min(cur)));
             }
         }
 

@@ -188,7 +188,7 @@ fn bench_string_operations(c: &mut Criterion) {
                     for ch in test_str.chars() {
                         match ch {
                             '\\' => sanitized.push_str("\\\\"),
-                            '"' => sanitized.push_str("\\\""),
+                            '"' => sanitized.push('"'),
                             '(' => sanitized.push_str("\\("),
                             ')' => sanitized.push_str("\\)"),
                             '[' => sanitized.push_str("\\["),
