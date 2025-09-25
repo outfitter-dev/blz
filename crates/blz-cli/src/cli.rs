@@ -273,9 +273,14 @@ pub enum Commands {
     Search {
         /// Search query
         query: String,
-        /// Filter by alias (also accepts --source)
-        #[arg(long, short = 's', alias = "source", visible_alias = "source")]
-        alias: Option<String>,
+        /// Filter by source
+        #[arg(
+            long = "source",
+            short = 's',
+            visible_alias = "alias",
+            value_name = "SOURCE"
+        )]
+        source: Option<String>,
         /// Jump to last page of results
         #[arg(long)]
         last: bool,

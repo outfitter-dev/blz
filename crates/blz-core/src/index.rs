@@ -266,9 +266,12 @@ impl SearchIndex {
         });
 
         // Sanitize query more efficiently with a single allocation
-        let needs_escaping = query_str
-            .chars()
-            .any(|c| matches!(c, '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~'));
+        let needs_escaping = query_str.chars().any(|c| {
+            matches!(
+                c,
+                '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~' | ':'
+            )
+        });
 
         let mut filter_clauses = Vec::new();
         if let Some(alias) = alias {
@@ -327,6 +330,7 @@ impl SearchIndex {
                     '}' => sanitized.push_str("\\}"),
                     '^' => sanitized.push_str("\\^"),
                     '~' => sanitized.push_str("\\~"),
+                    ':' => sanitized.push_str("\\:"),
                     _ => sanitized.push(ch),
                 }
             }

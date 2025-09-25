@@ -58,7 +58,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.zsh
 
 What it adds:
 
-- `--alias`/`-s`/`--source` dynamic values for `blz search`
+- `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 

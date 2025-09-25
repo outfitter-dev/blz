@@ -286,7 +286,7 @@ impl ZeroCopyStrings {
     pub fn sanitize_query_single_pass(query: &str) -> Cow<'_, str> {
         // First pass: check if we need to escape anything
         let needs_escaping = query.chars().any(|c| {
-            matches!(c, '\\' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~')
+            matches!(c, '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~' | ':')
         });
 
         if !needs_escaping {
@@ -299,7 +299,6 @@ impl ZeroCopyStrings {
         for ch in query.chars() {
             match ch {
                 '\\' => sanitized.push_str("\\\\"),
-                '"' => sanitized.push_str("\\\""),
                 '(' => sanitized.push_str("\\("),
                 ')' => sanitized.push_str("\\)"),
                 '[' => sanitized.push_str("\\["),
@@ -308,6 +307,7 @@ impl ZeroCopyStrings {
                 '}' => sanitized.push_str("\\}"),
                 '^' => sanitized.push_str("\\^"),
                 '~' => sanitized.push_str("\\~"),
+                ':' => sanitized.push_str("\\:"),
                 _ => sanitized.push(ch),
             }
         }
@@ -412,10 +412,10 @@ mod tests {
 
     #[test]
     fn test_sanitize_query_with_escaping() {
-        let query = "query with (parens) and \"quotes\"";
+        let query = "query with (parens) and :colons";
         let sanitized = ZeroCopyStrings::sanitize_query_single_pass(query);
         assert!(matches!(sanitized, Cow::Owned(_)));
-        assert_eq!(sanitized, "query with \\(parens\\) and \\\"quotes\\\"");
+        assert_eq!(sanitized, "query with \\(parens\\) and \\:colons");
     }
 
     #[test]

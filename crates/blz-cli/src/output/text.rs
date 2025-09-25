@@ -285,13 +285,14 @@ fn extract_context_lines(
         false
     };
 
-    let limit = max_lines.max(1);
+    // limit already computed above at line 248
     let candidates = collect_candidate_indices(total, center, limit, &mut should_include);
 
+    // Clean and normalize tokens for highlighting (strip quotes/operators, lowercase)
     let tokens: Vec<String> = query
         .split_whitespace()
-        .filter(|t| !t.is_empty())
-        .map(std::string::ToString::to_string)
+        .map(|t| t.trim_matches('"').trim_start_matches('+').to_lowercase())
+        .filter(|t| !t.is_empty() && t != "and" && t != "or")
         .collect();
 
     let mut result = Vec::with_capacity(candidates.len());
@@ -397,25 +398,43 @@ fn collect_candidate_indices(
 }
 
 fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str) -> Option<usize> {
-    let query_lower = query.to_lowercase();
+    let q_trim = query.trim();
+    let query_lower = q_trim.to_lowercase();
+
+    // Prefer exact phrase match when the entire query is quoted
+    let phrase = if q_trim.len() >= 2 && q_trim.starts_with('"') && q_trim.ends_with('"') {
+        Some(q_trim[1..q_trim.len() - 1].to_lowercase())
+    } else {
+        None
+    };
+
     let range = start..=end;
     for idx in range.clone() {
         if let Some(line) = lines.get(idx) {
-            if line.to_lowercase().contains(&query_lower) {
+            let lower = line.to_lowercase();
+            if let Some(ph) = &phrase {
+                if lower.contains(ph) {
+                    return Some(idx);
+                }
+            } else if lower.contains(&query_lower) {
                 return Some(idx);
             }
         }
     }
 
-    let tokens: Vec<&str> = query_lower
+    let tokens: Vec<String> = query_lower
         .split_whitespace()
+        .map(|t| t.trim_matches('"').trim_start_matches('+').to_string())
         .filter(|t| !t.is_empty())
         .collect();
     let mut best: Option<(usize, usize)> = None;
     for idx in range {
         if let Some(line) = lines.get(idx) {
             let lower = line.to_lowercase();
-            let matches = tokens.iter().filter(|token| lower.contains(*token)).count();
+            let matches = tokens
+                .iter()
+                .filter(|token| lower.contains(token.as_str()))
+                .count();
             if matches > 0 {
                 match best {
                     Some((_, best_count)) if matches <= best_count => {},
@@ -431,7 +450,21 @@ fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str)
 fn highlight_matches(line: &str, full_query: &str, tokens: &[String]) -> String {
     let original = line.to_string();
     let lower_line = original.to_lowercase();
-    let query_lower = full_query.to_lowercase();
+
+    // If the entire query is a quoted phrase, highlight that phrase; otherwise try the raw query trimmed.
+    let fq_trim = full_query.trim();
+    let phrase = if fq_trim.len() >= 2 && fq_trim.starts_with('"') && fq_trim.ends_with('"') {
+        Some(fq_trim[1..fq_trim.len() - 1].to_lowercase())
+    } else {
+        None
+    };
+    let query_lower = phrase.unwrap_or_else(|| {
+        fq_trim
+            .trim_start_matches('+')
+            .trim_matches('"')
+            .to_lowercase()
+    });
+
     if !query_lower.is_empty() && lower_line.contains(&query_lower) {
         if let Some(pos) = lower_line.find(&query_lower) {
             let (prefix, rest) = original.split_at(pos);

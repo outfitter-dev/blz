@@ -415,14 +415,13 @@ impl OptimizedSearchIndex {
         // Check if escaping is needed (single pass)
         let needs_escaping = query_str
             .chars()
-            .any(|c| matches!(c, '\\' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~'));
+            .any(|c| matches!(c, '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~' | ':'));
 
         if needs_escaping {
             // Escape special characters
             for ch in query_str.chars() {
                 match ch {
                     '\\' => buffer.as_mut().push_str("\\\\"),
-                    '"' => buffer.as_mut().push_str("\\\""),
                     '(' => buffer.as_mut().push_str("\\("),
                     ')' => buffer.as_mut().push_str("\\)"),
                     '[' => buffer.as_mut().push_str("\\["),
@@ -431,6 +430,7 @@ impl OptimizedSearchIndex {
                     '}' => buffer.as_mut().push_str("\\}"),
                     '^' => buffer.as_mut().push_str("\\^"),
                     '~' => buffer.as_mut().push_str("\\~"),
+                    ':' => buffer.as_mut().push_str("\\:"),
                     _ => buffer.as_mut().push(ch),
                 }
             }

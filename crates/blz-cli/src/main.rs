@@ -441,7 +441,7 @@ async fn execute_command(
         },
         Some(Commands::Search {
             query,
-            alias,
+            source,
             last,
             limit,
             all,
@@ -457,7 +457,7 @@ async fn execute_command(
             let resolved_format = format.resolve(cli.quiet);
             handle_search(
                 query,
-                alias,
+                source,
                 last,
                 limit,
                 all,
@@ -1045,8 +1045,8 @@ mod tests {
 
         let cli = Cli::try_parse_from(processed).unwrap();
         match cli.command {
-            Some(Commands::Search { alias, .. }) => {
-                assert_eq!(alias.as_deref(), Some("react"));
+            Some(Commands::Search { source, .. }) => {
+                assert_eq!(source.as_deref(), Some("react"));
             },
             _ => panic!("expected search command"),
         }
@@ -1211,7 +1211,7 @@ mod tests {
         .unwrap();
 
         if let Some(Commands::Search {
-            alias,
+            source,
             limit,
             page,
             top,
@@ -1219,7 +1219,7 @@ mod tests {
             ..
         }) = cli.command
         {
-            assert_eq!(alias, Some("node".to_string()));
+            assert_eq!(source, Some("node".to_string()));
             assert_eq!(limit, 20);
             assert_eq!(page, 2);
             assert!(top.is_some());
@@ -1519,7 +1519,7 @@ mod tests {
             .collect();
 
         let expected_search_flags = vec![
-            "alias",
+            "source",
             "limit",
             "all",
             "page",

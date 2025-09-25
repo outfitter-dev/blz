@@ -86,11 +86,12 @@ blz list --json | jq '.[] | select((.last_updated | fromdate) < (now - 604800))'
 
 ## Search Tips
 
-1. **Phrase search**: Use `blz '"exact phrase"'` (single quotes outside, double inside)
-2. **Require terms**: Prefix with `+` or use `AND`, e.g. `blz '+api +key'`
-3. **Case-insensitive**: "React" = "react" = "REACT"
-4. **Scoring**: Higher scores = better matches (BM25 algorithm)
-5. **Line citations**: Results show exact line numbers for verification
+1. **OR by default**: Space-separated terms are ORed (any term matches)
+2. **Phrase search**: Use `blz '"exact phrase"'` (single quotes outside, double inside)
+3. **Require terms**: Prefix with `+` or use `AND`, e.g. `blz '+api +key'`
+4. **Case-insensitive**: "React" = "react" = "REACT"
+5. **Scoring**: Higher scores = better matches (BM25 algorithm)
+6. **Line citations**: Results show exact line numbers for verification
 
 ## Performance Expectations
 

@@ -1,4 +1,4 @@
-#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
+#![allow(missing_docs)]
 
 mod common;
 
@@ -31,13 +31,15 @@ async fn search_phrase_queries_match_exact_sequence() -> anyhow::Result<()> {
 
     blz_cmd()
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
 
     let output = blz_cmd()
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["search", "\"claude code\"", "--alias", "e2e", "-f", "json"])
+        .env("BLZ_CONFIG_DIR", tmp.path())
+        .args(["search", "\"claude code\"", "--source", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()

@@ -129,7 +129,7 @@ blz add bun https://bun.sh/llms.txt
 
 # Search across docs
 blz search "test runner"
-blz search "concurrency" --alias bun
+blz search "concurrency" --source bun
 
 # Get exact lines
 blz get bun --lines 120-142
@@ -183,7 +183,7 @@ IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
 # Search for documentation
-blz search "test runner" --alias bun --format json
+blz search "test runner" --source bun --format json
 
 # Get exact line ranges
 blz get bun --lines 423-445
