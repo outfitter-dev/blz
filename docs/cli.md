@@ -143,6 +143,10 @@ blz search '+"test runner" +"cli output"'
 # Windows CMD (use backslash escaping)
 blz search "\"test runner\""
 blz search "+\"test runner\" +\"cli output\""
+
+# PowerShell (single quotes work as literals)
+blz search '"test runner"'
+blz search '+"test runner" +"cli output"'
 ```
 
 > **Query tips:** Space-separated terms are ORed by default. Prefix them with `+`

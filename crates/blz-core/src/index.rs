@@ -459,18 +459,68 @@ impl SearchIndex {
             .next()
             .and_then(|s| s.trim().parse::<usize>().ok())?;
 
-        // Tokenize query naively by whitespace; try to find the earliest occurrence
-        let mut best_pos: Option<usize> = None;
-        for token in query.split_whitespace() {
-            if token.is_empty() {
-                continue;
+        // Tokenize while preserving quoted phrases so we prefer the full phrase when present.
+        let mut phrases = Vec::new();
+        let mut terms = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        for ch in query.chars() {
+            match ch {
+                '"' => {
+                    if in_quotes {
+                        if !current.is_empty() {
+                            phrases.push(current.clone());
+                            current.clear();
+                        }
+                        in_quotes = false;
+                    } else {
+                        in_quotes = true;
+                    }
+                },
+                ch if ch.is_whitespace() && !in_quotes => {
+                    if !current.is_empty() {
+                        terms.push(current.clone());
+                        current.clear();
+                    }
+                },
+                _ => current.push(ch),
             }
+        }
+        if !current.is_empty() {
+            if in_quotes {
+                phrases.push(current);
+            } else {
+                terms.push(current);
+            }
+        }
+
+        let phrases: Vec<String> = phrases
+            .into_iter()
+            .map(|token| {
+                token
+                    .trim_matches('"')
+                    .trim_start_matches(['+', '-'])
+                    .trim()
+                    .to_string()
+            })
+            .filter(|s| !s.is_empty())
+            .collect();
+        let terms: Vec<String> = terms
+            .into_iter()
+            .map(|token| {
+                token
+                    .trim_matches('"')
+                    .trim_start_matches(['+', '-'])
+                    .trim()
+                    .to_string()
+            })
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let mut best_pos: Option<usize> = None;
+        for token in phrases.iter().chain(terms.iter()) {
             if let Some(pos) = content.find(token) {
-                match best_pos {
-                    Some(cur) if pos < cur => best_pos = Some(pos),
-                    None => best_pos = Some(pos),
-                    _ => {},
-                }
+                best_pos = Some(best_pos.map_or(pos, |cur| pos.min(cur)));
             }
         }
 
@@ -491,7 +541,15 @@ impl SearchIndex {
     }
 
     fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
-        let query_lower = query.to_lowercase();
+        // Prefer phrase matching when the whole query is quoted; otherwise use the raw query.
+        let trimmed = query.trim();
+        let phrase_candidate =
+            if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
+                &trimmed[1..trimmed.len() - 1]
+            } else {
+                query
+            };
+        let query_lower = phrase_candidate.to_lowercase();
 
         // Find match position using character indices to handle Unicode correctly
         let mut match_char_pos = None;

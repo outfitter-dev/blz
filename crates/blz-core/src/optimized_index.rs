@@ -828,18 +828,25 @@ impl OptimizedSearchIndex {
     /// Optimize index for better search performance
     pub async fn optimize(&self) -> Result<()> {
         let writer = self.writer_pool.get_writer().await?;
-        
+
         // Merge segments for better query performance
-        let result = tokio::task::spawn_blocking(move || {
-            writer.merge(&tantivy::merge_policy::DefaultMergePolicy::default())
-                .map_err(|e| Error::Index(format!("Failed to optimize index: {}", e)))
-        }).await
+        let (writer, merge_result) = tokio::task::spawn_blocking(move || {
+            let res = writer
+                .merge(&tantivy::merge_policy::DefaultMergePolicy::default())
+                .map_err(|e| Error::Index(format!("Failed to optimize index: {}", e)));
+            (writer, res)
+        })
+        .await
         .map_err(|e| Error::Index(format!("Optimization task failed: {}", e)))?;
 
+        // Always return writer to pool, even if merge failed
         self.writer_pool.return_writer(writer).await;
-        
+
+        // Now propagate the merge operation result
+        merge_result?;
+
         info!("Index optimization completed");
-        result
+        Ok(())
     }
 
     /// Warm up caches with common queries
