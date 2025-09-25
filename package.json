@@ -57,5 +57,5 @@
     "prepack": "node npm/prepack.js"
   },
   "type": "module",
-  "version": "0.3.2"
+  "version": "0.3.3"
 }
