@@ -54,6 +54,17 @@ async fn search_phrase_queries_match_exact_sequence() -> anyhow::Result<()> {
         .unwrap_or_default();
 
     assert_eq!(results.len(), 1, "expected only the phrase match to return");
+
+    // Ensure result belongs to the requested source
+    let alias = results[0]
+        .get("alias")
+        .and_then(|a| a.as_str())
+        .unwrap_or_default();
+    assert_eq!(
+        alias, "e2e",
+        "result did not come from the requested source"
+    );
+
     let snippet = results[0]
         .get("snippet")
         .and_then(|s| s.as_str())

@@ -379,7 +379,7 @@ If search returns nothing:
 
 If overwhelmed with results:
 
-1. Use `--alias` to focus on one source
+1. Use `--source` (or `-s`) to focus on one source
 2. Use more specific terms
 3. Reduce `--limit`
 

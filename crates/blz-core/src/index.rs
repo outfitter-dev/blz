@@ -459,9 +459,13 @@ impl SearchIndex {
             .next()
             .and_then(|s| s.trim().parse::<usize>().ok())?;
 
-        // Tokenize query naively by whitespace; try to find the earliest occurrence
+        // Tokenize query naively by whitespace; normalize tokens by removing surrounding quotes
+        // and a leading '+' (required-term marker) before matching. This improves phrase/required-term UX.
         let mut best_pos: Option<usize> = None;
-        for token in query.split_whitespace() {
+        for token in query
+            .split_whitespace()
+            .map(|t| t.trim_matches('"').trim_start_matches('+'))
+        {
             if token.is_empty() {
                 continue;
             }
@@ -491,7 +495,15 @@ impl SearchIndex {
     }
 
     fn extract_snippet(content: &str, query: &str, max_len: usize) -> String {
-        let query_lower = query.to_lowercase();
+        // Prefer phrase matching when the whole query is quoted; otherwise use the raw query.
+        let trimmed = query.trim();
+        let phrase_candidate =
+            if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
+                &trimmed[1..trimmed.len() - 1]
+            } else {
+                query
+            };
+        let query_lower = phrase_candidate.to_lowercase();
 
         // Find match position using character indices to handle Unicode correctly
         let mut match_char_pos = None;
