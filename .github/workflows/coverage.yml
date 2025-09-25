@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   coverage:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     name: Code Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -71,21 +72,8 @@ jobs:
           export BLZ_DATA_DIR="$PWD/test-data"
           mkdir -p "$BLZ_DATA_DIR"
 
-          # Cache test data
-          TEST_DATA_CACHE="/tmp/test-data-cache"
-          mkdir -p "$TEST_DATA_CACHE"
-
-          if [ -f "$TEST_DATA_CACHE/turbo-llms.txt" ]; then
-            echo "Using cached test data"
-            cp "$TEST_DATA_CACHE/turbo-llms.txt" /tmp/turbo-llms.txt
-          else
-            echo "Downloading test data"
-            curl -sL https://turbo.build/llms-full.txt -o /tmp/turbo-llms.txt || echo "# Test Document" > /tmp/turbo-llms.txt
-            cp /tmp/turbo-llms.txt "$TEST_DATA_CACHE/turbo-llms.txt"
-          fi
-
           # Add test source using the built binary
-          ./target/debug/blz add turbo file:///tmp/turbo-llms.txt || true
+          ./target/debug/blz add turbo https://turbo.build/llms-full.txt || true
 
           # Export environment variable for tests
           echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> "$GITHUB_ENV"
