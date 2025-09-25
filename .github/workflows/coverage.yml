@@ -18,6 +18,9 @@ concurrency:
 
 jobs:
   coverage:
+    # Skip coverage on direct pushes to main (typically automated releases) to reduce CI load.
+    # Coverage still runs on: PRs targeting main, scheduled runs, and manual triggers.
+    # This prevents redundant coverage runs on release commits while maintaining quality gates on PRs.
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -72,8 +75,10 @@ jobs:
           export BLZ_DATA_DIR="$PWD/test-data"
           mkdir -p "$BLZ_DATA_DIR"
 
-          # Add test source using the built binary
-          ./target/debug/blz add turbo https://turbo.build/llms-full.txt || true
+          # Add test source using the built binary.
+          # Note: No || true fallback - we want to fail fast if the download fails
+          # to avoid confusing downstream errors from missing test fixtures.
+          ./target/debug/blz add turbo https://turbo.build/llms-full.txt
 
           # Export environment variable for tests
           echo "BLZ_DATA_DIR=$BLZ_DATA_DIR" >> "$GITHUB_ENV"
