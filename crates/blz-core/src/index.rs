@@ -269,7 +269,7 @@ impl SearchIndex {
         let needs_escaping = query_str.chars().any(|c| {
             matches!(
                 c,
-                '\\' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~'
+                '\\' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '~' | ':'
             )
         });
 
@@ -322,7 +322,6 @@ impl SearchIndex {
             for ch in query_str.chars() {
                 match ch {
                     '\\' => sanitized.push_str("\\\\"),
-                    '"' => sanitized.push_str("\\\""),
                     '(' => sanitized.push_str("\\("),
                     ')' => sanitized.push_str("\\)"),
                     '[' => sanitized.push_str("\\["),
@@ -331,6 +330,7 @@ impl SearchIndex {
                     '}' => sanitized.push_str("\\}"),
                     '^' => sanitized.push_str("\\^"),
                     '~' => sanitized.push_str("\\~"),
+                    ':' => sanitized.push_str("\\:"),
                     _ => sanitized.push(ch),
                 }
             }

@@ -374,7 +374,7 @@ Currently using JSON-RPC, will migrate to official `rmcp` SDK when available.
 
 ```bash
 hyperfine --warmup 20 --min-runs 100 \
-  './target/release/blz search "test" --alias bun'
+  './target/release/blz search "test" --source bun'
 ```
 
 ### Performance Targets

@@ -274,7 +274,7 @@ All changes must maintain or improve performance:
 # Example performance test
 ./target/release/blz add bun https://bun.sh/llms.txt
 hyperfine --warmup 10 --min-runs 50 \
-  './target/release/blz search "test" --alias bun'
+  './target/release/blz search "test" --source bun'
 # Expected: Mean < 10ms
 ```
 

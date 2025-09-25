@@ -70,7 +70,7 @@ bza() {
     echo "Usage: bza <alias> <query>"
     return 1
   fi
-  blz search "$2" --alias "$1"
+  blz search "$2" --source "$1"
 }
 
 # Update all sources with summary

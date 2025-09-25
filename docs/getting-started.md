@@ -58,7 +58,7 @@ Expected output:
 Now search for something:
 
 ```bash
-blz search "test" --alias bun
+blz search "test" --source bun
 ```
 
 You'll see results in ~6ms:
@@ -119,7 +119,7 @@ blz search "http server"
 
 ```bash
 # Search only in Bun docs
-blz search "test" --alias bun --limit 5
+blz search "test" --source bun --limit 5
 
 # Get more results
 blz search "performance" --limit 20
@@ -168,7 +168,7 @@ After installation, you can use TAB to complete commands and options:
 
 ```bash
 blz sea<TAB>        # Completes to: blz search
-blz search --al<TAB> # Completes to: blz search --alias
+blz search --so<TAB> # Completes to: blz search --source
 blz get <TAB>        # Shows available aliases
 ```
 

@@ -120,7 +120,7 @@ For live alias suggestions (canonical + metadata aliases) when typing `blz` comm
 
 This adds:
 
-- `--alias`/`-s` dynamic values for `blz search`
+- `--source`/`-s` dynamic values for `blz search`
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 

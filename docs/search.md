@@ -31,7 +31,7 @@ For more control, use the explicit `search` command:
 
 ```bash
 blz search "your query"
-blz search "test" --alias bun
+blz search "test" --source bun
 ```
 
 ### Pattern Summary
@@ -44,7 +44,7 @@ blz QUERY SOURCE            # Source-specific (source last)
 
 # Explicit command (more options)
 blz search QUERY
-blz search QUERY --alias SOURCE
+blz search QUERY --source SOURCE
 ```
 
 ## Search Syntax
@@ -60,19 +60,39 @@ blz search "test"         # Finds: test, testing, tests
 
 ### Multiple Terms
 
-Space-separated terms create an AND query:
+Space-separated terms are combined with OR by default (Lucene syntax). To require
+every word, prefix each term with `+` or connect them with `AND`:
 
 ```bash
-blz search "test runner"   # Must contain both "test" AND "runner"
-blz search "http server"   # Must contain both "http" AND "server"
+blz search "test runner"        # Finds docs with "test" OR "runner"
+blz search '+test +runner'       # Must contain both words
+blz search 'test AND runner'     # Same as above using explicit boolean
 ```
 
-### Phrase Search (Coming Soon)
+### Phrase Search
 
-Future support for exact phrases:
+Enclose a phrase in double quotes and wrap the whole query in single quotes so
+your shell does not strip them:
 
 ```bash
-blz search '"test runner"'  # Exact phrase (not yet implemented)
+# Unix shells (Bash, Zsh, Fish)
+blz search '"test runner"'                # Exact phrase
+blz search '"test runner" "cli output"'  # Either phrase (OR)
+blz search '+"test runner" +"cli output"' # Require both phrases
+
+# Windows CMD (no single quotes)
+blz search "\"test runner\""
+blz search "+\"test runner\" +\"cli output\""
+
+# PowerShell (single quotes work as literals)
+blz search '"test runner"'
+```
+
+Use parentheses to group boolean logic around phrases—keep the double quotes to
+preserve exact matches:
+
+```bash
+blz search '("test runner") AND ("cli output")'
 ```
 
 ## Search Options
@@ -82,8 +102,8 @@ blz search '"test runner"'  # Exact phrase (not yet implemented)
 Control how many results you get:
 
 ```bash
-blz search "test" --limit 5    # Default: 10
-blz search "test" --limit 20   # Get more results
+blz search "test" --limit 5    # Default: 50
+blz search "test" --limit 20   # Get fewer results
 blz search "test" --limit 1    # Just the best match
 ```
 
@@ -239,7 +259,7 @@ blz node "file system"
 1. **Use aliases** - Searching one source is faster
    ```bash
    blz bun "test"                 # Fastest - quick pattern
-   blz search "test" --alias bun  # Fast - explicit command
+   blz search "test" --source bun  # Fast - explicit command
    blz "test"                     # Slower - searches all
    ```
 

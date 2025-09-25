@@ -102,7 +102,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.fish
 ```
 
 Adds:
-- `--alias`/`-s` dynamic values for `blz search`
+- `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz diff`, `blz anchors`
 - `blz anchor list <alias>` alias completion
 - `blz anchor get <alias> <anchor>` anchor completion (after alias is provided)

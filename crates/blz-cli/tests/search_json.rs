@@ -41,7 +41,7 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["search", "alpha", "--alias", "e2e", "-f", "json"])
+        .args(["search", "alpha", "--source", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()

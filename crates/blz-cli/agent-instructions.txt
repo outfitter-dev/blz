@@ -21,6 +21,8 @@ Search
 - By source:                    blz search "<query>" --source <source> --format json
   (also supports -s)
 - Pagination:                   --limit <N> --page <P> [--last]
+- Exact phrase:                 blz search '"claude code"' --format json
+- Require phrases/words:        blz search '+"claude code" +"computer use"'
 
 > ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
 
@@ -34,7 +36,7 @@ Get Exact Lines
 
 Agent Flow (recommended)
 1) Ensure source exists (blz list --format json); if missing, blz add <alias> <url> -y
-2) Search for topic (blz search "<query>" --alias <alias> --format json)
+2) Search for topic (blz search "<query>" --source <alias> --format json)
 3) Pick top result; extract alias + lines
 4) Fetch content (blz get <alias> --lines <lines> --context 3)
 
@@ -45,6 +47,7 @@ Notes
 - blz list --status to include ETag, Last-Modified, checksum.
 - Global default output via env: BLZ_OUTPUT_FORMAT=json|text|jsonl (alias `ndjson` still accepted)
  - Canonical: use --source; reserve alias for future multiple-alias features
+ - Default operator is OR; use `+`/`AND` for required terms and nested quotes for phrases.
 
 Shell completions
 - Static: blz completions <bash|zsh|fish|powershell>

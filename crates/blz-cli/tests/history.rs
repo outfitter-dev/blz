@@ -60,7 +60,7 @@ async fn history_captures_recent_searches() -> anyhow::Result<()> {
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", config_dir.path())
         .args([
-            "search", "history", "--alias", "fixture", "--format", "json",
+            "search", "history", "--source", "fixture", "--format", "json",
         ])
         .assert()
         .success();
@@ -72,7 +72,7 @@ async fn history_captures_recent_searches() -> anyhow::Result<()> {
         .args([
             "search",
             "history",
-            "--alias",
+            "--source",
             "fixture",
             "--show",
             "url",

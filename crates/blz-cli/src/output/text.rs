@@ -268,7 +268,7 @@ fn extract_context_lines(
         .map(|s| normalize(&strip_markdown(s)))
         .unwrap_or_default();
 
-    let should_include = |idx: usize| -> bool {
+    let mut should_include = |idx: usize| -> bool {
         if let Some(raw) = lines.get(idx) {
             if raw.trim().is_empty() {
                 return false;
@@ -285,51 +285,40 @@ fn extract_context_lines(
         false
     };
 
-    let limit = max_lines.max(1);
-    let mut candidates = Vec::with_capacity(limit);
-    let mut below = center;
-    let mut above = center;
-    while candidates.len() < limit {
-        if candidates.is_empty() {
-            if should_include(center) {
-                candidates.push(center);
-            }
-        } else {
-            if below + 1 < total && candidates.len() < limit {
-                below += 1;
-                if should_include(below) {
-                    candidates.push(below);
-                }
-            }
-            if above > 0 && candidates.len() < limit {
-                above = above.saturating_sub(1);
-                if should_include(above) {
-                    candidates.push(above);
-                }
-            }
-            if (below + 1 >= total) && above == 0 {
-                break;
-            }
-        }
-        if (below + 1 >= total) && above == 0 {
-            break;
-        }
-    }
-    candidates.sort_unstable();
+    // limit already computed above at line 248
+    let candidates = collect_candidate_indices(total, center, limit, &mut should_include);
 
+    // Clean and normalize tokens for highlighting (strip quotes/operators, lowercase)
     let tokens: Vec<String> = query
         .split_whitespace()
-        .filter(|t| !t.is_empty())
-        .map(std::string::ToString::to_string)
+        .map(|t| t.trim_matches('"').trim_start_matches('+').to_lowercase())
+        .filter(|t| !t.is_empty() && t != "and" && t != "or")
         .collect();
 
     let mut result = Vec::with_capacity(candidates.len());
-    for idx in candidates {
-        let raw = lines.get(idx).map_or("", |s| s.as_str());
+    for idx in &candidates {
+        let raw = lines.get(*idx).map_or("", |s| s.as_str());
         let cleaned = strip_markdown(raw);
         let highlighted = highlight_matches(&cleaned, query, &tokens);
-        result.push((idx + 1, highlighted));
+        result.push((*idx + 1, highlighted));
     }
+
+    if result.is_empty() {
+        return hit
+            .snippet
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .take(limit)
+            .enumerate()
+            .map(|(idx, line)| {
+                (
+                    idx + 1,
+                    highlight_matches(&strip_markdown(line), query, &tokens),
+                )
+            })
+            .collect();
+    }
+
     result
 }
 
@@ -358,26 +347,94 @@ fn load_llms_lines(storage: &Storage, alias: &str) -> Vec<String> {
     Vec::new()
 }
 
+fn collect_candidate_indices(
+    total: usize,
+    center: usize,
+    limit: usize,
+    mut should_include: impl FnMut(usize) -> bool,
+) -> Vec<usize> {
+    if total == 0 || limit == 0 {
+        return Vec::new();
+    }
+
+    let mut selected = BTreeSet::new();
+    let mut step = 0usize;
+
+    loop {
+        let mut reached_any_side = false;
+
+        if center + step < total {
+            reached_any_side = true;
+            let idx = center + step;
+            if should_include(idx) {
+                selected.insert(idx);
+            }
+        }
+
+        if step > 0 {
+            if let Some(idx) = center.checked_sub(step) {
+                reached_any_side = true;
+                if should_include(idx) {
+                    selected.insert(idx);
+                }
+            }
+        }
+
+        if selected.len() >= limit {
+            break;
+        }
+
+        if !reached_any_side {
+            break;
+        }
+
+        step = step.saturating_add(1);
+        if step > total {
+            break;
+        }
+    }
+
+    selected.into_iter().take(limit).collect()
+}
+
 fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str) -> Option<usize> {
-    let query_lower = query.to_lowercase();
+    let q_trim = query.trim();
+    let query_lower = q_trim.to_lowercase();
+
+    // Prefer exact phrase match when the entire query is quoted
+    let phrase = if q_trim.len() >= 2 && q_trim.starts_with('"') && q_trim.ends_with('"') {
+        Some(q_trim[1..q_trim.len() - 1].to_lowercase())
+    } else {
+        None
+    };
+
     let range = start..=end;
     for idx in range.clone() {
         if let Some(line) = lines.get(idx) {
-            if line.to_lowercase().contains(&query_lower) {
+            let lower = line.to_lowercase();
+            if let Some(ph) = &phrase {
+                if lower.contains(ph) {
+                    return Some(idx);
+                }
+            } else if lower.contains(&query_lower) {
                 return Some(idx);
             }
         }
     }
 
-    let tokens: Vec<&str> = query_lower
+    let tokens: Vec<String> = query_lower
         .split_whitespace()
+        .map(|t| t.trim_matches('"').trim_start_matches('+').to_string())
         .filter(|t| !t.is_empty())
         .collect();
     let mut best: Option<(usize, usize)> = None;
     for idx in range {
         if let Some(line) = lines.get(idx) {
             let lower = line.to_lowercase();
-            let matches = tokens.iter().filter(|token| lower.contains(*token)).count();
+            let matches = tokens
+                .iter()
+                .filter(|token| lower.contains(token.as_str()))
+                .count();
             if matches > 0 {
                 match best {
                     Some((_, best_count)) if matches <= best_count => {},
@@ -393,7 +450,21 @@ fn find_best_match_line(lines: &[String], start: usize, end: usize, query: &str)
 fn highlight_matches(line: &str, full_query: &str, tokens: &[String]) -> String {
     let original = line.to_string();
     let lower_line = original.to_lowercase();
-    let query_lower = full_query.to_lowercase();
+
+    // If the entire query is a quoted phrase, highlight that phrase; otherwise try the raw query trimmed.
+    let fq_trim = full_query.trim();
+    let phrase = if fq_trim.len() >= 2 && fq_trim.starts_with('"') && fq_trim.ends_with('"') {
+        Some(fq_trim[1..fq_trim.len() - 1].to_lowercase())
+    } else {
+        None
+    };
+    let query_lower = phrase.unwrap_or_else(|| {
+        fq_trim
+            .trim_start_matches('+')
+            .trim_matches('"')
+            .to_lowercase()
+    });
+
     if !query_lower.is_empty() && lower_line.contains(&query_lower) {
         if let Some(pos) = lower_line.find(&query_lower) {
             let (prefix, rest) = original.split_at(pos);

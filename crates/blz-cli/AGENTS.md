@@ -330,7 +330,7 @@ pub fn print_source_info(source: &Source, verbose: bool) {
 blz <action> [target] [options]
 
 blz search "async rust"           # Search across all sources
-blz search "async rust" --alias bun  # Search specific source
+blz search "async rust" --source bun  # Search specific source
 blz add react https://react.dev/llms.txt  # Add new source
 blz remove react                 # Remove source
 blz list                          # List all sources

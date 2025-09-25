@@ -96,7 +96,7 @@ cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
 cargo bench
 
 # Profile with hyperfine (after building release)
-hyperfine --warmup 10 --min-runs 50 './target/release/blz search "test" --alias bun'
+hyperfine --warmup 10 --min-runs 50 './target/release/blz search "test" --source bun'
 
 # Run search performance benchmark
 cargo bench --bench search_performance
