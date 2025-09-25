@@ -1,40 +1,100 @@
 name: Generate DotSlash files
 
 on:
-  release:
+  workflow_run:
+    workflows:
+      - Publish Release
     types:
-      - published
+      - completed
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to process (e.g., v0.3.2)'
+        required: true
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   dotslash:
-    if: ${{ !github.event.release.draft }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event != 'pull_request' &&
+          github.event.workflow_run.event != 'pull_request_target' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release tag
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name }}
-          fetch-depth: 0
-
       - name: Resolve release tag
         id: release_tag
-        run: |
-          set -euo pipefail
-          TAG='${{ github.event.release.tag_name }}'
-          if [[ -z "$TAG" ]]; then
-            echo "Failed to discover release tag from event payload" >&2
-            exit 1
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Resolved release tag: $TAG" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Verify release assets ready
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_TAG: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          run_id="${WORKFLOW_RUN_ID:-}"
+          tag=""
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$WORKFLOW_TAG"
+            if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+              if [[ -n "$run_id" ]]; then
+                tmpdir=$(mktemp -d)
+                if gh run download "$run_id" --repo "$repo" --name release-tag -D "$tmpdir" 2>/dev/null; then
+                  artifact_path="$tmpdir/release-tag/release-tag.txt"
+                  if [[ -s "$artifact_path" ]]; then
+                    tag="$(tr -d '\r' < "$artifact_path")"
+                    echo "Release tag resolved from artifact: $tag" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+                fi
+                rm -rf "$tmpdir"
+              fi
+            fi
+          fi
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && ( -z "$tag" || "$tag" == "main" ) ]]; then
+            if latest_tag=$(gh release view latest --repo "${{ github.repository }}" --json tagName --jq '.tagName' 2>/dev/null); then
+              tag="$latest_tag"
+              echo "Falling back to latest release tag: $latest_tag" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          if [[ -z "$tag" || "$tag" == "main" ]]; then
+            echo "::warning::Unable to determine release tag automatically (event=$EVENT_NAME run_id=$run_id). Skipping DotSlash." >&2
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $tag" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout release tag
+        if: steps.release_tag.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_tag.outputs.tag }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify release assets ready
+        if: steps.release_tag.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
           set -euo pipefail
           MAX_ATTEMPTS=5
@@ -60,6 +120,7 @@ jobs:
           exit 1
 
       - name: Generate & upload DotSlash file(s)
+        if: steps.release_tag.outputs.skip != 'true'
         uses: facebook/dotslash-publish-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
