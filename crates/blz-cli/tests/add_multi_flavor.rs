@@ -2,6 +2,7 @@
 
 use std::fs;
 
+use serde_json::Value;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -88,6 +89,37 @@ async fn add_fetches_all_discovered_flavors() -> anyhow::Result<()> {
     assert!(
         fs::read_dir(&index_dir)?.next().is_some(),
         "expected index directory to contain files"
+    );
+
+    // `blz list` should enumerate all flavors including llms-full.
+    let list_output = blz_cmd()
+        .env("BLZ_DATA_DIR", data_dir.path())
+        .args(["list", "-f", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let list_value: Value = serde_json::from_slice(&list_output)?;
+    let list_arr = list_value.as_array().cloned().unwrap_or_default();
+    assert!(
+        !list_arr.is_empty(),
+        "expected list output to contain the added source"
+    );
+    let flavor_entries = list_arr[0]
+        .get("flavors")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        flavor_entries.iter().any(|entry| {
+            entry
+                .get("flavor")
+                .and_then(|v| v.as_str())
+                .map(|name| name.eq_ignore_ascii_case("llms-full"))
+                .unwrap_or(false)
+        }),
+        "expected list output to include llms-full flavor"
     );
 
     Ok(())
