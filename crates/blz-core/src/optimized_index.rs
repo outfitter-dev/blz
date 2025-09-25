@@ -839,10 +839,13 @@ impl OptimizedSearchIndex {
         .await
         .map_err(|e| Error::Index(format!("Optimization task failed: {}", e)))?;
 
+        // Propagate the merge operation result
+        result?;
+
         self.writer_pool.return_writer(writer).await;
-        
+
         info!("Index optimization completed");
-        result
+        Ok(())
     }
 
     /// Warm up caches with common queries
