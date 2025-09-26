@@ -1272,7 +1272,10 @@ mod tests {
             assert_eq!(alias, "test");
             assert_eq!(lines, "1-10");
             assert_eq!(context, Some(5));
-            let _ = flavor; // ignore
+            assert!(
+                matches!(flavor, crate::commands::FlavorMode::Current),
+                "Default flavor should be Current"
+            );
             let _ = format; // ignore
         } else {
             panic!("Expected get command");

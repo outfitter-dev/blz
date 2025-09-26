@@ -1029,4 +1029,26 @@ mod tests {
         );
         assert_eq!(original.diagnostics.len(), loaded.diagnostics.len());
     }
+
+    #[test]
+    fn test_flavor_file_path() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Test standard flavors
+        let llms_path = storage
+            .flavor_file_path("test-alias", "llms")
+            .expect("Should get llms path");
+        assert!(llms_path.ends_with("test-alias/llms.txt"));
+
+        let llms_full_path = storage
+            .flavor_file_path("test-alias", "llms-full")
+            .expect("Should get llms-full path");
+        assert!(llms_full_path.ends_with("test-alias/llms-full.txt"));
+
+        // Test custom flavor
+        let custom_path = storage
+            .flavor_file_path("test-alias", "custom-flavor")
+            .expect("Should get custom flavor path");
+        assert!(custom_path.ends_with("test-alias/custom-flavor.txt"));
+    }
 }

@@ -11,6 +11,7 @@ mod common;
 use common::blz_cmd;
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn add_fetches_all_discovered_flavors() -> anyhow::Result<()> {
     let data_dir = tempdir()?;
     let server = MockServer::start().await;
@@ -119,6 +120,16 @@ async fn add_fetches_all_discovered_flavors() -> anyhow::Result<()> {
                 .is_some_and(|name| name.eq_ignore_ascii_case("llms-full"))
         }),
         "expected list output to include llms-full flavor"
+    );
+
+    // Verify the resolved flavor used for searching matches our preference
+    let search_flavor = list_arr[0]
+        .get("searchFlavor")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    assert_eq!(
+        search_flavor, "llms",
+        "expected searchFlavor to be 'llms' when BLZ_PREFER_LLMS_FULL=0"
     );
 
     Ok(())

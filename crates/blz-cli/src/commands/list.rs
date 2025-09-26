@@ -1,6 +1,6 @@
 //! List command implementation
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::{LlmsJson, Storage, TocEntry};
 use colored::Colorize;
 use serde_json::Value;
@@ -164,13 +164,16 @@ pub async fn execute(format: OutputFormat, status: bool, quiet: bool) -> Result<
     let mut summaries = Vec::new();
 
     for alias in &aliases {
-        let mut flavors = storage.available_flavors(alias).unwrap_or_default();
+        let mut flavors = storage
+            .available_flavors(alias)
+            .with_context(|| format!("Failed to list flavors for alias '{alias}'"))?;
         if !flavors.iter().any(|f| f.eq_ignore_ascii_case("llms")) {
             flavors.push("llms".to_string());
         }
 
         // Use resolve_flavor to determine what will actually be used
-        let default_flavor = resolve_flavor(&storage, alias).unwrap_or_else(|_| "llms".to_string());
+        let default_flavor = resolve_flavor(&storage, alias)
+            .with_context(|| format!("Failed to resolve flavor for alias '{alias}'"))?;
 
         flavors.sort();
         flavors.dedup();
@@ -191,7 +194,8 @@ pub async fn execute(format: OutputFormat, status: bool, quiet: bool) -> Result<
             let data = load_flavor_json(&storage, alias, &flavor)?;
             let size_bytes = storage
                 .flavor_file_path(alias, &flavor)
-                .map_or(None, |path| fs::metadata(path).ok().map(|meta| meta.len()));
+                .ok()
+                .and_then(|path| fs::metadata(path).ok().map(|meta| meta.len()));
 
             flavor_summaries.push(FlavorSummary::new(
                 flavor,
@@ -220,11 +224,21 @@ pub async fn execute(format: OutputFormat, status: bool, quiet: bool) -> Result<
                 .iter()
                 .map(|summary| summary.to_json(status))
                 .collect();
-            println!("{}", serde_json::to_string_pretty(&payload)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&payload)
+                    .context("Failed to serialize list payload to JSON")?
+            );
         },
         OutputFormat::Jsonl => {
             for summary in &summaries {
-                println!("{}", serde_json::to_string(&summary.to_json(status))?);
+                let line = serde_json::to_string(&summary.to_json(status)).with_context(|| {
+                    format!(
+                        "Failed to serialize list entry for alias '{}'",
+                        summary.alias
+                    )
+                })?;
+                println!("{line}");
             }
         },
         OutputFormat::Text => {
@@ -311,15 +325,10 @@ fn flavor_display_name(flavor: &str) -> String {
 }
 
 fn load_flavor_json(storage: &Storage, alias: &str, flavor: &str) -> Result<Option<LlmsJson>> {
-    if flavor.eq_ignore_ascii_case("llms") {
-        Ok(Some(
-            storage.load_llms_json(alias).map_err(anyhow::Error::from)?,
-        ))
-    } else {
-        storage
-            .load_flavor_json(alias, flavor)
-            .map_err(anyhow::Error::from)
-    }
+    // Treat all flavors uniformly - return Ok(None) if the file doesn't exist
+    storage
+        .load_flavor_json(alias, flavor)
+        .map_err(anyhow::Error::from)
 }
 
 fn count_headings(entries: &[TocEntry]) -> usize {

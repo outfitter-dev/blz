@@ -62,5 +62,14 @@ async fn list_status_json_includes_source_and_keys() -> anyhow::Result<()> {
             .unwrap_or_default(),
         "llms"
     );
+
+    // Verify searchFlavor matches the resolved default
+    assert_eq!(
+        s0.get("searchFlavor")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default(),
+        "llms",
+        "expected searchFlavor to match the resolved default flavor"
+    );
     Ok(())
 }

@@ -163,7 +163,10 @@ pub async fn get_by_anchor(
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
-            let file_content = storage.load_llms_txt(&canonical)?;
+            // Use the resolved flavor for consistency
+            let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)?;
+            let file_path = storage.flavor_file_path(&canonical, &flavor)?;
+            let file_content = std::fs::read_to_string(&file_path)?;
             let all_lines: Vec<&str> = file_content.lines().collect();
             let (body, line_numbers) = extract_content(&entry.lines, context, &all_lines)?;
             let obj = serde_json::json!({
