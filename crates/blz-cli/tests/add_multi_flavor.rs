@@ -95,6 +95,7 @@ async fn add_fetches_all_discovered_flavors() -> anyhow::Result<()> {
     // `blz list` should enumerate all flavors including llms-full.
     let list_output = blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_PREFER_LLMS_FULL", "0")  // Ensure deterministic behavior
         .args(["list", "-f", "json"])
         .assert()
         .success()

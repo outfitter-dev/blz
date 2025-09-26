@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
@@ -51,7 +51,12 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         return Ok(());
     }
 
-    let llms: LlmsJson = storage.load_llms_json(&canonical)?;
+    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
+        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    let llms: LlmsJson = storage
+        .load_flavor_json(&canonical, &flavor)
+        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
+        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
     // Replace placeholder with actual alias for each entry in JSON/JSONL output
@@ -68,7 +73,11 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
 
     match output {
         OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&entries)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&entries)
+                    .context("Failed to serialize anchors to JSON")?
+            );
         },
         OutputFormat::Jsonl => {
             for e in entries {
@@ -128,7 +137,12 @@ pub async fn get_by_anchor(
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
-    let llms: LlmsJson = storage.load_llms_json(&canonical)?;
+    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
+        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    let llms: LlmsJson = storage
+        .load_flavor_json(&canonical, &flavor)
+        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
+        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
 
     #[allow(clippy::items_after_statements)]
     fn find<'a>(list: &'a [blz_core::TocEntry], a: &str) -> Option<&'a blz_core::TocEntry> {
@@ -163,10 +177,16 @@ pub async fn get_by_anchor(
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
-            // Use the resolved flavor for consistency
-            let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)?;
-            let file_path = storage.flavor_file_path(&canonical, &flavor)?;
-            let file_content = std::fs::read_to_string(&file_path)?;
+            // Use the same flavor as TOC for consistency
+            let file_path = storage
+                .flavor_file_path(&canonical, &flavor)
+                .with_context(|| format!("Failed to compute path for flavor '{flavor}'"))?;
+            let file_content = std::fs::read_to_string(&file_path).with_context(|| {
+                format!(
+                    "Failed to read {flavor} content from {}",
+                    file_path.display()
+                )
+            })?;
             let all_lines: Vec<&str> = file_content.lines().collect();
             let (body, line_numbers) = extract_content(&entry.lines, context, &all_lines)?;
             let obj = serde_json::json!({
@@ -179,9 +199,17 @@ pub async fn get_by_anchor(
                 "content": body,
             });
             if matches!(output, OutputFormat::Json) {
-                println!("{}", serde_json::to_string_pretty(&obj)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&obj)
+                        .context("Failed to serialize anchor content to JSON")?
+                );
             } else {
-                println!("{}", serde_json::to_string(&obj)?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&obj)
+                        .context("Failed to serialize anchor content to JSONL")?
+                );
             }
             Ok(())
         },
