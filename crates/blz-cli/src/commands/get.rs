@@ -1,6 +1,6 @@
 //! Get command implementation for retrieving specific lines from sources
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
@@ -94,7 +94,14 @@ pub async fn execute(
 
     // Load the appropriate flavor file
     let file_path = storage.flavor_file_path(&canonical, &effective_flavor)?;
-    let file_content = std::fs::read_to_string(&file_path)?;
+    let file_content = std::fs::read_to_string(&file_path).with_context(|| {
+        format!(
+            "Failed to read flavor '{}' for source '{}' at {}",
+            effective_flavor,
+            canonical,
+            file_path.display()
+        )
+    })?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
     match format {
@@ -149,7 +156,14 @@ pub async fn execute_with_flavor(
 
     // Load the specific flavor file
     let file_path = storage.flavor_file_path(canonical, flavor)?;
-    let file_content = std::fs::read_to_string(&file_path)?;
+    let file_content = std::fs::read_to_string(&file_path).with_context(|| {
+        format!(
+            "Failed to read flavor '{}' for source '{}' at {}",
+            flavor,
+            canonical,
+            file_path.display()
+        )
+    })?;
     let all_lines: Vec<&str> = file_content.lines().collect();
 
     match format {
