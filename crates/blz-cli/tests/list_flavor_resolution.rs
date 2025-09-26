@@ -181,7 +181,7 @@ async fn list_jsonl_format_includes_search_flavor() -> Result<()> {
     assert!(output.status.success());
 
     let output_str = String::from_utf8(output.stdout)?;
-    let lines: Vec<&str> = output_str.trim().split('\n').collect();
+    let lines: Vec<&str> = output_str.lines().collect();
     assert_eq!(lines.len(), 1, "Expected one JSONL line");
 
     let json: Value = serde_json::from_str(lines[0])?;
