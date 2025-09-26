@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
-use crate::commands::{FlavorMode, get_lines};
+use crate::commands::get_lines_with_flavor;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -178,20 +178,13 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
-            // Use existing 'get' implementation to print lines with context
-            // Convert the resolved flavor to the appropriate FlavorMode
-            let flavor_mode = if flavor == "llms-full" {
-                FlavorMode::Full
-            } else if flavor == "llms" {
-                FlavorMode::Txt
-            } else {
-                FlavorMode::Current // For any custom flavor
-            };
-            get_lines(
+            // Use the get implementation with the exact resolved flavor
+            get_lines_with_flavor(
+                alias,
                 &canonical,
                 &entry.lines,
                 context,
-                flavor_mode,
+                &flavor,
                 OutputFormat::Text,
             )
             .await

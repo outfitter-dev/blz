@@ -122,6 +122,61 @@ pub async fn execute(
     }
 }
 
+/// Execute get command with a pre-resolved flavor string
+/// This avoids re-resolution and ensures we use the exact flavor already determined
+pub async fn execute_with_flavor(
+    alias: &str,
+    canonical: &str,
+    lines: &str,
+    context: Option<usize>,
+    flavor: &str,
+    format: OutputFormat,
+) -> Result<()> {
+    let storage = Storage::new()?;
+
+    // Load the specific flavor file
+    let file_path = storage.flavor_file_path(canonical, flavor)?;
+    let file_content = std::fs::read_to_string(&file_path)?;
+    let all_lines: Vec<&str> = file_content.lines().collect();
+
+    match format {
+        OutputFormat::Text => {
+            let line_numbers = collect_line_numbers(lines, context, all_lines.len())?;
+            display_lines(&line_numbers, &all_lines);
+            Ok(())
+        },
+        OutputFormat::Json | OutputFormat::Jsonl => {
+            // Build content for requested ranges and context
+            let selected = collect_line_numbers(lines, context, all_lines.len())?;
+            let mut body = String::new();
+            for (i, &ln) in selected.iter().enumerate() {
+                if ln == 0 || ln > all_lines.len() {
+                    continue;
+                }
+                if i > 0 {
+                    body.push('\n');
+                }
+                body.push_str(all_lines[ln - 1]);
+            }
+            let obj = serde_json::json!({
+                "alias": alias,
+                "source": canonical,
+                "flavor": flavor,
+                "lines": lines,
+                "context": context,
+                "lineNumbers": selected.iter().copied().collect::<Vec<_>>(),
+                "content": body,
+            });
+            if matches!(format, OutputFormat::Json) {
+                println!("{}", serde_json::to_string_pretty(&obj)?);
+            } else {
+                println!("{}", serde_json::to_string(&obj)?);
+            }
+            Ok(())
+        },
+    }
+}
+
 fn collect_line_numbers(
     lines: &str,
     context: Option<usize>,
