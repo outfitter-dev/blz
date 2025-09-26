@@ -42,11 +42,16 @@ async fn list_resolves_flavor_with_preferences() -> Result<()> {
         .await;
 
     // Add source - should fetch both flavors
-    common::blz_cmd()
+    let add_output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
+    assert!(
+        add_output.status.success(),
+        "expected `blz add` to succeed: {}",
+        String::from_utf8_lossy(&add_output.stderr)
+    );
 
     // Test 1: Default behavior (no preference) - should use llms
     let output = common::blz_cmd()
@@ -134,11 +139,16 @@ async fn list_handles_missing_flavors_gracefully() -> Result<()> {
         .await;
 
     // Add source - should only fetch llms.txt
-    common::blz_cmd()
+    let add_output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
+    assert!(
+        add_output.status.success(),
+        "expected `blz add` to succeed: {}",
+        String::from_utf8_lossy(&add_output.stderr)
+    );
 
     // List should still work with only one flavor
     let output = common::blz_cmd()
@@ -187,11 +197,16 @@ async fn list_jsonl_format_includes_search_flavor() -> Result<()> {
         .await;
 
     // Add source
-    common::blz_cmd()
+    let add_output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
+    assert!(
+        add_output.status.success(),
+        "expected `blz add` to succeed: {}",
+        String::from_utf8_lossy(&add_output.stderr)
+    );
 
     // Test JSONL format
     let output = common::blz_cmd()
