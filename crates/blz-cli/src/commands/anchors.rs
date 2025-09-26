@@ -59,9 +59,15 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias and add flavor for each entry in JSON/JSONL output
+    // Replace placeholder with actual alias/source and add flavor for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
+            // Add alias field (what the user typed)
+            obj.insert(
+                "alias".to_string(),
+                serde_json::Value::String(alias.to_string()),
+            );
+            // Update source to canonical (the resolved source name)
             if obj.get("source").is_some() {
                 obj.insert(
                     "source".to_string(),
@@ -205,7 +211,7 @@ pub async fn get_by_anchor(
             let all_lines: Vec<&str> = file_content.lines().collect();
             let (body, line_numbers) = extract_content(&entry.lines, context, &all_lines)?;
             let obj = serde_json::json!({
-                "alias": canonical,
+                "alias": alias,
                 "source": canonical,
                 "searchFlavor": flavor,
                 "anchor": anchor,

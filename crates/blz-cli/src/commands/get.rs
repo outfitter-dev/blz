@@ -104,7 +104,7 @@ pub async fn execute(
                 body.push_str(all_lines[ln - 1]);
             }
             let obj = serde_json::json!({
-                "alias": canonical,
+                "alias": alias,
                 "source": canonical,
                 "flavor": effective_flavor,
                 "lines": lines,

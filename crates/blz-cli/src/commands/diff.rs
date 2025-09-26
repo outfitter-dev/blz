@@ -107,7 +107,8 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
 
     // Also emit JSON to stdout for tooling (pretty)
     let payload = json!({
-        "alias": canonical,
+        "alias": alias,
+        "source": canonical,
         "previous": {
             "sha256": prev.source.sha256,
         },
