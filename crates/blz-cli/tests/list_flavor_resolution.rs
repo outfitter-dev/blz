@@ -44,12 +44,14 @@ async fn list_resolves_flavor_with_preferences() -> Result<()> {
     // Add source - should fetch both flavors
     common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
 
     // Test 1: Default behavior (no preference) - should use llms
     let output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .env("BLZ_PREFER_LLMS_FULL", "0")
         .args(["list", "--format", "json"])
         .output()?;
@@ -64,16 +66,27 @@ async fn list_resolves_flavor_with_preferences() -> Result<()> {
         source["searchFlavor"], "llms",
         "Default should be llms without preferences"
     );
+    assert_eq!(
+        source["defaultFlavor"], "llms",
+        "defaultFlavor should mirror searchFlavor"
+    );
 
     // Verify both flavors are listed
     let flavors = source["flavors"]
         .as_array()
         .expect("Expected flavors array");
     assert_eq!(flavors.len(), 2);
+    let flavor_names: Vec<&str> = flavors
+        .iter()
+        .filter_map(|f| f.get("flavor").and_then(|v| v.as_str()))
+        .collect();
+    assert!(flavor_names.contains(&"llms"));
+    assert!(flavor_names.contains(&"llms-full"));
 
     // Test 2: With BLZ_PREFER_LLMS_FULL=1 - should use llms-full
     let output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .env("BLZ_PREFER_LLMS_FULL", "1")
         .args(["list", "--format", "json"])
         .output()?;
@@ -85,6 +98,10 @@ async fn list_resolves_flavor_with_preferences() -> Result<()> {
     assert_eq!(
         source["searchFlavor"], "llms-full",
         "Should use llms-full with preference"
+    );
+    assert_eq!(
+        source["defaultFlavor"], "llms-full",
+        "defaultFlavor should mirror searchFlavor for llms-full preference"
     );
 
     Ok(())
@@ -119,12 +136,14 @@ async fn list_handles_missing_flavors_gracefully() -> Result<()> {
     // Add source - should only fetch llms.txt
     common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
 
     // List should still work with only one flavor
     let output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .env("BLZ_PREFER_LLMS_FULL", "0")
         .args(["list", "--format", "json"])
         .output()?;
@@ -136,6 +155,7 @@ async fn list_handles_missing_flavors_gracefully() -> Result<()> {
 
     let source = &sources[0];
     assert_eq!(source["searchFlavor"], "llms");
+    assert_eq!(source["defaultFlavor"], "llms");
 
     // Should only have one flavor
     let flavors = source["flavors"]
@@ -169,12 +189,14 @@ async fn list_jsonl_format_includes_search_flavor() -> Result<()> {
     // Add source
     common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .args(["add", "test", &format!("{}/llms.txt", server.uri()), "-y"])
         .output()?;
 
     // Test JSONL format
     let output = common::blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
+        .env("BLZ_CONFIG_DIR", data_dir.path())
         .env("BLZ_PREFER_LLMS_FULL", "0")
         .args(["list", "--format", "jsonl"])
         .output()?;
@@ -190,6 +212,7 @@ async fn list_jsonl_format_includes_search_flavor() -> Result<()> {
         "searchFlavor should be present in JSONL"
     );
     assert_eq!(json["searchFlavor"], "llms");
+    assert_eq!(json["defaultFlavor"], "llms");
 
     Ok(())
 }

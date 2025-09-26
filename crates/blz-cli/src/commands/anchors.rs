@@ -59,7 +59,7 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias for each entry in JSON/JSONL output
+    // Replace placeholder with actual alias and add flavor for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
             if obj.get("source").is_some() {
@@ -68,6 +68,10 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
                     serde_json::Value::String(canonical.clone()),
                 );
             }
+            obj.insert(
+                "searchFlavor".to_string(),
+                serde_json::Value::String(flavor.clone()),
+            );
         }
     }
 
@@ -81,7 +85,10 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         },
         OutputFormat::Jsonl => {
             for e in entries {
-                println!("{}", serde_json::to_string(&e)?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&e).context("Failed to serialize anchors to JSONL")?
+                );
             }
         },
         OutputFormat::Text => {
@@ -192,6 +199,7 @@ pub async fn get_by_anchor(
             let obj = serde_json::json!({
                 "alias": canonical,
                 "source": canonical,
+                "searchFlavor": flavor,
                 "anchor": anchor,
                 "headingPath": entry.heading_path,
                 "lines": entry.lines,
