@@ -11,6 +11,7 @@ use crate::utils::flavor::resolve_flavor;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
+#[allow(clippy::too_many_lines)]
 pub async fn execute(
     alias: &str,
     lines: &str,
@@ -24,7 +25,7 @@ pub async fn execute(
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
 
-    if !storage.exists(&canonical) {
+    if !storage.exists_any_flavor(&canonical) {
         println!("Source '{alias}' not found.");
         let available = storage.list_sources();
         if available.is_empty() {
@@ -52,26 +53,38 @@ pub async fn execute(
         FlavorMode::Current => resolve_flavor(&storage, &canonical)?,
         FlavorMode::Auto => {
             // Auto prefers full if available
-            let available = storage.available_flavors(&canonical)?;
-            if available.iter().any(|f| f == "llms-full") {
-                "llms-full".to_string()
+            let available: std::collections::HashSet<_> = storage
+                .available_flavors(&canonical)?
+                .into_iter()
+                .filter_map(|f| crate::utils::flavor::normalize_flavor(&f))
+                .collect();
+            if available.contains(crate::utils::flavor::FULL_FLAVOR) {
+                crate::utils::flavor::FULL_FLAVOR.to_string()
             } else {
                 resolve_flavor(&storage, &canonical)?
             }
         },
         FlavorMode::Full => {
-            let available = storage.available_flavors(&canonical)?;
-            if available.iter().any(|f| f == "llms-full") {
-                "llms-full".to_string()
+            let available: std::collections::HashSet<_> = storage
+                .available_flavors(&canonical)?
+                .into_iter()
+                .filter_map(|f| crate::utils::flavor::normalize_flavor(&f))
+                .collect();
+            if available.contains(crate::utils::flavor::FULL_FLAVOR) {
+                crate::utils::flavor::FULL_FLAVOR.to_string()
             } else {
                 // Fall back to resolved default if full not available
                 resolve_flavor(&storage, &canonical)?
             }
         },
         FlavorMode::Txt => {
-            let available = storage.available_flavors(&canonical)?;
-            if available.iter().any(|f| f == "llms") {
-                "llms".to_string()
+            let available: std::collections::HashSet<_> = storage
+                .available_flavors(&canonical)?
+                .into_iter()
+                .filter_map(|f| crate::utils::flavor::normalize_flavor(&f))
+                .collect();
+            if available.contains(crate::utils::flavor::BASE_FLAVOR) {
+                crate::utils::flavor::BASE_FLAVOR.to_string()
             } else {
                 // Fall back to resolved default if txt not available
                 resolve_flavor(&storage, &canonical)?
