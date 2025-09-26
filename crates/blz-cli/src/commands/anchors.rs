@@ -173,11 +173,19 @@ pub async fn get_by_anchor(
     match output {
         OutputFormat::Text => {
             // Use existing 'get' implementation to print lines with context
+            // Convert the resolved flavor to the appropriate FlavorMode
+            let flavor_mode = if flavor == "llms-full" {
+                FlavorMode::Full
+            } else if flavor == "llms" {
+                FlavorMode::Txt
+            } else {
+                FlavorMode::Current // For any custom flavor
+            };
             get_lines(
                 &canonical,
                 &entry.lines,
                 context,
-                FlavorMode::Current,
+                flavor_mode,
                 OutputFormat::Text,
             )
             .await
