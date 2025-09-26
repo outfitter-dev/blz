@@ -1,8 +1,8 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
-use crate::commands::get_lines;
+use crate::commands::get_lines_with_flavor;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -51,28 +51,50 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         return Ok(());
     }
 
-    let llms: LlmsJson = storage.load_llms_json(&canonical)?;
+    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
+        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    let llms: LlmsJson = storage
+        .load_flavor_json(&canonical, &flavor)
+        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
+        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias for each entry in JSON/JSONL output
+    // Replace placeholder with actual alias/source and add flavor for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
+            // Add alias field (what the user typed)
+            obj.insert(
+                "alias".to_string(),
+                serde_json::Value::String(alias.to_string()),
+            );
+            // Update source to canonical (the resolved source name)
             if obj.get("source").is_some() {
                 obj.insert(
                     "source".to_string(),
                     serde_json::Value::String(canonical.clone()),
                 );
             }
+            obj.insert(
+                "searchFlavor".to_string(),
+                serde_json::Value::String(flavor.clone()),
+            );
         }
     }
 
     match output {
         OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&entries)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&entries)
+                    .context("Failed to serialize anchors to JSON")?
+            );
         },
         OutputFormat::Jsonl => {
             for e in entries {
-                println!("{}", serde_json::to_string(&e)?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&e).context("Failed to serialize anchors to JSONL")?
+                );
             }
         },
         OutputFormat::Text => {
@@ -128,7 +150,12 @@ pub async fn get_by_anchor(
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
-    let llms: LlmsJson = storage.load_llms_json(&canonical)?;
+    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
+        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    let llms: LlmsJson = storage
+        .load_flavor_json(&canonical, &flavor)
+        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
+        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
 
     #[allow(clippy::items_after_statements)]
     fn find<'a>(list: &'a [blz_core::TocEntry], a: &str) -> Option<&'a blz_core::TocEntry> {
@@ -151,17 +178,35 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
-            // Use existing 'get' implementation to print lines with context
-            get_lines(&canonical, &entry.lines, context, OutputFormat::Text).await
+            // Use the get implementation with the exact resolved flavor
+            get_lines_with_flavor(
+                alias,
+                &canonical,
+                &entry.lines,
+                context,
+                &flavor,
+                OutputFormat::Text,
+            )
+            .await
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
-            let file_content = storage.load_llms_txt(&canonical)?;
+            // Use the same flavor as TOC for consistency
+            let file_path = storage
+                .flavor_file_path(&canonical, &flavor)
+                .with_context(|| format!("Failed to compute path for flavor '{flavor}'"))?;
+            let file_content = std::fs::read_to_string(&file_path).with_context(|| {
+                format!(
+                    "Failed to read {flavor} content from {}",
+                    file_path.display()
+                )
+            })?;
             let all_lines: Vec<&str> = file_content.lines().collect();
             let (body, line_numbers) = extract_content(&entry.lines, context, &all_lines)?;
             let obj = serde_json::json!({
-                "alias": canonical,
+                "alias": alias,
                 "source": canonical,
+                "searchFlavor": flavor,
                 "anchor": anchor,
                 "headingPath": entry.heading_path,
                 "lines": entry.lines,
@@ -169,9 +214,17 @@ pub async fn get_by_anchor(
                 "content": body,
             });
             if matches!(output, OutputFormat::Json) {
-                println!("{}", serde_json::to_string_pretty(&obj)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&obj)
+                        .context("Failed to serialize anchor content to JSON")?
+                );
             } else {
-                println!("{}", serde_json::to_string(&obj)?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&obj)
+                        .context("Failed to serialize anchor content to JSONL")?
+                );
             }
             Ok(())
         },

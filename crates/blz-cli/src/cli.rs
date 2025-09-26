@@ -352,6 +352,9 @@ pub enum Commands {
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,
+        /// Override the flavor to use
+        #[arg(long = "flavor", value_enum, default_value = "current")]
+        flavor: crate::commands::FlavorMode,
         /// Output format
         #[command(flatten)]
         format: FormatArg,

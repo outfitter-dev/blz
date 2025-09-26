@@ -274,7 +274,7 @@ fn per_source_override(alias: &str) -> Option<String> {
     resolved
 }
 
-fn normalize_flavor(raw: &str) -> Option<String> {
+pub fn normalize_flavor(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;

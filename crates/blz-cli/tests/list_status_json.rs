@@ -50,5 +50,26 @@ async fn list_status_json_includes_source_and_keys() -> anyhow::Result<()> {
     for key in ["alias", "source", "url", "fetchedAt", "lines", "sha256"] {
         assert!(s0.get(key).is_some(), "missing key: {key}");
     }
+    let flavors = s0
+        .get("flavors")
+        .and_then(|v| v.as_array())
+        .expect("expected flavors array in list output");
+    assert!(!flavors.is_empty(), "expected at least one flavor entry");
+    assert_eq!(
+        flavors[0]
+            .get("flavor")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default(),
+        "llms"
+    );
+
+    // Verify searchFlavor matches the resolved default
+    assert_eq!(
+        s0.get("searchFlavor")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default(),
+        "llms",
+        "expected searchFlavor to match the resolved default flavor"
+    );
     Ok(())
 }
