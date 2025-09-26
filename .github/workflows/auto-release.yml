@@ -9,6 +9,7 @@ on:
       - main
 
 permissions:
+  actions: write
   contents: write
   pull-requests: read
   issues: write
@@ -156,6 +157,7 @@ jobs:
       prerelease: ${{ steps.meta.outputs.prerelease }}
       mode: ${{ needs.detect.outputs.mode }}
       pr_number: ${{ needs.detect.outputs.pr_number }}
+      committed: ${{ steps.commit.outputs.committed || 'false' }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
