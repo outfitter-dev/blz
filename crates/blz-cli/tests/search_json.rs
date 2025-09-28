@@ -63,6 +63,24 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
     ] {
         assert!(v.get(key).is_some(), "missing top-level key: {key}");
     }
+    assert!(
+        v.get("total_hits").is_some(),
+        "missing compatibility key: total_hits"
+    );
+    assert!(
+        v.get("execution_time_ms").is_some(),
+        "missing compatibility key: execution_time_ms"
+    );
+    assert_eq!(
+        v.get("total_hits"),
+        v.get("totalResults"),
+        "compat total_hits should mirror totalResults"
+    );
+    assert_eq!(
+        v.get("execution_time_ms"),
+        v.get("searchTimeMs"),
+        "compat execution_time_ms should mirror searchTimeMs"
+    );
 
     // Results shape (at least one)
     let results = v
@@ -78,13 +96,25 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
         "headingPath",
         "lines",
         "snippet",
-        "score",
+        "scorePercentage",
         "sourceUrl",
         "checksum",
         "anchor",
     ] {
         assert!(r0.get(key).is_some(), "missing result key: {key}");
     }
+    assert!(
+        r0["score"].is_number(),
+        "score should be present and numeric"
+    );
+    let sp = r0
+        .get("scorePercentage")
+        .and_then(Value::as_f64)
+        .expect("scorePercentage number");
+    assert!(
+        (0.0..=100.0).contains(&sp),
+        "scorePercentage out of range: {sp}"
+    );
 
     Ok(())
 }

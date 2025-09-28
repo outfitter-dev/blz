@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Args;
+use is_terminal::IsTerminal;
 
 use crate::output::OutputFormat;
 
@@ -20,7 +21,8 @@ pub struct FormatArg {
 
 impl FormatArg {
     /// Returns the effective output format, preferring the canonical flag and falling back to
-    /// the deprecated alias when necessary.
+    /// the deprecated alias when necessary. If output is piped and no format is specified,
+    /// defaults to JSON for better machine readability.
     #[must_use]
     pub fn resolve(&self, quiet: bool) -> OutputFormat {
         if let Some(deprecated) = self.deprecated_output {
@@ -30,7 +32,17 @@ impl FormatArg {
             }
         }
 
-        self.format.unwrap_or(OutputFormat::Text)
+        // If format is explicitly set, use it
+        if let Some(format) = self.format {
+            return format;
+        }
+
+        // If output is piped (not a terminal), default to JSON for machine readability
+        if std::io::stdout().is_terminal() {
+            OutputFormat::Text
+        } else {
+            OutputFormat::Json
+        }
     }
 }
 
@@ -78,6 +90,8 @@ mod tests {
         }
 
         fn set<S: AsRef<std::ffi::OsStr>>(&self, value: S) {
+            // SAFETY: tests serialise environment access via env_mutex(), ensuring these calls are
+            // not concurrent. Rust 1.89 treats env mutations as unsafe for multi-threaded code.
             unsafe {
                 std::env::set_var(self.key, value);
             }

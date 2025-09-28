@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
-use crate::commands::get_lines_with_flavor;
+use crate::commands::get::execute_with_flavor;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -179,7 +179,7 @@ pub async fn get_by_anchor(
     match output {
         OutputFormat::Text => {
             // Use the get implementation with the exact resolved flavor
-            get_lines_with_flavor(
+            execute_with_flavor(
                 alias,
                 &canonical,
                 &entry.lines,

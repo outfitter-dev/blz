@@ -9,6 +9,8 @@ use tracing::warn;
 use crate::utils::preferences::{SearchHistoryEntry, active_scope_key};
 use crate::utils::store;
 
+use fs2::FileExt;
+
 const HISTORY_FILENAME: &str = "history.jsonl";
 const MAX_HISTORY_ENTRIES: usize = 50;
 
@@ -79,20 +81,54 @@ fn write_all(records: &[HistoryRecord]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let file = OpenOptions::new()
+    let tmp_path = path.with_extension("jsonl.tmp");
+
+    // Acquire a persistent exclusive lock alongside the history file.
+    let lock_path = path.with_extension("lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&lock_path)?;
+    lock.lock_exclusive()?; // keep this handle alive until after rename
+
+    let tmp = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(&path)?;
+        .open(&tmp_path)?;
+    // removed tmp.lock_exclusive(); using separate `lock` file instead
 
-    // Use buffered writing for better performance
-    let mut buf = BufWriter::new(file);
+    // Use buffered writing for better performance while targeting a temp file first
+    let mut buf = BufWriter::new(tmp);
     for record in records {
-        let line = serde_json::to_string(record)?;
-        buf.write_all(line.as_bytes())?;
+        serde_json::to_writer(&mut buf, record).map_err(std::io::Error::other)?;
         buf.write_all(b"\n")?;
     }
     buf.flush()?;
+    let file = buf.into_inner()?;
+    file.sync_all()?;
+    drop(file);
+    match fs::rename(&tmp_path, &path) {
+        Ok(()) => {},
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            fs::remove_file(&path)?;
+            fs::rename(&tmp_path, &path)?;
+        },
+        Err(err) => {
+            // Clean up temp file on failure to avoid accumulating stale files.
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err);
+        },
+    }
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        if let Ok(dir) = OpenOptions::new().read(true).open(parent) {
+            let _ = dir.sync_all();
+        }
+    }
+    // `lock` is dropped here when it goes out of scope, releasing the exclusive lock
     Ok(())
 }
 
@@ -139,6 +175,7 @@ mod tests {
             .lock()
             .expect("env mutex poisoned");
         let dir = tempdir().expect("tempdir");
+        // SAFETY: history tests hold the env mutex to ensure exclusive env access.
         unsafe {
             std::env::set_var("BLZ_CONFIG_DIR", dir.path());
             std::env::remove_var("BLZ_CONFIG");
@@ -159,6 +196,10 @@ mod tests {
             show: vec![],
             snippet_lines: 3,
             score_precision: 1,
+            page: Some(1),
+            limit: Some(10),
+            total_pages: Some(1),
+            total_results: Some(5),
         }
     }
 

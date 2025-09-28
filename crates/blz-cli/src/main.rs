@@ -213,6 +213,7 @@ fn classify_global_flag(arg: &str) -> Option<FlagKind> {
 fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     match arg {
         "--last" => return SearchFlagMatch::NoValue("--last"),
+        "--next" => return SearchFlagMatch::NoValue("--next"),
         "--all" => return SearchFlagMatch::NoValue("--all"),
         "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
         "--json" => return SearchFlagMatch::FormatAlias("json"),
@@ -442,6 +443,7 @@ async fn execute_command(
         Some(Commands::Search {
             query,
             source,
+            next,
             last,
             limit,
             all,
@@ -458,6 +460,7 @@ async fn execute_command(
             handle_search(
                 query,
                 source,
+                next,
                 last,
                 limit,
                 all,
@@ -551,12 +554,17 @@ async fn handle_alias(command: AliasCommands) -> Result<()> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_lines
+)]
 async fn handle_search(
-    query: String,
+    mut query: Option<String>,
     source: Option<String>,
+    next: bool,
     last: bool,
-    limit: usize,
+    limit: Option<usize>,
     all: bool,
     page: usize,
     top: Option<u8>,
@@ -569,13 +577,115 @@ async fn handle_search(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
-    let actual_limit = if all { 10_000 } else { limit };
+    const DEFAULT_LIMIT: usize = 50;
+    const ALL_RESULTS_LIMIT: usize = 10_000;
+    let provided_query = query.is_some();
+    let limit_was_explicit = all || limit.is_some();
+
+    if next {
+        if provided_query {
+            anyhow::bail!(
+                "Cannot combine --next with an explicit query. Remove the query to continue from the previous search."
+            );
+        }
+        if source.as_ref().is_some() {
+            anyhow::bail!(
+                "Cannot combine --next with --source. Omit --source to reuse the last search context."
+            );
+        }
+        if page != 1 {
+            anyhow::bail!(
+                "Cannot combine --next with --page. Use one pagination option at a time."
+            );
+        }
+        if last {
+            anyhow::bail!("Cannot combine --next with --last. Choose a single continuation flag.");
+        }
+    }
+
+    let history_entry = if next || !provided_query {
+        let mut records = utils::history_log::recent_for_active_scope(1);
+        if records.is_empty() {
+            anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
+        }
+        Some(records.remove(0))
+    } else {
+        None
+    };
+
+    let actual_query = if let Some(value) = query.take() {
+        value
+    } else if let Some(ref entry) = history_entry {
+        entry.query.clone()
+    } else {
+        anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
+    };
+
+    let actual_source = match (source, history_entry.as_ref()) {
+        (Some(src), _) => Some(src),
+        (None, Some(entry)) => entry.alias.clone(),
+        (None, None) => None,
+    };
+
+    let mut actual_limit = if all {
+        ALL_RESULTS_LIMIT
+    } else {
+        limit.unwrap_or(DEFAULT_LIMIT)
+    };
+    let mut actual_page = page;
+
+    if let Some(entry) = history_entry.as_ref() {
+        if next {
+            if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
+                anyhow::bail!(
+                    "Previous search returned 0 results. Rerun with a different query or source."
+                );
+            }
+
+            let history_limit = entry.limit;
+            let history_all = history_limit.is_some_and(|value| value >= ALL_RESULTS_LIMIT);
+            if all != history_all {
+                anyhow::bail!(
+                    "Cannot use --next when changing page size or --all; rerun without --next or reuse the previous pagination flags."
+                );
+            }
+            if limit_was_explicit {
+                if let Some(requested_limit) = limit {
+                    if history_limit != Some(requested_limit) {
+                        anyhow::bail!(
+                            "Cannot use --next when changing page size; rerun without --next or reuse the previous limit."
+                        );
+                    }
+                }
+            }
+
+            if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
+                if prev_page >= total_pages {
+                    anyhow::bail!(
+                        "Already at the last page (page {} of {})",
+                        prev_page,
+                        total_pages
+                    );
+                }
+                actual_page = prev_page + 1;
+            } else {
+                actual_page = entry.page.unwrap_or(1) + 1;
+            }
+
+            if !limit_was_explicit {
+                actual_limit = entry.limit.unwrap_or(actual_limit);
+            }
+        } else if !provided_query && !limit_was_explicit {
+            actual_limit = entry.limit.unwrap_or(actual_limit);
+        }
+    }
+
     commands::search(
-        &query,
-        source.as_deref(),
+        &actual_query,
+        actual_source.as_deref(),
         last,
         actual_limit,
-        page,
+        actual_page,
         top,
         format,
         flavor,
@@ -912,13 +1022,22 @@ mod tests {
             ..
         }) = cli.command
         {
-            assert_eq!(limit, 50, "Default limit should be 50");
+            assert_eq!(
+                limit, None,
+                "Default limit should be unset (defaults to 50)"
+            );
             assert_eq!(page, 1, "Default page should be 1");
             assert!(!all, "Default all should be false");
+            // When running tests, stdout is not a terminal, so default is JSON when piped
+            let expected_format = if is_terminal::IsTerminal::is_terminal(&std::io::stdout()) {
+                crate::output::OutputFormat::Text
+            } else {
+                crate::output::OutputFormat::Json
+            };
             assert_eq!(
                 format.resolve(false),
-                crate::output::OutputFormat::Text,
-                "Default format should be text"
+                expected_format,
+                "Default format should be JSON when piped, Text when terminal"
             );
             assert!(
                 matches!(flavor, crate::commands::FlavorMode::Current),
@@ -1053,6 +1172,14 @@ mod tests {
             },
             _ => panic!("expected search command"),
         }
+    }
+
+    #[test]
+    fn preprocess_injects_search_for_next_flag() {
+        let raw = to_string_vec(&["blz", "--next"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "--next"]);
+        assert_eq!(processed, expected);
     }
 
     #[test]
@@ -1223,7 +1350,7 @@ mod tests {
         }) = cli.command
         {
             assert_eq!(source, Some("node".to_string()));
-            assert_eq!(limit, 20);
+            assert_eq!(limit, Some(20));
             assert_eq!(page, 2);
             assert!(top.is_some());
             assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);

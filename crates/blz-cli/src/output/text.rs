@@ -55,6 +55,8 @@ impl TextFormatter {
         let term_width = terminal_width().unwrap_or(DEFAULT_TERMINAL_WIDTH);
         let path_width = term_width.saturating_sub(PATH_PREFIX_WIDTH);
 
+        let page_max_score = params.hits.first().map_or(0.0, |h| h.score);
+
         for (group_idx, (alias, heading_path, hits)) in groups.iter().enumerate() {
             let global_index = params.start_idx + group_idx + 1;
             let alias_idx = *alias_colors.entry(alias.clone()).or_insert_with(|| {
@@ -65,11 +67,28 @@ impl TextFormatter {
             let alias_colored = get_alias_color(alias, alias_idx);
             let first = hits[0];
 
-            let score_formatted = format_score_value(first.score, params.score_precision);
-            let score_colored = score_formatted.bright_blue();
+            // Calculate max score for percentage display
+            let max_score = page_max_score.max(first.score);
+
+            let score_display = if params.show_raw_score {
+                let score_formatted = format_score_value(first.score, params.score_precision);
+                format!("Score {}", score_formatted.bright_blue())
+            } else {
+                // Show percentage by default
+                let percentage = if max_score > 0.0 {
+                    let percent = (first.score / max_score) * 100.0;
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let clamped = percent.round().clamp(0.0, 100.0) as u8;
+                    clamped
+                } else {
+                    100
+                };
+                format!("{}%", percentage.to_string().bright_blue())
+            };
+
             let mut block: Vec<String> = Vec::new();
 
-            block.push(format!("◆ Rank {global_index} ─ Score {score_colored}"));
+            block.push(format!("◆ Rank {global_index} ─ {score_display}"));
 
             block.push(format!("  {}:{}", alias_colored.bold(), first.lines));
 
@@ -151,7 +170,9 @@ impl TextFormatter {
         );
         if total > shown && params.page < params.total_pages {
             let next_page = params.page.saturating_add(1);
-            println!("  Tip: See more with \"blz search --next\" or \"--page {next_page}\"");
+            println!(
+                "  Tip: See more with \"blz search --next\" or \"blz search --page {next_page}\""
+            );
         }
     }
 }
@@ -285,7 +306,7 @@ fn extract_context_lines(
         false
     };
 
-    // limit already computed above at line 248
+    // limit already computed earlier in this function
     let candidates = collect_candidate_indices(total, center, limit, &mut should_include);
 
     // Clean and normalize tokens for highlighting (strip quotes/operators, lowercase)
