@@ -10,11 +10,11 @@ use tracing::warn;
 use crate::cli::ShowComponent;
 use crate::commands::FlavorMode;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
+use crate::utils::constants::ALL_RESULTS_LIMIT;
 use crate::utils::flavor::{BASE_FLAVOR, FULL_FLAVOR, resolve_flavor};
 use crate::utils::history_log;
 use crate::utils::preferences::{self, CliPreferences};
 
-const ALL_RESULTS_LIMIT: usize = 10_000;
 const DEFAULT_SCORE_PRECISION: u8 = 1;
 
 /// Search options
@@ -673,7 +673,10 @@ fn format_and_display(
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.format);
-    // Compute simple fuzzy suggestions for JSON output when few/low-quality results
+    // Compute simple fuzzy suggestions for JSON output when few/low-quality results.
+    // Threshold of 2.0 is chosen based on empirical observation that scores below this
+    // typically indicate poor matches that may benefit from alternative queries.
+    // TODO: Consider making this configurable via environment variable (BLZ_SUGGEST_THRESHOLD)
     let need_suggest = total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
     let suggestions = resolve_suggestions(need_suggest);
 

@@ -19,10 +19,14 @@ impl JsonFormatter {
         total_pages: usize,
         sources: &[String],
         suggestions: Option<&[serde_json::Value]>,
+        // Unused in JSON output; JSON always includes raw scores. This parameter only affects text format.
         _show_raw_score: bool,
         score_precision: u8,
     ) -> Result<()> {
         // Build JSON object without relying on unwrap/expect to satisfy clippy strictness
+        // NOTE: We emit both camelCase and snake_case field names for backward compatibility.
+        // This ensures existing integrations continue working while allowing for snake_case
+        // preference in new code. Consider deprecating snake_case variants in a future major version.
         let mut map = serde_json::Map::new();
         map.insert(
             "query".to_string(),
@@ -82,6 +86,12 @@ impl JsonFormatter {
             1.0_f32
         };
         let precision = score_precision.min(4);
+        // Precompute rounding factor once to avoid recomputing per hit
+        let rounding_factor = if precision == 0 {
+            1.0
+        } else {
+            10_f64.powi(i32::from(precision))
+        };
         let results_with_percentage: Vec<serde_json::Value> = hits
             .iter()
             .map(|hit| {
@@ -93,8 +103,7 @@ impl JsonFormatter {
                 let rounded_score = if precision == 0 {
                     f64::from(hit.score.round())
                 } else {
-                    let factor = 10_f64.powi(i32::from(precision));
-                    (f64::from(hit.score) * factor).round() / factor
+                    (f64::from(hit.score) * rounding_factor).round() / rounding_factor
                 };
                 hit_map.insert("score".to_string(), serde_json::Value::from(rounded_score));
 

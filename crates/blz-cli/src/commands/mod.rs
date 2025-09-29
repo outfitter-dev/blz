@@ -28,6 +28,7 @@ pub use config::{ConfigCommand, run as run_config};
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};
 pub use get::execute as get_lines;
+/// Compatibility re-export; prefer `get::execute_with_flavor`.
 #[allow(unused_imports)]
 pub use get::execute_with_flavor as get_lines_with_flavor;
 pub use history::show as show_history;
