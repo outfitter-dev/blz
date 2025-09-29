@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-09-29
+
+### Added
+- Search CLI pagination with history-aware `--next`/`--last`, improved JSON metadata, and stricter batch `get` span handling (#229).
+
+### Changed
+- JSON output now always includes both rounded `score` and `scorePercentage`, plus compatibility fields mirrored for downstream tooling (#229).
+- Pagination flow now treats `--limit` as optional, enforces consistent page size when continuing with `--next`, and surfaces friendlier tips for text output (#229).
+- Release automation can be manually dispatched without a full publish run (#228).
+
+### Fixed
+- Search history writes use fsync + atomic rename with advisory locking to avoid corruption when multiple CLI processes exit simultaneously (#229).
+
+## [0.4.0] - 2025-09-26
+
+### Changed
+- Unified flavor resolution across `list`, `search`, and `get` so CLI commands respect stored preferences consistently (#227).
+- Relaxed release coverage requirements to streamline the automated publish pipeline (#226).
+
+## [0.3.3] - 2025-09-25
+
+### Added
+- Enhanced phrase search ergonomics, including `--source` flag migration, better highlighting, and improved snippet ordering (#224).
+
+### Fixed
+- Snippet extraction now handles quoted phrases without truncation (#225).
+
+### CI
+- Hardened the coverage cache cleanup to prevent flaky report uploads (#223).
+
+## [0.3.2] - 2025-09-24
+
+### Added
+- SHA256 parameter support for the Homebrew workflow and expanded release automation documentation (#213, #217).
+
+### Changed
+- CLI shorthand parsing now dynamically discovers known subcommands and respects hidden entries (#215).
+- Release workflows consolidated with parameterized modes and rewritten semver tooling in Rust for deterministic versioning (#218, #221).
+
+### Fixed
+- DotSlash generation and Homebrew publishing now retry transient errors to stabilize CI (#214, #212).
+
+## [0.3.1] - 2025-09-24
+
+### Added
+- Linux binaries are now published alongside macOS and Windows in the Homebrew formula (#204).
+
+### Fixed
+- Search shorthand parsing correctly handles flags and hidden subcommands without misrouting queries (#203).
+
 ## [0.3.0] - 2025-09-21
 
 ### Added
