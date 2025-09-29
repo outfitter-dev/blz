@@ -42,6 +42,8 @@ unicode-width = "0.1"
 directories = { workspace = true }
 serde.workspace = true
 sysinfo.workspace = true
+is-terminal = { workspace = true }
+fs2 = { workspace = true }
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
 pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }
@@ -51,3 +53,4 @@ assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
 wiremock = "0.6"
+regex = "1.11"

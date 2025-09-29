@@ -271,8 +271,9 @@ pub enum Commands {
 
     /// Search across cached docs
     Search {
-        /// Search query
-        query: String,
+        /// Search query (required unless --next or --last)
+        #[arg(required_unless_present_any = ["next", "last"])]
+        query: Option<String>,
         /// Filter by source
         #[arg(
             long = "source",
@@ -281,19 +282,27 @@ pub enum Commands {
             value_name = "SOURCE"
         )]
         source: Option<String>,
+        /// Continue from previous search (next page)
+        #[arg(long, conflicts_with = "page", conflicts_with = "last")]
+        next: bool,
         /// Jump to last page of results
-        #[arg(long)]
+        #[arg(long, conflicts_with = "next", conflicts_with = "page")]
         last: bool,
-        /// Maximum number of results
-        #[arg(short = 'n', long, default_value = "50")]
-        limit: usize,
+        /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
+        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+        limit: Option<usize>,
         /// Show all results (no limit)
-        #[arg(long)]
+        #[arg(long, conflicts_with = "limit")]
         all: bool,
         /// Page number for pagination
-        #[arg(long, default_value = "1")]
+        #[arg(
+            long,
+            default_value = "1",
+            conflicts_with = "next",
+            conflicts_with = "last"
+        )]
         page: usize,
-        /// Show only top N percentile of results (1-100)
+        /// Show only top N percentile of results (1-100). Applied after paging is calculated.
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
         /// Output format (text, json, jsonl)
@@ -313,8 +322,8 @@ pub enum Commands {
             long = "score-precision",
             value_name = "PLACES",
             value_parser = clap::value_parser!(u8).range(0..=4),
-        env = "BLZ_SCORE_PRECISION"
-    )]
+            env = "BLZ_SCORE_PRECISION"
+        )]
         score_precision: Option<u8>,
         /// Maximum snippet lines to display around a hit (1-10)
         #[arg(
@@ -418,6 +427,9 @@ pub enum ShowComponent {
     Lines,
     /// Show the hashed section anchor above the snippet
     Anchor,
+    /// Show raw BM25 scores instead of percentages
+    #[value(name = "raw-score")]
+    RawScore,
 }
 
 #[derive(Subcommand, Clone, Debug)]

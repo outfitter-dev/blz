@@ -32,25 +32,24 @@
 //!
 //! let formatter = SearchResultFormatter::new(OutputFormat::Text);
 //! let hits: Vec<SearchHit> = vec![/* search hits */];
-//! let params = FormatParams {
-//!     hits: &hits[0..10],
-//!     query: "useEffect",
-//!     total_results: 100,
-//!     total_lines_searched: 50_000,
-//!     search_time: Duration::from_millis(5),
-//!     sources: &["react".to_string()],
-//!     start_idx: 0,
-//!     page: 1,
-//!     total_pages: 10,
-//!     page_size: 10,
-//!     show_url: false,
-//!     show_lines: false,
-//!     show_anchor: false,
-//!     no_summary: false,
-//!     score_precision: 1,
-//!     snippet_lines: 3,
-//!     suggestions: None,
-//! };
+//! let params = FormatParams::new(
+//!     &hits[0..10],
+//!     "useEffect",
+//!     100,
+//!     50_000,
+//!     Duration::from_millis(5),
+//!     &["react".to_string()],
+//!     0,
+//!     1,
+//!     10,
+//!     10,
+//!     false,
+//!     false,
+//!     false,
+//!     false,
+//!     1,
+//!     3,
+//! );
 //! formatter.format(&params)?;
 //! ```
 
@@ -62,6 +61,7 @@ use super::{json::JsonFormatter, text::TextFormatter};
 
 /// Parameters for formatting search results
 #[allow(clippy::struct_excessive_bools)]
+#[non_exhaustive]
 pub struct FormatParams<'a> {
     pub hits: &'a [SearchHit],
     pub query: &'a str,
@@ -76,10 +76,59 @@ pub struct FormatParams<'a> {
     pub show_url: bool,
     pub show_lines: bool,
     pub show_anchor: bool,
+    pub show_raw_score: bool,
     pub no_summary: bool,
     pub score_precision: u8,
     pub snippet_lines: usize,
     pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
+}
+
+impl<'a> FormatParams<'a> {
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::fn_params_excessive_bools,
+        dead_code,
+        clippy::missing_const_for_fn
+    )]
+    pub fn new(
+        hits: &'a [SearchHit],
+        query: &'a str,
+        total_results: usize,
+        total_lines_searched: usize,
+        search_time: Duration,
+        sources: &'a [String],
+        start_idx: usize,
+        page: usize,
+        total_pages: usize,
+        page_size: usize,
+        show_url: bool,
+        show_lines: bool,
+        show_anchor: bool,
+        no_summary: bool,
+        score_precision: u8,
+        snippet_lines: usize,
+    ) -> Self {
+        Self {
+            hits,
+            query,
+            total_results,
+            total_lines_searched,
+            search_time,
+            sources,
+            start_idx,
+            page,
+            total_pages,
+            page_size,
+            show_url,
+            show_lines,
+            show_anchor,
+            show_raw_score: false,
+            no_summary,
+            score_precision,
+            snippet_lines,
+            suggestions: None,
+        }
+    }
 }
 
 /// Output format options supported by the CLI
@@ -224,25 +273,24 @@ impl SearchResultFormatter {
     /// let search_time = Duration::from_millis(12);
     ///
     /// // Display first page of results
-    /// let params = FormatParams {
-    ///     hits: &hits[0..10],
-    ///     query: "useEffect cleanup",
-    ///     total_results: 156,
-    ///     total_lines_searched: 38_000,
+    /// let params = FormatParams::new(
+    ///     &hits[0..10],
+    ///     "useEffect cleanup",
+    ///     156,
+    ///     38_000,
     ///     search_time,
-    ///     sources: &["react".to_string(), "next".to_string()],
-    ///     start_idx: 0,
-    ///     page: 1,
-    ///     total_pages: 16,
-    ///     page_size: 10,
-    ///     show_url: false,
-    ///     show_lines: false,
-    ///     show_anchor: false,
-    ///     no_summary: false,
-    ///     score_precision: 1,
-    ///     snippet_lines: 3,
-    ///     suggestions: None,
-    /// };
+    ///     &["react".to_string(), "next".to_string()],
+    ///     0,
+    ///     1,
+    ///     16,
+    ///     10,
+    ///     false,
+    ///     false,
+    ///     false,
+    ///     false,
+    ///     1,
+    ///     3,
+    /// );
     /// formatter.format(&params)?;
     /// ```
     pub fn format(&self, params: &FormatParams) -> Result<()> {
@@ -260,6 +308,8 @@ impl SearchResultFormatter {
                     params.total_pages,
                     params.sources,
                     suggestions_ref,
+                    params.show_raw_score,
+                    params.score_precision,
                 )?;
             },
             OutputFormat::Jsonl => {

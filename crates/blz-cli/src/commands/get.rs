@@ -144,6 +144,7 @@ pub async fn execute(
 
 /// Execute get command with a pre-resolved flavor string
 /// This avoids re-resolution and ensures we use the exact flavor already determined
+#[cfg_attr(not(feature = "anchors"), allow(dead_code))]
 pub async fn execute_with_flavor(
     alias: &str,
     canonical: &str,

@@ -32,6 +32,14 @@ pub struct SearchHistoryEntry {
     pub show: Vec<String>,
     pub snippet_lines: u8,
     pub score_precision: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_pages: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_results: Option<usize>,
 }
 
 const fn default_precision() -> u8 {
@@ -119,23 +127,74 @@ pub fn save(prefs: &CliPreferences) -> std::io::Result<()> {
     store::save_store(&store)
 }
 
-pub fn make_history_entry(
-    query: &str,
-    alias: Option<&str>,
+/// Builder for search history entries to avoid too many function parameters
+pub struct HistoryEntryBuilder<'a> {
+    query: &'a str,
+    alias: Option<&'a str>,
     format: OutputFormat,
-    show: &[ShowComponent],
+    show: &'a [ShowComponent],
     snippet_lines: u8,
     score_precision: u8,
-) -> SearchHistoryEntry {
-    let timestamp = Utc::now().to_rfc3339();
-    SearchHistoryEntry {
-        timestamp,
-        query: query.to_string(),
-        alias: alias.map(std::string::ToString::to_string),
-        format: format_to_string(format),
-        show: components_to_strings(show),
-        snippet_lines: clamp_snippet(snippet_lines),
-        score_precision: clamp_precision(score_precision),
+    pagination: PaginationInfo,
+}
+
+/// Pagination information for search history
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PaginationInfo {
+    pub page: Option<usize>,
+    pub limit: Option<usize>,
+    pub total_pages: Option<usize>,
+    pub total_results: Option<usize>,
+}
+
+impl<'a> HistoryEntryBuilder<'a> {
+    pub fn new(
+        query: &'a str,
+        alias: Option<&'a str>,
+        format: OutputFormat,
+        show: &'a [ShowComponent],
+    ) -> Self {
+        Self {
+            query,
+            alias,
+            format,
+            show,
+            snippet_lines: default_snippet(),
+            score_precision: default_precision(),
+            pagination: PaginationInfo::default(),
+        }
+    }
+
+    pub const fn with_snippet_lines(mut self, lines: u8) -> Self {
+        self.snippet_lines = lines;
+        self
+    }
+
+    pub const fn with_score_precision(mut self, precision: u8) -> Self {
+        self.score_precision = precision;
+        self
+    }
+
+    pub const fn with_pagination(mut self, pagination: PaginationInfo) -> Self {
+        self.pagination = pagination;
+        self
+    }
+
+    pub fn build(self) -> SearchHistoryEntry {
+        let timestamp = Utc::now().to_rfc3339();
+        SearchHistoryEntry {
+            timestamp,
+            query: self.query.to_string(),
+            alias: self.alias.map(std::string::ToString::to_string),
+            format: format_to_string(self.format),
+            show: components_to_strings(self.show),
+            snippet_lines: clamp_snippet(self.snippet_lines),
+            score_precision: clamp_precision(self.score_precision),
+            page: self.pagination.page,
+            limit: self.pagination.limit,
+            total_pages: self.pagination.total_pages,
+            total_results: self.pagination.total_results,
+        }
     }
 }
 
@@ -161,6 +220,7 @@ pub const fn component_to_str(component: ShowComponent) -> &'static str {
         ShowComponent::Lines => "lines",
         ShowComponent::Anchor => "anchor",
         ShowComponent::Rank => "rank",
+        ShowComponent::RawScore => "raw-score",
     }
 }
 
@@ -170,6 +230,7 @@ pub fn component_from_str(s: &str) -> Option<ShowComponent> {
         "lines" => Some(ShowComponent::Lines),
         "anchor" => Some(ShowComponent::Anchor),
         "rank" => Some(ShowComponent::Rank),
+        "raw-score" => Some(ShowComponent::RawScore),
         _ => None,
     }
 }
@@ -206,6 +267,20 @@ pub fn collect_show_components(url: bool, lines: bool, anchor: bool) -> Vec<Show
     }
     if anchor {
         components.push(ShowComponent::Anchor);
+    }
+    components
+}
+
+#[allow(clippy::fn_params_excessive_bools)]
+pub fn collect_show_components_extended(
+    url: bool,
+    lines: bool,
+    anchor: bool,
+    raw_score: bool,
+) -> Vec<ShowComponent> {
+    let mut components = collect_show_components(url, lines, anchor);
+    if raw_score {
+        components.push(ShowComponent::RawScore);
     }
     components
 }
@@ -278,4 +353,58 @@ fn clamp_snippet(value: u8) -> u8 {
 
 fn clamp_precision(value: u8) -> u8 {
     value.min(4)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_entry_builder_populates_pagination_fields() {
+        let entry = HistoryEntryBuilder::new(
+            "search term",
+            Some("docs"),
+            OutputFormat::Text,
+            &[ShowComponent::Url, ShowComponent::Rank],
+        )
+        .with_snippet_lines(12)
+        .with_score_precision(6)
+        .with_pagination(PaginationInfo {
+            page: Some(3),
+            limit: Some(25),
+            total_pages: Some(5),
+            total_results: Some(250),
+        })
+        .build();
+
+        assert_eq!(entry.page, Some(3));
+        assert_eq!(entry.limit, Some(25));
+        assert_eq!(entry.total_pages, Some(5));
+        assert_eq!(entry.total_results, Some(250));
+        // Clamp behaviour remains in effect for existing fields
+        assert_eq!(entry.snippet_lines, 10);
+        assert_eq!(entry.score_precision, 4);
+    }
+
+    #[test]
+    fn collect_show_components_extended_includes_raw_score() {
+        let components = collect_show_components_extended(true, false, false, true);
+        assert!(components.contains(&ShowComponent::Url));
+        assert!(components.contains(&ShowComponent::RawScore));
+        assert!(!components.contains(&ShowComponent::Lines));
+        assert!(!components.contains(&ShowComponent::Anchor));
+    }
+
+    #[test]
+    fn raw_score_round_trip_serialisation() {
+        let components = vec![ShowComponent::RawScore];
+        let strings = components_to_strings(&components);
+        assert_eq!(strings, vec!["raw-score".to_string()]);
+
+        let parsed = strings
+            .iter()
+            .filter_map(|s| component_from_str(s))
+            .collect::<Vec<_>>();
+        assert_eq!(parsed, components);
+    }
 }

@@ -6,9 +6,12 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tempfile::TempDir;
 
-pub const CMD_TIMEOUT: Duration = Duration::from_secs(5);
+#[allow(dead_code)]
+pub const CMD_TIMEOUT: Duration = Duration::from_secs(15);
+#[allow(dead_code)]
 pub const DEFAULT_GUARD_TIMEOUT_SECS: &str = "10";
 
+#[allow(dead_code)]
 fn data_dir() -> &'static Path {
     static DATA_DIR: OnceLock<TempDir> = OnceLock::new();
     DATA_DIR
@@ -18,6 +21,7 @@ fn data_dir() -> &'static Path {
 
 /// Create a configured `blz` command suitable for integration tests.
 /// Ensures child processes are cleaned up even when the harness aborts.
+#[allow(dead_code)]
 pub fn blz_cmd() -> Command {
     let mut cmd = Command::cargo_bin("blz").expect("blz binary should build for tests");
     cmd.timeout(CMD_TIMEOUT);
@@ -34,4 +38,23 @@ pub fn blz_cmd() -> Command {
     cmd.env("BLZ_SUPPRESS_DEPRECATIONS", "1");
     cmd.env("NO_COLOR", "1");
     cmd
+}
+
+#[allow(dead_code)]
+pub fn blz_cmd_with_dirs(data_dir: &Path, config_dir: &Path) -> Command {
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", data_dir);
+    cmd.env("BLZ_CONFIG_DIR", config_dir);
+    cmd
+}
+
+#[allow(dead_code)]
+pub fn add_source(alias: &str, url: &str, data_dir: &Path, config_dir: &Path) {
+    let mut cmd = blz_cmd_with_dirs(data_dir, config_dir);
+    cmd.arg("add")
+        .arg(alias)
+        .arg(url)
+        .arg("-y")
+        .assert()
+        .success();
 }

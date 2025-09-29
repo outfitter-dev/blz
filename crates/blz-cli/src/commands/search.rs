@@ -31,6 +31,7 @@ pub struct SearchOptions {
     pub show_url: bool,
     pub show_lines: bool,
     pub show_anchor: bool,
+    pub show_raw_score: bool,
     pub no_summary: bool,
     pub score_precision: Option<u8>,
     pub snippet_lines: u8,
@@ -39,10 +40,12 @@ pub struct SearchOptions {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 struct ShowToggles {
     url: bool,
     lines: bool,
     anchor: bool,
+    raw_score: bool,
 }
 
 fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
@@ -55,6 +58,7 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
             ShowComponent::Url => toggles.url = true,
             ShowComponent::Lines => toggles.lines = true,
             ShowComponent::Anchor => toggles.anchor = true,
+            ShowComponent::RawScore => toggles.raw_score = true,
         }
     }
     toggles
@@ -91,6 +95,7 @@ pub async fn execute(
         show_url: toggles.url,
         show_lines: toggles.lines,
         show_anchor: toggles.anchor,
+        show_raw_score: toggles.raw_score,
         no_summary,
         score_precision,
         snippet_lines: snippet_lines.max(1),
@@ -99,26 +104,35 @@ pub async fn execute(
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
-    format_and_display(&results, &options)?;
+    let ((page, actual_limit, total_pages), total_results) =
+        format_and_display(&results, &options)?;
 
     if let Some(prefs) = prefs {
         let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
-        let show_components = preferences::collect_show_components(
+        let show_components = preferences::collect_show_components_extended(
             options.show_url,
             options.show_lines,
             options.show_anchor,
+            options.show_raw_score,
         );
         prefs.set_default_show(&show_components);
         prefs.set_default_score_precision(precision);
         prefs.set_default_snippet_lines(options.snippet_lines);
-        let history_entry = preferences::make_history_entry(
+        let history_entry = preferences::HistoryEntryBuilder::new(
             &options.query,
             options.alias.as_deref(),
             options.format,
-            &show_components,
-            options.snippet_lines as u8,
-            precision,
-        );
+            show,
+        )
+        .with_snippet_lines(options.snippet_lines)
+        .with_score_precision(precision)
+        .with_pagination(preferences::PaginationInfo {
+            page: Some(page),
+            limit: Some(actual_limit),
+            total_pages: Some(total_pages),
+            total_results: Some(total_results),
+        })
+        .build();
         if let Err(err) = history_log::append(&history_entry) {
             warn!("failed to persist search history: {err}");
         }
@@ -376,7 +390,11 @@ async fn perform_search(
     // Process results
     deduplicate_hits(&mut all_hits);
     sort_by_score(&mut all_hits);
-    apply_percentile_filter(&mut all_hits, options.top_percentile);
+    apply_percentile_filter(
+        &mut all_hits,
+        options.top_percentile,
+        matches!(options.format, OutputFormat::Text),
+    );
 
     // Enrich results with sourceUrl and checksum where available
     // Best-effort: failures are ignored to avoid impacting search flow
@@ -477,7 +495,11 @@ fn sort_by_score(hits: &mut [SearchHit]) {
     });
 }
 
-fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>) {
+fn apply_percentile_filter(
+    hits: &mut Vec<SearchHit>,
+    top_percentile: Option<u8>,
+    is_text_output: bool,
+) {
     if let Some(percentile) = top_percentile {
         let len = hits.len();
         let percentile_f = f64::from(percentile) / 100.0;
@@ -489,7 +511,7 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
         let percentile_count = ((len as f64) * percentile_f).ceil().min(len as f64) as usize;
         hits.truncate(percentile_count.max(1));
 
-        if hits.len() < 10 {
+        if is_text_output && hits.len() < 10 {
             eprintln!(
                 "Tip: Only {} results in top {}%. Try a lower percentile or remove --top flag.",
                 hits.len(),
@@ -529,6 +551,7 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 ///     show_url: false,
 ///     show_lines: false,
 ///     show_anchor: false,
+///     show_raw_score: false,
 ///     no_summary: false,
 ///     score_precision: None,
 ///     snippet_lines: 3,
@@ -539,8 +562,29 @@ fn apply_percentile_filter(hits: &mut Vec<SearchHit>, top_percentile: Option<u8>
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
 #[allow(clippy::too_many_lines)]
-fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Result<()> {
+fn format_and_display(
+    results: &SearchResults,
+    options: &SearchOptions,
+) -> Result<((usize, usize, usize), usize)> {
     let total_results = results.hits.len();
+    let mut storage_cache: Option<Storage> = None;
+    let mut resolve_suggestions = |need: bool| -> Option<Vec<serde_json::Value>> {
+        if !matches!(options.format, OutputFormat::Json) || !need {
+            return None;
+        }
+        if storage_cache.is_none() {
+            storage_cache = match Storage::new() {
+                Ok(storage) => Some(storage),
+                Err(err) => {
+                    warn!("suggestions disabled: failed to open storage: {err}");
+                    None
+                },
+            };
+        }
+        storage_cache
+            .as_ref()
+            .map(|storage| compute_suggestions(&options.query, storage, &results.sources))
+    };
 
     // Apply pagination
     let actual_limit = if options.limit >= ALL_RESULTS_LIMIT {
@@ -563,16 +607,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     if total_results == 0 {
         // Let formatter print the "No results" message
         let formatter = SearchResultFormatter::new(options.format);
-        let suggestions = if matches!(options.format, OutputFormat::Json) {
-            let storage = Storage::new()?;
-            Some(compute_suggestions(
-                &options.query,
-                &storage,
-                &results.sources,
-            ))
-        } else {
-            None
-        };
+        let suggestions = resolve_suggestions(true);
         let params = FormatParams {
             hits: &[],
             query: &options.query,
@@ -581,19 +616,20 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             search_time: results.search_time,
             sources: &results.sources,
             start_idx: 0,
-            page: 1,
+            page: 0,
             total_pages,
             page_size: actual_limit,
             show_url: options.show_url,
             show_lines: options.show_lines,
             show_anchor: options.show_anchor,
+            show_raw_score: options.show_raw_score,
             no_summary: options.no_summary,
             score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
             snippet_lines: usize::from(options.snippet_lines.max(1)),
             suggestions,
         };
         formatter.format(&params)?;
-        return Ok(());
+        return Ok(((0, actual_limit, total_pages), total_results));
     }
 
     let page = requested_page.clamp(1, total_pages);
@@ -608,29 +644,38 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
             );
             eprintln!("Tip: use --last to jump to the final page.");
         }
-        return Ok(());
+        let formatter = SearchResultFormatter::new(options.format);
+        let suggestions = resolve_suggestions(true);
+        let params = FormatParams {
+            hits: &[],
+            query: &options.query,
+            total_results,
+            total_lines_searched: results.total_lines_searched,
+            search_time: results.search_time,
+            sources: &results.sources,
+            start_idx: start_idx.min(results.hits.len()),
+            page,
+            total_pages,
+            page_size: actual_limit,
+            show_url: options.show_url,
+            show_lines: options.show_lines,
+            show_anchor: options.show_anchor,
+            show_raw_score: options.show_raw_score,
+            no_summary: options.no_summary,
+            score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+            snippet_lines: usize::from(options.snippet_lines.max(1)),
+            suggestions,
+        };
+        formatter.format(&params)?;
+        return Ok(((page, actual_limit, total_pages), total_results));
     }
 
     let page_hits = &results.hits[start_idx..end_idx];
 
     let formatter = SearchResultFormatter::new(options.format);
     // Compute simple fuzzy suggestions for JSON output when few/low-quality results
-    let suggestions = if matches!(options.format, OutputFormat::Json) {
-        let need_suggest =
-            total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
-        if need_suggest {
-            let storage = Storage::new()?;
-            Some(compute_suggestions(
-                &options.query,
-                &storage,
-                &results.sources,
-            ))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let need_suggest = total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
+    let suggestions = resolve_suggestions(need_suggest);
 
     let params = FormatParams {
         hits: page_hits,
@@ -647,6 +692,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
         show_url: options.show_url,
         show_lines: options.show_lines,
         show_anchor: options.show_anchor,
+        show_raw_score: options.show_raw_score,
         no_summary: options.no_summary,
         score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
         snippet_lines: usize::from(options.snippet_lines.max(1)),
@@ -654,7 +700,7 @@ fn format_and_display(results: &SearchResults, options: &SearchOptions) -> Resul
     };
     formatter.format(&params)?;
 
-    Ok(())
+    Ok(((page, actual_limit, total_pages), total_results))
 }
 
 fn compute_suggestions(
@@ -796,6 +842,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -823,6 +870,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -850,6 +898,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -874,6 +923,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -903,6 +953,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -931,6 +982,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -953,6 +1005,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -982,6 +1035,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
@@ -1009,6 +1063,7 @@ mod tests {
             show_url: false,
             show_lines: false,
             show_anchor: false,
+            show_raw_score: false,
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,

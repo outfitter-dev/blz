@@ -16,7 +16,7 @@ fn history_handles_empty_state() -> anyhow::Result<()> {
     let out = blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", config_dir.path())
-        .args(["history", "--limit", "3"])
+        .args(["history", "--limit", "3", "--format", "text"])
         .assert()
         .success()
         .get_output()
@@ -74,6 +74,8 @@ async fn history_captures_recent_searches() -> anyhow::Result<()> {
             "history",
             "--source",
             "fixture",
+            "--format",
+            "text",
             "--show",
             "url",
             "--snippet-lines",
@@ -88,7 +90,7 @@ async fn history_captures_recent_searches() -> anyhow::Result<()> {
     let text_out = blz_cmd()
         .env("BLZ_DATA_DIR", data_dir.path())
         .env("BLZ_CONFIG_DIR", config_dir.path())
-        .args(["history", "--limit", "2"])
+        .args(["history", "--limit", "2", "--format", "text"])
         .assert()
         .success()
         .get_output()
