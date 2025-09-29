@@ -577,8 +577,8 @@ async fn handle_search(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
+    use crate::utils::constants::ALL_RESULTS_LIMIT;
     const DEFAULT_LIMIT: usize = 50;
-    const ALL_RESULTS_LIMIT: usize = 10_000;
     let provided_query = query.is_some();
     let limit_was_explicit = all || limit.is_some();
 

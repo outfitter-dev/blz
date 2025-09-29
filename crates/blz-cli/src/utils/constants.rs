@@ -110,3 +110,10 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "cache",
     "self",
 ];
+
+/// Maximum limit value for --all flag in search
+///
+/// This constant defines the upper bound for search results when using the
+/// --all flag. It prevents excessive memory usage and ensures reasonable
+/// performance characteristics.
+pub const ALL_RESULTS_LIMIT: usize = 10_000;

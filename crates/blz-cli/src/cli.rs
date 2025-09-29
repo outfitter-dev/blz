@@ -288,7 +288,8 @@ pub enum Commands {
         /// Jump to last page of results
         #[arg(long, conflicts_with = "next", conflicts_with = "page")]
         last: bool,
-        /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
+        /// Maximum results per page. When continuing (--next/--last) inherits the prior limit; otherwise defaults to 50.
+        /// Internally up to 3× this value may be fetched for scoring stability.
         #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
         limit: Option<usize>,
         /// Show all results (no limit)
