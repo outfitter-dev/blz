@@ -49,12 +49,11 @@ async fn test_get_multiple_ranges_comma_separated() {
         .arg("get")
         .arg("batch-test")
         .arg("--lines")
-        .arg("1:3,5-7,10")
+        .arg("1-3,5-7,10")
         .arg("--format")
         .arg("json")
         .assert()
         .success();
-
     let stdout = String::from_utf8_lossy(&result.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).expect("Should be valid JSON");
 
