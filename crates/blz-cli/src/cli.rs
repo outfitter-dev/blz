@@ -314,8 +314,8 @@ pub enum Commands {
         /// Hide the summary/footer line
         #[arg(long = "no-summary")]
         no_summary: bool,
-        /// Override the flavor used for this search
-        #[arg(long = "flavor", value_enum, default_value = "current")]
+        /// Override the flavor used for this search (DEPRECATED: always uses best available)
+        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
         flavor: crate::commands::FlavorMode,
         /// Number of decimal places to show for scores (0-4)
         #[arg(
@@ -361,8 +361,8 @@ pub enum Commands {
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,
-        /// Override the flavor to use
-        #[arg(long = "flavor", value_enum, default_value = "current")]
+        /// Override the flavor to use (DEPRECATED: always uses best available)
+        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
         flavor: crate::commands::FlavorMode,
         /// Output format
         #[command(flatten)]
@@ -387,8 +387,8 @@ pub enum Commands {
         /// Update all sources
         #[arg(long)]
         all: bool,
-        /// Choose update flavor policy
-        #[arg(long = "flavor", value_enum, default_value = "current")]
+        /// Choose update flavor policy (DEPRECATED: always uses best available)
+        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
         flavor: crate::commands::FlavorMode,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
         #[arg(short = 'y', long = "yes")]

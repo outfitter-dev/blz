@@ -17,6 +17,12 @@ use crate::utils::store;
 pub const BASE_FLAVOR: &str = Flavor::Llms.as_str();
 pub const FULL_FLAVOR: &str = Flavor::LlmsFull.as_str();
 
+/// Feature flag: Force preference for llms-full.txt when available.
+/// When true, all flavor resolution logic prefers llms-full.txt first,
+/// falling back to llms.txt only when full is unavailable.
+/// This simplifies UX by eliminating configuration complexity.
+pub const FORCE_PREFER_FULL: bool = true;
+
 #[derive(Clone, Debug)]
 pub struct FlavorCandidate {
     pub flavor_id: String,
@@ -118,7 +124,10 @@ pub async fn discover_flavor_candidates(
         );
     }
 
+    // Feature flag: Sort to prefer llms-full.txt first when forced
     candidates.sort_by_key(|c| match c.flavor_id.as_str() {
+        FULL_FLAVOR if FORCE_PREFER_FULL => 0,
+        BASE_FLAVOR if FORCE_PREFER_FULL => 1,
         BASE_FLAVOR => 0,
         FULL_FLAVOR => 1,
         _ => 2,
@@ -180,6 +189,11 @@ pub fn resolve_flavor(storage: &Storage, alias: &str) -> Result<String> {
     }
 
     let available_set: HashSet<&str> = available.iter().map(String::as_str).collect();
+
+    // Feature flag: Always prefer llms-full.txt when available
+    if FORCE_PREFER_FULL && available_set.contains(FULL_FLAVOR) {
+        return Ok(FULL_FLAVOR.to_string());
+    }
 
     if let Some(preferred) = per_source_override(alias) {
         if available_set.contains(preferred.as_str()) {
