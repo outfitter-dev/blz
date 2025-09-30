@@ -259,10 +259,15 @@ fn extract_context_lines(
     max_lines: usize,
 ) -> Vec<(usize, String)> {
     let (start, end) = parse_line_range(&hit.lines);
+
+    // Use flavor-aware cache key to prevent cross-flavor contamination
+    let flavor = hit.flavor.as_deref().unwrap_or("txt");
+    let cache_key = format!("{}:{}", hit.alias, flavor);
+
     let lines = match storage {
         Some(storage) => cache
-            .entry(hit.alias.clone())
-            .or_insert_with(|| load_llms_lines(storage, &hit.alias)),
+            .entry(cache_key)
+            .or_insert_with(|| load_llms_lines(storage, &hit.alias, flavor)),
         None => return Vec::new(),
     };
 
@@ -357,8 +362,9 @@ fn parse_line_range(s: &str) -> (usize, usize) {
     (start, end)
 }
 
-fn load_llms_lines(storage: &Storage, alias: &str) -> Vec<String> {
-    if let Ok(path) = storage.llms_txt_path(alias) {
+fn load_llms_lines(storage: &Storage, alias: &str, flavor: &str) -> Vec<String> {
+    // Use flavor-aware path to load the correct content file
+    if let Ok(path) = storage.flavor_file_path(alias, flavor) {
         if let Ok(content) = std::fs::read_to_string(path) {
             return content
                 .lines()
