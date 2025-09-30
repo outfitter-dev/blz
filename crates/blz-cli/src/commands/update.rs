@@ -215,6 +215,20 @@ async fn update_source(
         flavor
     };
 
+    // Log when FORCE_PREFER_FULL or config causes llms-full preference
+    if crate::utils::flavor::FORCE_PREFER_FULL && matches!(effective_flavor, FlavorMode::Full) {
+        info!(
+            alias = alias,
+            "Preferring llms-full.txt (FORCE_PREFER_FULL enabled)"
+        );
+    } else if matches!(flavor, FlavorMode::Current) && matches!(effective_flavor, FlavorMode::Full)
+    {
+        info!(
+            alias = alias,
+            "Preferring llms-full.txt (prefer_llms_full config)"
+        );
+    }
+
     if let Ok(meta) = crate::utils::http::head_with_retries(&fetcher, &current_url, 3, 200).await {
         let status = meta.status;
         let is_success = (200..=299).contains(&status);

@@ -50,7 +50,7 @@ blz "react hooks" --format json | jq -r '.[0] | "\(.alias) --lines \(.lines)"' |
 
 ```bash
 # Add Bun's llms.txt to blz
-# (blz will default to try to get llms-full.txt if it's available)
+# BLZ automatically uses llms-full.txt if available
 blz add bun https://bun.sh/llms.txt
 
 # Search for "bun:sqlite"
@@ -72,7 +72,7 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 - **Fast Search**: 6ms typical search latency (yes, milliseconds)
 - **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
-- **Dual-Flavor Sync**: Automatically indexes both `llms.txt` and `llms-full.txt` when a project publishes expanded docs.
+- **Automatic Best Version**: Uses `llms-full.txt` when available, falls back to `llms.txt` seamlessly
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
 - **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
 - **Change Tracking**: Track source changes with `blz diff` command showing moved, added, and removed sections
@@ -138,8 +138,8 @@ blz get bun --lines 120-142 --context 3
 # Inspect recent searches and persisted defaults
 blz history --limit 5
 
-# Prefer llms-full.txt automatically
-blz config set add.prefer_full true
+# Upgrade sources to llms-full.txt when available
+blz upgrade bun
 
 # List all sources
 blz list

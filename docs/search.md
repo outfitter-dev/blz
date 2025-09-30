@@ -415,5 +415,5 @@ Each source has its own Tantivy index with:
 ## Next Steps
 
 - Learn about the "get" command in [CLI documentation](cli.md) for retrieving exact content
-- Set up [Shell Integration](shell-integration.md) for better productivity
+- Set up [Shell Integration](shell-integration/README.md) for better productivity
 - Understand the [Architecture](architecture.md) for deeper knowledge

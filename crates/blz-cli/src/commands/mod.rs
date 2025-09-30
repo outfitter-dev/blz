@@ -18,6 +18,7 @@ mod lookup;
 mod remove;
 mod search;
 mod update;
+mod upgrade;
 
 pub use add::execute as add_source;
 pub use alias::{AliasCommand, execute as manage_alias};
@@ -36,5 +37,6 @@ pub use lookup::execute as lookup_registry;
 pub use remove::execute as remove_source;
 pub use search::{execute as search, handle_default as handle_default_search};
 pub use update::{FlavorMode, execute as update_source, execute_all as update_all};
+pub use upgrade::execute_upgrade;
 
 // Re-export types that commands might need

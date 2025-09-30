@@ -7,23 +7,20 @@ Welcome to the comprehensive documentation for BLZ, a fast local-first search ca
 ### Getting Started
 
 - [**Quick Start Guide**](getting-started.md) - Installation, first steps, and basic usage
-- [**Shell Integration**](shell-integration.md) - Setting up completions for Fish, Bash, and Zsh
+- [**Shell Integration**](shell-integration/README.md) - Setting up completions for Fish, Bash, and Zsh
 
 ### Core Features
 
 - [**Managing Sources**](sources.md) - Adding, updating, and organizing documentation sources
 - [**Search Guide**](search.md) - Search syntax, performance tips, and advanced queries
-- [**Line-Accurate Retrieval**](retrieval.md) - Getting exact content with line ranges
+- [**Get Command**](commands/get.md) - Getting exact content with line ranges
 
 ### Technical Details
 
 - [**Architecture**](architecture.md) - How it works under the hood
-- [**Storage Format**](storage.md) - Understanding the BLZ structure
 
 ### Development
 
-- [**API Reference**](api.md) - Rust API documentation
-- [**MCP Integration**](mcp.md) - Using the Model Context Protocol server
 - [**Contributing**](../CONTRIBUTING.md) - Development guidelines
 
 ## Key Concepts

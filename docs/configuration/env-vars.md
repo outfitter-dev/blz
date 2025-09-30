@@ -11,7 +11,7 @@ These variables override configuration at runtime. All booleans accept: 1, true,
 - `BLZ_FETCH_ENABLED` — Enable/disable network fetches (bool)
 - `BLZ_FOLLOW_LINKS` — Link policy: `none` | `first_party` | `allowlist`
 - `BLZ_ALLOWLIST` — Comma-separated list of domains (used with `allowlist`)
-- `BLZ_PREFER_LLMS_FULL` — Prefer llms-full.txt when available during updates (bool)
+- `BLZ_PREFER_LLMS_FULL` — ⚠️ **DEPRECATED** (v0.4.1+): BLZ now automatically uses llms-full.txt when available. This setting has no effect. Use `blz upgrade` to migrate existing sources.
 - `BLZ_SUPPRESS_DEPRECATIONS` — Suppress CLI deprecation warnings (bool)
 - `BLZ_FORCE_NON_INTERACTIVE` — Force CLI subcommands to skip confirmation prompts (bool)
 - `BLZ_DISABLE_GUARD` — Disable the parent process watchdog thread (bool)

@@ -201,7 +201,7 @@ The first search after adding a source may take longer as the OS caches the inde
 
 - Read about [Managing Sources](sources.md) to learn about updates and organization
 - Explore [Search Syntax](search.md) for advanced queries
-- Set up [Shell Integration](shell-integration.md) for better productivity
+- Set up [Shell Integration](shell-integration/README.md) for better productivity
 - Understand the [Architecture](architecture.md) for deeper knowledge
 
 ## Getting Help

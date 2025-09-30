@@ -7,6 +7,7 @@ This section lists individual command reference pages. For the single‑page ref
 - [Lookup](./lookup.md)
 - [List](./list.md)
 - [Update](./update.md)
+- [Upgrade](./upgrade.md)
 - [Remove](./remove.md)
 - [Docs](./docs.md)
 - [Completions](./completions.md)

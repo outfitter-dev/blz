@@ -16,7 +16,7 @@ use crate::utils::validation::{normalize_alias, validate_alias};
 ///
 /// * `alias` - Local alias for the source (will be normalized to kebab-case)
 /// * `url` - URL to fetch llms.txt from
-/// * `auto_yes` - Auto-select the best flavor without prompts
+/// * `auto_yes` - Skip confirmation prompts (non-interactive mode)
 /// * `metrics` - Performance metrics collector
 pub async fn execute(
     alias: &str,
@@ -172,6 +172,18 @@ async fn fetch_and_index_variants(
             match Flavor::from_identifier(&candidate.flavor_id) {
                 Some(flavor) => {
                     let id = flavor.as_str();
+
+                    // Log when using llms-full due to FORCE_PREFER_FULL
+                    if crate::utils::flavor::FORCE_PREFER_FULL
+                        && id == crate::utils::flavor::FULL_FLAVOR
+                    {
+                        tracing::info!(
+                            alias = alias,
+                            flavor = id,
+                            "Using llms-full.txt (preferred flavor)"
+                        );
+                    }
+
                     (flavor.file_name(), id, id.to_string())
                 },
                 None => (

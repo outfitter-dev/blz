@@ -4,24 +4,31 @@ Update sources to the latest content.
 
 Usage:
 ```bash
-blz update [SOURCE] [--all] [--flavor current|auto|full|txt] [-y]
+blz update [SOURCE] [--all] [-y]
 ```
 
 Options:
 - `SOURCE`           Update only the specified source; omit to update current or use `--all`
 - `--all`            Update all sources
-- `--flavor`         Flavor policy during update:
-  - `current` (default): keep existing URL/flavor
-  - `auto`: prefer best available (llms-full.txt > llms.txt > others)
-  - `full`: switch to llms-full.txt if available
-  - `txt`: switch to llms.txt if available
-- `-y, --yes`        Apply flavor changes without prompting/log hints (non-interactive)
+- `-y, --yes`        Skip confirmation prompts (non-interactive)
 
-Notes:
-- The global config key `defaults.prefer_llms_full = true` (or `BLZ_PREFER_LLMS_FULL=1`) makes `full` the implied default when `--flavor` is not provided.
-- Updates perform a HEAD preflight with size/ETA and fail fast on non-2xx responses.
-- When multiple flavors exist, `blz update` refreshes and reindexes each (e.g., `llms.txt` and `llms-full.txt`) in a single pass so both stay in sync.
-- Explicit `--flavor full` / `--flavor txt` writes a per-source override in `blz.json`, so future searches default to that variant. Use `--flavor auto` (or `current`) to clear the override and fall back to scope/global preferences.
+## How updates work
+
+BLZ automatically uses the best documentation available:
+- When both `llms.txt` and `llms-full.txt` are available, BLZ uses `llms-full.txt`
+- Updates check for new content using ETags and only re-fetch when content has changed
+- Updates perform a HEAD preflight and fail fast on non-2xx responses
+
+## Upgrading to llms-full.txt
+
+If a source only has `llms.txt` but the upstream now provides `llms-full.txt`, use the upgrade command:
+
+```bash
+blz upgrade <source>
+```
+
+See `blz upgrade --help` for more details.
 
 See also:
 - [Global options](./global.md)
+- [Upgrade command](./upgrade.md)

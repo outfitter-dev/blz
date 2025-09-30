@@ -27,6 +27,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `get` | | Get exact lines from a source |
 | `list` | `sources` | List all indexed sources |
 | `update` | | Update indexed sources |
+| `upgrade` | | Upgrade sources from llms.txt to llms-full.txt |
 | `remove` | `rm`, `delete` | Remove an indexed source |
 | `diff` | | View changes in sources (hidden/experimental) |
 | `completions` | | Generate shell completions |

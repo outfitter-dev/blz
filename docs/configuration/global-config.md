@@ -9,7 +9,7 @@ max_archives = 10
 fetch_enabled = true
 follow_links = "first_party" # "none" | "first_party" | "allowlist"
 allowlist = ["developer.mozilla.org", "docs.rs"]
-prefer_llms_full = false     # Prefer llms-full.txt on update when available
+# prefer_llms_full = false   # DEPRECATED (v0.4.1+): BLZ now automatically prefers llms-full.txt
 
 [paths]
 # Override cache root (optional)

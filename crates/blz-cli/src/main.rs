@@ -503,6 +503,9 @@ async fn execute_command(
         }) => {
             handle_update(alias, all, metrics, cli.quiet, flavor, yes).await?;
         },
+        Some(Commands::Upgrade { alias, all, yes }) => {
+            commands::execute_upgrade(alias, all, yes).await?;
+        },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
         },

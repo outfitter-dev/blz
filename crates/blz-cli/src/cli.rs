@@ -255,7 +255,7 @@ pub enum Commands {
         alias: String,
         /// URL to fetch llms.txt from
         url: String,
-        /// Auto-select the best flavor without prompts
+        /// Skip confirmation prompts (non-interactive mode)
         #[arg(short = 'y', long)]
         yes: bool,
     },
@@ -391,6 +391,18 @@ pub enum Commands {
         #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
         flavor: crate::commands::FlavorMode,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
+
+    /// Upgrade sources from llms.txt to llms-full.txt when available
+    Upgrade {
+        /// Specific source to upgrade
+        alias: Option<String>,
+        /// Upgrade all sources
+        #[arg(long)]
+        all: bool,
+        /// Skip confirmation prompts
         #[arg(short = 'y', long = "yes")]
         yes: bool,
     },

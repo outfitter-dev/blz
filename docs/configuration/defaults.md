@@ -8,9 +8,9 @@ Key defaults:
 - fetch_enabled = true
 - follow_links = first_party
 - allowlist = []
-- prefer_llms_full = false
+- ~~prefer_llms_full = false~~ **DEPRECATED** (v0.4.1+): BLZ automatically prefers llms-full.txt when available
 - CLI presentation defaults: `show = []`, `snippet_lines = 3`, `score_precision = 1` (persisted per scope in `blz.json`)
-- Per-source flavor override (`blz.json` → `sources[alias].preferred_flavor`) = _unset_ (falls back to resolved defaults)
+- Per-source flavor override (`blz.json` → `sources[alias].preferred_flavor`) = _unset_ **DEPRECATED** (v0.4.1+): Use `blz upgrade` instead
 
 Precedence (lowest → highest):
 1) Built-in defaults
