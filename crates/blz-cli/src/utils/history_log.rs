@@ -191,7 +191,7 @@ mod tests {
         SearchHistoryEntry {
             timestamp: "1970-01-01T00:00:00Z".to_string(),
             query: query.to_string(),
-            alias: Some("alias".to_string()),
+            source: Some("alias".to_string()),
             format: "text".to_string(),
             show: vec![],
             snippet_lines: 3,

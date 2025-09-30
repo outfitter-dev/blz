@@ -1,0 +1,12 @@
+id = "expo"
+name = "Expo"
+description = "Framework and platform for universal React applications"
+url = "https://docs.expo.dev/llms-full.txt"
+category = "framework"
+tags = ["react-native", "mobile", "ios", "android", "cross-platform"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["expo"]
+github = ["expo/expo"]

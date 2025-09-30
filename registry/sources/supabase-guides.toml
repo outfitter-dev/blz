@@ -1,0 +1,11 @@
+id = "supabase-guides"
+name = "Supabase Guides"
+description = "Comprehensive guides for Supabase - database, auth, storage, realtime, edge functions"
+url = "https://supabase.com/llms/guides.txt"
+category = "platform"
+tags = ["database", "postgres", "auth", "realtime", "backend", "guides"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/supabase"]

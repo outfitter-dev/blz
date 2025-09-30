@@ -251,13 +251,19 @@ pub enum Commands {
     // },
     /// Add a new source
     Add {
-        /// Alias for the source
+        /// Source name (used as identifier)
         alias: String,
         /// URL to fetch llms.txt from
         url: String,
+        /// Additional aliases for this source (comma-separated, e.g., "react-docs,@react/docs")
+        #[arg(long, value_delimiter = ',')]
+        aliases: Vec<String>,
         /// Skip confirmation prompts (non-interactive mode)
         #[arg(short = 'y', long)]
         yes: bool,
+        /// Analyze source without adding it (outputs JSON analysis)
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Search registries for documentation to add
@@ -267,6 +273,12 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+    },
+
+    /// Manage the registry (create sources, validate, etc.)
+    Registry {
+        #[command(subcommand)]
+        command: RegistryCommands,
     },
 
     /// Search across cached docs
@@ -314,9 +326,6 @@ pub enum Commands {
         /// Hide the summary/footer line
         #[arg(long = "no-summary")]
         no_summary: bool,
-        /// Override the flavor used for this search (DEPRECATED: always uses best available)
-        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
-        flavor: crate::commands::FlavorMode,
         /// Number of decimal places to show for scores (0-4)
         #[arg(
             long = "score-precision",
@@ -353,7 +362,7 @@ pub enum Commands {
 
     /// Get exact lines from a source
     Get {
-        /// Source alias
+        /// Source (or alias) to retrieve from
         alias: String,
         /// Line range(s) (e.g., "120-142", "36:43,320:350", "36+20")
         #[arg(short = 'l', long)]
@@ -361,9 +370,6 @@ pub enum Commands {
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,
-        /// Override the flavor to use (DEPRECATED: always uses best available)
-        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
-        flavor: crate::commands::FlavorMode,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
@@ -382,27 +388,12 @@ pub enum Commands {
 
     /// Update sources
     Update {
-        /// Specific alias to update (updates all if not specified)
+        /// Source to update (updates all if not specified)
         alias: Option<String>,
         /// Update all sources
         #[arg(long)]
         all: bool,
-        /// Choose update flavor policy (DEPRECATED: always uses best available)
-        #[arg(long = "flavor", value_enum, default_value = "current", hide = true)]
-        flavor: crate::commands::FlavorMode,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
-        #[arg(short = 'y', long = "yes")]
-        yes: bool,
-    },
-
-    /// Upgrade sources from llms.txt to llms-full.txt when available
-    Upgrade {
-        /// Specific source to upgrade
-        alias: Option<String>,
-        /// Upgrade all sources
-        #[arg(long)]
-        all: bool,
-        /// Skip confirmation prompts
         #[arg(short = 'y', long = "yes")]
         yes: bool,
     },
@@ -410,7 +401,7 @@ pub enum Commands {
     /// Remove/delete a source
     #[command(alias = "rm", alias = "delete")]
     Remove {
-        /// Source alias
+        /// Source to remove
         alias: String,
         /// Apply removal without prompting
         #[arg(short = 'y', long = "yes")]
@@ -420,7 +411,7 @@ pub enum Commands {
     /// View diffs (coming soon)
     #[command(hide = true)]
     Diff {
-        /// Source alias
+        /// Source to compare
         alias: String,
         /// Show changes since timestamp
         #[arg(long)]
@@ -499,5 +490,38 @@ pub enum AliasCommands {
         source: String,
         /// Alias to remove
         alias: String,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum RegistryCommands {
+    /// Create a new source in the registry
+    CreateSource {
+        /// Source name/alias
+        name: String,
+        /// URL to fetch llms.txt from
+        #[arg(long)]
+        url: String,
+        /// Description of the source
+        #[arg(long)]
+        description: Option<String>,
+        /// Category (library, framework, language, tool, etc.)
+        #[arg(long)]
+        category: Option<String>,
+        /// Tags (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        tags: Vec<String>,
+        /// NPM package names (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        npm: Vec<String>,
+        /// GitHub repositories (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        github: Vec<String>,
+        /// Also add this source to your local index after creating
+        #[arg(long)]
+        add: bool,
+        /// Skip confirmation prompts (non-interactive mode)
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 }

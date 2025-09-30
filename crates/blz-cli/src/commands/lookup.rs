@@ -143,7 +143,16 @@ pub async fn execute(
         );
     }
 
-    add_source(final_alias, &selected_entry.llms_url, false, quiet, metrics).await
+    add_source(
+        final_alias,
+        &selected_entry.llms_url,
+        &[], // No additional aliases from lookup
+        false,
+        false,
+        quiet,
+        metrics,
+    )
+    .await
 }
 
 async fn display_results_with_health(

@@ -1,0 +1,11 @@
+id = "supabase-csharp"
+name = "Supabase C#"
+description = "Supabase C#/.NET client library reference"
+url = "https://supabase.com/llms/csharp.txt"
+category = "library"
+tags = ["database", "postgres", "csharp", "dotnet", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/supabase-csharp"]

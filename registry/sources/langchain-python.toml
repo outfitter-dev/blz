@@ -1,0 +1,12 @@
+id = "langchain-python"
+name = "LangChain Python (Index)"
+description = "LangChain Python documentation index - links to full docs"
+url = "https://python.langchain.com/llms.txt"
+category = "framework"
+tags = ["ai", "llm", "python", "agents", "index"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["langchain-ai/langchain"]
+pypi = ["langchain"]

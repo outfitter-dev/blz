@@ -42,7 +42,6 @@
 //! use blz_core::SearchHit;
 //!
 //! let hit = SearchHit {
-//!     alias: "react".to_string(),
 //!     source: "react".to_string(),
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
@@ -58,7 +57,7 @@
 //!
 //! println!("Found: {} in {} (score: {:.2})",
 //!     hit.heading_path.join(" > "),
-//!     hit.alias,
+//!     hit.source,
 //!     hit.score);
 //! ```
 
@@ -194,6 +193,30 @@ pub struct Source {
     /// Defaults to empty for backward compatibility.
     #[serde(default)]
     pub aliases: Vec<String>,
+
+    /// Tags categorizing this source's content and searchability.
+    ///
+    /// Common tags include language/framework names, content types,
+    /// and special markers like "index" for navigation-only sources.
+    /// Sources tagged with "index" contain only a table of contents
+    /// and are excluded from full-text search by default.
+    /// Defaults to empty for backward compatibility.
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+impl Source {
+    /// Returns true if this source is tagged as index-only (navigation/TOC only).
+    ///
+    /// Index-only sources contain a table of contents with links to
+    /// external documentation pages, but no substantial content for
+    /// full-text search. They are excluded from searches by default.
+    #[must_use]
+    pub fn is_index_only(&self) -> bool {
+        self.tags
+            .iter()
+            .any(|tag| tag.eq_ignore_ascii_case("index"))
+    }
 }
 
 /// An entry in the table of contents.
@@ -340,7 +363,7 @@ pub enum DiagnosticSeverity {
 ///
 /// ## Storage Location
 ///
-/// Stored as `<cache_root>/<alias>/llms.json` for each source.
+/// Stored as `<cache_root>/<source>/llms.json` for each source.
 ///
 /// ## Version Compatibility
 ///
@@ -352,11 +375,12 @@ pub struct LlmsJson {
     /// Unique identifier for this source.
     ///
     /// Used as the directory name and in search results. Should be
-    /// URL-safe and filesystem-safe.
-    pub alias: String,
+    /// URL-safe and filesystem-safe. This is the canonical source name,
+    /// not an alias (which are stored in metadata.aliases).
+    pub source: String,
 
-    /// Source metadata and caching information.
-    pub source: Source,
+    /// Source metadata including URL, caching headers, and aliases.
+    pub metadata: Source,
 
     /// Table of contents extracted from the document.
     ///
@@ -412,16 +436,10 @@ pub struct ParseMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
-    /// Source alias where this hit was found.
+    /// Source identifier where this hit was found.
     ///
-    /// Corresponds to the directory name in the cache and the `alias`
-    /// field in [`LlmsJson`].
-    pub alias: String,
-
-    /// Canonical source name (user-facing "source").
-    ///
-    /// For now, this is the same as `alias`. Kept separate to allow future
-    /// rename/alias semantics without breaking JSON consumers.
+    /// Corresponds to the directory name in the cache and the `source`
+    /// field in [`LlmsJson`]. This is the canonical source name.
     pub source: String,
 
     /// Filename within the source where the hit was found.
@@ -520,8 +538,8 @@ pub struct DiffEntry {
     /// Timestamp when this change was detected.
     pub ts: DateTime<Utc>,
 
-    /// Source alias that was changed.
-    pub alias: String,
+    /// Source identifier that was changed.
+    pub source: String,
 
     /// `ETag` before the change.
     ///
@@ -625,7 +643,6 @@ mod tests {
     fn test_search_hit_equality() {
         // Test that SearchHit can be compared for deduplication
         let hit1 = SearchHit {
-            alias: "react".to_string(),
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
@@ -640,7 +657,6 @@ mod tests {
         };
 
         let hit2 = SearchHit {
-            alias: "react".to_string(),
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
@@ -654,8 +670,8 @@ mod tests {
             flavor: Some("llms-full".to_string()),
         };
 
-        // Should be considered the same for deduplication (same alias, lines, heading_path)
-        assert_eq!(hit1.alias, hit2.alias);
+        // Should be considered the same for deduplication (same source, lines, heading_path)
+        assert_eq!(hit1.source, hit2.source);
         assert_eq!(hit1.lines, hit2.lines);
         assert_eq!(hit1.heading_path, hit2.heading_path);
     }
@@ -679,6 +695,7 @@ mod tests {
             fetched_at: now,
             sha256: "deadbeef".to_string(),
             aliases: Vec::new(),
+            tags: Vec::new(),
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
@@ -734,14 +751,15 @@ mod tests {
     #[test]
     fn test_llms_json_structure() {
         let llms_json = LlmsJson {
-            alias: "test".to_string(),
-            source: Source {
+            source: "test".to_string(),
+            metadata: Source {
                 url: "https://example.com".to_string(),
                 etag: None,
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "hash".to_string(),
                 aliases: Vec::new(),
+                tags: Vec::new(),
             },
             toc: vec![],
             files: vec![FileInfo {
@@ -756,7 +774,7 @@ mod tests {
             parse_meta: None,
         };
 
-        assert_eq!(llms_json.alias, "test");
+        assert_eq!(llms_json.source, "test");
         assert_eq!(llms_json.files.len(), 1);
         assert_eq!(llms_json.line_index.total_lines, 100);
     }

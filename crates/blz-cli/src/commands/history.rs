@@ -55,7 +55,7 @@ fn render_text(prefs: &CliPreferences, entries: &[preferences::SearchHistoryEntr
             format!("{}.", idx + 1).green(),
             entry.query.clone()
         );
-        if let Some(alias) = &entry.alias {
+        if let Some(alias) = &entry.source {
             println!("   {} {}", "alias:".bright_black(), alias);
         }
         println!("   {} {}", "format:".bright_black(), &entry.format);

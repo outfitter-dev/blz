@@ -1,0 +1,36 @@
+# Registry Source Template
+# Only 'id' and 'url' are required. All other fields are optional.
+
+# Required: Unique identifier (kebab-case)
+id = "example"
+
+# Recommended: Display name (defaults to title-case of id if omitted)
+name = "Example"
+
+# Required: URL to llms-full.txt or llms.txt
+# If llms.txt is provided, build script will check for llms-full.txt
+url = "https://example.com/llms-full.txt"
+
+# Optional: One-line description
+description = "Example documentation source"
+
+# Optional: Category for organization
+category = "tool"  # runtime | framework | library | language | database | tool | ai
+
+# Optional: Tags for search
+tags = ["example", "docs"]
+
+# Optional: Fallback URL (auto-generated if not provided)
+# fallback = "https://example.com/llms.txt"
+
+# Optional: Registry metadata (auto-generated if not provided)
+# registeredAt = "2025-09-30T20:00:00Z"
+# verifiedAt = "2025-09-30T20:00:00Z"
+
+# Optional: Package aliases for discovery
+# Omit entire section if not applicable
+# [aliases]
+# npm = ["example-package"]
+# github = ["example-org/example-repo"]
+# pypi = ["example-pypi"]
+# cargo = ["example-crate"]

@@ -1,0 +1,12 @@
+id = "astro"
+name = "Astro"
+description = "Web framework for content-driven websites"
+url = "https://docs.astro.build/llms-full.txt"
+category = "framework"
+tags = ["javascript", "framework", "static", "ssr", "islands"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["astro"]
+github = ["withastro/astro"]

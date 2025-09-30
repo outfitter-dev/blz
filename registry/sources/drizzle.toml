@@ -1,0 +1,12 @@
+id = "drizzle"
+name = "Drizzle ORM"
+description = "TypeScript ORM for SQL databases"
+url = "https://orm.drizzle.team/llms-full.txt"
+category = "library"
+tags = ["typescript", "orm", "database", "sql", "postgres"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["drizzle-orm"]
+github = ["drizzle-team/drizzle-orm"]

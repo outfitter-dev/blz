@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-09-30
+
+### Added
+- New `upgrade` command to migrate sources from llms.txt to llms-full.txt (#234).
+- Automatic preference for llms-full.txt when available via `FORCE_PREFER_FULL` feature flag (#234).
+- Comprehensive test suite for automatic llms-full preference behavior (5 new tests) (#234).
+
+### Changed
+- Simplified flavor selection to automatically prefer llms-full.txt without user configuration (#234).
+- Hidden `--flavor` flags across add, search, and update commands for cleaner user experience (#234).
+- Updated `--yes` flag help text to be flavor-agnostic: "Skip confirmation prompts (non-interactive mode)" (#234).
+- Removed `BLZ_PREFER_LLMS_FULL` environment variable (automatic preference replaces manual configuration) (#234).
+
+### Documentation
+- Updated 11 documentation files to reflect flavor simplification and automatic llms-full preference (#234).
+- Added comprehensive `docs/commands/upgrade.md` documentation (#234).
+- Fixed 5 broken internal links in documentation index (#234).
+
 ## [0.4.1] - 2025-09-29
 
 ### Added

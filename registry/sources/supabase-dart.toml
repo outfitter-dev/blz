@@ -1,0 +1,11 @@
+id = "supabase-dart"
+name = "Supabase Dart"
+description = "Supabase Dart/Flutter client library reference"
+url = "https://supabase.com/llms/dart.txt"
+category = "library"
+tags = ["database", "postgres", "dart", "flutter", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/supabase-flutter"]

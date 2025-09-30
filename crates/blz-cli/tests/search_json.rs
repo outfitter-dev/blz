@@ -91,7 +91,7 @@ async fn search_json_schema_contains_expected_fields() -> anyhow::Result<()> {
     assert!(!results.is_empty(), "expected at least one result");
     let r0 = &results[0];
     for key in [
-        "alias",
+        "source",
         "file",
         "headingPath",
         "lines",

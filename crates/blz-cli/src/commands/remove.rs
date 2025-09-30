@@ -74,12 +74,12 @@ fn display_removal_info(storage: &Storage, alias: &str, quiet: bool) {
         println!(
             "Removing source '{}' ({})",
             alias.red(),
-            llms_json.source.url
+            llms_json.metadata.url
         );
         println!("  {} lines", llms_json.line_index.total_lines);
         println!(
             "  Fetched: {}",
-            llms_json.source.fetched_at.format("%Y-%m-%d %H:%M:%S")
+            llms_json.metadata.fetched_at.format("%Y-%m-%d %H:%M:%S")
         );
     }
 }

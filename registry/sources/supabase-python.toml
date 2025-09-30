@@ -1,0 +1,12 @@
+id = "supabase-python"
+name = "Supabase Python"
+description = "Supabase Python client library reference"
+url = "https://supabase.com/llms/python.txt"
+category = "library"
+tags = ["database", "postgres", "python", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+pypi = ["supabase"]
+github = ["supabase/supabase-py"]

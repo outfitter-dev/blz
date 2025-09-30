@@ -226,28 +226,5 @@ mod tests {
         })
     }
 
-    #[test]
-    fn save_store_persists_source_overrides() -> Result<()> {
-        with_temp_config_dir(|_| {
-            let mut store = BlzStore::default();
-            let mut record = ScopeRecord::default();
-            record.sources.insert(
-                "react".into(),
-                SourceOverrides {
-                    preferred_flavor: Some("llms-full".to_string()),
-                },
-            );
-            store.scopes.insert("global".into(), record);
-            save_store(&store)?;
-
-            let loaded = load_store();
-            let reloaded = loaded.scopes.get("global").expect("global scope present");
-            let override_flavor = reloaded
-                .sources
-                .get("react")
-                .and_then(|s| s.preferred_flavor.as_deref());
-            assert_eq!(override_flavor, Some("llms-full"));
-            Ok(())
-        })
-    }
+    // Test for source flavor overrides removed - feature no longer exists with FORCE_PREFER_FULL
 }

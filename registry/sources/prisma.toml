@@ -1,0 +1,12 @@
+id = "prisma"
+name = "Prisma"
+description = "Next-generation TypeScript ORM for Node.js and TypeScript"
+url = "https://prisma.io/docs/llms-full.txt"
+category = "library"
+tags = ["typescript", "orm", "database", "graphql", "postgres"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["prisma", "@prisma/client"]
+github = ["prisma/prisma"]

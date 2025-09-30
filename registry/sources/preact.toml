@@ -1,0 +1,12 @@
+id = "preact"
+name = "Preact"
+description = "Fast 3kB React alternative with the same modern API"
+url = "https://preactjs.com/llms.txt"
+category = "library"
+tags = ["javascript", "ui", "frontend", "react", "lightweight"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["preact"]
+github = ["preactjs/preact"]

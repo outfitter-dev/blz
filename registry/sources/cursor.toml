@@ -1,0 +1,11 @@
+id = "cursor"
+name = "Cursor"
+description = "AI-powered code editor"
+url = "https://docs.cursor.com/llms-full.txt"
+category = "tool"
+tags = ["editor", "ai", "ide", "development"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["getcursor/cursor"]

@@ -1,0 +1,11 @@
+id = "supabase-cli"
+name = "Supabase CLI"
+description = "Supabase command-line interface reference"
+url = "https://supabase.com/llms/cli.txt"
+category = "tool"
+tags = ["database", "postgres", "cli", "tool"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/cli"]

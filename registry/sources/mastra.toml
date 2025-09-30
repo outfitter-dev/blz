@@ -1,0 +1,12 @@
+id = "mastra"
+name = "Mastra"
+description = "TypeScript framework for AI agents and workflows"
+url = "https://mastra.ai/llms-full.txt"
+category = "framework"
+tags = ["ai", "agents", "typescript", "workflows"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["@mastra/core"]
+github = ["mastra-ai/mastra"]

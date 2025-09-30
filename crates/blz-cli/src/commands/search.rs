@@ -8,9 +8,7 @@ use std::time::Instant;
 use tracing::warn;
 
 use crate::cli::ShowComponent;
-use crate::commands::FlavorMode;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
-use crate::utils::flavor::{BASE_FLAVOR, FULL_FLAVOR, resolve_flavor};
 use crate::utils::history_log;
 use crate::utils::preferences::{self, CliPreferences};
 
@@ -22,7 +20,7 @@ const DEFAULT_SCORE_PRECISION: u8 = 1;
 #[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
-    pub alias: Option<String>,
+    pub source: Option<String>,
     pub last: bool,
     pub limit: usize,
     pub page: usize,
@@ -35,7 +33,6 @@ pub struct SearchOptions {
     pub no_summary: bool,
     pub score_precision: Option<u8>,
     pub snippet_lines: u8,
-    pub flavor: crate::commands::FlavorMode,
     pub(crate) all: bool,
 }
 
@@ -74,7 +71,6 @@ pub async fn execute(
     page: usize,
     top_percentile: Option<u8>,
     format: OutputFormat,
-    flavor: FlavorMode,
     show: &[ShowComponent],
     no_summary: bool,
     score_precision: Option<u8>,
@@ -86,7 +82,7 @@ pub async fn execute(
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
-        alias: alias.map(String::from),
+        source: alias.map(String::from),
         last,
         limit,
         page,
@@ -99,7 +95,6 @@ pub async fn execute(
         no_summary,
         score_precision,
         snippet_lines: snippet_lines.max(1),
-        flavor,
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
     };
 
@@ -120,7 +115,7 @@ pub async fn execute(
         prefs.set_default_snippet_lines(options.snippet_lines);
         let history_entry = preferences::HistoryEntryBuilder::new(
             &options.query,
-            options.alias.as_deref(),
+            options.source.as_deref(),
             options.format,
             show,
         )
@@ -216,7 +211,6 @@ pub async fn handle_default(
         1,
         None,
         OutputFormat::Text,
-        FlavorMode::Current,
         &show_components,
         false,
         Some(score_precision),
@@ -269,7 +263,7 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
     // Resolve requested source (supports metadata aliases)
-    let sources = if let Some(requested) = &options.alias {
+    let sources = if let Some(requested) = &options.source {
         match crate::utils::resolver::resolve_source(&storage, requested) {
             Ok(Some(canonical)) => vec![canonical],
             Ok(None) => {
@@ -287,6 +281,19 @@ async fn perform_search(
     } else {
         storage.list_sources()
     };
+
+    // Filter out index-only sources (navigation-only, no searchable content)
+    let sources: Vec<String> = sources
+        .into_iter()
+        .filter(|alias| {
+            // Load source metadata and check if it's index-only
+            match storage.load_source_metadata(alias) {
+                Ok(Some(metadata)) => !metadata.is_index_only(),
+                Ok(None) => true, // No metadata, allow search (backward compat)
+                Err(_) => true,   // Error loading metadata, allow search
+            }
+        })
+        .collect();
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -308,13 +315,10 @@ async fn perform_search(
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
-    let warn_missing = matches!(options.format, OutputFormat::Text);
-
     let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
         let query = options.query.clone();
-        let flavor_mode = options.flavor;
 
         async move {
             tokio::task::spawn_blocking(
@@ -333,26 +337,16 @@ async fn perform_search(
                             )
                         })?
                         .with_metrics(metrics);
-                    let desired_flavor =
-                        select_flavor_for_search(&storage, &source, flavor_mode, warn_missing)?;
+
+                    // Always use "txt" flavor (simplified from flavor resolution)
                     let hits = index
-                        .search(
-                            &query,
-                            Some(&source),
-                            Some(&desired_flavor),
-                            effective_limit,
-                        )
+                        .search(&query, Some(&source), Some("txt"), effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
                     let total_lines = storage
-                        .load_flavor_json(&source, &desired_flavor)?
-                        .or_else(|| {
-                            storage
-                                .load_flavor_json(&source, BASE_FLAVOR)
-                                .ok()
-                                .flatten()
-                        })
+                        .load_llms_json(&source)
+                        .ok()
                         .map_or(0, |json| json.line_index.total_lines);
 
                     Ok((hits, total_lines, source))
@@ -401,17 +395,17 @@ async fn perform_search(
     let mut alias_meta: std::collections::HashMap<String, (String, String)> =
         std::collections::HashMap::new();
     for hit in &all_hits {
-        if !alias_meta.contains_key(&hit.alias) {
-            if let Ok(json) = storage.load_llms_json(&hit.alias) {
+        if !alias_meta.contains_key(&hit.source) {
+            if let Ok(json) = storage.load_llms_json(&hit.source) {
                 alias_meta.insert(
-                    hit.alias.clone(),
-                    (json.source.url.clone(), json.source.sha256.clone()),
+                    hit.source.clone(),
+                    (json.metadata.url.clone(), json.metadata.sha256.clone()),
                 );
             }
         }
     }
     for hit in &mut all_hits {
-        if let Some((url, sha)) = alias_meta.get(&hit.alias) {
+        if let Some((url, sha)) = alias_meta.get(&hit.source) {
             hit.source_url = Some(url.clone());
             hit.checksum = sha.clone();
         }
@@ -426,55 +420,10 @@ async fn perform_search(
     })
 }
 
-fn select_flavor_for_search(
-    storage: &Storage,
-    alias: &str,
-    mode: FlavorMode,
-    warn_missing: bool,
-) -> Result<String> {
-    match mode {
-        FlavorMode::Current => resolve_flavor(storage, alias),
-        FlavorMode::Auto => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == FULL_FLAVOR) {
-                Ok(FULL_FLAVOR.to_string())
-            } else {
-                resolve_flavor(storage, alias)
-            }
-        },
-        FlavorMode::Full => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == FULL_FLAVOR) {
-                Ok(FULL_FLAVOR.to_string())
-            } else {
-                if warn_missing {
-                    eprintln!(
-                        "Warning: full flavor not available for '{alias}', using resolved default."
-                    );
-                }
-                resolve_flavor(storage, alias)
-            }
-        },
-        FlavorMode::Txt => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == BASE_FLAVOR) {
-                Ok(BASE_FLAVOR.to_string())
-            } else {
-                if warn_missing {
-                    eprintln!(
-                        "Warning: base flavor not available for '{alias}', using resolved default."
-                    );
-                }
-                resolve_flavor(storage, alias)
-            }
-        },
-    }
-}
-
 fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
     use std::collections::HashSet;
     let mut seen = HashSet::new();
-    hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
+    hits.retain(|h| seen.insert((h.source.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
 fn sort_by_score(hits: &mut [SearchHit]) {
@@ -484,7 +433,7 @@ fn sort_by_score(hits: &mut [SearchHit]) {
         match b.score.total_cmp(&a.score) {
             std::cmp::Ordering::Equal => {
                 // Then by alias (ascending)
-                a.alias.cmp(&b.alias)
+                a.source.cmp(&b.source)
                     // Then by line number (ascending)
                     .then(a.lines.cmp(&b.lines))
                     // Finally by heading path (ascending)
@@ -542,7 +491,7 @@ fn apply_percentile_filter(
 ///
 /// let options = SearchOptions {
 ///     query: "test".to_string(),
-///     alias: None,
+///     source: None,
 ///     last: false,
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
@@ -804,7 +753,6 @@ mod tests {
     fn create_test_results(num_hits: usize) -> SearchResults {
         let hits: Vec<SearchHit> = (0..num_hits)
             .map(|i| SearchHit {
-                alias: format!("test-{i}"),
                 source: format!("test-{i}"),
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
@@ -815,7 +763,7 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
-                flavor: Some(BASE_FLAVOR.to_string()),
+                flavor: Some("txt".to_string()),
             })
             .collect();
 
@@ -833,7 +781,7 @@ mod tests {
         let results = create_test_results(0);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 10,
             page: 1,
@@ -846,7 +794,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -861,7 +808,7 @@ mod tests {
         let results = create_test_results(1);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 10,
             page: 1,
@@ -874,7 +821,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -889,7 +835,7 @@ mod tests {
         let empty_results = create_test_results(0);
         let options_empty = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
@@ -902,7 +848,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
         };
 
@@ -914,7 +859,7 @@ mod tests {
         let results = create_test_results(5);
         let options_high_page = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
@@ -927,7 +872,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
         };
 
@@ -944,7 +888,7 @@ mod tests {
         let results = create_test_results(5);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 2,
             page: 100, // Way beyond available pages
@@ -957,7 +901,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -973,7 +916,7 @@ mod tests {
         // Exactly at the boundary (page 2 with limit 5 for 10 results)
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 5,
             page: 2,
@@ -986,7 +929,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -996,7 +938,7 @@ mod tests {
         // Just beyond the boundary (page 3 with limit 5 for 10 results)
         let options_beyond = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 5,
             page: 3,
@@ -1009,7 +951,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -1026,7 +967,7 @@ mod tests {
         // Case 1: Normal limit
         let options1 = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: 10,
             page: 1,
@@ -1039,7 +980,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
         };
 
@@ -1054,7 +994,7 @@ mod tests {
         // Case 2: ALL_RESULTS_LIMIT with empty results
         let options2 = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            source: None,
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 1,
@@ -1067,7 +1007,6 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
         };
 

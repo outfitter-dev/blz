@@ -51,15 +51,14 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         return Ok(());
     }
 
-    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
-        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    // Load JSON metadata (Phase 3: no longer uses flavor resolution)
     let llms: LlmsJson = storage
-        .load_flavor_json(&canonical, &flavor)
-        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
-        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
+        .load_json(&canonical)
+        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?
+        .ok_or_else(|| anyhow::anyhow!("JSON not found for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
-    // Replace placeholder with actual alias/source and add flavor for each entry in JSON/JSONL output
+    // Replace placeholder with actual alias/source for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
             // Add alias field (what the user typed)
@@ -74,10 +73,6 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
                     serde_json::Value::String(canonical.clone()),
                 );
             }
-            obj.insert(
-                "searchFlavor".to_string(),
-                serde_json::Value::String(flavor.clone()),
-            );
         }
     }
 
@@ -150,12 +145,11 @@ pub async fn get_by_anchor(
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
-    let flavor = crate::utils::flavor::resolve_flavor(&storage, &canonical)
-        .with_context(|| format!("Failed to resolve flavor for alias '{canonical}'"))?;
+    // Load JSON metadata (Phase 3: no longer uses flavor resolution)
     let llms: LlmsJson = storage
-        .load_flavor_json(&canonical, &flavor)
-        .with_context(|| format!("Failed to load TOC for flavor '{flavor}'"))?
-        .ok_or_else(|| anyhow::anyhow!("Flavor '{flavor}' JSON not found for '{canonical}'"))?;
+        .load_json(&canonical)
+        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?
+        .ok_or_else(|| anyhow::anyhow!("JSON not found for '{canonical}'"))?;
 
     #[allow(clippy::items_after_statements)]
     fn find<'a>(list: &'a [blz_core::TocEntry], a: &str) -> Option<&'a blz_core::TocEntry> {

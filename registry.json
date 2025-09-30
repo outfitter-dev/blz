@@ -1,0 +1,761 @@
+{
+  "version": "1.0.0",
+  "updated": "2025-09-30T20:51:03Z",
+  "sources": [
+    {
+      "id": "ai-sdk",
+      "name": "Vercel AI SDK",
+      "description": "TypeScript toolkit for building AI-powered applications",
+      "url": "https://sdk.vercel.ai/llms.txt",
+      "category": "library",
+      "tags": [
+        "ai",
+        "typescript",
+        "streaming",
+        "react",
+        "vercel"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "ai",
+          "@ai-sdk/openai",
+          "@ai-sdk/anthropic"
+        ],
+        "github": [
+          "vercel/ai"
+        ]
+      }
+    },
+    {
+      "id": "ant-design",
+      "name": "Ant Design",
+      "description": "Enterprise-class UI design language and React UI library",
+      "url": "https://ant.design/llms-full.txt",
+      "category": "library",
+      "tags": [
+        "react",
+        "ui",
+        "components",
+        "design-system",
+        "enterprise"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "ant-design/ant-design"
+        ],
+        "npm": [
+          "antd"
+        ]
+      }
+    },
+    {
+      "id": "astro",
+      "name": "Astro",
+      "description": "Web framework for content-driven websites",
+      "url": "https://docs.astro.build/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "javascript",
+        "framework",
+        "static",
+        "ssr",
+        "islands"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "astro"
+        ],
+        "github": [
+          "withastro/astro"
+        ]
+      }
+    },
+    {
+      "id": "bun",
+      "name": "Bun",
+      "description": "Fast all-in-one JavaScript runtime",
+      "url": "https://bun.sh/llms-full.txt",
+      "fallback": "https://bun.sh/llms.txt",
+      "category": "runtime",
+      "tags": [
+        "javascript",
+        "runtime",
+        "bundler",
+        "package-manager"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "oven-sh/bun"
+        ],
+        "npm": [
+          "bun"
+        ]
+      }
+    },
+    {
+      "id": "chakra-ui",
+      "name": "Chakra UI",
+      "description": "Simple, modular and accessible React component library",
+      "url": "https://chakra-ui.com/llms-full.txt",
+      "category": "library",
+      "tags": [
+        "react",
+        "ui",
+        "components",
+        "accessibility",
+        "design-system"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "@chakra-ui/react"
+        ],
+        "github": [
+          "chakra-ui/chakra-ui"
+        ]
+      }
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "description": "Developer platform for edge computing and serverless applications",
+      "url": "https://developers.cloudflare.com/llms-full.txt",
+      "category": "platform",
+      "tags": [
+        "edge",
+        "serverless",
+        "workers",
+        "cdn",
+        "platform"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "wrangler",
+          "@cloudflare/workers-types"
+        ],
+        "github": [
+          "cloudflare/workers-sdk"
+        ]
+      }
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "description": "AI-powered code editor",
+      "url": "https://docs.cursor.com/llms-full.txt",
+      "category": "tool",
+      "tags": [
+        "editor",
+        "ai",
+        "ide",
+        "development"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "getcursor/cursor"
+        ]
+      }
+    },
+    {
+      "id": "deno",
+      "name": "Deno",
+      "description": "Modern JavaScript and TypeScript runtime",
+      "url": "https://docs.deno.com/llms-full.txt",
+      "category": "runtime",
+      "tags": [
+        "javascript",
+        "typescript",
+        "runtime",
+        "secure"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "denoland/deno"
+        ],
+        "npm": [
+          "deno"
+        ]
+      }
+    },
+    {
+      "id": "drizzle",
+      "name": "Drizzle ORM",
+      "description": "TypeScript ORM for SQL databases",
+      "url": "https://orm.drizzle.team/llms-full.txt",
+      "category": "library",
+      "tags": [
+        "typescript",
+        "orm",
+        "database",
+        "sql",
+        "postgres"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "drizzle-team/drizzle-orm"
+        ],
+        "npm": [
+          "drizzle-orm"
+        ]
+      }
+    },
+    {
+      "id": "expo",
+      "name": "Expo",
+      "description": "Framework and platform for universal React applications",
+      "url": "https://docs.expo.dev/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "react-native",
+        "mobile",
+        "ios",
+        "android",
+        "cross-platform"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "expo"
+        ],
+        "github": [
+          "expo/expo"
+        ]
+      }
+    },
+    {
+      "id": "langchain-js",
+      "name": "LangChain JavaScript (Index)",
+      "description": "LangChain JavaScript documentation index - links to full docs",
+      "url": "https://js.langchain.com/llms.txt",
+      "category": "framework",
+      "tags": [
+        "ai",
+        "llm",
+        "javascript",
+        "typescript",
+        "agents",
+        "index"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "langchain-ai/langchainjs"
+        ],
+        "npm": [
+          "langchain",
+          "@langchain/core"
+        ]
+      }
+    },
+    {
+      "id": "langchain-python",
+      "name": "LangChain Python (Index)",
+      "description": "LangChain Python documentation index - links to full docs",
+      "url": "https://python.langchain.com/llms.txt",
+      "category": "framework",
+      "tags": [
+        "ai",
+        "llm",
+        "python",
+        "agents",
+        "index"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "langchain-ai/langchain"
+        ],
+        "pypi": [
+          "langchain"
+        ]
+      }
+    },
+    {
+      "id": "langgraph-js",
+      "name": "LangGraph JavaScript",
+      "description": "Build stateful, multi-actor applications with LLMs - JavaScript/TypeScript",
+      "url": "https://langchain-ai.github.io/langgraphjs/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "ai",
+        "llm",
+        "javascript",
+        "typescript",
+        "agents",
+        "workflows",
+        "state-machines"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "@langchain/langgraph"
+        ],
+        "github": [
+          "langchain-ai/langgraphjs"
+        ]
+      }
+    },
+    {
+      "id": "langgraph-python",
+      "name": "LangGraph Python",
+      "description": "Build stateful, multi-actor applications with LLMs - Python",
+      "url": "https://langchain-ai.github.io/langgraph/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "ai",
+        "llm",
+        "python",
+        "agents",
+        "workflows",
+        "state-machines"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "pypi": [
+          "langgraph"
+        ],
+        "github": [
+          "langchain-ai/langgraph"
+        ]
+      }
+    },
+    {
+      "id": "mastra",
+      "name": "Mastra",
+      "description": "TypeScript framework for AI agents and workflows",
+      "url": "https://mastra.ai/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "ai",
+        "agents",
+        "typescript",
+        "workflows"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "mastra-ai/mastra"
+        ],
+        "npm": [
+          "@mastra/core"
+        ]
+      }
+    },
+    {
+      "id": "mui",
+      "name": "Material-UI",
+      "description": "React components that implement Google's Material Design",
+      "url": "https://mui.com/x/llms.txt",
+      "category": "library",
+      "tags": [
+        "react",
+        "ui",
+        "components",
+        "material-design"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "@mui/material",
+          "@mui/x-data-grid"
+        ],
+        "github": [
+          "mui/material-ui"
+        ]
+      }
+    },
+    {
+      "id": "pinecone",
+      "name": "Pinecone",
+      "description": "Vector database for AI applications",
+      "url": "https://docs.pinecone.io/llms-full.txt",
+      "category": "database",
+      "tags": [
+        "vector",
+        "database",
+        "ai",
+        "embeddings",
+        "search"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "pinecone-io/pinecone-ts-client"
+        ],
+        "pypi": [
+          "pinecone-client"
+        ],
+        "npm": [
+          "@pinecone-database/pinecone"
+        ]
+      }
+    },
+    {
+      "id": "preact",
+      "name": "Preact",
+      "description": "Fast 3kB React alternative with the same modern API",
+      "url": "https://preactjs.com/llms.txt",
+      "category": "library",
+      "tags": [
+        "javascript",
+        "ui",
+        "frontend",
+        "react",
+        "lightweight"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "preact"
+        ],
+        "github": [
+          "preactjs/preact"
+        ]
+      }
+    },
+    {
+      "id": "prisma",
+      "name": "Prisma",
+      "description": "Next-generation TypeScript ORM for Node.js and TypeScript",
+      "url": "https://prisma.io/docs/llms-full.txt",
+      "category": "library",
+      "tags": [
+        "typescript",
+        "orm",
+        "database",
+        "graphql",
+        "postgres"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "prisma/prisma"
+        ],
+        "npm": [
+          "prisma",
+          "@prisma/client"
+        ]
+      }
+    },
+    {
+      "id": "redis",
+      "name": "Redis (Index)",
+      "description": "Redis documentation index - links to full docs",
+      "url": "https://redis.io/llms.txt",
+      "category": "database",
+      "tags": [
+        "database",
+        "cache",
+        "in-memory",
+        "key-value",
+        "index"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "redis",
+          "ioredis"
+        ],
+        "github": [
+          "redis/redis"
+        ]
+      }
+    },
+    {
+      "id": "supabase-cli",
+      "name": "Supabase CLI",
+      "description": "Supabase command-line interface reference",
+      "url": "https://supabase.com/llms/cli.txt",
+      "category": "tool",
+      "tags": [
+        "database",
+        "postgres",
+        "cli",
+        "tool"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/cli"
+        ]
+      }
+    },
+    {
+      "id": "supabase-csharp",
+      "name": "Supabase C#",
+      "description": "Supabase C#/.NET client library reference",
+      "url": "https://supabase.com/llms/csharp.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "csharp",
+        "dotnet",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-csharp"
+        ]
+      }
+    },
+    {
+      "id": "supabase-dart",
+      "name": "Supabase Dart",
+      "description": "Supabase Dart/Flutter client library reference",
+      "url": "https://supabase.com/llms/dart.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "dart",
+        "flutter",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-flutter"
+        ]
+      }
+    },
+    {
+      "id": "supabase-guides",
+      "name": "Supabase Guides",
+      "description": "Comprehensive guides for Supabase - database, auth, storage, realtime, edge functions",
+      "url": "https://supabase.com/llms/guides.txt",
+      "category": "platform",
+      "tags": [
+        "database",
+        "postgres",
+        "auth",
+        "realtime",
+        "backend",
+        "guides"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase"
+        ]
+      }
+    },
+    {
+      "id": "supabase-js",
+      "name": "Supabase JavaScript",
+      "description": "Supabase JavaScript client library reference",
+      "url": "https://supabase.com/llms/js.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "javascript",
+        "typescript",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-js"
+        ],
+        "npm": [
+          "@supabase/supabase-js"
+        ]
+      }
+    },
+    {
+      "id": "supabase-kotlin",
+      "name": "Supabase Kotlin",
+      "description": "Supabase Kotlin/Android client library reference",
+      "url": "https://supabase.com/llms/kotlin.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "kotlin",
+        "android",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-kt"
+        ]
+      }
+    },
+    {
+      "id": "supabase-python",
+      "name": "Supabase Python",
+      "description": "Supabase Python client library reference",
+      "url": "https://supabase.com/llms/python.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "python",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-py"
+        ],
+        "pypi": [
+          "supabase"
+        ]
+      }
+    },
+    {
+      "id": "supabase-swift",
+      "name": "Supabase Swift",
+      "description": "Supabase Swift/iOS client library reference",
+      "url": "https://supabase.com/llms/swift.txt",
+      "category": "library",
+      "tags": [
+        "database",
+        "postgres",
+        "swift",
+        "ios",
+        "client"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "supabase/supabase-swift"
+        ]
+      }
+    },
+    {
+      "id": "svelte",
+      "name": "Svelte",
+      "description": "Cybernetically enhanced web apps",
+      "url": "https://svelte.dev/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "javascript",
+        "framework",
+        "ui",
+        "frontend",
+        "compiler"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "svelte"
+        ],
+        "github": [
+          "sveltejs/svelte"
+        ]
+      }
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "description": "Vercel platform documentation - deployment, serverless, edge functions",
+      "url": "https://vercel.com/llms.txt",
+      "category": "platform",
+      "tags": [
+        "hosting",
+        "deployment",
+        "serverless",
+        "edge",
+        "platform"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "vercel/vercel"
+        ],
+        "npm": [
+          "vercel"
+        ]
+      }
+    },
+    {
+      "id": "vite",
+      "name": "Vite",
+      "description": "Next generation frontend build tool",
+      "url": "https://vitejs.dev/llms-full.txt",
+      "category": "tool",
+      "tags": [
+        "build",
+        "bundler",
+        "dev-server",
+        "frontend"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "vite"
+        ],
+        "github": [
+          "vitejs/vite"
+        ]
+      }
+    },
+    {
+      "id": "vue",
+      "name": "Vue.js",
+      "description": "Progressive JavaScript framework for building user interfaces",
+      "url": "https://vuejs.org/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "javascript",
+        "framework",
+        "ui",
+        "frontend",
+        "components"
+      ],
+      "registeredAt": "2025-09-30T20:00:00Z",
+      "verifiedAt": "2025-09-30T20:00:00Z",
+      "aliases": {
+        "github": [
+          "vuejs/core"
+        ],
+        "npm": [
+          "vue"
+        ]
+      }
+    }
+  ]
+}

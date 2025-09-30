@@ -1,14 +1,37 @@
 //! Add command implementation
 
 use anyhow::Result;
-use blz_core::{Fetcher, Flavor, MarkdownParser, PerformanceMetrics, SearchIndex, Source, Storage};
+use blz_core::{Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, Storage};
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::utils::flavor::{build_llms_json, discover_flavor_candidates};
+use crate::utils::json_builder::build_llms_json;
 use crate::utils::validation::{normalize_alias, validate_alias};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceAnalysis {
+    #[serde(alias = "alias")]
+    name: String,
+    url: String,
+    final_url: String,
+    analysis: ContentAnalysis,
+    would_index: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContentAnalysis {
+    line_count: usize,
+    char_count: usize,
+    header_count: usize,
+    sections: usize,
+    file_size: String,
+    content_type: String,
+}
 
 /// Add a new documentation source
 ///
@@ -16,12 +39,16 @@ use crate::utils::validation::{normalize_alias, validate_alias};
 ///
 /// * `alias` - Local alias for the source (will be normalized to kebab-case)
 /// * `url` - URL to fetch llms.txt from
+/// * `aliases` - Additional aliases to associate with this source
 /// * `auto_yes` - Skip confirmation prompts (non-interactive mode)
+/// * `dry_run` - Analyze source without adding it (outputs JSON analysis)
 /// * `metrics` - Performance metrics collector
 pub async fn execute(
     alias: &str,
     url: &str,
+    aliases: &[String],
     auto_yes: bool,
+    dry_run: bool,
     quiet: bool,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
@@ -30,7 +57,7 @@ pub async fn execute(
     let normalized_alias = normalize_alias(alias);
 
     // Show normalization if it changed
-    if normalized_alias != alias && !quiet {
+    if normalized_alias != alias && !quiet && !dry_run {
         println!(
             "Normalizing alias: '{}' → '{}'",
             alias,
@@ -47,7 +74,7 @@ pub async fn execute(
         match parsed.scheme() {
             "http" | "https" => {},
             other => {
-                if !quiet {
+                if !quiet && !dry_run {
                     eprintln!(
                         "Warning: URL scheme '{other}' may not be supported for fetching ({url}).\n \
                          If this is a local file, consider hosting llms.txt or using a supported HTTP URL."
@@ -55,203 +82,155 @@ pub async fn execute(
                 }
             },
         }
-    } else if !quiet {
+    } else if !quiet && !dry_run {
         eprintln!("Warning: URL appears invalid: {url}");
     }
 
-    fetch_and_index_variants(&normalized_alias, url, quiet, fetcher, metrics).await
+    fetch_and_index(
+        &normalized_alias,
+        url,
+        aliases,
+        dry_run,
+        quiet,
+        fetcher,
+        metrics,
+    )
+    .await
 }
 
-#[allow(clippy::too_many_lines)]
-async fn fetch_and_index_variants(
+async fn fetch_and_index(
     alias: &str,
     url: &str,
+    aliases: &[String],
+    dry_run: bool,
     quiet: bool,
     fetcher: Fetcher,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
-    let mut candidates = discover_flavor_candidates(&fetcher, url).await?;
-    if candidates.is_empty() {
-        anyhow::bail!("No reachable llms.txt variants discovered for {url}");
+    // Check if source already exists (skip in dry-run mode)
+    if !dry_run {
+        let storage = Storage::new()?;
+        if storage.exists(alias) {
+            anyhow::bail!(
+                "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
+                alias,
+                alias
+            );
+        }
     }
-
-    let storage = Storage::new()?;
-    if storage.exists_any_flavor(alias) {
-        anyhow::bail!(
-            "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
-            alias,
-            alias
-        );
-    }
-    let index_path = storage.index_dir(alias)?;
-    let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
 
     let spinner = if quiet {
         ProgressBar::hidden()
     } else {
-        create_spinner("Fetching documentation variants...")
+        create_spinner("Fetching documentation...")
     };
-    let mut summaries = Vec::new();
-    let mut skipped = 0usize;
 
-    for candidate in &mut candidates {
-        if !quiet {
-            spinner.set_message(format!("Fetching {}", candidate.file_name));
-        }
+    // Fetch the content
+    spinner.set_message("Fetching llms.txt...");
+    let fetch_result = fetcher.fetch_with_cache(url, None, None).await?;
 
-        let head_ok = match crate::utils::http::head_with_retries(&fetcher, &candidate.url, 3, 200)
-            .await
-        {
-            Ok(meta) => {
-                let status = meta.status;
-                if status == 405 || status == 501 {
-                    if !quiet {
-                        eprintln!(
-                            "Warning: Server does not support HEAD (HTTP {status}) for {}. Proceeding with GET.",
-                            candidate.url
-                        );
-                    }
-                    true
-                } else if (200..=399).contains(&status) {
-                    true
-                } else {
-                    if !quiet {
-                        eprintln!(
-                            "Skipping {} due to preflight failure (HTTP {status}).",
-                            candidate.url
-                        );
-                    }
-                    skipped += 1;
-                    false
-                }
-            },
-            Err(err) => {
-                if !quiet {
-                    eprintln!(
-                        "Skipping {}: Preflight HEAD request failed: {err}",
-                        candidate.url
-                    );
-                }
-                skipped += 1;
-                false
-            },
-        };
-
-        if !head_ok {
-            continue;
-        }
-
-        let fetch_result = fetcher.fetch_with_cache(&candidate.url, None, None).await?;
-
-        let (content, sha256, etag, last_modified) = match fetch_result {
-            blz_core::FetchResult::Modified {
-                content,
-                sha256,
-                etag,
-                last_modified,
-            } => (content, sha256, etag, last_modified),
-            blz_core::FetchResult::NotModified { .. } => {
-                if !quiet {
-                    eprintln!(
-                        "Skipping {}: server returned 304 Not Modified on initial fetch.",
-                        candidate.url
-                    );
-                }
-                skipped += 1;
-                continue;
-            },
-        };
-
-        if !quiet {
-            spinner.set_message(format!("Parsing {}", candidate.file_name));
-        }
-        let mut parser = MarkdownParser::new()?;
-        let parse_result = parser.parse(&content)?;
-
-        let (file_name, flavor_id, summary_label) =
-            match Flavor::from_identifier(&candidate.flavor_id) {
-                Some(flavor) => {
-                    let id = flavor.as_str();
-
-                    // Log when using llms-full due to FORCE_PREFER_FULL
-                    if crate::utils::flavor::FORCE_PREFER_FULL
-                        && id == crate::utils::flavor::FULL_FLAVOR
-                    {
-                        tracing::info!(
-                            alias = alias,
-                            flavor = id,
-                            "Using llms-full.txt (preferred flavor)"
-                        );
-                    }
-
-                    (flavor.file_name(), id, id.to_string())
-                },
-                None => (
-                    candidate.file_name.as_str(),
-                    candidate.flavor_id.as_str(),
-                    candidate.flavor_id.clone(),
-                ),
-            };
-
-        storage.save_flavor_content(alias, file_name, &content)?;
-
-        let llms_json = build_llms_json(
-            alias,
-            &candidate.url,
-            file_name,
-            sha256.clone(),
-            etag.clone(),
-            last_modified.clone(),
-            &parse_result,
-        );
-        storage.save_flavor_json(alias, flavor_id, &llms_json)?;
-
-        let metadata = Source {
-            url: candidate.url.clone(),
+    let (content, sha256, etag, last_modified) = match fetch_result {
+        blz_core::FetchResult::Modified {
+            content,
+            sha256,
             etag,
             last_modified,
-            fetched_at: Utc::now(),
-            sha256,
-            aliases: Vec::new(),
+        } => (content, sha256, etag, last_modified),
+        blz_core::FetchResult::NotModified { .. } => {
+            anyhow::bail!(
+                "Server returned 304 Not Modified on initial fetch. This should not happen for new sources."
+            );
+        },
+    };
+
+    // Parse the content
+    spinner.set_message("Parsing markdown...");
+    let mut parser = MarkdownParser::new()?;
+    let parse_result = parser.parse(&content)?;
+
+    // In dry-run mode, analyze content and output JSON instead of indexing
+    if dry_run {
+        let line_count = content.lines().count();
+        let char_count = content.len();
+        let header_count = parse_result.heading_blocks.len();
+        let sections = parse_result.toc.len();
+        let file_size = format_size(content.len());
+
+        // Determine content type based on line count
+        let content_type = if line_count > 1000 {
+            "full"
+        } else if line_count < 100 {
+            "index"
+        } else {
+            "mixed"
         };
-        storage.save_source_metadata_for_flavor(alias, flavor_id, &metadata)?;
 
-        index.index_blocks(alias, file_name, &parse_result.heading_blocks, flavor_id)?;
+        let analysis = SourceAnalysis {
+            name: alias.to_string(),
+            url: url.to_string(),
+            final_url: url.to_string(),
+            analysis: ContentAnalysis {
+                line_count,
+                char_count,
+                header_count,
+                sections,
+                file_size,
+                content_type: content_type.to_string(),
+            },
+            would_index: true,
+        };
 
-        summaries.push((
-            summary_label,
-            llms_json.toc.len(),
-            llms_json.line_index.total_lines,
-        ));
+        let json = serde_json::to_string_pretty(&analysis)?;
+        println!("{json}");
+        spinner.finish_and_clear();
+        return Ok(());
     }
+
+    // Save content and metadata
+    let storage = Storage::new()?;
+    spinner.set_message("Saving content...");
+    storage.save_llms_txt(alias, &content)?;
+
+    // Build and save JSON metadata
+    let llms_json = build_llms_json(
+        alias,
+        url,
+        "llms.txt",
+        sha256.clone(),
+        etag.clone(),
+        last_modified.clone(),
+        &parse_result,
+    );
+    storage.save_llms_json(alias, &llms_json)?;
+
+    // Save source metadata
+    let metadata = Source {
+        url: url.to_string(),
+        etag,
+        last_modified,
+        fetched_at: Utc::now(),
+        sha256,
+        aliases: aliases.to_vec(),
+        tags: Vec::new(),
+    };
+    storage.save_source_metadata(alias, &metadata)?;
+
+    // Create and populate index
+    spinner.set_message("Indexing content...");
+    let index_path = storage.index_dir(alias)?;
+    let index = SearchIndex::create(&index_path)?.with_metrics(metrics);
+    index.index_blocks(alias, &parse_result.heading_blocks)?;
 
     spinner.finish_and_clear();
 
-    if summaries.is_empty() {
-        anyhow::bail!(
-            "No reachable llms.txt variants for {}. Nothing was added ({} skipped).",
-            url,
-            skipped
-        );
-    }
-
-    let summary_text = summaries
-        .iter()
-        .map(|(flavor, headings, lines)| format!("{flavor}: {headings} headings, {lines} lines"))
-        .collect::<Vec<_>>()
-        .join(", ");
-
     if !quiet {
-        if skipped > 0 {
-            println!(
-                "{} {} ({}) — {skipped} variant(s) skipped",
-                "✓ Added".green(),
-                alias.green(),
-                summary_text
-            );
-        } else {
-            println!("{} {} ({})", "✓ Added".green(), alias.green(), summary_text);
-        }
+        println!(
+            "{} {} ({} headings, {} lines)",
+            "✓ Added".green(),
+            alias.green(),
+            llms_json.toc.len(),
+            llms_json.line_index.total_lines
+        );
     }
 
     Ok(())
@@ -266,4 +245,17 @@ fn create_spinner(message: &str) -> ProgressBar {
     );
     pb.set_message(message.to_string());
     pb
+}
+
+fn format_size(bytes: usize) -> String {
+    const KB: usize = 1024;
+    const MB: usize = KB * 1024;
+
+    if bytes < KB {
+        format!("{bytes} B")
+    } else if bytes < MB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    }
 }

@@ -1,0 +1,12 @@
+id = "svelte"
+name = "Svelte"
+description = "Cybernetically enhanced web apps"
+url = "https://svelte.dev/llms-full.txt"
+category = "framework"
+tags = ["javascript", "framework", "ui", "frontend", "compiler"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["svelte"]
+github = ["sveltejs/svelte"]

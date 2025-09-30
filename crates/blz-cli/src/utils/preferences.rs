@@ -27,7 +27,7 @@ pub struct SearchHistoryEntry {
     pub timestamp: String,
     pub query: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub alias: Option<String>,
+    pub source: Option<String>,
     pub format: String,
     pub show: Vec<String>,
     pub snippet_lines: u8,
@@ -185,7 +185,7 @@ impl<'a> HistoryEntryBuilder<'a> {
         SearchHistoryEntry {
             timestamp,
             query: self.query.to_string(),
-            alias: self.alias.map(std::string::ToString::to_string),
+            source: self.alias.map(std::string::ToString::to_string),
             format: format_to_string(self.format),
             show: components_to_strings(self.show),
             snippet_lines: clamp_snippet(self.snippet_lines),

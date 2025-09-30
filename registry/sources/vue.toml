@@ -1,0 +1,12 @@
+id = "vue"
+name = "Vue.js"
+description = "Progressive JavaScript framework for building user interfaces"
+url = "https://vuejs.org/llms-full.txt"
+category = "framework"
+tags = ["javascript", "framework", "ui", "frontend", "components"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["vue"]
+github = ["vuejs/core"]

@@ -57,10 +57,10 @@
 
 pub mod cli_args;
 pub mod constants;
-pub mod flavor;
 pub mod formatting;
 pub mod history_log;
 pub mod http;
+pub mod json_builder;
 pub mod parsing;
 pub mod preferences;
 pub mod process_guard;

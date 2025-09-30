@@ -11,13 +11,8 @@ static INIT: Once = Once::new();
 
 macro_rules! assert_benign_stderr {
     ($result:expr) => {
-        $result.stderr(
-            predicates::str::is_empty()
-                .or(predicates::str::contains("No sources found"))
-                .or(predicates::str::contains(
-                    "Flavor filtering requested (llms) but index schema has no flavor field; ignoring",
-                )),
-        );
+        $result
+            .stderr(predicates::str::is_empty().or(predicates::str::contains("No sources found")));
     };
 }
 

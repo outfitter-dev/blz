@@ -798,7 +798,7 @@ fn search_result_size(results: &Vec<SearchHit>) -> usize {
     std::mem::size_of::<Vec<SearchHit>>() + 
     results.len() * std::mem::size_of::<SearchHit>() +
     results.iter().map(|hit| {
-        hit.alias.len() +
+        hit.source.len() +
         hit.file.len() +
         hit.heading_path.iter().map(|s| s.len()).sum::<usize>() +
         hit.lines.len() +

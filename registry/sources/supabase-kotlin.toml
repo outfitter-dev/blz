@@ -1,0 +1,11 @@
+id = "supabase-kotlin"
+name = "Supabase Kotlin"
+description = "Supabase Kotlin/Android client library reference"
+url = "https://supabase.com/llms/kotlin.txt"
+category = "library"
+tags = ["database", "postgres", "kotlin", "android", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/supabase-kt"]

@@ -29,7 +29,7 @@ mod instruct_mod {
 }
 
 use crate::utils::preferences::{self, CliPreferences};
-use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands};
+use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands, RegistryCommands};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -433,12 +433,21 @@ async fn execute_command(
         Some(Commands::Docs { format }) => handle_docs(format)?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Instruct) => instruct_mod::print(),
-        Some(Commands::Add { alias, url, yes }) => {
-            commands::add_source(&alias, &url, yes, cli.quiet, metrics).await?;
+        Some(Commands::Add {
+            alias,
+            url,
+            aliases,
+            yes,
+            dry_run,
+        }) => {
+            commands::add_source(&alias, &url, &aliases, yes, dry_run, cli.quiet, metrics).await?;
         },
         Some(Commands::Lookup { query, format }) => {
             commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))
                 .await?;
+        },
+        Some(Commands::Registry { command }) => {
+            handle_registry(command, cli.quiet, metrics).await?;
         },
         Some(Commands::Search {
             query,
@@ -450,7 +459,6 @@ async fn execute_command(
             page,
             top,
             format,
-            flavor,
             show,
             no_summary,
             score_precision,
@@ -467,7 +475,6 @@ async fn execute_command(
                 page,
                 top,
                 resolved_format,
-                flavor,
                 show,
                 no_summary,
                 score_precision,
@@ -487,24 +494,19 @@ async fn execute_command(
             alias,
             lines,
             context,
-            flavor,
             format,
         }) => {
-            commands::get_lines(&alias, &lines, context, flavor, format.resolve(cli.quiet)).await?;
+            commands::get_lines(&alias, &lines, context, format.resolve(cli.quiet)).await?;
         },
         Some(Commands::List { format, status }) => {
-            commands::list_sources(format.resolve(cli.quiet), status, cli.quiet).await?;
+            commands::list_sources(format.resolve(cli.quiet), status).await?;
         },
         Some(Commands::Update {
             alias,
             all,
-            flavor,
-            yes,
+            yes: _, // Ignored - kept for CLI backward compat
         }) => {
-            handle_update(alias, all, metrics, cli.quiet, flavor, yes).await?;
-        },
-        Some(Commands::Upgrade { alias, all, yes }) => {
-            commands::execute_upgrade(alias, all, yes).await?;
+            handle_update(alias, all, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -557,6 +559,41 @@ async fn handle_alias(command: AliasCommands) -> Result<()> {
     }
 }
 
+async fn handle_registry(
+    command: RegistryCommands,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    match command {
+        RegistryCommands::CreateSource {
+            name,
+            url,
+            description,
+            category,
+            tags,
+            npm,
+            github,
+            add,
+            yes,
+        } => {
+            commands::create_registry_source(
+                &name,
+                &url,
+                description,
+                category,
+                tags,
+                npm,
+                github,
+                add,
+                yes,
+                quiet,
+                metrics,
+            )
+            .await
+        },
+    }
+}
+
 #[allow(
     clippy::too_many_arguments,
     clippy::fn_params_excessive_bools,
@@ -572,7 +609,6 @@ async fn handle_search(
     page: usize,
     top: Option<u8>,
     format: crate::output::OutputFormat,
-    flavor: crate::commands::FlavorMode,
     show: Vec<crate::cli::ShowComponent>,
     no_summary: bool,
     score_precision: Option<u8>,
@@ -626,7 +662,7 @@ async fn handle_search(
 
     let actual_source = match (source, history_entry.as_ref()) {
         (Some(src), _) => Some(src),
-        (None, Some(entry)) => entry.alias.clone(),
+        (None, Some(entry)) => entry.source.clone(),
         (None, None) => None,
     };
 
@@ -691,7 +727,6 @@ async fn handle_search(
         actual_page,
         top,
         format,
-        flavor,
         &show,
         no_summary,
         score_precision,
@@ -708,13 +743,11 @@ async fn handle_update(
     all: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
-    flavor: crate::commands::FlavorMode,
-    yes: bool,
 ) -> Result<()> {
     if all || alias.is_none() {
-        commands::update_all(metrics, quiet, flavor, yes).await
+        commands::update_all(metrics, quiet).await
     } else if let Some(alias) = alias {
-        commands::update_source(&alias, metrics, quiet, flavor, yes).await
+        commands::update_source(&alias, metrics, quiet).await
     } else {
         Ok(())
     }
@@ -1021,7 +1054,6 @@ mod tests {
             page,
             all,
             format,
-            flavor,
             ..
         }) = cli.command
         {
@@ -1041,10 +1073,6 @@ mod tests {
                 format.resolve(false),
                 expected_format,
                 "Default format should be JSON when piped, Text when terminal"
-            );
-            assert!(
-                matches!(flavor, crate::commands::FlavorMode::Current),
-                "Default flavor should be current"
             );
         } else {
             panic!("Expected search command");
@@ -1371,10 +1399,19 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Add { alias, url, yes }) = cli.command {
+        if let Some(Commands::Add {
+            alias,
+            url,
+            aliases,
+            yes,
+            dry_run,
+        }) = cli.command
+        {
             assert_eq!(alias, "test");
             assert_eq!(url, "https://example.com/llms.txt");
+            assert!(aliases.is_empty());
             assert!(yes);
+            assert!(!dry_run);
         } else {
             panic!("Expected add command");
         }
@@ -1395,17 +1432,12 @@ mod tests {
             alias,
             lines,
             context,
-            flavor,
             format,
         }) = cli.command
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, "1-10");
             assert_eq!(context, Some(5));
-            assert!(
-                matches!(flavor, crate::commands::FlavorMode::Current),
-                "Default flavor should be Current"
-            );
             let _ = format; // ignore
         } else {
             panic!("Expected get command");

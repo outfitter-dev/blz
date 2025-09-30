@@ -1,0 +1,12 @@
+id = "langgraph-js"
+name = "LangGraph JavaScript"
+description = "Build stateful, multi-actor applications with LLMs - JavaScript/TypeScript"
+url = "https://langchain-ai.github.io/langgraphjs/llms-full.txt"
+category = "framework"
+tags = ["ai", "llm", "javascript", "typescript", "agents", "workflows", "state-machines"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["langchain-ai/langgraphjs"]
+npm = ["@langchain/langgraph"]

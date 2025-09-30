@@ -1,0 +1,12 @@
+id = "ai-sdk"
+name = "Vercel AI SDK"
+description = "TypeScript toolkit for building AI-powered applications"
+url = "https://sdk.vercel.ai/llms.txt"
+category = "library"
+tags = ["ai", "typescript", "streaming", "react", "vercel"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["ai", "@ai-sdk/openai", "@ai-sdk/anthropic"]
+github = ["vercel/ai"]

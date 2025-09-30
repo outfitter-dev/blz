@@ -1,0 +1,12 @@
+id = "chakra-ui"
+name = "Chakra UI"
+description = "Simple, modular and accessible React component library"
+url = "https://chakra-ui.com/llms-full.txt"
+category = "library"
+tags = ["react", "ui", "components", "accessibility", "design-system"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["@chakra-ui/react"]
+github = ["chakra-ui/chakra-ui"]

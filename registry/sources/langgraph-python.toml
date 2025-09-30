@@ -1,0 +1,12 @@
+id = "langgraph-python"
+name = "LangGraph Python"
+description = "Build stateful, multi-actor applications with LLMs - Python"
+url = "https://langchain-ai.github.io/langgraph/llms-full.txt"
+category = "framework"
+tags = ["ai", "llm", "python", "agents", "workflows", "state-machines"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["langchain-ai/langgraph"]
+pypi = ["langgraph"]
