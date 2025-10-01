@@ -7,6 +7,16 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 - Follow the @./.agents/rules/IMPORTANT.md rules
 - Check @.agents/logs/ for relevant work logs and session notes
 
+## Working Memory
+
+**Always check and update `SCRATCHPAD.md`** - This is your working memory file.
+
+- Read `SCRATCHPAD.md` at the start of each session to understand recent work
+- Update it as you work, especially after completing significant changes
+- Use dated H2 sections (e.g., `## 2025-10-01`) with bullet points
+- Link to detailed logs in `.agents/logs/` for comprehensive documentation
+- Keep it concise - this is a quick reference, not a detailed log
+
 ## Use blz
 
 - You're working on blz, so you should use it!
