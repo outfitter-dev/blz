@@ -1,8 +1,8 @@
 # Worklogs
 
-Keep track of your work and progress by default in the `.agents/logs/CURRENT.md` file.
+Keep track of your work and progress using timestamped log files in `.agents/logs/`.
 
-For more detailed worklogs, use the commands and templates below.
+Use the commands and templates below to create structured logs.
 
 ## Commands
 

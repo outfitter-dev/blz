@@ -5,7 +5,7 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 ## Important
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
-- Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
+- Check @.agents/logs/ for relevant work logs and session notes
 
 ## Use blz
 
