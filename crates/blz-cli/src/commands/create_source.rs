@@ -8,9 +8,54 @@ use dialoguer::{Confirm, Input, MultiSelect};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+use tokio::process::Command;
 
 use crate::commands::add_source;
+
+/// TOML source file structure
+#[derive(Debug, Serialize, Deserialize)]
+struct SourceToml {
+    id: String,
+    name: String,
+    description: String,
+    url: String,
+    category: String,
+    tags: Vec<String>,
+    #[serde(rename = "registeredAt")]
+    registered_at: String,
+    #[serde(rename = "verifiedAt")]
+    verified_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aliases: Option<AliasesSection>,
+    analysis: AnalysisSection,
+}
+
+/// Aliases section for npm/github packages
+#[derive(Debug, Serialize, Deserialize)]
+struct AliasesSection {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    npm: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    github: Option<Vec<String>>,
+}
+
+/// Analysis section metadata
+#[derive(Debug, Serialize, Deserialize)]
+struct AnalysisSection {
+    #[serde(rename = "contentType")]
+    content_type: String,
+    #[serde(rename = "lineCount")]
+    line_count: usize,
+    #[serde(rename = "charCount")]
+    char_count: usize,
+    #[serde(rename = "headerCount")]
+    header_count: usize,
+    sections: usize,
+    #[serde(rename = "fileSize")]
+    file_size: String,
+    #[serde(rename = "analyzedAt")]
+    analyzed_at: String,
+}
 
 /// Execute the registry create-source command
 ///
@@ -90,7 +135,7 @@ pub async fn execute(
     }
 
     // Step 6: Rebuild registry
-    rebuild_registry(quiet)?;
+    rebuild_registry(quiet).await?;
 
     if !quiet {
         println!("{} Added {} to registry", "✓".green(), name.green());
@@ -151,21 +196,12 @@ async fn analyze_source(
     _metrics: PerformanceMetrics,
 ) -> Result<SourceAnalysis> {
     // Run blz add --dry-run as subprocess to capture JSON output
-    let output = Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--bin",
-            "blz",
-            "--",
-            "add",
-            name,
-            url,
-            "--dry-run",
-            "--quiet",
-        ])
+    // Use installed blz binary instead of cargo run for production compatibility
+    let output = Command::new("blz")
+        .args(["add", name, url, "--dry-run", "--quiet"])
         .output()
-        .context("Failed to run blz add --dry-run")?;
+        .await
+        .context("Failed to run blz add --dry-run. Ensure 'blz' is installed in PATH.")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -334,81 +370,49 @@ fn create_source_toml(
 
     let now = Utc::now().to_rfc3339();
 
-    // Build TOML content
-    let mut toml_content = format!(
-        r#"id = "{}"
-name = "{}"
-description = "{}"
-url = "{}"
-category = "{}"
-tags = [{}]
-registeredAt = "{}"
-verifiedAt = "{}"
-"#,
-        name,
-        name, // Use alias as name by default
-        metadata.description,
-        analysis.final_url,
-        metadata.category,
-        metadata
-            .tags
-            .iter()
-            .map(|t| format!("\"{t}\""))
-            .collect::<Vec<_>>()
-            .join(", "),
-        now,
-        now
-    );
+    // Build aliases section if NPM or GitHub repos provided
+    let aliases = if !metadata.npm_packages.is_empty() || !metadata.github_repos.is_empty() {
+        Some(AliasesSection {
+            npm: if metadata.npm_packages.is_empty() {
+                None
+            } else {
+                Some(metadata.npm_packages)
+            },
+            github: if metadata.github_repos.is_empty() {
+                None
+            } else {
+                Some(metadata.github_repos)
+            },
+        })
+    } else {
+        None
+    };
 
-    // Add aliases section if NPM or GitHub repos provided
-    if !metadata.npm_packages.is_empty() || !metadata.github_repos.is_empty() {
-        toml_content.push_str("\n[aliases]\n");
+    // Build the TOML structure
+    let source_toml = SourceToml {
+        id: name.to_string(),
+        name: name.to_string(),
+        description: metadata.description,
+        url: analysis.final_url,
+        category: metadata.category,
+        tags: metadata.tags,
+        registered_at: now.clone(),
+        verified_at: now.clone(),
+        aliases,
+        analysis: AnalysisSection {
+            content_type: analysis.analysis.content_type,
+            line_count: analysis.analysis.line_count,
+            char_count: analysis.analysis.char_count,
+            header_count: analysis.analysis.header_count,
+            sections: analysis.analysis.sections,
+            file_size: analysis.analysis.file_size,
+            analyzed_at: now,
+        },
+    };
 
-        if !metadata.npm_packages.is_empty() {
-            toml_content.push_str(&format!(
-                "npm = [{}]\n",
-                metadata
-                    .npm_packages
-                    .iter()
-                    .map(|p| format!("\"{p}\""))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
-
-        if !metadata.github_repos.is_empty() {
-            toml_content.push_str(&format!(
-                "github = [{}]\n",
-                metadata
-                    .github_repos
-                    .iter()
-                    .map(|r| format!("\"{r}\""))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
-    }
-
-    // Add analysis section
-    toml_content.push_str(&format!(
-        r#"
-[analysis]
-contentType = "{}"
-lineCount = {}
-charCount = {}
-headerCount = {}
-sections = {}
-fileSize = "{}"
-analyzedAt = "{}"
-"#,
-        analysis.analysis.content_type,
-        analysis.analysis.line_count,
-        analysis.analysis.char_count,
-        analysis.analysis.header_count,
-        analysis.analysis.sections,
-        analysis.analysis.file_size,
-        now
-    ));
+    // Serialize to TOML with proper escaping
+    let toml_content =
+        toml::to_string_pretty(&source_toml).context("Failed to serialize TOML structure")?;
 
     fs::write(&toml_path, toml_content).context("Failed to write TOML file")?;
 
@@ -416,13 +420,14 @@ analyzedAt = "{}"
 }
 
 /// Rebuild the registry JSON from TOML sources
-fn rebuild_registry(quiet: bool) -> Result<()> {
+async fn rebuild_registry(quiet: bool) -> Result<()> {
     if !quiet {
         println!("Rebuilding registry...");
     }
 
     let output = Command::new("./registry/scripts/build.sh")
         .output()
+        .await
         .context("Failed to run registry build script")?;
 
     if !output.status.success() {

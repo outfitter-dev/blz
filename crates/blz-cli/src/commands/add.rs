@@ -108,16 +108,14 @@ async fn fetch_and_index(
     fetcher: Fetcher,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
-    // Check if source already exists (skip in dry-run mode)
-    if !dry_run {
-        let storage = Storage::new()?;
-        if storage.exists(alias) {
-            anyhow::bail!(
-                "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
-                alias,
-                alias
-            );
-        }
+    // Check if source already exists (validate even in dry-run mode)
+    let storage = Storage::new()?;
+    if storage.exists(alias) {
+        anyhow::bail!(
+            "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
+            alias,
+            alias
+        );
     }
 
     let spinner = if quiet {
