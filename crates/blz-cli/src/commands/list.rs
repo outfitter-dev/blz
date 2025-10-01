@@ -6,6 +6,7 @@ use colored::Colorize;
 use serde_json::Value;
 
 use crate::output::OutputFormat;
+use crate::utils::count_headings;
 use crate::utils::formatting::get_alias_color;
 
 /// Execute the list command
@@ -44,7 +45,7 @@ pub async fn execute(format: OutputFormat, status: bool) -> Result<()> {
             etag: metadata.etag,
             last_modified: metadata.last_modified,
             lines: json_data.line_index.total_lines,
-            headings: json_data.toc.len(),
+            headings: count_headings(&json_data.toc),
         });
     }
 

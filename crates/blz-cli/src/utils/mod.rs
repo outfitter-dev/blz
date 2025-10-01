@@ -67,9 +67,11 @@ pub mod process_guard;
 pub mod resolver;
 pub mod settings;
 pub mod store;
+pub mod toc;
 pub mod validation;
 
 #[cfg(test)]
 pub mod test_support;
 
 // Re-export commonly used utilities
+pub use toc::count_headings;

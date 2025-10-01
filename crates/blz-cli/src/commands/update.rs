@@ -9,6 +9,7 @@ use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Instant;
 
+use crate::utils::count_headings;
 use crate::utils::json_builder::build_llms_json;
 use crate::utils::resolver;
 
@@ -166,7 +167,7 @@ async fn update_source(
             "{} {} ({} headings, {} lines) in {:?}",
             "✓ Updated".green(),
             alias.green(),
-            llms_json.toc.len(),
+            count_headings(&llms_json.toc),
             llms_json.line_index.total_lines,
             elapsed
         );

@@ -426,17 +426,35 @@ impl MarkdownParser {
         // Second pass: build blocks by slicing between headings
         let mut current_path = Vec::new();
         let mut stack: VecDeque<usize> = VecDeque::new();
+        let mut baseline_level: Option<usize> = None;
 
         for i in 0..headings.len() {
             let heading = &headings[i];
 
             // Update path based on heading level
-            while stack.len() >= heading.level {
+            let trimmed = heading.text.trim();
+            if heading.level == 1 && trimmed.starts_with("404") {
+                // Skip placeholder 404 pages so they do not capture subsequent sections.
+                current_path.clear();
+                stack.clear();
+                continue;
+            }
+
+            if baseline_level.is_none() || heading.level < baseline_level.unwrap() {
+                baseline_level = Some(heading.level);
+            }
+            let baseline = baseline_level.unwrap_or(1);
+            let effective_level = heading
+                .level
+                .saturating_sub(baseline.saturating_sub(1))
+                .max(1);
+
+            while stack.len() >= effective_level {
                 stack.pop_back();
                 current_path.pop();
             }
             current_path.push(heading.text.clone());
-            stack.push_back(heading.level);
+            stack.push_back(effective_level);
 
             // Determine content range
             let content_start = heading.byte_start;
@@ -732,6 +750,51 @@ mod tests {
         // Anchor should be stable even if lines changed
         assert_eq!(anchor_v1, anchor_v2, "anchor stable across moves");
         assert_ne!(lines_v1, lines_v2, "lines should reflect new position");
+    }
+
+    #[test]
+    fn test_skips_placeholder_404_headings() -> Result<()> {
+        let mut parser = create_test_parser();
+
+        let doc = r"# 404
+
+Check the URL.
+
+## Actual Section
+
+Real content lives here.
+
+### Nested Detail
+
+Additional context.
+
+## Follow Up
+
+More guidance.
+";
+
+        let result = parser.parse(doc)?;
+
+        assert_eq!(
+            result.toc.len(),
+            2,
+            "top-level entries should ignore 404 headings"
+        );
+        assert!(
+            result.toc.iter().all(|entry| entry
+                .heading_path
+                .iter()
+                .all(|component| !component.starts_with("404"))),
+            "toc should not contain placeholder 404 entries"
+        );
+        assert_eq!(
+            result.heading_blocks.len(),
+            3,
+            "children under 404 should remain accessible"
+        );
+        assert_eq!(result.heading_blocks[0].path[0], "Actual Section");
+
+        Ok(())
     }
 
     fn simple_markdown() -> &'static str {

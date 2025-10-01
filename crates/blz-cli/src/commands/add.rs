@@ -8,6 +8,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::utils::count_headings;
 use crate::utils::json_builder::build_llms_json;
 use crate::utils::validation::{normalize_alias, validate_alias};
 
@@ -228,7 +229,7 @@ async fn fetch_and_index(
             "{} {} ({} headings, {} lines)",
             "✓ Added".green(),
             alias.green(),
-            llms_json.toc.len(),
+            count_headings(&llms_json.toc),
             llms_json.line_index.total_lines
         );
     }
