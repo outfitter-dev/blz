@@ -17,6 +17,19 @@ pub fn resolve_source(storage: &Storage, requested: &str) -> Result<Option<Strin
 
     let mut matches: Vec<String> = Vec::new();
     for src in &known {
+        let mut matched = false;
+
+        if let Ok(Some(metadata)) = storage.load_source_metadata(src) {
+            if metadata.aliases.iter().any(|a| a == requested) {
+                matches.push(src.clone());
+                matched = true;
+            }
+        }
+
+        if matched {
+            continue;
+        }
+
         if let Ok(llms) = storage.load_llms_json(src) {
             if llms.metadata.aliases.iter().any(|a| a == requested) {
                 matches.push(src.clone());

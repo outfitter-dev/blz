@@ -87,6 +87,10 @@ async fn update_source(
     let existing_metadata = storage
         .load_source_metadata(alias)?
         .ok_or_else(|| anyhow!("Missing metadata for {}", alias))?;
+    let existing_llms_aliases = match storage.load_llms_json(alias) {
+        Ok(existing_llms) => existing_llms.metadata.aliases,
+        Err(_) => Vec::new(),
+    };
 
     let current_url = existing_metadata.url.clone();
     let fetcher = Fetcher::new()?;
@@ -137,7 +141,14 @@ async fn update_source(
         last_modified.clone(),
         &parse_result,
     );
-    llms_json.metadata.aliases = existing_metadata.aliases.clone();
+    let mut merged_aliases = existing_metadata.aliases.clone();
+    for alias_value in existing_llms_aliases {
+        if !merged_aliases.contains(&alias_value) {
+            merged_aliases.push(alias_value);
+        }
+    }
+
+    llms_json.metadata.aliases = merged_aliases.clone();
     llms_json.metadata.tags = existing_metadata.tags.clone();
     storage.save_llms_json(alias, &llms_json)?;
 
@@ -148,7 +159,7 @@ async fn update_source(
         last_modified,
         fetched_at: Utc::now(),
         sha256,
-        aliases: existing_metadata.aliases,
+        aliases: merged_aliases,
         tags: existing_metadata.tags,
     };
     storage.save_source_metadata(alias, &metadata)?;

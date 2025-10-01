@@ -376,12 +376,12 @@ fn create_source_toml(
             npm: if metadata.npm_packages.is_empty() {
                 None
             } else {
-                Some(metadata.npm_packages)
+                Some(metadata.npm_packages.clone())
             },
             github: if metadata.github_repos.is_empty() {
                 None
             } else {
-                Some(metadata.github_repos)
+                Some(metadata.github_repos.clone())
             },
         })
     } else {
@@ -392,20 +392,20 @@ fn create_source_toml(
     let source_toml = SourceToml {
         id: name.to_string(),
         name: name.to_string(),
-        description: metadata.description,
-        url: analysis.final_url,
-        category: metadata.category,
-        tags: metadata.tags,
+        description: metadata.description.clone(),
+        url: analysis.final_url.clone(),
+        category: metadata.category.clone(),
+        tags: metadata.tags.clone(),
         registered_at: now.clone(),
         verified_at: now.clone(),
         aliases,
         analysis: AnalysisSection {
-            content_type: analysis.analysis.content_type,
+            content_type: analysis.analysis.content_type.clone(),
             line_count: analysis.analysis.line_count,
             char_count: analysis.analysis.char_count,
             header_count: analysis.analysis.header_count,
             sections: analysis.analysis.sections,
-            file_size: analysis.analysis.file_size,
+            file_size: analysis.analysis.file_size.clone(),
             analyzed_at: now,
         },
     };

@@ -11,6 +11,8 @@ Quick notes and links to detailed work logs.
 - Consolidated work logs into single comprehensive document
   - See: [v0.5.0-release-work.md](.agents/logs/v0.5.0-release-work.md)
 - Pushed `gt/v0.5-release` branch to remote (ready for PR when needed)
+- Restored metadata alias propagation for update/add flows; resolver now consults metadata aliases (branch `gt/feat/cli/restore-metadata-alias-propagation`)
+- Fixed registry `create_source` cloning so cargo check/tests/install succeed; local CLI reinstalled after `cargo install --path crates/blz-cli`
 
 ## 2025-09-30
 

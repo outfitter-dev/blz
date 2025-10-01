@@ -200,6 +200,8 @@ async fn fetch_and_index(
         last_modified.clone(),
         &parse_result,
     );
+    let mut llms_json = llms_json;
+    llms_json.metadata.aliases = aliases.iter().cloned().collect::<Vec<_>>();
     storage.save_llms_json(alias, &llms_json)?;
 
     // Save source metadata
