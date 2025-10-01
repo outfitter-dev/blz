@@ -7,6 +7,7 @@ mod add;
 mod alias;
 #[cfg(feature = "anchors")]
 mod anchors;
+mod clear;
 mod completions;
 mod config;
 mod create_source;
@@ -23,6 +24,7 @@ mod update;
 pub use add::execute as add_source;
 pub use alias::{AliasCommand, execute as manage_alias};
 // Anchor commands are behind a feature flag and not re-exported in v0.2
+pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
 pub use config::{ConfigCommand, run as run_config};

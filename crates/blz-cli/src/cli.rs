@@ -408,6 +408,13 @@ pub enum Commands {
         yes: bool,
     },
 
+    /// Clear the entire cache (removes all sources and their data)
+    Clear {
+        /// Skip confirmation prompt
+        #[arg(short = 'f', long = "force")]
+        force: bool,
+    },
+
     /// View diffs (coming soon)
     #[command(hide = true)]
     Diff {

@@ -259,6 +259,25 @@ impl Storage {
         }
         let json = fs::read_to_string(&path)
             .map_err(|e| Error::Storage(format!("Failed to read llms.json: {e}")))?;
+
+        // Try to detect old v0.4.x format
+        if let Ok(raw_value) = serde_json::from_str::<serde_json::Value>(&json) {
+            if let Some(obj) = raw_value.as_object() {
+                // Old format has "alias" field instead of "source"
+                if obj.contains_key("alias")
+                    || (obj.contains_key("source") && obj["source"].is_object())
+                {
+                    return Err(Error::Storage(format!(
+                        "Incompatible cache format detected for source '{source}'.\n\n\
+                         This cache was created with blz v0.4.x or earlier and is not compatible with v0.5.0+.\n\n\
+                         To fix this, clear your cache:\n  \
+                         blz clear --force\n\n\
+                         Then re-add your sources."
+                    )));
+                }
+            }
+        }
+
         let data = serde_json::from_str(&json)
             .map_err(|e| Error::Storage(format!("Failed to parse llms.json: {e}")))?;
         Ok(data)
@@ -340,6 +359,27 @@ impl Storage {
 
         sources.sort();
         sources
+    }
+
+    /// Clears the entire cache directory, removing all sources and their data.
+    ///
+    /// This is a destructive operation that cannot be undone. Use with caution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache directory cannot be removed or recreated.
+    pub fn clear_cache(&self) -> Result<()> {
+        // Remove the entire root directory
+        if self.root_dir.exists() {
+            fs::remove_dir_all(&self.root_dir)
+                .map_err(|e| Error::Storage(format!("Failed to remove cache directory: {e}")))?;
+        }
+
+        // Recreate empty root directory
+        fs::create_dir_all(&self.root_dir)
+            .map_err(|e| Error::Storage(format!("Failed to recreate cache directory: {e}")))?;
+
+        Ok(())
     }
 
     /// Archives the current version of a source

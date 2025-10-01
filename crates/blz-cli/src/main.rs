@@ -511,6 +511,9 @@ async fn execute_command(
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
         },
+        Some(Commands::Clear { force }) => {
+            commands::clear_cache(force)?;
+        },
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
