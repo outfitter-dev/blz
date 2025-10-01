@@ -370,7 +370,15 @@ pub enum DiagnosticSeverity {
 /// The JSON format is designed to be forward-compatible. New fields can be
 /// added without breaking existing readers, and missing fields are handled
 /// gracefully with sensible defaults.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// ## Backwards Compatibility (v0.4.x → v0.5.0)
+///
+/// Field name changes in v0.5.0:
+/// - `alias` (String) → `source` (String)
+/// - `source` (Source object) → `metadata` (Source object)
+///
+/// This struct uses a custom deserializer to handle both old and new formats.
+#[derive(Debug, Clone, Serialize)]
 pub struct LlmsJson {
     /// Unique identifier for this source.
     ///
@@ -408,6 +416,147 @@ pub struct LlmsJson {
     /// how the document was segmented and which parser version produced it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parse_meta: Option<ParseMeta>,
+}
+
+// Custom deserializer for backwards compatibility with v0.4.x format
+impl<'de> Deserialize<'de> for LlmsJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{MapAccess, Visitor};
+        use std::fmt;
+
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            Source,
+            Metadata,
+            Alias,
+            Toc,
+            Files,
+            LineIndex,
+            Diagnostics,
+            ParseMeta,
+        }
+
+        struct LlmsJsonVisitor;
+
+        impl<'de> Visitor<'de> for LlmsJsonVisitor {
+            type Value = LlmsJson;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct LlmsJson")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<LlmsJson, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut source_str: Option<String> = None;
+                let mut source_obj: Option<Source> = None;
+                let mut alias: Option<String> = None;
+                let mut toc = None;
+                let mut files = None;
+                let mut line_index = None;
+                let mut diagnostics = None;
+                let mut parse_meta = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Source => {
+                            // Try to deserialize as String first (new format)
+                            let value: serde_json::Value = map.next_value()?;
+                            if value.is_string() {
+                                source_str = Some(
+                                    value
+                                        .as_str()
+                                        .ok_or_else(|| serde::de::Error::custom("Invalid source"))?
+                                        .to_string(),
+                                );
+                            } else if value.is_object() {
+                                // Old format: "source" is the Source object
+                                source_obj = Some(serde_json::from_value(value).map_err(|e| {
+                                    serde::de::Error::custom(format!("Invalid source object: {e}"))
+                                })?);
+                            } else {
+                                return Err(serde::de::Error::custom(
+                                    "source must be a string or object",
+                                ));
+                            }
+                        },
+                        Field::Metadata => {
+                            source_obj = Some(map.next_value()?);
+                        },
+                        Field::Alias => {
+                            alias = Some(map.next_value()?);
+                        },
+                        Field::Toc => {
+                            toc = Some(map.next_value()?);
+                        },
+                        Field::Files => {
+                            files = Some(map.next_value()?);
+                        },
+                        Field::LineIndex => {
+                            line_index = Some(map.next_value()?);
+                        },
+                        Field::Diagnostics => {
+                            diagnostics = Some(map.next_value()?);
+                        },
+                        Field::ParseMeta => {
+                            parse_meta = Some(map.next_value()?);
+                        },
+                    }
+                }
+
+                // Determine which format we're deserializing
+                let source = if let Some(s) = source_str {
+                    // New format: "source" field is a string
+                    s
+                } else if let Some(a) = alias {
+                    // Old format: "alias" field is the source name
+                    a
+                } else {
+                    return Err(serde::de::Error::missing_field("source or alias"));
+                };
+
+                let metadata = source_obj
+                    .ok_or_else(|| serde::de::Error::missing_field("metadata or source object"))?;
+
+                let toc = toc.ok_or_else(|| serde::de::Error::missing_field("toc"))?;
+                let files = files.ok_or_else(|| serde::de::Error::missing_field("files"))?;
+                let line_index =
+                    line_index.ok_or_else(|| serde::de::Error::missing_field("line_index"))?;
+                let diagnostics =
+                    diagnostics.ok_or_else(|| serde::de::Error::missing_field("diagnostics"))?;
+
+                Ok(LlmsJson {
+                    source,
+                    metadata,
+                    toc,
+                    files,
+                    line_index,
+                    diagnostics,
+                    parse_meta,
+                })
+            }
+        }
+
+        deserializer.deserialize_struct(
+            "LlmsJson",
+            &[
+                "source",
+                "metadata",
+                "alias",
+                "toc",
+                "files",
+                "line_index",
+                "diagnostics",
+                "parse_meta",
+            ],
+            LlmsJsonVisitor,
+        )
+    }
 }
 
 /// Metadata about how parsing/segmentation was performed.
@@ -792,5 +941,58 @@ mod tests {
         assert_eq!(block.start_line, 50);
         assert_eq!(block.end_line, 75);
         assert!(block.content.starts_with("This is the API"));
+    }
+
+    #[test]
+    fn test_llms_json_backwards_compatibility() {
+        // Test that old field names (alias/source) still work
+        let old_format_json = r#"{
+            "alias": "bun",
+            "source": {
+                "url": "https://bun.sh/llms.txt",
+                "etag": "abc123",
+                "last_modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+                "fetched_at": "2024-01-01T00:00:00Z",
+                "sha256": "deadbeef",
+                "aliases": [],
+                "tags": []
+            },
+            "toc": [],
+            "files": [{"path": "llms.txt", "sha256": "deadbeef"}],
+            "line_index": {"total_lines": 100, "byte_offsets": false},
+            "diagnostics": []
+        }"#;
+
+        let deserialized: LlmsJson =
+            serde_json::from_str(old_format_json).expect("Should deserialize old format");
+
+        assert_eq!(deserialized.source, "bun");
+        assert_eq!(deserialized.metadata.url, "https://bun.sh/llms.txt");
+        assert_eq!(deserialized.metadata.sha256, "deadbeef");
+
+        // Test that new field names (source/metadata) work
+        let new_format_json = r#"{
+            "source": "bun",
+            "metadata": {
+                "url": "https://bun.sh/llms.txt",
+                "etag": "abc123",
+                "last_modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+                "fetched_at": "2024-01-01T00:00:00Z",
+                "sha256": "deadbeef",
+                "aliases": [],
+                "tags": []
+            },
+            "toc": [],
+            "files": [{"path": "llms.txt", "sha256": "deadbeef"}],
+            "line_index": {"total_lines": 100, "byte_offsets": false},
+            "diagnostics": []
+        }"#;
+
+        let deserialized: LlmsJson =
+            serde_json::from_str(new_format_json).expect("Should deserialize new format");
+
+        assert_eq!(deserialized.source, "bun");
+        assert_eq!(deserialized.metadata.url, "https://bun.sh/llms.txt");
+        assert_eq!(deserialized.metadata.sha256, "deadbeef");
     }
 }
