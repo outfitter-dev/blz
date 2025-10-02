@@ -356,12 +356,23 @@ pub enum Commands {
     },
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
+    ///
+    /// Supports colon syntax for convenience: `blz get bun:1-3`
+    ///
+    /// Or use the --lines flag: `blz get bun --lines 1-3`
     Get {
-        /// Source (or alias) to retrieve from
+        /// Source or "source:lines" (e.g., "bun:1-3")
+        ///
+        /// When using colon syntax, the --lines flag is optional
+        #[arg(value_name = "ALIAS")]
         alias: String,
-        /// Line range(s) (e.g., "120-142", "36:43,320:350", "36+20")
-        #[arg(short = 'l', long)]
-        lines: String,
+        /// Line range(s) to retrieve
+        ///
+        /// Format: "120-142", "36:43,320:350", "36+20", "1,5,10-15"
+        ///
+        /// Can be omitted if using colon syntax (e.g., "bun:1-3")
+        #[arg(short = 'l', long, value_name = "RANGE")]
+        lines: Option<String>,
         /// Context lines around each line/range
         #[arg(short = 'c', long)]
         context: Option<usize>,

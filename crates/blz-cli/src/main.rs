@@ -494,7 +494,40 @@ async fn execute_command(
             context,
             format,
         }) => {
-            commands::get_lines(&alias, &lines, context, format.resolve(cli.quiet)).await?;
+            // Parse flexible syntax: "alias:lines" or "alias" with separate lines arg
+            let (parsed_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
+                // Colon syntax: "bun:1-3"
+                let (a, l) = alias.split_at(colon_pos);
+                let lines_part = &l[1..]; // Skip the colon
+
+                // If --lines flag was also provided, prefer it over colon syntax
+                if let Some(explicit_lines) = lines {
+                    (a.to_string(), explicit_lines.clone())
+                } else {
+                    (a.to_string(), lines_part.to_string())
+                }
+            } else {
+                // No colon, must have --lines flag or error
+                match lines {
+                    Some(l) => (alias.clone(), l.clone()),
+                    None => {
+                        anyhow::bail!(
+                            "Missing line specification. Use one of:\n  \
+                             blz get {alias}:1-3\n  \
+                             blz get {alias} 1-3\n  \
+                             blz get {alias} --lines 1-3"
+                        );
+                    },
+                }
+            };
+
+            commands::get_lines(
+                &parsed_alias,
+                &parsed_lines,
+                context,
+                format.resolve(cli.quiet),
+            )
+            .await?;
         },
         Some(Commands::List { format, status }) => {
             commands::list_sources(format.resolve(cli.quiet), status).await?;
@@ -969,9 +1002,9 @@ mod tests {
         let invalid_combinations = vec![
             // Missing required arguments
             vec!["blz", "add", "alias"], // Missing URL
-            vec!["blz", "get", "alias"], // Missing --lines argument
-            vec!["blz", "search"],       // Missing query
-            vec!["blz", "lookup"],       // Missing query
+            // Note: "blz get alias" is now valid (supports colon syntax like "alias:1-3")
+            vec!["blz", "search"], // Missing query
+            vec!["blz", "lookup"], // Missing query
             // Invalid flag values
             vec!["blz", "search", "rust", "--limit", "-5"], // Negative limit
             vec!["blz", "search", "rust", "--page", "-1"],  // Negative page
@@ -1437,7 +1470,7 @@ mod tests {
         }) = cli.command
         {
             assert_eq!(alias, "test");
-            assert_eq!(lines, "1-10");
+            assert_eq!(lines, Some("1-10".to_string()));
             assert_eq!(context, Some(5));
             let _ = format; // ignore
         } else {
@@ -1489,7 +1522,7 @@ mod tests {
             // Missing required arguments
             (vec!["blz", "add"], "missing"),
             (vec!["blz", "search"], "required"),
-            (vec!["blz", "get", "alias"], "required"),
+            // Note: "blz get alias" is now valid (supports colon syntax like "alias:1-3")
             // Invalid values
             (vec!["blz", "list", "--format", "invalid"], "invalid"),
         ];
