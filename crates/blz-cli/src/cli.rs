@@ -346,6 +346,9 @@ pub enum Commands {
         default_value_t = 3
     )]
         snippet_lines: u8,
+        /// Don't save this search to history
+        #[arg(long = "no-history")]
+        no_history: bool,
     },
 
     /// Show recent search history and defaults
@@ -356,6 +359,12 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Clear all search history
+        #[arg(long, conflicts_with = "clear_before")]
+        clear: bool,
+        /// Clear search history before the specified date (format: YYYY-MM-DD or ISO 8601)
+        #[arg(long = "clear-before", value_name = "DATE", conflicts_with = "clear")]
+        clear_before: Option<String>,
     },
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source

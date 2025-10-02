@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use colored::Colorize;
 use serde_json::json;
 
@@ -6,7 +7,38 @@ use crate::output::OutputFormat;
 use crate::utils::history_log;
 use crate::utils::preferences::{self, CliPreferences};
 
-pub fn show(prefs: &CliPreferences, limit: usize, format: OutputFormat) -> Result<()> {
+pub fn show(
+    prefs: &CliPreferences,
+    limit: usize,
+    format: OutputFormat,
+    clear: bool,
+    clear_before: Option<&str>,
+) -> Result<()> {
+    // Handle clear operations
+    if clear {
+        history_log::clear_all()?;
+        if format == OutputFormat::Text {
+            println!("{}", "All search history cleared.".green());
+        }
+        return Ok(());
+    }
+
+    if let Some(date_str) = clear_before {
+        let cutoff_date = parse_date(date_str)?;
+        history_log::clear_before(&cutoff_date)?;
+        if format == OutputFormat::Text {
+            println!(
+                "{}",
+                format!(
+                    "Search history before {} cleared.",
+                    cutoff_date.to_rfc3339()
+                )
+                .green()
+            );
+        }
+        return Ok(());
+    }
+
     let limit = limit.max(1);
     let entries: Vec<_> = history_log::recent_for_active_scope(limit);
     match format {
@@ -77,4 +109,19 @@ fn render_text(prefs: &CliPreferences, entries: &[preferences::SearchHistoryEntr
         println!("   {} {}", "timestamp:".bright_black(), entry.timestamp);
         println!();
     }
+}
+
+fn parse_date(date_str: &str) -> Result<DateTime<Utc>> {
+    // Try parsing as YYYY-MM-DD format first
+    if let Ok(naive_date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        return Ok(naive_date
+            .and_hms_opt(0, 0, 0)
+            .ok_or_else(|| anyhow::anyhow!("Invalid date"))?
+            .and_utc());
+    }
+
+    // Try parsing as ISO 8601 format
+    date_str
+        .parse::<DateTime<Utc>>()
+        .map_err(|_| anyhow::anyhow!("Invalid date format. Use YYYY-MM-DD or ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00:00Z)"))
 }

@@ -34,6 +34,7 @@ pub struct SearchOptions {
     pub score_precision: Option<u8>,
     pub snippet_lines: u8,
     pub(crate) all: bool,
+    pub no_history: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -75,6 +76,7 @@ pub async fn execute(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    no_history: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -96,6 +98,7 @@ pub async fn execute(
         score_precision,
         snippet_lines: snippet_lines.max(1),
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
+        no_history,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -138,8 +141,10 @@ pub async fn execute(
             total_results: Some(total_results),
         })
         .build();
-        if let Err(err) = history_log::append(&history_entry) {
-            warn!("failed to persist search history: {err}");
+        if !options.no_history {
+            if let Err(err) = history_log::append(&history_entry) {
+                warn!("failed to persist search history: {err}");
+            }
         }
     }
 
@@ -231,6 +236,7 @@ pub async fn handle_default(
         false,
         Some(score_precision),
         snippet_lines,
+        false, // no_history: false for default search
         Some(prefs),
         metrics,
         resource_monitor,
@@ -812,6 +818,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         // Should not panic even with empty results
@@ -839,6 +846,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -866,6 +874,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: true,
+            no_history: false,
         };
 
         // This should NOT panic even with empty results
@@ -890,6 +899,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: true,
+            no_history: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -919,6 +929,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -947,6 +958,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -969,6 +981,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         let test_results = create_test_results(10);
@@ -998,6 +1011,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: false,
+            no_history: false,
         };
 
         let results1 = create_test_results(8);
@@ -1025,6 +1039,7 @@ mod tests {
             score_precision: None,
             snippet_lines: 3,
             all: true,
+            no_history: false,
         };
 
         let results2 = create_test_results(0);

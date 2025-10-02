@@ -160,6 +160,32 @@ fn history_path() -> PathBuf {
     store::active_config_dir().join(HISTORY_FILENAME)
 }
 
+/// Clear all search history
+pub fn clear_all() -> std::io::Result<()> {
+    let path = history_path();
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
+/// Clear search history before a specific date
+pub fn clear_before(cutoff: &chrono::DateTime<chrono::Utc>) -> std::io::Result<()> {
+    let mut records = load_all();
+
+    // Filter out records before the cutoff date
+    records.retain(|record| {
+        if let Ok(timestamp) = chrono::DateTime::parse_from_rfc3339(&record.entry.timestamp) {
+            timestamp.with_timezone(&chrono::Utc) >= *cutoff
+        } else {
+            // Keep records with unparseable timestamps
+            true
+        }
+    });
+
+    write_all(&records)
+}
+
 #[cfg(test)]
 #[allow(unsafe_code, clippy::unwrap_used, clippy::panic, clippy::expect_used)]
 mod tests {

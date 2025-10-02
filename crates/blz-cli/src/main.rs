@@ -465,6 +465,7 @@ async fn execute_command(
             no_summary,
             score_precision,
             snippet_lines,
+            no_history,
         }) => {
             let resolved_format = format.resolve(cli.quiet);
             handle_search(
@@ -481,13 +482,25 @@ async fn execute_command(
                 no_summary,
                 score_precision,
                 snippet_lines,
+                no_history,
                 metrics,
                 prefs,
             )
             .await?;
         },
-        Some(Commands::History { limit, format }) => {
-            commands::show_history(prefs, limit, format.resolve(cli.quiet))?;
+        Some(Commands::History {
+            limit,
+            format,
+            clear,
+            clear_before,
+        }) => {
+            commands::show_history(
+                prefs,
+                limit,
+                format.resolve(cli.quiet),
+                clear,
+                clear_before.as_deref(),
+            )?;
         },
         // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
         Some(Commands::Get {
@@ -655,6 +668,7 @@ async fn handle_search(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    no_history: bool,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
@@ -783,6 +797,7 @@ async fn handle_search(
         no_summary,
         score_precision,
         snippet_lines,
+        no_history,
         Some(prefs),
         metrics,
         None,
