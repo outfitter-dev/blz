@@ -11,8 +11,18 @@ static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
 pub struct FormatArg {
     /// Canonical output format flag (`--format` / `-f`)
-    #[arg(short = 'f', long = "format", value_enum, env = "BLZ_OUTPUT_FORMAT")]
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_enum,
+        env = "BLZ_OUTPUT_FORMAT",
+        conflicts_with = "json"
+    )]
     pub format: Option<OutputFormat>,
+
+    /// Convenience flag for JSON output (equivalent to --format json)
+    #[arg(long, conflicts_with = "format")]
+    pub json: bool,
 
     /// Hidden deprecated alias that maps to `--format`
     #[arg(long = "output", short = 'o', hide = true, value_enum)]
@@ -25,6 +35,11 @@ impl FormatArg {
     /// defaults to JSON for better machine readability.
     #[must_use]
     pub fn resolve(&self, quiet: bool) -> OutputFormat {
+        // If --json flag is set, return JSON immediately
+        if self.json {
+            return OutputFormat::Json;
+        }
+
         if let Some(deprecated) = self.deprecated_output {
             emit_deprecated_warning(quiet);
             if self.format.is_none() {
@@ -132,6 +147,7 @@ mod tests {
 
         let args = FormatArg {
             format: Some(OutputFormat::Jsonl),
+            json: false,
             deprecated_output: None,
         };
 
@@ -151,6 +167,7 @@ mod tests {
 
         let args = FormatArg {
             format: None,
+            json: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -174,6 +191,7 @@ mod tests {
 
         let args = FormatArg {
             format: None,
+            json: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -186,5 +204,37 @@ mod tests {
         // Quiet mode should also suppress the warning.
         assert_eq!(args.resolve(true), OutputFormat::Json);
         assert!(!OUTPUT_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn json_flag_returns_json_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: true,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Json);
+    }
+
+    #[test]
+    fn json_flag_takes_precedence_over_pipe_detection() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        // Even with format set to None (which would trigger pipe detection),
+        // json flag should take precedence
+        let args = FormatArg {
+            format: None,
+            json: true,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Json);
     }
 }
