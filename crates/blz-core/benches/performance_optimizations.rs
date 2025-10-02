@@ -95,7 +95,7 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
         .with_metrics(PerformanceMetrics::default());
 
     index
-        .index_blocks("bench", "test.md", blocks, BASE_FLAVOR)
+        .index_blocks("bench", blocks)
         .expect("Failed to index blocks");
 
     (temp_dir, index)
@@ -342,7 +342,6 @@ fn bench_caching_strategies(c: &mut Criterion) {
     let create_search_results = |count: usize| {
         (0..count)
             .map(|i| blz_core::SearchHit {
-                alias: format!("alias_{}", i % 5),
                 source: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
@@ -436,7 +435,7 @@ fn bench_indexing_performance(c: &mut Criterion) {
                 },
                 |(temp_dir, index)| {
                     index
-                        .index_blocks("bench", "test.md", black_box(&blocks), BASE_FLAVOR)
+                        .index_blocks("bench", black_box(&blocks))
                         .expect("Failed to index blocks");
                     drop(temp_dir);
                 },

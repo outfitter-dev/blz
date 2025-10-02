@@ -9,6 +9,7 @@ use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
 /// Execute the get command to retrieve specific lines from a source
+#[allow(clippy::too_many_lines)]
 pub async fn execute(
     alias: &str,
     lines: &str,
@@ -55,7 +56,8 @@ pub async fn execute(
     })?;
 
     let file_lines: Vec<&str> = file_content.lines().collect();
-    let ranges = parse_line_ranges(lines)?;
+    let ranges =
+        parse_line_ranges(lines).map_err(|err| anyhow::anyhow!("Invalid --lines format: {err}"))?;
 
     // Collect all requested line numbers (1-based) and expand with context
     let mut requested_lines = BTreeSet::new();
@@ -88,7 +90,7 @@ pub async fn execute(
                 }
             },
             LineRange::PlusCount(start, count) => {
-                let end = start + count;
+                let end = start.saturating_add(count.saturating_sub(1));
                 for i in *start..=end {
                     requested_lines.insert(i);
                 }
@@ -105,43 +107,48 @@ pub async fn execute(
         }
     }
 
+    let line_numbers: Vec<usize> = requested_lines
+        .into_iter()
+        .filter(|&n| n > 0 && n <= file_lines.len())
+        .collect();
+
     match format {
         OutputFormat::Text => {
             // Print lines with line numbers
-            for line_num in requested_lines {
-                if line_num == 0 || line_num > file_lines.len() {
-                    continue;
-                }
+            for &line_num in &line_numbers {
                 let line_content = file_lines[line_num - 1];
                 println!("{:>5} | {}", line_num.to_string().blue(), line_content);
             }
         },
         OutputFormat::Json => {
-            // Output JSON array of line objects
-            let lines_json: Vec<serde_json::Value> = requested_lines
-                .into_iter()
-                .filter(|&n| n > 0 && n <= file_lines.len())
-                .map(|n| {
-                    serde_json::json!({
-                        "line": n,
-                        "content": file_lines[n - 1]
-                    })
-                })
-                .collect();
-            println!("{}", serde_json::to_string_pretty(&lines_json)?);
+            let joined_content = line_numbers
+                .iter()
+                .map(|&line_num| file_lines[line_num - 1])
+                .collect::<Vec<_>>()
+                .join("\n");
+            let response = serde_json::json!({
+                "alias": alias,
+                "source": canonical,
+                "lines": lines,
+                "lineNumbers": line_numbers,
+                "content": joined_content,
+            });
+            println!("{}", serde_json::to_string_pretty(&response)?);
         },
         OutputFormat::Jsonl => {
-            // Output newline-delimited JSON
-            for line_num in requested_lines {
-                if line_num == 0 || line_num > file_lines.len() {
-                    continue;
-                }
-                let line_obj = serde_json::json!({
-                    "line": line_num,
-                    "content": file_lines[line_num - 1]
-                });
-                println!("{}", serde_json::to_string(&line_obj)?);
-            }
+            let joined_content = line_numbers
+                .iter()
+                .map(|&line_num| file_lines[line_num - 1])
+                .collect::<Vec<_>>()
+                .join("\n");
+            let response = serde_json::json!({
+                "alias": alias,
+                "source": canonical,
+                "lines": lines,
+                "lineNumbers": line_numbers,
+                "content": joined_content,
+            });
+            println!("{}", serde_json::to_string(&response)?);
         },
     }
 

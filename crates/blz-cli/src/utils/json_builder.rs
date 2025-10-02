@@ -24,6 +24,7 @@ pub fn build_llms_json(
             last_modified,
             fetched_at: Utc::now(),
             sha256: sha256.clone(),
+            variant: blz_core::SourceVariant::Llms, // Default, will be updated by caller
             aliases: Vec::new(),
             tags: Vec::new(),
         },

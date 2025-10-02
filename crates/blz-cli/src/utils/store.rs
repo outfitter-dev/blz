@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::warn;
 
-const STORE_FILENAME: &str = "blz.json";
+const STORE_FILENAME: &str = "data.json";
 const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,14 +23,7 @@ pub struct ScopeRecord {
     pub cli_preferences: Value,
     #[serde(default)]
     pub user_settings: Value,
-    #[serde(default)]
-    pub sources: HashMap<String, SourceOverrides>,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct SourceOverrides {
-    #[serde(default)]
-    pub preferred_flavor: Option<String>,
+    // sources HashMap removed in v1.0.0-beta.1 - was only used for flavor overrides
 }
 
 const fn default_schema_version() -> u32 {
@@ -112,9 +104,21 @@ pub fn global_config_dir() -> PathBuf {
             return Path::new(trimmed).to_path_buf();
         }
     }
-    if let Some(project_dirs) = ProjectDirs::from("dev", "outfitter", "blz") {
-        return project_dirs.config_dir().to_path_buf();
+
+    // Use XDG_CONFIG_HOME if explicitly set
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        let trimmed = xdg.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed).join("blz");
+        }
     }
+
+    // Fallback to ~/.blz/ (dotfile convention for non-XDG systems)
+    if let Some(base_dirs) = directories::BaseDirs::new() {
+        return base_dirs.home_dir().join(".blz");
+    }
+
+    // Last resort: current directory
     Path::new(".").to_path_buf()
 }
 
@@ -226,5 +230,5 @@ mod tests {
         })
     }
 
-    // Test for source flavor overrides removed - feature no longer exists with FORCE_PREFER_FULL
+    // Tests for flavor overrides removed - feature eliminated in v1.0.0-beta.1
 }

@@ -289,8 +289,7 @@ async fn perform_search(
             // Load source metadata and check if it's index-only
             match storage.load_source_metadata(alias) {
                 Ok(Some(metadata)) => !metadata.is_index_only(),
-                Ok(None) => true, // No metadata, allow search (backward compat)
-                Err(_) => true,   // Error loading metadata, allow search
+                Ok(None) | Err(_) => true, // Allow search when metadata missing or failed
             }
         })
         .collect();
@@ -338,9 +337,9 @@ async fn perform_search(
                         })?
                         .with_metrics(metrics);
 
-                    // Always use "txt" flavor (simplified from flavor resolution)
+                    // Flavor parameter deprecated, passing None
                     let hits = index
-                        .search(&query, Some(&source), Some("txt"), effective_limit)
+                        .search(&query, Some(&source), None, effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -763,7 +762,7 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
-                flavor: Some("txt".to_string()),
+                flavor: None, // Will be removed entirely in Phase 3
             })
             .collect();
 

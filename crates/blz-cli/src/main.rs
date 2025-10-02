@@ -247,7 +247,6 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
         ("--format", "--format"),
         ("--output", "--output"),
         ("--show", "--show"),
-        ("--flavor", "--flavor"),
         ("--score-precision", "--score-precision"),
         ("--snippet-lines", "--snippet-lines"),
     ] {
@@ -410,6 +409,7 @@ fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_command(
     cli: Cli,
     metrics: PerformanceMetrics,
@@ -487,9 +487,7 @@ async fn execute_command(
         Some(Commands::History { limit, format }) => {
             commands::show_history(prefs, limit, format.resolve(cli.quiet))?;
         },
-        Some(Commands::Config { command }) => {
-            commands::run_config(command)?;
-        },
+        // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
         Some(Commands::Get {
             alias,
             lines,

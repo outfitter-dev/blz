@@ -57,7 +57,7 @@
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::ConfigCommand;
+// ConfigCommand removed in v1.0.0-beta.1
 use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
@@ -354,12 +354,7 @@ pub enum Commands {
         #[command(flatten)]
         format: FormatArg,
     },
-    /// Manage CLI configuration files and preferences
-    Config {
-        #[command(subcommand)]
-        command: Option<ConfigCommand>,
-    },
-
+    // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
     Get {
         /// Source (or alias) to retrieve from

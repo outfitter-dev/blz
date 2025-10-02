@@ -45,8 +45,8 @@ impl Storage {
         }
     }
 
-    // Helper methods removed - now always use consistent filenames:
-    // - llms.txt for content
+    // Storage uses consistent filenames regardless of source URL:
+    // - llms.txt for content (even if fetched from llms-full.txt)
     // - llms.json for parsed data
     // - metadata.json for source metadata
 
@@ -58,15 +58,30 @@ impl Storage {
             return Self::with_root(root);
         }
 
-        let project_dirs = ProjectDirs::from("dev", "outfitter", "blz")
-            .ok_or_else(|| Error::Storage("Failed to determine project directories".into()))?;
-
-        let root_dir = project_dirs.data_dir().to_path_buf();
+        // Use XDG_DATA_HOME if explicitly set
+        let root_dir = if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+            let trimmed = xdg.trim();
+            if trimmed.is_empty() {
+                Self::fallback_data_dir()?
+            } else {
+                PathBuf::from(trimmed).join("blz")
+            }
+        } else {
+            Self::fallback_data_dir()?
+        };
 
         // Check for migration from old cache directory
         Self::check_and_migrate_old_cache(&root_dir);
 
         Self::with_root(root_dir)
+    }
+
+    /// Fallback data directory when `XDG_DATA_HOME` is not set
+    fn fallback_data_dir() -> Result<PathBuf> {
+        // Use ~/.blz/ for data (same location as config for non-XDG systems)
+        let home = directories::BaseDirs::new()
+            .ok_or_else(|| Error::Storage("Failed to determine home directory".into()))?;
+        Ok(home.home_dir().join(".blz"))
     }
 
     /// Creates a new storage instance with a custom root directory
@@ -81,7 +96,7 @@ impl Storage {
     pub fn tool_dir(&self, source: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks
         Self::validate_alias(source)?;
-        Ok(self.root_dir.join(source))
+        Ok(self.root_dir.join("sources").join(source))
     }
 
     /// Resolve the on-disk path for a specific flavored content file.
@@ -344,8 +359,9 @@ impl Storage {
     #[must_use]
     pub fn list_sources(&self) -> Vec<String> {
         let mut sources = Vec::new();
+        let sources_dir = self.root_dir.join("sources");
 
-        if let Ok(entries) = fs::read_dir(&self.root_dir) {
+        if let Ok(entries) = fs::read_dir(&sources_dir) {
             for entry in entries.flatten() {
                 if entry.path().is_dir() {
                     if let Some(name) = entry.file_name().to_str() {
@@ -391,7 +407,7 @@ impl Storage {
         // Include seconds for uniqueness and clearer chronology
         let timestamp = Utc::now().format("%Y-%m-%dT%H-%M-%SZ");
 
-        // Archive all llms*.json and llms*.txt files (multi-flavor support)
+        // Archive all llms*.json and llms*.txt files
         let dir = self.tool_dir(source)?;
         if dir.exists() {
             for entry in fs::read_dir(&dir)
@@ -532,7 +548,7 @@ impl Storage {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::types::{FileInfo, LineIndex, Source, TocEntry};
+    use crate::types::{FileInfo, LineIndex, Source, SourceVariant, TocEntry};
     use std::fs;
     use tempfile::TempDir;
 
@@ -552,6 +568,7 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "deadbeef".to_string(),
+                variant: SourceVariant::Llms,
                 aliases: Vec::new(),
                 tags: Vec::new(),
             },

@@ -11,8 +11,6 @@ use std::hint::black_box;
 use std::time::Duration;
 use tempfile::TempDir;
 
-const BASE_FLAVOR: &str = "llms";
-
 // Create realistic test data
 fn create_test_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
     let mut blocks = Vec::new();
@@ -69,7 +67,7 @@ fn setup_index_with_blocks(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
         .with_metrics(PerformanceMetrics::default());
 
     index
-        .index_blocks("bench", "test.md", blocks, BASE_FLAVOR)
+        .index_blocks("bench", blocks)
         .expect("Failed to index blocks");
 
     (temp_dir, index)
@@ -199,7 +197,7 @@ fn bench_index_building(c: &mut Criterion) {
                 },
                 |(temp_dir, index)| {
                     index
-                        .index_blocks("bench", "test.md", black_box(blocks), BASE_FLAVOR)
+                        .index_blocks("bench", black_box(blocks))
                         .expect("Failed to index blocks");
                     // Keep temp_dir alive
                     drop(temp_dir);

@@ -10,6 +10,7 @@ use url::Url;
 
 use crate::utils::count_headings;
 use crate::utils::json_builder::build_llms_json;
+use crate::utils::url_resolver;
 use crate::utils::validation::{normalize_alias, validate_alias};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,6 +100,7 @@ pub async fn execute(
     .await
 }
 
+#[allow(clippy::too_many_lines)]
 async fn fetch_and_index(
     alias: &str,
     url: &str,
@@ -121,12 +123,29 @@ async fn fetch_and_index(
     let spinner = if quiet {
         ProgressBar::hidden()
     } else {
-        create_spinner("Fetching documentation...")
+        create_spinner("Resolving URL...")
     };
 
-    // Fetch the content
-    spinner.set_message("Fetching llms.txt...");
-    let fetch_result = fetcher.fetch_with_cache(url, None, None).await?;
+    // Resolve the best URL variant (llms-full.txt vs llms.txt)
+    spinner.set_message("Resolving URL variant...");
+    let resolved = url_resolver::resolve_best_url(&fetcher, url).await?;
+
+    // Show warning if index file
+    if resolved.should_warn && !quiet && !dry_run {
+        spinner.finish_and_clear();
+        eprintln!(
+            "{} This appears to be a navigation index only ({} lines).\n\
+             BLZ works best with full documentation files (llms-full.txt).",
+            "⚠".yellow(),
+            resolved.line_count
+        );
+    }
+
+    // Fetch from resolved URL
+    spinner.set_message("Fetching documentation...");
+    let fetch_result = fetcher
+        .fetch_with_cache(&resolved.final_url, None, None)
+        .await?;
 
     let (content, sha256, etag, last_modified) = match fetch_result {
         blz_core::FetchResult::Modified {
@@ -149,27 +168,23 @@ async fn fetch_and_index(
 
     // In dry-run mode, analyze content and output JSON instead of indexing
     if dry_run {
-        let line_count = content.lines().count();
         let char_count = content.len();
         let header_count = parse_result.heading_blocks.len();
         let sections = parse_result.toc.len();
         let file_size = format_size(content.len());
 
-        // Determine content type based on line count
-        let content_type = if line_count > 1000 {
-            "full"
-        } else if line_count < 100 {
-            "index"
-        } else {
-            "mixed"
+        let content_type = match resolved.content_type {
+            blz_core::ContentType::Full => "full",
+            blz_core::ContentType::Index => "index",
+            blz_core::ContentType::Mixed => "mixed",
         };
 
         let analysis = SourceAnalysis {
             name: alias.to_string(),
             url: url.to_string(),
-            final_url: url.to_string(),
+            final_url: resolved.final_url.clone(),
             analysis: ContentAnalysis {
-                line_count,
+                line_count: resolved.line_count,
                 char_count,
                 header_count,
                 sections,
@@ -191,26 +206,27 @@ async fn fetch_and_index(
     storage.save_llms_txt(alias, &content)?;
 
     // Build and save JSON metadata
-    let llms_json = build_llms_json(
+    let mut llms_json = build_llms_json(
         alias,
-        url,
+        &resolved.final_url,
         "llms.txt",
         sha256.clone(),
         etag.clone(),
         last_modified.clone(),
         &parse_result,
     );
-    let mut llms_json = llms_json;
-    llms_json.metadata.aliases = aliases.iter().cloned().collect::<Vec<_>>();
+    llms_json.metadata.variant = resolved.variant.clone();
+    llms_json.metadata.aliases = aliases.to_vec();
     storage.save_llms_json(alias, &llms_json)?;
 
-    // Save source metadata
+    // Save source metadata with resolved variant
     let metadata = Source {
-        url: url.to_string(),
+        url: resolved.final_url.clone(),
         etag,
         last_modified,
         fetched_at: Utc::now(),
         sha256,
+        variant: resolved.variant,
         aliases: aliases.to_vec(),
         tags: Vec::new(),
     };
@@ -255,8 +271,12 @@ fn format_size(bytes: usize) -> String {
     if bytes < KB {
         format!("{bytes} B")
     } else if bytes < MB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
+        let whole = bytes / KB;
+        let tenths = ((bytes % KB) * 10) / KB;
+        format!("{whole}.{tenths} KB")
     } else {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
+        let whole = bytes / MB;
+        let tenths = ((bytes % MB) * 10) / MB;
+        format!("{whole}.{tenths} MB")
     }
 }

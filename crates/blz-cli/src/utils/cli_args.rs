@@ -124,6 +124,10 @@ mod tests {
 
     #[test]
     fn resolve_prefers_canonical_flag() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
         reset_warning_flag();
 
         let args = FormatArg {

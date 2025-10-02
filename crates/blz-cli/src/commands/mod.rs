@@ -9,7 +9,7 @@ mod alias;
 mod anchors;
 mod clear;
 mod completions;
-mod config;
+// config module removed in v1.0.0-beta.1 - flavor preferences eliminated
 mod create_source;
 mod diff;
 pub mod docs;
@@ -27,7 +27,7 @@ pub use alias::{AliasCommand, execute as manage_alias};
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
-pub use config::{ConfigCommand, run as run_config};
+// config command removed in v1.0.0-beta.1 - flavor preferences eliminated
 pub use create_source::execute as create_registry_source;
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};

@@ -186,7 +186,7 @@ impl SearchIndex {
                     doc.add_text(field, "txt");
                 }
                 if let Some(field) = self.alias_flavor_field {
-                    doc.add_text(field, &format!("{alias}::txt"));
+                    doc.add_text(field, format!("{alias}::txt"));
                 }
                 if let (Some(f), Some(a)) = (self.anchor_field, anchor) {
                     doc.add_text(f, a);

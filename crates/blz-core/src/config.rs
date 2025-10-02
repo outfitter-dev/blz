@@ -124,11 +124,6 @@ pub struct DefaultsConfig {
     /// Only used when `follow_links` is set to `Allowlist`. Links to domains
     /// not in this list will be ignored.
     pub allowlist: Vec<String>,
-
-    /// Prefer upgrading/using llms-full.txt when available.
-    /// When true, update operations default to choosing llms-full.txt where available.
-    #[serde(default)]
-    pub prefer_llms_full: bool,
 }
 
 /// Policy for following external links in llms.txt files.
@@ -435,10 +430,6 @@ impl Config {
                 self.paths.root = p;
             }
         }
-        if let Ok(v) = std::env::var("BLZ_PREFER_LLMS_FULL") {
-            let s = v.trim().to_ascii_lowercase();
-            self.defaults.prefer_llms_full = matches!(s.as_str(), "1" | "true" | "yes" | "on");
-        }
     }
 }
 
@@ -451,7 +442,6 @@ impl Default for Config {
                 fetch_enabled: true,
                 follow_links: FollowLinks::FirstParty,
                 allowlist: Vec::new(),
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
@@ -697,7 +687,6 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec!["example.com".to_string(), "docs.rs".to_string()],
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp/test"),
@@ -945,7 +934,6 @@ mod tests {
                 fetch_enabled: false,
                 follow_links: FollowLinks::None,
                 allowlist: vec!["a".repeat(1000)], // Very long domain
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/".repeat(100)), // Very long path
@@ -978,7 +966,6 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec![], // Empty allowlist
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp"),
@@ -1010,7 +997,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1032,7 +1018,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1054,7 +1039,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::Allowlist,
                     allowlist: allowlist.clone(),
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),

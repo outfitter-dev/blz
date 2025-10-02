@@ -440,7 +440,7 @@ impl MarkdownParser {
                 continue;
             }
 
-            if baseline_level.is_none() || heading.level < baseline_level.unwrap() {
+            if baseline_level.is_none_or(|level| heading.level < level) {
                 baseline_level = Some(heading.level);
             }
             let baseline = baseline_level.unwrap_or(1);

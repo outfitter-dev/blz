@@ -330,11 +330,7 @@ pub fn local_scope_key() -> Option<String> {
         .map(|dir| format!("local:{}", canonicalize_path(&dir)))
 }
 
-pub fn local_scope_path() -> Option<PathBuf> {
-    env::current_dir()
-        .ok()
-        .map(|dir| PathBuf::from(canonicalize_path(&dir)))
-}
+// Removed local_scope_path - was only used by flavor preferences (eliminated in v1.0.0-beta.1)
 
 fn canonicalize(value: &str) -> String {
     canonicalize_path(Path::new(value))

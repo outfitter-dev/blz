@@ -142,21 +142,24 @@ blz completions zsh > ~/.zsh/completions/_blz
 ### Storage Layout
 
 ```text
-# Determined via directories::ProjectDirs::from("dev", "outfitter", "blz")
-# Config (XDG, all platforms):
-#   $XDG_CONFIG_HOME/blz/ (or ~/.config/blz/)
-# Data (platform data dir):
-#   macOS:   ~/Library/Application Support/dev.outfitter.blz/
-#   Linux:   ~/.local/share/dev.outfitter.blz/
-#   Windows: %APPDATA%\dev.outfitter.blz\
+# Config directory (data.json state, config.toml):
+#   With XDG_CONFIG_HOME set: $XDG_CONFIG_HOME/blz/
+#   Without XDG_CONFIG_HOME:  ~/.blz/
+#   Override: BLZ_GLOBAL_CONFIG_DIR
 #
-# Within Data:
-<alias>/
-  llms.txt                  # Latest upstream text
-  llms.json                 # Parsed TOC + line map
-  .index/                   # Tantivy search index
-  .archive/                 # Historical snapshots
-  settings.toml             # Per-source overrides
+# Data directory (cached llms.txt, indices):
+#   With XDG_DATA_HOME set: $XDG_DATA_HOME/blz/
+#   Without XDG_DATA_HOME:  ~/.blz/
+#   Override: BLZ_DATA_DIR
+#
+# Within Data dir:
+sources/
+  <source>/
+    llms.txt                # Latest upstream text (or llms-full.txt)
+    llms.json               # Parsed TOC + line map
+    .index/                 # Tantivy search index
+    .archive/               # Historical snapshots
+    settings.toml           # Per-source overrides
 ```
 
 ### Testing Approach

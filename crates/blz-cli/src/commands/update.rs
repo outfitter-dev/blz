@@ -1,5 +1,8 @@
 //! Update command implementation
 
+use std::path::PathBuf;
+use std::time::Instant;
+
 use anyhow::{Result, anyhow};
 use blz_core::{
     FetchResult, Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, Storage,
@@ -7,13 +10,184 @@ use blz_core::{
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Instant;
 
 use crate::utils::count_headings;
 use crate::utils::json_builder::build_llms_json;
 use crate::utils::resolver;
+use crate::utils::url_resolver;
 
-/// Execute update for a specific source
+/// Abstraction over storage interactions used by the update command.
+pub trait UpdateStorage {
+    fn load_metadata(&self, alias: &str) -> Result<Source>;
+    fn load_llms_aliases(&self, alias: &str) -> Result<Vec<String>>;
+    fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()>;
+    fn save_llms_json(&self, alias: &str, data: &blz_core::LlmsJson) -> Result<()>;
+    fn save_metadata(&self, alias: &str, metadata: &Source) -> Result<()>;
+    fn index_path(&self, alias: &str) -> Result<PathBuf>;
+}
+
+#[allow(clippy::use_self)]
+impl UpdateStorage for Storage {
+    fn load_metadata(&self, alias: &str) -> Result<Source> {
+        Storage::load_source_metadata(self, alias)
+            .map_err(anyhow::Error::from)?
+            .ok_or_else(|| anyhow!("Missing metadata for {}", alias))
+    }
+
+    fn load_llms_aliases(&self, alias: &str) -> Result<Vec<String>> {
+        match Storage::load_llms_json(self, alias) {
+            Ok(llms) => Ok(llms.metadata.aliases),
+            Err(_) => Ok(Vec::new()),
+        }
+    }
+
+    fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
+        Storage::save_llms_txt(self, alias, content).map_err(anyhow::Error::from)
+    }
+
+    fn save_llms_json(&self, alias: &str, data: &blz_core::LlmsJson) -> Result<()> {
+        Storage::save_llms_json(self, alias, data).map_err(anyhow::Error::from)
+    }
+
+    fn save_metadata(&self, alias: &str, metadata: &Source) -> Result<()> {
+        Storage::save_source_metadata(self, alias, metadata).map_err(anyhow::Error::from)
+    }
+
+    fn index_path(&self, alias: &str) -> Result<PathBuf> {
+        Storage::index_dir(self, alias).map_err(anyhow::Error::from)
+    }
+}
+
+/// Interface for indexing updated content.
+pub trait UpdateIndexer {
+    fn index(
+        &self,
+        alias: &str,
+        index_path: &std::path::Path,
+        metrics: PerformanceMetrics,
+        blocks: &[blz_core::HeadingBlock],
+    ) -> Result<()>;
+}
+
+#[derive(Default)]
+struct DefaultIndexer;
+
+impl UpdateIndexer for DefaultIndexer {
+    fn index(
+        &self,
+        alias: &str,
+        index_path: &std::path::Path,
+        metrics: PerformanceMetrics,
+        blocks: &[blz_core::HeadingBlock],
+    ) -> Result<()> {
+        let index = SearchIndex::create_or_open(index_path)?.with_metrics(metrics);
+        index
+            .index_blocks(alias, blocks)
+            .map_err(anyhow::Error::from)
+    }
+}
+
+/// Result summary for an update.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpdateOutcome {
+    Updated {
+        alias: String,
+        headings: usize,
+        lines: usize,
+    },
+    Unchanged {
+        alias: String,
+    },
+}
+
+/// Data describing remote changes.
+#[derive(Debug, Clone)]
+pub struct UpdatePayload {
+    pub content: String,
+    pub sha256: String,
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
+}
+
+/// Apply an update given fetched content and existing metadata.
+pub fn apply_update<S, I>(
+    storage: &S,
+    alias: &str,
+    existing_metadata: Source,
+    existing_aliases: Vec<String>,
+    payload: UpdatePayload,
+    metrics: PerformanceMetrics,
+    indexer: &I,
+) -> Result<UpdateOutcome>
+where
+    S: UpdateStorage,
+    I: UpdateIndexer,
+{
+    let mut parser = MarkdownParser::new()?;
+    let parse_result = parser.parse(&payload.content)?;
+
+    storage.save_llms_txt(alias, &payload.content)?;
+
+    let mut llms_json = build_llms_json(
+        alias,
+        &existing_metadata.url,
+        "llms.txt",
+        payload.sha256.clone(),
+        payload.etag.clone(),
+        payload.last_modified.clone(),
+        &parse_result,
+    );
+
+    let mut merged_aliases = existing_metadata.aliases.clone();
+    for alias_value in existing_aliases {
+        if !merged_aliases.contains(&alias_value) {
+            merged_aliases.push(alias_value);
+        }
+    }
+    llms_json.metadata.aliases.clone_from(&merged_aliases);
+    llms_json.metadata.tags.clone_from(&existing_metadata.tags);
+    storage.save_llms_json(alias, &llms_json)?;
+
+    let metadata = Source {
+        url: existing_metadata.url,
+        etag: payload.etag,
+        last_modified: payload.last_modified,
+        fetched_at: Utc::now(),
+        sha256: payload.sha256,
+        variant: existing_metadata.variant,
+        aliases: merged_aliases,
+        tags: existing_metadata.tags,
+    };
+    storage.save_metadata(alias, &metadata)?;
+
+    let index_path = storage.index_path(alias)?;
+    indexer.index(
+        alias,
+        index_path.as_path(),
+        metrics,
+        &parse_result.heading_blocks,
+    )?;
+
+    Ok(UpdateOutcome::Updated {
+        alias: alias.to_string(),
+        headings: count_headings(&llms_json.toc),
+        lines: llms_json.line_index.total_lines,
+    })
+}
+
+fn create_spinner(message: &str) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
+    );
+    pb.set_message(message.to_string());
+    pb
+}
+
+/// Execute update for a specific source.
+#[allow(clippy::too_many_lines)]
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let canonical_alias =
@@ -23,12 +197,139 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
         return Err(anyhow!("Source '{}' not found", alias));
     }
 
-    update_source(&storage, &canonical_alias, metrics, quiet)
-        .await
-        .map(|_| ())
+    let spinner = if quiet {
+        ProgressBar::hidden()
+    } else {
+        create_spinner(format!("Checking {canonical_alias}...").as_str())
+    };
+
+    let start = Instant::now();
+    let existing_metadata = storage.load_metadata(&canonical_alias)?;
+    let existing_aliases = storage.load_llms_aliases(&canonical_alias)?;
+    let fetcher = Fetcher::new()?;
+
+    // Check for URL upgrades (llms.txt -> llms-full.txt)
+    let (final_url, updated_variant) = if existing_metadata.variant == blz_core::SourceVariant::Llms
+    {
+        // Try to resolve a better variant
+        match url_resolver::resolve_best_url(&fetcher, &existing_metadata.url).await {
+            Ok(resolved) if resolved.variant == blz_core::SourceVariant::LlmsFull && !quiet => {
+                spinner.finish_and_clear();
+                println!(
+                    "{} llms-full.txt is now available for {}",
+                    "✨".green(),
+                    canonical_alias.green()
+                );
+                println!(
+                    "  Upgrading from {} to {}",
+                    "llms.txt".yellow(),
+                    "llms-full.txt".green()
+                );
+                (resolved.final_url, resolved.variant)
+            },
+            Ok(_resolved) => {
+                // No upgrade available, use existing URL
+                (
+                    existing_metadata.url.clone(),
+                    existing_metadata.variant.clone(),
+                )
+            },
+            Err(_) => {
+                // Resolution failed, use existing URL
+                (
+                    existing_metadata.url.clone(),
+                    existing_metadata.variant.clone(),
+                )
+            },
+        }
+    } else {
+        // Already using llms-full or custom URL, no upgrade needed
+        (
+            existing_metadata.url.clone(),
+            existing_metadata.variant.clone(),
+        )
+    };
+
+    let fetch_result = fetcher
+        .fetch_with_cache(
+            &final_url,
+            existing_metadata.etag.as_deref(),
+            existing_metadata.last_modified.as_deref(),
+        )
+        .await?;
+
+    let outcome = match fetch_result {
+        FetchResult::NotModified { .. } => {
+            spinner.finish_and_clear();
+            if !quiet {
+                println!("{} {} (unchanged)", "✓".green(), canonical_alias.green());
+            }
+            UpdateOutcome::Unchanged {
+                alias: canonical_alias.clone(),
+            }
+        },
+        FetchResult::Modified {
+            content,
+            sha256,
+            etag,
+            last_modified,
+        } => {
+            spinner.set_message(format!("Parsing {canonical_alias}..."));
+            let payload = UpdatePayload {
+                content,
+                sha256,
+                etag,
+                last_modified,
+            };
+            let indexer = DefaultIndexer;
+
+            // Update metadata with new URL and variant if upgraded
+            let mut updated_metadata = existing_metadata.clone();
+            updated_metadata.url = final_url;
+            updated_metadata.variant = updated_variant;
+
+            let outcome = apply_update(
+                &storage,
+                &canonical_alias,
+                updated_metadata,
+                existing_aliases,
+                payload,
+                metrics,
+                &indexer,
+            )?;
+            spinner.finish_and_clear();
+            outcome
+        },
+    };
+
+    if !quiet {
+        let elapsed = start.elapsed();
+        match outcome {
+            UpdateOutcome::Updated {
+                alias,
+                headings,
+                lines,
+            } => println!(
+                "{} {} ({} headings, {} lines) in {:?}",
+                "✓ Updated".green(),
+                alias.green(),
+                headings,
+                lines,
+                elapsed
+            ),
+            UpdateOutcome::Unchanged { alias } => println!(
+                "{} {} (unchanged in {:?})",
+                "✓".green(),
+                alias.green(),
+                elapsed
+            ),
+        }
+    }
+
+    Ok(())
 }
 
-/// Execute update for all sources
+/// Execute update for all sources.
 pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
@@ -37,19 +338,77 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
         anyhow::bail!("No sources configured. Use 'blz add' to add sources.");
     }
 
+    let fetcher = Fetcher::new()?;
     let mut updated_count = 0;
     let mut skipped_count = 0;
     let mut error_count = 0;
+    let indexer = DefaultIndexer;
 
     for alias in sources {
-        match update_source(&storage, &alias, metrics.clone(), quiet).await {
-            Ok(true) => updated_count += 1,
-            Ok(false) => skipped_count += 1,
-            Err(e) => {
+        let spinner = if quiet {
+            ProgressBar::hidden()
+        } else {
+            create_spinner(format!("Checking {alias}...").as_str())
+        };
+
+        let metadata = storage.load_metadata(&alias)?;
+        let aliases = storage.load_llms_aliases(&alias)?;
+        let fetch_result = fetcher
+            .fetch_with_cache(
+                &metadata.url,
+                metadata.etag.as_deref(),
+                metadata.last_modified.as_deref(),
+            )
+            .await?;
+
+        match fetch_result {
+            FetchResult::NotModified { .. } => {
+                spinner.finish_and_clear();
+                skipped_count += 1;
                 if !quiet {
-                    eprintln!("{}: {}", alias.red(), e);
+                    println!("{} {} (unchanged)", "✓".green(), alias.green());
                 }
-                error_count += 1;
+            },
+            FetchResult::Modified {
+                content,
+                sha256,
+                etag,
+                last_modified,
+            } => {
+                spinner.set_message(format!("Parsing {alias}..."));
+                match apply_update(
+                    &storage,
+                    &alias,
+                    metadata,
+                    aliases,
+                    UpdatePayload {
+                        content,
+                        sha256,
+                        etag,
+                        last_modified,
+                    },
+                    metrics.clone(),
+                    &indexer,
+                ) {
+                    Ok(UpdateOutcome::Updated { .. }) => {
+                        updated_count += 1;
+                        spinner.finish_and_clear();
+                        if !quiet {
+                            println!("{} {}", "✓ Updated".green(), alias.green());
+                        }
+                    },
+                    Ok(UpdateOutcome::Unchanged { .. }) => {
+                        skipped_count += 1;
+                        spinner.finish_and_clear();
+                    },
+                    Err(e) => {
+                        spinner.finish_and_clear();
+                        if !quiet {
+                            eprintln!("{}: {}", alias.red(), e);
+                        }
+                        error_count += 1;
+                    },
+                }
             },
         }
     }
@@ -67,133 +426,126 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
         );
         metrics.print_summary();
     }
+
     Ok(())
 }
 
-async fn update_source(
-    storage: &Storage,
-    alias: &str,
-    metrics: PerformanceMetrics,
-    quiet: bool,
-) -> Result<bool> {
-    let start = Instant::now();
-    let pb = if quiet {
-        ProgressBar::hidden()
-    } else {
-        create_spinner(format!("Checking {alias}...").as_str())
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
 
-    // Load existing metadata
-    let existing_metadata = storage
-        .load_source_metadata(alias)?
-        .ok_or_else(|| anyhow!("Missing metadata for {}", alias))?;
-    let existing_llms_aliases = match storage.load_llms_json(alias) {
-        Ok(existing_llms) => existing_llms.metadata.aliases,
-        Err(_) => Vec::new(),
-    };
+    use anyhow::Result;
 
-    let current_url = existing_metadata.url.clone();
-    let fetcher = Fetcher::new()?;
+    #[derive(Default)]
+    struct MockStorage {
+        metadata: HashMap<String, Source>,
+        saved_txt: RefCell<Vec<String>>, // aliases that called save_llms_txt
+        saved_json: RefCell<Vec<String>>, // aliases that called save_llms_json
+        saved_metadata: RefCell<Vec<Source>>,
+        index_paths: HashMap<String, PathBuf>,
+    }
 
-    pb.set_message(format!("Checking {alias}..."));
+    impl UpdateStorage for MockStorage {
+        fn load_metadata(&self, alias: &str) -> Result<Source> {
+            self.metadata
+                .get(alias)
+                .cloned()
+                .ok_or_else(|| anyhow!("missing metadata"))
+        }
 
-    // Conditional fetch using ETag
-    let fetch_result = fetcher
-        .fetch_with_cache(
-            &current_url,
-            existing_metadata.etag.as_deref(),
-            existing_metadata.last_modified.as_deref(),
-        )
-        .await?;
+        fn load_llms_aliases(&self, _alias: &str) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
 
-    let (content, sha256, etag, last_modified) = match fetch_result {
-        FetchResult::Modified {
-            content,
-            sha256,
-            etag,
-            last_modified,
-        } => (content, sha256, etag, last_modified),
-        FetchResult::NotModified { .. } => {
-            pb.finish_and_clear();
-            if !quiet {
-                println!("{} {} (unchanged)", "✓".green(), alias.green());
-            }
-            return Ok(false);
-        },
-    };
+        fn save_llms_txt(&self, alias: &str, _content: &str) -> Result<()> {
+            self.saved_txt.borrow_mut().push(alias.to_string());
+            Ok(())
+        }
 
-    // Content changed - parse and reindex
-    pb.set_message(format!("Parsing {alias}..."));
-    let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(&content)?;
+        fn save_llms_json(&self, alias: &str, _data: &blz_core::LlmsJson) -> Result<()> {
+            self.saved_json.borrow_mut().push(alias.to_string());
+            Ok(())
+        }
 
-    // Save updated content
-    pb.set_message(format!("Saving {alias}..."));
-    storage.save_llms_txt(alias, &content)?;
+        fn save_metadata(&self, _alias: &str, metadata: &Source) -> Result<()> {
+            self.saved_metadata.borrow_mut().push(metadata.clone());
+            Ok(())
+        }
 
-    // Build and save updated JSON (preserve existing aliases and tags)
-    let mut llms_json = build_llms_json(
-        alias,
-        &current_url,
-        "llms.txt",
-        sha256.clone(),
-        etag.clone(),
-        last_modified.clone(),
-        &parse_result,
-    );
-    let mut merged_aliases = existing_metadata.aliases.clone();
-    for alias_value in existing_llms_aliases {
-        if !merged_aliases.contains(&alias_value) {
-            merged_aliases.push(alias_value);
+        fn index_path(&self, alias: &str) -> Result<PathBuf> {
+            self.index_paths
+                .get(alias)
+                .cloned()
+                .ok_or_else(|| anyhow!("missing index path"))
         }
     }
 
-    llms_json.metadata.aliases = merged_aliases.clone();
-    llms_json.metadata.tags = existing_metadata.tags.clone();
-    storage.save_llms_json(alias, &llms_json)?;
-
-    // Save updated metadata
-    let metadata = Source {
-        url: current_url,
-        etag,
-        last_modified,
-        fetched_at: Utc::now(),
-        sha256,
-        aliases: merged_aliases,
-        tags: existing_metadata.tags,
-    };
-    storage.save_source_metadata(alias, &metadata)?;
-
-    // Reindex (recreate to clear old data)
-    pb.set_message(format!("Indexing {alias}..."));
-    let index_path = storage.index_dir(alias)?;
-    let index = SearchIndex::create_or_open(&index_path)?.with_metrics(metrics);
-    index.index_blocks(alias, &parse_result.heading_blocks)?;
-
-    pb.finish_and_clear();
-
-    let elapsed = start.elapsed();
-    if !quiet {
-        println!(
-            "{} {} ({} headings, {} lines) in {:?}",
-            "✓ Updated".green(),
-            alias.green(),
-            count_headings(&llms_json.toc),
-            llms_json.line_index.total_lines,
-            elapsed
-        );
+    #[derive(Default)]
+    struct MockIndexer {
+        indexed: RefCell<Vec<String>>,
     }
 
-    Ok(true)
-}
+    impl UpdateIndexer for MockIndexer {
+        fn index(
+            &self,
+            alias: &str,
+            _index_path: &std::path::Path,
+            _metrics: PerformanceMetrics,
+            _blocks: &[blz_core::HeadingBlock],
+        ) -> Result<()> {
+            self.indexed.borrow_mut().push(alias.to_string());
+            Ok(())
+        }
+    }
 
-fn create_spinner(message: &str) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
-    );
-    pb.set_message(message.to_string());
-    pb
+    fn sample_source() -> Source {
+        Source {
+            url: "https://example.com".into(),
+            etag: Some("etag".into()),
+            last_modified: Some("Wed, 01 Oct 2025 12:00:00 GMT".into()),
+            fetched_at: Utc::now(),
+            sha256: "sha".into(),
+            variant: blz_core::SourceVariant::Llms,
+            aliases: vec!["alpha".into()],
+            tags: vec!["docs".into()],
+        }
+    }
+
+    fn sample_payload() -> UpdatePayload {
+        UpdatePayload {
+            content: "# Title\n\nContent".into(),
+            sha256: "new-sha".into(),
+            etag: Some("new-etag".into()),
+            last_modified: Some("Thu, 02 Oct 2025 12:00:00 GMT".into()),
+        }
+    }
+
+    #[test]
+    fn apply_update_persists_changes() -> Result<()> {
+        let mut storage = MockStorage::default();
+        storage.metadata.insert("alpha".into(), sample_source());
+        storage
+            .index_paths
+            .insert("alpha".into(), PathBuf::from("index"));
+
+        let indexer = MockIndexer::default();
+        let outcome = apply_update(
+            &storage,
+            "alpha",
+            sample_source(),
+            vec!["canonical".into()],
+            sample_payload(),
+            PerformanceMetrics::default(),
+            &indexer,
+        )?;
+
+        assert!(matches!(outcome, UpdateOutcome::Updated { .. }));
+        assert_eq!(storage.saved_txt.borrow().as_slice(), ["alpha"]);
+        assert_eq!(storage.saved_json.borrow().as_slice(), ["alpha"]);
+        assert_eq!(indexer.indexed.borrow().as_slice(), ["alpha"]);
+        assert_eq!(storage.saved_metadata.borrow().len(), 1);
+        Ok(())
+    }
 }

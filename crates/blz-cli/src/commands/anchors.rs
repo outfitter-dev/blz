@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
-use crate::commands::get::execute_with_flavor;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -51,11 +50,10 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         return Ok(());
     }
 
-    // Load JSON metadata (Phase 3: no longer uses flavor resolution)
+    // Load JSON metadata (Phase 3: always llms.txt)
     let llms: LlmsJson = storage
-        .load_json(&canonical)
-        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?
-        .ok_or_else(|| anyhow::anyhow!("JSON not found for '{canonical}'"))?;
+        .load_llms_json(&canonical)
+        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
     // Replace placeholder with actual alias/source for each entry in JSON/JSONL output
@@ -145,11 +143,10 @@ pub async fn get_by_anchor(
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
-    // Load JSON metadata (Phase 3: no longer uses flavor resolution)
+    // Load JSON metadata (Phase 3: always llms.txt)
     let llms: LlmsJson = storage
-        .load_json(&canonical)
-        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?
-        .ok_or_else(|| anyhow::anyhow!("JSON not found for '{canonical}'"))?;
+        .load_llms_json(&canonical)
+        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
 
     #[allow(clippy::items_after_statements)]
     fn find<'a>(list: &'a [blz_core::TocEntry], a: &str) -> Option<&'a blz_core::TocEntry> {
@@ -172,26 +169,14 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
-            // Use the get implementation with the exact resolved flavor
-            execute_with_flavor(
-                alias,
-                &canonical,
-                &entry.lines,
-                context,
-                &flavor,
-                OutputFormat::Text,
-            )
-            .await
+            crate::commands::get::execute(alias, &entry.lines, context, OutputFormat::Text).await
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
-            // Use the same flavor as TOC for consistency
-            let file_path = storage
-                .flavor_file_path(&canonical, &flavor)
-                .with_context(|| format!("Failed to compute path for flavor '{flavor}'"))?;
+            let file_path = storage.llms_txt_path(&canonical)?;
             let file_content = std::fs::read_to_string(&file_path).with_context(|| {
                 format!(
-                    "Failed to read {flavor} content from {}",
+                    "Failed to read llms.txt content from {}",
                     file_path.display()
                 )
             })?;
@@ -200,7 +185,6 @@ pub async fn get_by_anchor(
             let obj = serde_json::json!({
                 "alias": alias,
                 "source": canonical,
-                "searchFlavor": flavor,
                 "anchor": anchor,
                 "headingPath": entry.heading_path,
                 "lines": entry.lines,

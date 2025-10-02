@@ -59,7 +59,6 @@ pub mod cli_args;
 pub mod constants;
 pub mod formatting;
 pub mod history_log;
-pub mod http;
 pub mod json_builder;
 pub mod parsing;
 pub mod preferences;
@@ -68,6 +67,7 @@ pub mod resolver;
 pub mod settings;
 pub mod store;
 pub mod toc;
+pub mod url_resolver;
 pub mod validation;
 
 #[cfg(test)]

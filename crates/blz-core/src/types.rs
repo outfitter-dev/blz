@@ -64,6 +64,36 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Which llms.txt variant was successfully resolved and used
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceVariant {
+    /// llms-full.txt was found and used
+    LlmsFull,
+    /// llms.txt was found and used
+    Llms,
+    /// Custom URL (neither llms.txt nor llms-full.txt)
+    Custom,
+}
+
+impl Default for SourceVariant {
+    fn default() -> Self {
+        Self::Llms
+    }
+}
+
+/// Content type based on line count analysis
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ContentType {
+    /// Full documentation (> 1000 lines)
+    Full,
+    /// Navigation index only (< 100 lines) - should warn user
+    Index,
+    /// Mixed content (100-1000 lines)
+    Mixed,
+}
+
 /// Supported documentation flavors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Flavor {
@@ -185,6 +215,15 @@ pub struct Source {
     /// Provides content integrity verification and change detection.
     /// Calculated from the raw content bytes, not the parsed structure.
     pub sha256: String,
+
+    /// Which llms.txt variant was resolved and used for this source.
+    ///
+    /// Tracks whether llms-full.txt, llms.txt, or a custom URL was used.
+    /// Enables upgrade detection when llms-full.txt becomes available.
+    /// Defaults to Llms for backward compatibility with existing sources.
+    #[serde(default)]
+    #[allow(clippy::struct_field_names)]
+    pub variant: SourceVariant,
 
     /// Alternate human-friendly names (aliases) for this source.
     ///
@@ -694,6 +733,7 @@ mod tests {
             last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
             fetched_at: now,
             sha256: "deadbeef".to_string(),
+            variant: SourceVariant::Llms,
             aliases: Vec::new(),
             tags: Vec::new(),
         };
@@ -701,6 +741,7 @@ mod tests {
         assert_eq!(source.url, "https://example.com/llms.txt");
         assert_eq!(source.etag, Some("abc123".to_string()));
         assert_eq!(source.sha256, "deadbeef");
+        assert_eq!(source.variant, SourceVariant::Llms);
     }
 
     #[test]
@@ -758,6 +799,7 @@ mod tests {
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "hash".to_string(),
+                variant: SourceVariant::Llms,
                 aliases: Vec::new(),
                 tags: Vec::new(),
             },

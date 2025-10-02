@@ -1,6 +1,7 @@
 #![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
 
 use serde_json::Value;
+use std::fmt::Write as _;
 use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -48,7 +49,7 @@ async fn test_add_indexes_source_content() -> anyhow::Result<()> {
     );
 
     // Verify source directory and files exist
-    let source_dir = data_dir.path().join("test-source");
+    let source_dir = data_dir.path().join("sources").join("test-source");
     assert!(source_dir.exists(), "expected source directory to exist");
 
     // Verify content file exists
@@ -200,10 +201,7 @@ async fn test_comprehensive_content_is_searchable() -> anyhow::Result<()> {
     // Create comprehensive documentation (>100 lines)
     let mut doc = String::from("# Comprehensive Documentation\n\n");
     for i in 1..=50 {
-        doc.push_str(&format!(
-            "## Section {}\n\nContent for section {}.\n\n",
-            i, i
-        ));
+        writeln!(doc, "## Section {i}\n\nContent for section {i}.\n")?;
     }
     doc.push_str("## Special Section\n\nThis has a SEARCHABLE_TERM for testing.");
 
@@ -285,7 +283,7 @@ async fn test_index_only_source_handling() -> anyhow::Result<()> {
         .success();
 
     // Verify source was added
-    let source_dir = data_dir.path().join("toc-only");
+    let source_dir = data_dir.path().join("sources").join("toc-only");
     assert!(source_dir.exists(), "expected source directory to exist");
 
     let content_file = source_dir.join("llms.txt");

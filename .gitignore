@@ -58,6 +58,7 @@ criterion/
 *.profraw
 *.profdata
 coverage/
+coverage.json
 
 # Logs
 *.log
