@@ -710,19 +710,14 @@ impl SearchCache {
     fn build_cache_key(
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
     ) -> String {
         let alias_key = alias.filter(|a| !a.is_empty()).unwrap_or("~");
-        let flavor_key = flavor
-            .filter(|f| !f.is_empty())
-            .unwrap_or("default");
         let version_key = version.filter(|v| !v.is_empty()).unwrap_or("v0");
 
         format!(
-            "a:{alias}|f:{flavor}|v:{version}|q:{query}",
+            "a:{alias}|v:{version}|q:{query}",
             alias = alias_key,
-            flavor = flavor_key,
             version = version_key,
             query = query
         )
@@ -748,10 +743,9 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         results: Vec<SearchHit>,
     ) {
-        let cache_key = Self::build_cache_key(query, alias, flavor, None);
+        let cache_key = Self::build_cache_key(query, alias, None);
         self.put(cache_key, results).await;
     }
 
@@ -760,9 +754,8 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
-        let cache_key = Self::build_cache_key(query, alias, flavor, None);
+        let cache_key = Self::build_cache_key(query, alias, None);
         self.get(&cache_key).await
     }
 
@@ -772,11 +765,10 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
         results: Vec<SearchHit>,
     ) {
-        let cache_key = Self::build_cache_key(query, alias, flavor, version);
+        let cache_key = Self::build_cache_key(query, alias, version);
         self.put(cache_key, results).await;
     }
 
@@ -785,10 +777,9 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
-        let cache_key = Self::build_cache_key(query, alias, flavor, version);
+        let cache_key = Self::build_cache_key(query, alias, version);
         self.get(&cache_key).await
     }
 }
@@ -861,14 +852,13 @@ impl QueryCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
         {
             let mut analyzer = self.query_analyzer.write().await;
             analyzer.record_query(query);
         }
 
-        self.cache.get_cached_results(query, alias, flavor).await
+        self.cache.get_cached_results(query, alias).await
     }
 
     /// Cache results and update analytics
@@ -876,11 +866,10 @@ impl QueryCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         results: Vec<SearchHit>,
     ) {
         self.cache
-            .cache_search_results(query, alias, flavor, results)
+            .cache_search_results(query, alias, results)
             .await;
     }
 
@@ -1071,15 +1060,14 @@ mod tests {
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
             anchor: None,
-            flavor: Some("llms".to_string()),
         }];
-        
+
         cache
-            .cache_search_results("test query", Some("test"), Some("llms"), results.clone())
+            .cache_search_results("test query", Some("test"), results.clone())
             .await;
 
         let cached = cache
-            .get_cached_results("test query", Some("test"), Some("llms"))
+            .get_cached_results("test query", Some("test"))
             .await;
         assert_eq!(cached, Some(results));
     }
@@ -1089,9 +1077,9 @@ mod tests {
         let cache = QueryCache::new();
 
         // Record some queries
-        cache.get("test query", Some("alias"), None).await;
-        cache.get("test query", Some("alias"), None).await;
-        cache.get("another query", None, None).await;
+        cache.get("test query", Some("alias")).await;
+        cache.get("test query", Some("alias")).await;
+        cache.get("another query", None).await;
         
         let stats = cache.stats().await;
         assert_eq!(stats.total_queries, 3);
@@ -1134,9 +1122,8 @@ mod tests {
             source_url: Some("https://test.com".to_string()),
             checksum: "abc123".to_string(),
             anchor: None,
-            flavor: Some("llms".to_string()),
         }];
-        
+
         let size = search_result_size(&results);
         assert!(size > 0);
     }
