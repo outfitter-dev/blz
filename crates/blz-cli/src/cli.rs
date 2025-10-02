@@ -381,6 +381,15 @@ pub enum Commands {
         format: FormatArg,
     },
 
+    /// Show detailed information about a source
+    Info {
+        /// Source to inspect
+        alias: String,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
     /// List all cached sources
     #[command(visible_alias = "sources")]
     List {
