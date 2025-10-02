@@ -15,6 +15,7 @@ pub async fn execute(
     lines: &str,
     context: Option<usize>,
     format: OutputFormat,
+    copy: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
 
@@ -157,6 +158,19 @@ pub async fn execute(
                 println!("{}", line_content);
             }
         },
+    }
+
+    // Copy to clipboard if --copy flag was set
+    if copy && !line_numbers.is_empty() {
+        use crate::utils::clipboard;
+
+        let content = line_numbers
+            .iter()
+            .map(|&line_num| file_lines[line_num - 1])
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        clipboard::copy_to_clipboard(&content).context("Failed to copy content to clipboard")?;
     }
 
     Ok(())

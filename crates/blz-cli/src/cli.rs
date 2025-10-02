@@ -349,6 +349,9 @@ pub enum Commands {
         /// Don't save this search to history
         #[arg(long = "no-history")]
         no_history: bool,
+        /// Copy results to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Show recent search history and defaults
@@ -391,6 +394,9 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Copy output to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Show detailed information about a source

@@ -56,6 +56,7 @@
 //! - Color output respects `NO_COLOR` and terminal capabilities
 
 pub mod cli_args;
+pub mod clipboard;
 pub mod constants;
 pub mod formatting;
 pub mod history_log;

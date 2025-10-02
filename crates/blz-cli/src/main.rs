@@ -466,6 +466,7 @@ async fn execute_command(
             score_precision,
             snippet_lines,
             no_history,
+            copy,
         }) => {
             let resolved_format = format.resolve(cli.quiet);
             handle_search(
@@ -483,6 +484,7 @@ async fn execute_command(
                 score_precision,
                 snippet_lines,
                 no_history,
+                copy,
                 metrics,
                 prefs,
             )
@@ -508,6 +510,7 @@ async fn execute_command(
             lines,
             context,
             format,
+            copy,
         }) => {
             // Parse flexible syntax: "alias:lines" or "alias" with separate lines arg
             let (parsed_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
@@ -541,6 +544,7 @@ async fn execute_command(
                 &parsed_lines,
                 context,
                 format.resolve(cli.quiet),
+                copy,
             )
             .await?;
         },
@@ -669,6 +673,7 @@ async fn handle_search(
     score_precision: Option<u8>,
     snippet_lines: u8,
     no_history: bool,
+    copy: bool,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
@@ -798,6 +803,7 @@ async fn handle_search(
         score_precision,
         snippet_lines,
         no_history,
+        copy,
         Some(prefs),
         metrics,
         None,
@@ -1500,6 +1506,7 @@ mod tests {
             lines,
             context,
             format,
+            copy: _,
         }) = cli.command
         {
             assert_eq!(alias, "test");

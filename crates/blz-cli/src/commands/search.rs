@@ -35,6 +35,7 @@ pub struct SearchOptions {
     pub snippet_lines: u8,
     pub(crate) all: bool,
     pub no_history: bool,
+    pub copy: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -77,6 +78,7 @@ pub async fn execute(
     score_precision: Option<u8>,
     snippet_lines: u8,
     no_history: bool,
+    copy: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -99,11 +101,17 @@ pub async fn execute(
         snippet_lines: snippet_lines.max(1),
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
         no_history,
+        copy,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
     let ((page, actual_limit, total_pages), total_results) =
         format_and_display(&results, &options)?;
+
+    // Copy results to clipboard if --copy flag was set
+    if options.copy && !results.hits.is_empty() {
+        copy_results_to_clipboard(&results, page, actual_limit)?;
+    }
 
     if let Some(prefs) = prefs {
         let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
@@ -237,6 +245,7 @@ pub async fn handle_default(
         Some(score_precision),
         snippet_lines,
         false, // no_history: false for default search
+        false, // copy: false for default search
         Some(prefs),
         metrics,
         resource_monitor,
@@ -767,6 +776,34 @@ fn score_tokens(h: &[String], q: &[String]) -> f32 {
 
 // alias resolution moved to utils::resolver
 
+/// Copy search results to clipboard using OSC 52
+fn copy_results_to_clipboard(results: &SearchResults, page: usize, page_size: usize) -> Result<()> {
+    use crate::utils::clipboard;
+
+    // Calculate which hits are on the current page
+    let start_idx = (page - 1) * page_size;
+    let end_idx = (start_idx + page_size).min(results.hits.len());
+    let page_hits = &results.hits[start_idx..end_idx];
+
+    // Build clipboard content with source, heading, and snippet for each hit
+    let mut content = String::new();
+    for hit in page_hits {
+        content.push_str(&format!(
+            "# {} > {}\n",
+            hit.source,
+            hit.heading_path.join(" > ")
+        ));
+        content.push_str(&format!("{}\n\n", hit.snippet));
+    }
+
+    // Trim trailing whitespace
+    let content = content.trim_end();
+
+    clipboard::copy_to_clipboard(content).context("Failed to copy results to clipboard")?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)] // Test code precision is not critical
 mod tests {
@@ -819,6 +856,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         // Should not panic even with empty results
@@ -847,6 +885,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -875,6 +914,7 @@ mod tests {
             snippet_lines: 3,
             all: true,
             no_history: false,
+            copy: false,
         };
 
         // This should NOT panic even with empty results
@@ -900,6 +940,7 @@ mod tests {
             snippet_lines: 3,
             all: true,
             no_history: false,
+            copy: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -930,6 +971,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -959,6 +1001,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -982,6 +1025,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         let test_results = create_test_results(10);
@@ -1012,6 +1056,7 @@ mod tests {
             snippet_lines: 3,
             all: false,
             no_history: false,
+            copy: false,
         };
 
         let results1 = create_test_results(8);
@@ -1040,6 +1085,7 @@ mod tests {
             snippet_lines: 3,
             all: true,
             no_history: false,
+            copy: false,
         };
 
         let results2 = create_test_results(0);

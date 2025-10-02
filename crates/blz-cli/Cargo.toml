@@ -44,6 +44,7 @@ serde.workspace = true
 sysinfo.workspace = true
 is-terminal = { workspace = true }
 fs2 = { workspace = true }
+base64 = "0.22"
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
 pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }
