@@ -654,13 +654,6 @@ async fn handle_search(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
-    // Convert Vec<String> to Option<String> for backward compatibility
-    // For now, we only support single source filtering (use first source if multiple provided)
-    let source = if sources.is_empty() {
-        None
-    } else {
-        Some(sources[0].clone())
-    };
     const DEFAULT_LIMIT: usize = 50;
     const ALL_RESULTS_LIMIT: usize = 10_000;
     let provided_query = query.is_some();
@@ -672,7 +665,7 @@ async fn handle_search(
                 "Cannot combine --next with an explicit query. Remove the query to continue from the previous search."
             );
         }
-        if source.as_ref().is_some() {
+        if !sources.is_empty() {
             anyhow::bail!(
                 "Cannot combine --next with --source. Omit --source to reuse the last search context."
             );
@@ -705,10 +698,20 @@ async fn handle_search(
         anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
     };
 
-    let actual_source = match (source, history_entry.as_ref()) {
-        (Some(src), _) => Some(src),
-        (None, Some(entry)) => entry.source.clone(),
-        (None, None) => None,
+    let actual_sources = if !sources.is_empty() {
+        sources
+    } else if let Some(entry) = history_entry.as_ref() {
+        // Parse comma-separated sources from history
+        if let Some(source_str) = &entry.source {
+            source_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
     };
 
     let mut actual_limit = if all {
@@ -766,7 +769,7 @@ async fn handle_search(
 
     commands::search(
         &actual_query,
-        actual_source.as_deref(),
+        &actual_sources,
         last,
         actual_limit,
         actual_page,

@@ -20,7 +20,7 @@ const DEFAULT_SCORE_PRECISION: u8 = 1;
 #[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
-    pub source: Option<String>,
+    pub sources: Vec<String>,
     pub last: bool,
     pub limit: usize,
     pub page: usize,
@@ -65,7 +65,7 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
 #[allow(clippy::too_many_arguments)]
 pub async fn execute(
     query: &str,
-    alias: Option<&str>,
+    sources: &[String],
     last: bool,
     limit: usize,
     page: usize,
@@ -82,7 +82,7 @@ pub async fn execute(
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
-        source: alias.map(String::from),
+        sources: sources.to_vec(),
         last,
         limit,
         page,
@@ -113,9 +113,19 @@ pub async fn execute(
         prefs.set_default_show(&show_components);
         prefs.set_default_score_precision(precision);
         prefs.set_default_snippet_lines(options.snippet_lines);
+        let history_source_str;
+        let history_source = if options.sources.is_empty() {
+            None
+        } else if options.sources.len() == 1 {
+            Some(options.sources[0].as_str())
+        } else {
+            // For multiple sources, store as comma-separated list
+            history_source_str = options.sources.join(",");
+            Some(history_source_str.as_str())
+        };
         let history_entry = preferences::HistoryEntryBuilder::new(
             &options.query,
-            options.source.as_deref(),
+            history_source,
             options.format,
             show,
         )
@@ -203,9 +213,15 @@ pub async fn handle_default(
         .filter(|value| (1..=10).contains(value));
     let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
 
+    let sources = if let Some(alias_str) = alias {
+        vec![alias_str]
+    } else {
+        vec![]
+    };
+
     execute(
         &query,
-        alias.as_deref(),
+        &sources,
         false,
         50,
         1,
@@ -262,24 +278,28 @@ async fn perform_search(
 ) -> Result<SearchResults> {
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
-    // Resolve requested source (supports metadata aliases)
-    let sources = if let Some(requested) = &options.source {
-        match crate::utils::resolver::resolve_source(&storage, requested) {
-            Ok(Some(canonical)) => vec![canonical],
-            Ok(None) => {
-                // Fallback: show hint and continue with zero sources handled below
-                let known = storage.list_sources();
-                if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
-                    eprintln!(
-                        "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
-                    );
-                }
-                vec![requested.clone()]
-            },
-            Err(e) => return Err(e),
-        }
-    } else {
+    // Resolve requested sources (supports metadata aliases)
+    let sources = if options.sources.is_empty() {
         storage.list_sources()
+    } else {
+        let mut resolved = Vec::new();
+        for requested in &options.sources {
+            match crate::utils::resolver::resolve_source(&storage, requested) {
+                Ok(Some(canonical)) => resolved.push(canonical),
+                Ok(None) => {
+                    // Fallback: show hint and continue with the requested name
+                    let known = storage.list_sources();
+                    if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
+                        eprintln!(
+                            "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
+                        );
+                    }
+                    resolved.push(requested.clone());
+                },
+                Err(e) => return Err(e),
+            }
+        }
+        resolved
     };
 
     // Filter out index-only sources (navigation-only, no searchable content)
