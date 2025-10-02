@@ -509,7 +509,7 @@ fn apply_percentile_filter(
 ///
 /// let options = SearchOptions {
 ///     query: "test".to_string(),
-///     source: None,
+///     sources: vec![],
 ///     last: false,
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
@@ -798,7 +798,7 @@ mod tests {
         let results = create_test_results(0);
         let options = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -825,7 +825,7 @@ mod tests {
         let results = create_test_results(1);
         let options = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -852,7 +852,7 @@ mod tests {
         let empty_results = create_test_results(0);
         let options_empty = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
@@ -876,7 +876,7 @@ mod tests {
         let results = create_test_results(5);
         let options_high_page = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
@@ -905,7 +905,7 @@ mod tests {
         let results = create_test_results(5);
         let options = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 2,
             page: 100, // Way beyond available pages
@@ -933,7 +933,7 @@ mod tests {
         // Exactly at the boundary (page 2 with limit 5 for 10 results)
         let options = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 5,
             page: 2,
@@ -955,7 +955,7 @@ mod tests {
         // Just beyond the boundary (page 3 with limit 5 for 10 results)
         let options_beyond = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 5,
             page: 3,
@@ -984,7 +984,7 @@ mod tests {
         // Case 1: Normal limit
         let options1 = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -1011,7 +1011,7 @@ mod tests {
         // Case 2: ALL_RESULTS_LIMIT with empty results
         let options2 = SearchOptions {
             query: "test".to_string(),
-            source: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 1,

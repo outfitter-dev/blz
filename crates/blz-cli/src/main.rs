@@ -1246,8 +1246,8 @@ mod tests {
 
         let cli = Cli::try_parse_from(processed).unwrap();
         match cli.command {
-            Some(Commands::Search { source, .. }) => {
-                assert_eq!(source.as_deref(), Some("react"));
+            Some(Commands::Search { sources, .. }) => {
+                assert_eq!(sources, vec!["react"]);
             },
             _ => panic!("expected search command"),
         }
@@ -1420,7 +1420,7 @@ mod tests {
         .unwrap();
 
         if let Some(Commands::Search {
-            source,
+            sources,
             limit,
             page,
             top,
@@ -1428,7 +1428,7 @@ mod tests {
             ..
         }) = cli.command
         {
-            assert_eq!(source, Some("node".to_string()));
+            assert_eq!(sources, vec!["node"]);
             assert_eq!(limit, Some(20));
             assert_eq!(page, 2);
             assert!(top.is_some());
@@ -1737,7 +1737,7 @@ mod tests {
             .collect();
 
         let expected_search_flags = vec![
-            "source",
+            "sources",
             "limit",
             "all",
             "page",
@@ -1957,5 +1957,68 @@ mod tests {
             shell_arg.is_positional(),
             "Shell argument should be positional"
         );
+    }
+
+    #[test]
+    fn test_multi_source_search_parsing() {
+        use clap::Parser;
+
+        // Test comma-separated sources
+        let cli = Cli::try_parse_from(vec![
+            "blz",
+            "search",
+            "hooks",
+            "--source",
+            "react,vue,svelte",
+        ])
+        .unwrap();
+
+        if let Some(Commands::Search { sources, .. }) = cli.command {
+            assert_eq!(sources, vec!["react", "vue", "svelte"]);
+        } else {
+            panic!("Expected search command");
+        }
+    }
+
+    #[test]
+    fn test_single_source_search_parsing() {
+        use clap::Parser;
+
+        // Test single source (backward compatibility)
+        let cli = Cli::try_parse_from(vec!["blz", "search", "hooks", "--source", "react"]).unwrap();
+
+        if let Some(Commands::Search { sources, .. }) = cli.command {
+            assert_eq!(sources, vec!["react"]);
+        } else {
+            panic!("Expected search command");
+        }
+    }
+
+    #[test]
+    fn test_no_source_search_parsing() {
+        use clap::Parser;
+
+        // Test no source (searches all)
+        let cli = Cli::try_parse_from(vec!["blz", "search", "hooks"]).unwrap();
+
+        if let Some(Commands::Search { sources, .. }) = cli.command {
+            assert!(sources.is_empty());
+        } else {
+            panic!("Expected search command");
+        }
+    }
+
+    #[test]
+    fn test_multi_source_shorthand_parsing() {
+        use clap::Parser;
+
+        // Test with -s shorthand
+        let cli = Cli::try_parse_from(vec!["blz", "search", "api", "-s", "bun,node,deno"]).unwrap();
+
+        if let Some(Commands::Search { sources, .. }) = cli.command {
+            assert_eq!(sources, vec!["bun", "node", "deno"]);
+        } else {
+            panic!("Expected search command");
+        }
     }
 }
