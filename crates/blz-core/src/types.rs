@@ -52,7 +52,6 @@
 //!     source_url: Some("https://react.dev/hooks".to_string()),
 //!     checksum: "abc123".to_string(),
 //!     anchor: Some("react-hooks-usestate".to_string()),
-//!     flavor: Some("llms-full".to_string()),
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
@@ -92,79 +91,6 @@ pub enum ContentType {
     Index,
     /// Mixed content (100-1000 lines)
     Mixed,
-}
-
-/// Supported documentation flavors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Flavor {
-    /// Standard `llms.txt` content.
-    Llms,
-    /// Expanded `llms-full.txt` content.
-    LlmsFull,
-}
-
-impl Flavor {
-    /// Return the canonical identifier used in JSON sidecars and settings.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Llms => "llms",
-            Self::LlmsFull => "llms-full",
-        }
-    }
-
-    /// Return the on-disk filename for the flavor's markdown source.
-    pub const fn file_name(self) -> &'static str {
-        match self {
-            Self::Llms => "llms.txt",
-            Self::LlmsFull => "llms-full.txt",
-        }
-    }
-
-    /// Attempt to resolve a flavor from a normalized identifier (e.g., "llms").
-    pub fn from_identifier(identifier: &str) -> Option<Self> {
-        match identifier {
-            id if id.eq_ignore_ascii_case("llms") => Some(Self::Llms),
-            id if id.eq_ignore_ascii_case("llms-full") => Some(Self::LlmsFull),
-            _ => None,
-        }
-    }
-
-    /// Attempt to resolve a flavor from a file name (e.g., "llms-full.txt").
-    pub fn from_file_name(file_name: &str) -> Option<Self> {
-        match file_name {
-            name if name.eq_ignore_ascii_case("llms.txt") => Some(Self::Llms),
-            name if name.eq_ignore_ascii_case("llms-full.txt") => Some(Self::LlmsFull),
-            _ => None,
-        }
-    }
-}
-
-/// Normalize a raw flavor filter string into canonical identifiers.
-///
-/// Accepts comma-, pipe-, or semicolon-delimited lists, ignores empty entries,
-/// and filters out unknown identifiers. Returned identifiers are deduplicated
-/// while preserving order.
-pub fn normalize_flavor_filters(raw: &str) -> Vec<String> {
-    use std::collections::HashSet;
-
-    let mut seen = HashSet::new();
-    let mut normalized = Vec::new();
-
-    for token in raw.split([',', '|', ';']) {
-        let trimmed = token.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        if let Some(flavor) = Flavor::from_identifier(trimmed) {
-            let canonical = flavor.as_str().to_string();
-            if seen.insert(canonical.clone()) {
-                normalized.push(canonical);
-            }
-        }
-    }
-
-    normalized
 }
 
 /// Information about a documentation source.
@@ -534,10 +460,6 @@ pub struct SearchHit {
     /// Stable anchor for the section (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
-
-    /// Document flavor that produced this hit (e.g., `llms` or `llms-full`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flavor: Option<String>,
 }
 
 /// Mapping between stable content anchors and line ranges across updates.
@@ -692,7 +614,6 @@ mod tests {
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
-            flavor: Some("llms-full".to_string()),
         };
 
         let hit2 = SearchHit {
@@ -706,22 +627,12 @@ mod tests {
             source_url: Some("https://react.dev".to_string()),
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
-            flavor: Some("llms-full".to_string()),
         };
 
         // Should be considered the same for deduplication (same source, lines, heading_path)
         assert_eq!(hit1.source, hit2.source);
         assert_eq!(hit1.lines, hit2.lines);
         assert_eq!(hit1.heading_path, hit2.heading_path);
-    }
-
-    #[test]
-    fn test_normalize_flavor_filters_deduplicates_and_ignores_unknowns() {
-        let values = normalize_flavor_filters(" llms-full , unknown , llms , ndjson ");
-        assert_eq!(values, vec!["llms-full".to_string(), "llms".to_string()]);
-
-        let empty = normalize_flavor_filters(" , , ");
-        assert!(empty.is_empty());
     }
 
     #[test]

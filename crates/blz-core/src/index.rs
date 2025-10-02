@@ -1,5 +1,4 @@
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
-use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use sha2::{Digest, Sha256};
@@ -20,8 +19,6 @@ pub struct SearchIndex {
     heading_path_field: Field,
     lines_field: Field,
     alias_field: Field,
-    flavor_field: Option<Field>,
-    alias_flavor_field: Option<Field>,
     anchor_field: Option<Field>,
     reader: IndexReader,
     metrics: Option<PerformanceMetrics>,
@@ -49,8 +46,6 @@ impl SearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
-        let flavor_field = schema_builder.add_text_field("flavor", STRING | STORED);
-        let alias_flavor_field = schema_builder.add_text_field("alias_flavor", STRING | STORED);
         let anchor_field = schema_builder.add_text_field("anchor", STRING | STORED);
 
         let schema = schema_builder.build();
@@ -75,8 +70,6 @@ impl SearchIndex {
             heading_path_field,
             lines_field,
             alias_field,
-            flavor_field: Some(flavor_field),
-            alias_flavor_field: Some(alias_flavor_field),
             reader,
             anchor_field: Some(anchor_field),
             metrics: None,
@@ -115,9 +108,6 @@ impl SearchIndex {
             .get_field("alias")
             .map_err(|_| Error::Index("Missing alias field".into()))?;
 
-        let flavor_field = schema.get_field("flavor").ok();
-        let alias_flavor_field = schema.get_field("alias_flavor").ok();
-
         // Anchor is optional for backward compatibility with older indexes
         let anchor_field = schema.get_field("anchor").ok();
 
@@ -135,8 +125,6 @@ impl SearchIndex {
             heading_path_field,
             lines_field,
             alias_field,
-            flavor_field,
-            alias_flavor_field,
             reader,
             anchor_field,
             metrics: None,
@@ -180,14 +168,6 @@ impl SearchIndex {
                     self.lines_field => lines_str,
                     self.alias_field => alias
                 );
-                // Flavor fields are optional (for backward compat with existing indices)
-                // Always set to "txt" if present
-                if let Some(field) = self.flavor_field {
-                    doc.add_text(field, "txt");
-                }
-                if let Some(field) = self.alias_flavor_field {
-                    doc.add_text(field, format!("{alias}::txt"));
-                }
                 if let (Some(f), Some(a)) = (self.anchor_field, anchor) {
                     doc.add_text(f, a);
                 }
@@ -235,7 +215,6 @@ impl SearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let timer = self.metrics.as_ref().map_or_else(
@@ -266,43 +245,6 @@ impl SearchIndex {
         let mut filter_clauses = Vec::new();
         if let Some(alias) = alias {
             filter_clauses.push(format!("alias:{alias}"));
-        }
-
-        let normalized_flavors = flavor.and_then(|raw| {
-            let normalized = normalize_flavor_filters(raw);
-            if normalized.is_empty() {
-                if !raw.trim().is_empty() {
-                    tracing::debug!(
-                        filter = raw,
-                        "Ignoring flavor filter with no recognized values"
-                    );
-                }
-                None
-            } else {
-                Some(normalized)
-            }
-        });
-
-        match (self.flavor_field, normalized_flavors) {
-            (Some(_), Some(values)) => {
-                if values.len() == 1 {
-                    filter_clauses.push(format!("flavor:{}", values[0]));
-                } else {
-                    let clause = values
-                        .iter()
-                        .map(|value| format!("flavor:{value}"))
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
-                    filter_clauses.push(format!("({clause})"));
-                }
-            },
-            (None, Some(values)) => {
-                tracing::warn!(
-                    filters = %values.join(","),
-                    "Flavor filtering requested but index schema has no flavor field; ignoring"
-                );
-            },
-            _ => {},
         }
 
         let sanitized_query = if needs_escaping {
@@ -366,11 +308,6 @@ impl SearchIndex {
                         .and_then(|v| v.as_str())
                         .map(std::string::ToString::to_string)
                 });
-                let flavor_value = self.flavor_field.and_then(|f| {
-                    doc.get_first(f)
-                        .and_then(|v| v.as_str())
-                        .map(std::string::ToString::to_string)
-                });
 
                 // Count lines for metrics
                 lines_searched += content.lines().count();
@@ -400,7 +337,6 @@ impl SearchIndex {
                     source_url: None,
                     checksum: String::new(),
                     anchor,
-                    flavor: flavor_value,
                 });
             }
             Ok::<(), Error>(())
@@ -687,7 +623,7 @@ mod tests {
 
         // Search for content
         let hits = index
-            .search("useState", Some("test"), None, 10)
+            .search("useState", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results for useState");
@@ -713,7 +649,7 @@ mod tests {
 
         // Search with limit
         let hits = index
-            .search("React", Some("test"), None, 1)
+            .search("React", Some("test"), 1)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
@@ -739,7 +675,7 @@ mod tests {
             .expect("Should index blocks");
 
         let hits = index
-            .search("token", Some("test"), None, 10)
+            .search("token", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty());
@@ -763,7 +699,7 @@ mod tests {
 
         // Search for non-existent term
         let hits = index
-            .search("nonexistentterm12345", Some("test"), None, 10)
+            .search("nonexistentterm12345", Some("test"), 10)
             .expect("Should search");
 
         assert!(
@@ -797,7 +733,7 @@ mod tests {
         // Test search performance
         let start = Instant::now();
         let hits = index
-            .search("React", Some("perftest"), None, 50)
+            .search("React", Some("perftest"), 50)
             .expect("Should search");
         let duration = start.elapsed();
 
@@ -842,7 +778,7 @@ mod tests {
             .expect("Should index blocks");
 
         let hits = index
-            .search("React hooks", Some("test"), None, 10)
+            .search("React hooks", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
@@ -885,7 +821,7 @@ mod tests {
             .expect("Should index blocks");
 
         let hits = index
-            .search("useState", Some("test"), None, 10)
+            .search("useState", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
@@ -937,7 +873,7 @@ mod tests {
 
         for (query, _expected_content) in test_cases {
             let results = index
-                .search(query, Some("unicode_test"), None, 10)
+                .search(query, Some("unicode_test"), 10)
                 .unwrap_or_else(|_| panic!("Should search for '{query}'"));
 
             if !results.is_empty() {
@@ -980,7 +916,7 @@ mod tests {
             .expect("Should index blocks");
 
         let results = index
-            .search("MARKER", Some("edge_test"), None, 10)
+            .search("MARKER", Some("edge_test"), 10)
             .expect("Should search");
 
         assert!(!results.is_empty());

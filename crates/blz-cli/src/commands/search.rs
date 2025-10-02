@@ -337,9 +337,8 @@ async fn perform_search(
                         })?
                         .with_metrics(metrics);
 
-                    // Flavor parameter deprecated, passing None
                     let hits = index
-                        .search(&query, Some(&source), None, effective_limit)
+                        .search(&query, Some(&source), effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -762,7 +761,6 @@ mod tests {
                 source_url: Some(format!("https://example.com/test-{i}")),
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
-                flavor: None, // Will be removed entirely in Phase 3
             })
             .collect();
 

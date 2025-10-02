@@ -2,7 +2,6 @@
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
-use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
@@ -56,7 +55,6 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
-    flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
