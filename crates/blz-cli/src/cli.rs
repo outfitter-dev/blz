@@ -286,14 +286,17 @@ pub enum Commands {
         /// Search query (required unless --next or --last)
         #[arg(required_unless_present_any = ["next", "last"])]
         query: Option<String>,
-        /// Filter by source
+        /// Filter by source(s) - comma-separated for multiple
         #[arg(
             long = "source",
             short = 's',
             visible_alias = "alias",
-            value_name = "SOURCE"
+            visible_alias = "sources",
+            value_name = "SOURCE",
+            value_delimiter = ',',
+            num_args = 0..
         )]
-        source: Option<String>,
+        sources: Vec<String>,
         /// Continue from previous search (next page)
         #[arg(long, conflicts_with = "page", conflicts_with = "last")]
         next: bool,

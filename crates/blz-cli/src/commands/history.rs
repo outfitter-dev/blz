@@ -21,6 +21,12 @@ pub fn show(prefs: &CliPreferences, limit: usize, format: OutputFormat) -> Resul
                 println!("{}", serde_json::to_string(&entry)?);
             }
         },
+        OutputFormat::Raw => {
+            // Raw format: just print queries, one per line
+            for entry in entries {
+                println!("{}", entry.query);
+            }
+        },
     }
     Ok(())
 }

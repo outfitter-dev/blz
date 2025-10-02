@@ -203,6 +203,7 @@ pub fn format_to_string(format: OutputFormat) -> String {
         OutputFormat::Text => "text".to_string(),
         OutputFormat::Json => "json".to_string(),
         OutputFormat::Jsonl => "jsonl".to_string(),
+        OutputFormat::Raw => "raw".to_string(),
     }
 }
 

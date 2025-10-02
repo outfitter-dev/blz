@@ -95,6 +95,10 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         OutputFormat::Text => {
             print_text_info(&info);
         },
+        OutputFormat::Raw => {
+            // Raw format: just key facts, no formatting
+            println!("{}", info.url);
+        },
     }
 
     Ok(())

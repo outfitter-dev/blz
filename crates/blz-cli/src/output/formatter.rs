@@ -172,6 +172,8 @@ pub enum OutputFormat {
     /// Newline-delimited JSON (aka JSON Lines)
     #[value(name = "jsonl", alias = "ndjson")]
     Jsonl,
+    /// Raw content only (no formatting, no metadata)
+    Raw,
 }
 
 /// Formatter for search results with multiple output format support
@@ -318,6 +320,12 @@ impl SearchResultFormatter {
             OutputFormat::Text => {
                 TextFormatter::format_search_results(params);
             },
+            OutputFormat::Raw => {
+                // Raw format: just print snippet from each hit
+                for hit in params.hits {
+                    println!("{}", hit.snippet);
+                }
+            },
         }
         Ok(())
     }
@@ -439,6 +447,14 @@ impl SourceInfoFormatter {
             },
             OutputFormat::Text => {
                 // Text formatting is handled in the list command
+            },
+            OutputFormat::Raw => {
+                // Raw format: just names/aliases, one per line
+                for info in source_info {
+                    if let Some(alias) = info.get("alias").and_then(|v| v.as_str()) {
+                        println!("{alias}");
+                    }
+                }
             },
         }
         Ok(())

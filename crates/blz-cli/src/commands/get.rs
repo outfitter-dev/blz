@@ -150,6 +150,13 @@ pub async fn execute(
             });
             println!("{}", serde_json::to_string(&response)?);
         },
+        OutputFormat::Raw => {
+            // Raw format: just print the content, no line numbers or metadata
+            for &line_num in &line_numbers {
+                let line_content = file_lines[line_num - 1];
+                println!("{}", line_content);
+            }
+        },
     }
 
     Ok(())

@@ -452,7 +452,7 @@ async fn execute_command(
         },
         Some(Commands::Search {
             query,
-            source,
+            sources,
             next,
             last,
             limit,
@@ -468,7 +468,7 @@ async fn execute_command(
             let resolved_format = format.resolve(cli.quiet);
             handle_search(
                 query,
-                source,
+                sources,
                 next,
                 last,
                 limit,
@@ -639,7 +639,7 @@ async fn handle_registry(
 )]
 async fn handle_search(
     mut query: Option<String>,
-    source: Option<String>,
+    sources: Vec<String>,
     next: bool,
     last: bool,
     limit: Option<usize>,
@@ -654,6 +654,13 @@ async fn handle_search(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
+    // Convert Vec<String> to Option<String> for backward compatibility
+    // For now, we only support single source filtering (use first source if multiple provided)
+    let source = if sources.is_empty() {
+        None
+    } else {
+        Some(sources[0].clone())
+    };
     const DEFAULT_LIMIT: usize = 50;
     const ALL_RESULTS_LIMIT: usize = 10_000;
     let provided_query = query.is_some();

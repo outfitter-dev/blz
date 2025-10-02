@@ -89,6 +89,13 @@ pub fn render_list<W: Write>(
         OutputFormat::Text => render_text(writer, sources, status),
         OutputFormat::Json => render_json(writer, sources, status),
         OutputFormat::Jsonl => render_jsonl(writer, sources, status),
+        OutputFormat::Raw => {
+            // Raw format: just print aliases, one per line
+            for source in sources {
+                writeln!(writer, "{}", source.alias)?;
+            }
+            Ok(())
+        },
     }
 }
 
