@@ -92,6 +92,12 @@ impl Storage {
         Ok(Self { root_dir })
     }
 
+    /// Returns the root data directory path
+    #[must_use]
+    pub fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
     /// Returns the directory path for a given alias
     pub fn tool_dir(&self, source: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks

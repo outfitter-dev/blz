@@ -404,6 +404,13 @@ pub enum Commands {
         status: bool,
     },
 
+    /// Show cache statistics and overview
+    Stats {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
     /// Update sources
     Update {
         /// Source to update (updates all if not specified)

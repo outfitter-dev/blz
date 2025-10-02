@@ -345,6 +345,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
             Some(
                 Commands::Search { format, .. }
                 | Commands::List { format, .. }
+                | Commands::Stats { format }
                 | Commands::History { format, .. }
                 | Commands::Lookup { format, .. }
                 | Commands::Get { format, .. }
@@ -535,6 +536,9 @@ async fn execute_command(
         },
         Some(Commands::List { format, status }) => {
             commands::list_sources(format.resolve(cli.quiet), status).await?;
+        },
+        Some(Commands::Stats { format }) => {
+            commands::show_stats(format.resolve(cli.quiet))?;
         },
         Some(Commands::Update {
             alias,
