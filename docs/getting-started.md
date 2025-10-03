@@ -9,6 +9,14 @@ This guide will walk you through installing and using `blz` for the first time.
 - Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
 - Git
 
+### Quick Install (macOS/Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh
+```
+
+The script installs the latest release to `~/.local/bin`. Override the location with `BLZ_INSTALL_DIR=/path`, or pin a version using `BLZ_VERSION=v0.4.1`.
+
 ### Install from Source
 
 ```bash

@@ -312,6 +312,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tempfile",
  "terminal_size",

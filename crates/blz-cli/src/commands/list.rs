@@ -3,7 +3,7 @@
 use std::io::{self, Write};
 
 use anyhow::{Context, Result};
-use blz_core::{LlmsJson, Source, Storage};
+use blz_core::{LlmsJson, Source, SourceDescriptor, SourceOrigin, SourceType, Storage};
 use colored::Colorize;
 use serde_json::Value;
 
@@ -16,6 +16,7 @@ pub trait ListStorage {
     fn list_sources(&self) -> Result<Vec<String>>;
     fn load_metadata(&self, alias: &str) -> Result<Option<Source>>;
     fn load_llms_json(&self, alias: &str) -> Result<LlmsJson>;
+    fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>>;
 }
 
 #[allow(clippy::use_self)]
@@ -31,10 +32,14 @@ impl ListStorage for Storage {
     fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
         Storage::load_llms_json(self, alias).map_err(anyhow::Error::from)
     }
+
+    fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
+        Storage::load_descriptor(self, alias).map_err(anyhow::Error::from)
+    }
 }
 
 /// Summary information for each source returned by `collect_source_summaries`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct SourceSummary {
     pub alias: String,
     pub url: String,
@@ -46,6 +51,12 @@ pub struct SourceSummary {
     pub last_modified: Option<String>,
     pub lines: usize,
     pub headings: usize,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub npm_aliases: Vec<String>,
+    pub github_aliases: Vec<String>,
+    pub origin: SourceOrigin,
+    pub descriptor: Option<SourceDescriptor>,
 }
 
 /// Gather source summaries from storage.
@@ -60,6 +71,16 @@ pub fn collect_source_summaries<S: ListStorage>(storage: &S) -> Result<Vec<Sourc
         let llms = storage
             .load_llms_json(&alias)
             .with_context(|| format!("Failed to load JSON for '{alias}'"))?;
+        let descriptor = storage.load_descriptor(&alias)?;
+
+        let description = metadata
+            .description
+            .clone()
+            .or_else(|| descriptor.as_ref().and_then(|d| d.description.clone()));
+        let category = metadata
+            .category
+            .clone()
+            .or_else(|| descriptor.as_ref().and_then(|d| d.category.clone()));
 
         summaries.push(SourceSummary {
             alias: alias.clone(),
@@ -72,6 +93,12 @@ pub fn collect_source_summaries<S: ListStorage>(storage: &S) -> Result<Vec<Sourc
             last_modified: metadata.last_modified,
             lines: llms.line_index.total_lines,
             headings: count_headings(&llms.toc),
+            description,
+            category,
+            npm_aliases: metadata.npm_aliases,
+            github_aliases: metadata.github_aliases,
+            origin: metadata.origin,
+            descriptor,
         });
     }
 
@@ -84,9 +111,10 @@ pub fn render_list<W: Write>(
     sources: &[SourceSummary],
     format: OutputFormat,
     status: bool,
+    details: bool,
 ) -> Result<()> {
     match format {
-        OutputFormat::Text => render_text(writer, sources, status),
+        OutputFormat::Text => render_text(writer, sources, status, details),
         OutputFormat::Json => render_json(writer, sources, status),
         OutputFormat::Jsonl => render_jsonl(writer, sources, status),
         OutputFormat::Raw => {
@@ -100,11 +128,11 @@ pub fn render_list<W: Write>(
 }
 
 /// Execute the list command using production storage and stdout.
-pub async fn execute(format: OutputFormat, status: bool) -> Result<()> {
+pub async fn execute(format: OutputFormat, status: bool, details: bool) -> Result<()> {
     let storage = Storage::new()?;
     let stdout = io::stdout();
     let mut handle = stdout.lock();
-    execute_with_writer(&storage, &mut handle, format, status)
+    execute_with_writer(&storage, &mut handle, format, status, details)
 }
 
 /// Testable entry point allowing storage and writer injection.
@@ -113,6 +141,7 @@ pub fn execute_with_writer<S, W>(
     writer: &mut W,
     format: OutputFormat,
     status: bool,
+    details: bool,
 ) -> Result<()>
 where
     S: ListStorage,
@@ -127,18 +156,25 @@ where
                     writer,
                     "No sources configured. Use 'blz add' to add sources."
                 )?;
+                return Ok(());
             },
-            _ => {
+            OutputFormat::Raw => return Ok(()),
+            OutputFormat::Json | OutputFormat::Jsonl => {
                 writeln!(writer, "[]")?;
+                return Ok(());
             },
         }
-        return Ok(());
     }
 
-    render_list(writer, &summaries, format, status)
+    render_list(writer, &summaries, format, status, details)
 }
 
-fn render_text<W: Write>(writer: &mut W, sources: &[SourceSummary], status: bool) -> Result<()> {
+fn render_text<W: Write>(
+    writer: &mut W,
+    sources: &[SourceSummary],
+    status: bool,
+    details: bool,
+) -> Result<()> {
     for (idx, source) in sources.iter().enumerate() {
         let colored_alias = get_alias_color(&source.alias, idx);
         writeln!(writer, "{} - {}", colored_alias, source.url.bright_black())?;
@@ -160,7 +196,49 @@ fn render_text<W: Write>(writer: &mut W, sources: &[SourceSummary], status: bool
             if let Some(last_modified) = &source.last_modified {
                 writeln!(writer, "  Last-Modified: {last_modified}")?;
             }
+            writeln!(writer, "  SHA256: {}", source.sha256)?;
         }
+
+        if details {
+            if let Some(description) = &source.description {
+                writeln!(writer, "  Description: {}", description)?;
+            }
+            if let Some(category) = &source.category {
+                writeln!(writer, "  Category: {}", category)?;
+            }
+            if !source.npm_aliases.is_empty() {
+                writeln!(writer, "  npm: {}", source.npm_aliases.join(", "))?;
+            }
+            if !source.github_aliases.is_empty() {
+                writeln!(writer, "  github: {}", source.github_aliases.join(", "))?;
+            }
+            if let Some(descriptor) = &source.descriptor {
+                if let Some(url) = &descriptor.url {
+                    writeln!(writer, "  Descriptor URL: {}", url)?;
+                }
+                if let Some(path) = &descriptor.path {
+                    writeln!(writer, "  Local path: {}", path)?;
+                }
+                if let Some(manifest) = &descriptor.origin.manifest {
+                    writeln!(
+                        writer,
+                        "  Manifest: {} ({})",
+                        manifest.path, manifest.entry_alias
+                    )?;
+                }
+            }
+
+            writeln!(
+                writer,
+                "  Origin: {}",
+                match &source.origin.source_type {
+                    Some(SourceType::Remote { url }) => format!("remote ({url})"),
+                    Some(SourceType::LocalFile { path }) => format!("local ({path})"),
+                    None => "unknown".to_string(),
+                }
+            )?;
+        }
+
         writeln!(writer)?;
     }
     Ok(())
@@ -201,6 +279,34 @@ fn summary_to_json(source: &SourceSummary, status: bool) -> Value {
     );
     obj.insert("sha256".to_string(), Value::String(source.sha256.clone()));
 
+    if let Some(description) = &source.description {
+        obj.insert(
+            "description".to_string(),
+            Value::String(description.clone()),
+        );
+    }
+    if let Some(category) = &source.category {
+        obj.insert("category".to_string(), Value::String(category.clone()));
+    }
+    obj.insert(
+        "npmAliases".to_string(),
+        serde_json::json!(source.npm_aliases.clone()),
+    );
+    obj.insert(
+        "githubAliases".to_string(),
+        serde_json::json!(source.github_aliases.clone()),
+    );
+    obj.insert(
+        "origin".to_string(),
+        serde_json::to_value(&source.origin).unwrap_or(Value::Null),
+    );
+    if let Some(descriptor) = &source.descriptor {
+        obj.insert(
+            "descriptor".to_string(),
+            serde_json::to_value(descriptor).unwrap_or(Value::Null),
+        );
+    }
+
     if status {
         if let Some(etag) = &source.etag {
             obj.insert("etag".to_string(), Value::String(etag.clone()));
@@ -229,6 +335,7 @@ mod tests {
         aliases: Vec<String>,
         metadata: HashMap<String, Source>,
         llms: HashMap<String, LlmsJson>,
+        descriptors: HashMap<String, SourceDescriptor>,
         fail_on_metadata: bool,
     }
 
@@ -247,6 +354,10 @@ mod tests {
         fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
             self.llms.get(alias).cloned().context("missing llms json")
         }
+
+        fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
+            Ok(self.descriptors.get(alias).cloned())
+        }
     }
 
     fn sample_source(url: &str) -> Source {
@@ -259,6 +370,16 @@ mod tests {
             variant: blz_core::SourceVariant::Llms,
             aliases: vec!["pkg".into()],
             tags: vec!["docs".into(), "stable".into()],
+            description: Some("Sample description".into()),
+            category: Some("library".into()),
+            npm_aliases: vec!["pkg".into()],
+            github_aliases: vec!["org/pkg".into()],
+            origin: blz_core::SourceOrigin {
+                manifest: None,
+                source_type: Some(blz_core::SourceType::Remote {
+                    url: url.to_string(),
+                }),
+            },
         }
     }
 
@@ -300,7 +421,7 @@ mod tests {
     fn execute_with_writer_renders_empty_text() -> Result<()> {
         let storage = MockStorage::default();
         let mut buf = Cursor::new(Vec::new());
-        execute_with_writer(&storage, &mut buf, OutputFormat::Text, false)?;
+        execute_with_writer(&storage, &mut buf, OutputFormat::Text, false, false)?;
         let output = String::from_utf8(buf.into_inner())?;
         assert!(output.contains("No sources configured"));
         Ok(())
@@ -316,10 +437,11 @@ mod tests {
                 String::from("alpha"),
                 sample_llms("alpha", metadata, 120, 12),
             )]),
+            descriptors: HashMap::new(),
             fail_on_metadata: false,
         };
         let mut buf = Cursor::new(Vec::new());
-        execute_with_writer(&storage, &mut buf, OutputFormat::Json, true)?;
+        execute_with_writer(&storage, &mut buf, OutputFormat::Json, true, false)?;
         let output = String::from_utf8(buf.into_inner())?;
         let value: serde_json::Value = serde_json::from_str(&output)?;
         assert_eq!(value[0]["alias"], "alpha");
@@ -340,12 +462,24 @@ mod tests {
             last_modified: Some("Wed".into()),
             lines: 42,
             headings: 5,
+            description: Some("Example".into()),
+            category: Some("library".into()),
+            npm_aliases: vec![],
+            github_aliases: vec![],
+            origin: blz_core::SourceOrigin {
+                manifest: None,
+                source_type: Some(blz_core::SourceType::Remote {
+                    url: "https://example.com".into(),
+                }),
+            },
+            descriptor: None,
         };
         let mut buf = Cursor::new(Vec::new());
-        render_text(&mut buf, &[summary], false)?;
+        render_text(&mut buf, &[summary], false, false)?;
         let output = String::from_utf8(buf.into_inner())?;
         assert!(output.contains("42 lines"));
         assert!(!output.contains("ETag"));
+        assert!(!output.contains("Origin:"));
         Ok(())
     }
 }

@@ -10,7 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use tokio::process::Command;
 
-use crate::commands::add_source;
+use crate::commands::{AddRequest, DescriptorInput, add_source};
 
 /// TOML source file structure
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,7 +147,24 @@ pub async fn execute(
             println!("\nAdding {} to local index...", name.green());
         }
 
-        add_source(name, url, &[], yes, false, quiet, metrics).await?;
+        let descriptor = DescriptorInput::from_cli_inputs(
+            &[],
+            Some(name),
+            Some(&metadata.description),
+            Some(&metadata.category),
+            &metadata.tags,
+        );
+
+        let request = AddRequest::new(
+            name.to_string(),
+            url.to_string(),
+            descriptor,
+            false,
+            quiet,
+            metrics,
+        );
+
+        add_source(request).await?;
 
         if !quiet {
             println!("{} Source added to local index", "✓".green());

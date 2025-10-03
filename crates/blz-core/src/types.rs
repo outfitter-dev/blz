@@ -168,6 +168,26 @@ pub struct Source {
     /// Defaults to empty for backward compatibility.
     #[serde(default)]
     pub tags: Vec<String>,
+
+    /// Optional human-readable description of the source.
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Optional category that groups similar sources (framework, runtime, etc.).
+    #[serde(default)]
+    pub category: Option<String>,
+
+    /// Additional alias metadata for npm packages associated with the source.
+    #[serde(default, rename = "npmAliases")]
+    pub npm_aliases: Vec<String>,
+
+    /// Additional alias metadata for GitHub repositories associated with the source.
+    #[serde(default, rename = "githubAliases")]
+    pub github_aliases: Vec<String>,
+
+    /// Provenance information describing how the source was added.
+    #[serde(default)]
+    pub origin: SourceOrigin,
 }
 
 impl Source {
@@ -181,6 +201,152 @@ impl Source {
         self.tags
             .iter()
             .any(|tag| tag.eq_ignore_ascii_case("index"))
+    }
+}
+
+/// Records provenance information for a source.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceOrigin {
+    /// Manifest relationship if the source was imported from a manifest file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<ManifestOrigin>,
+
+    /// Concrete type of source that influences update behavior (remote vs local file).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_type: Option<SourceType>,
+}
+
+/// Details about the manifest file that seeded this source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestOrigin {
+    /// Absolute path to the manifest file when it was imported.
+    pub path: String,
+
+    /// Alias entry referenced within the manifest.
+    pub entry_alias: String,
+
+    /// Manifest schema/version if provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// Indicates how a source should be refreshed during updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SourceType {
+    /// Remote HTTP(S) endpoint.
+    Remote {
+        /// Fully-qualified URL used for fetching documentation.
+        url: String,
+    },
+    /// Local filesystem file.
+    LocalFile {
+        /// Absolute filesystem path to the source document.
+        path: String,
+    },
+}
+
+/// Canonical descriptor persisted alongside configuration for each source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceDescriptor {
+    /// Canonical alias used for on-disk storage.
+    pub alias: String,
+
+    /// Human-readable display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Optional description for tooling/UX.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Optional category grouping similar sources.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+
+    /// Tags describing the source (language, framework, etc.).
+    #[serde(default)]
+    pub tags: Vec<String>,
+
+    /// Remote endpoint for documentation, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+
+    /// Local filesystem path for documentation, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+
+    /// Additional aliases recognized by the CLI.
+    #[serde(default)]
+    pub aliases: Vec<String>,
+
+    /// npm package aliases associated with this source.
+    #[serde(default, rename = "npmAliases")]
+    pub npm_aliases: Vec<String>,
+
+    /// GitHub repository aliases associated with this source.
+    #[serde(default, rename = "githubAliases")]
+    pub github_aliases: Vec<String>,
+
+    /// Provenance metadata.
+    #[serde(default)]
+    pub origin: SourceOrigin,
+}
+
+impl SourceDescriptor {
+    /// Create a descriptor snapshot from an existing `Source` record.
+    #[must_use]
+    pub fn from_source(alias: &str, source: &Source) -> Self {
+        let (url, path) = match &source.origin.source_type {
+            Some(SourceType::Remote { url }) => (Some(url.clone()), None),
+            Some(SourceType::LocalFile { path }) => (None, Some(path.clone())),
+            None => (Some(source.url.clone()), None),
+        };
+
+        Self {
+            alias: alias.to_string(),
+            name: None,
+            description: source.description.clone(),
+            category: source.category.clone(),
+            tags: source.tags.clone(),
+            url,
+            path,
+            aliases: source.aliases.clone(),
+            npm_aliases: source.npm_aliases.clone(),
+            github_aliases: source.github_aliases.clone(),
+            origin: source.origin.clone(),
+        }
+    }
+
+    /// Apply descriptor fields back onto a mutable `Source` reference.
+    pub fn apply_to_source(&self, source: &mut Source) {
+        source.description.clone_from(&self.description);
+        source.category.clone_from(&self.category);
+        source.tags.clone_from(&self.tags);
+        source.aliases.clone_from(&self.aliases);
+        source.npm_aliases.clone_from(&self.npm_aliases);
+        source.github_aliases.clone_from(&self.github_aliases);
+        source.origin = self.origin.clone();
+
+        match (&self.origin.source_type, (&self.url, &self.path)) {
+            (Some(SourceType::Remote { .. }) | None, (Some(url), _)) => {
+                source
+                    .origin
+                    .source_type
+                    .clone_from(&Some(SourceType::Remote { url: url.clone() }));
+                source.url.clone_from(url);
+            },
+            (Some(SourceType::LocalFile { .. }) | None, (_, Some(path))) => {
+                source
+                    .origin
+                    .source_type
+                    .clone_from(&Some(SourceType::LocalFile { path: path.clone() }));
+            },
+            _ => {},
+        }
     }
 }
 
@@ -647,6 +813,16 @@ mod tests {
             variant: SourceVariant::Llms,
             aliases: Vec::new(),
             tags: Vec::new(),
+            description: None,
+            category: None,
+            npm_aliases: Vec::new(),
+            github_aliases: Vec::new(),
+            origin: SourceOrigin {
+                manifest: None,
+                source_type: Some(SourceType::Remote {
+                    url: "https://example.com/llms.txt".to_string(),
+                }),
+            },
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
@@ -713,6 +889,16 @@ mod tests {
                 variant: SourceVariant::Llms,
                 aliases: Vec::new(),
                 tags: Vec::new(),
+                description: None,
+                category: None,
+                npm_aliases: Vec::new(),
+                github_aliases: Vec::new(),
+                origin: SourceOrigin {
+                    manifest: None,
+                    source_type: Some(SourceType::Remote {
+                        url: "https://example.com".to_string(),
+                    }),
+                },
             },
             toc: vec![],
             files: vec![FileInfo {

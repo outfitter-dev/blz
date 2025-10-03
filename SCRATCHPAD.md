@@ -86,3 +86,10 @@ Quick notes and links to detailed work logs.
 - 🚧 Phases 1-8: Execute flavor elimination cleanup sequentially
 - Create PR for v1.0.0-beta.1 after implementation complete
 - Consider removing old `gt/fix-normalize-heading-counts-and-filter-placeholder-pages` branch (fixes cherry-picked)
+
+## 2025-10-03
+
+- Authored batch manifest design for `blz add` (`.agents/logs/20251003-blz-add-batch-manifest-spec.md`) covering format, metadata propagation, and update flow for remote/local sources.
+- Began implementation: extended `blz_core::Source` with origin/descriptor metadata fields and updated CLI helpers/tests to compile with new structure.
+- Added per-source descriptor persistence APIs in `Storage`, refactored `blz add` single-source flow to reuse shared finalization logic, and introduced manifest + local file ingestion skeleton (execute_manifest/add_local_source).
+- Expanded `blz list` to support `--details` (descriptor-aware output) and richer JSON payloads; docs updated with manifest workflow, added template at `registry/templates/batch-manifest.example.toml`, documented `blz add` metadata flags/defaults, and introduced curl-install script (`install.sh`).

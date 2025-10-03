@@ -3,7 +3,7 @@
 //! This is the main entry point for the blz command-line interface.
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use blz_core::PerformanceMetrics;
 use clap::{CommandFactory, Parser};
 use colored::control as color_control;
@@ -27,6 +27,8 @@ mod instruct_mod {
         );
     }
 }
+
+use crate::commands::{AddRequest, DescriptorInput};
 
 use crate::utils::preferences::{self, CliPreferences};
 use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands, RegistryCommands};
@@ -435,14 +437,46 @@ async fn execute_command(
         Some(Commands::Docs { format }) => handle_docs(format)?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Instruct) => instruct_mod::print(),
-        Some(Commands::Add {
-            alias,
-            url,
-            aliases,
-            yes,
-            dry_run,
-        }) => {
-            commands::add_source(&alias, &url, &aliases, yes, dry_run, cli.quiet, metrics).await?;
+        Some(Commands::Add(args)) => {
+            if let Some(manifest) = &args.manifest {
+                commands::add_manifest(
+                    manifest,
+                    &args.only,
+                    args.yes,
+                    args.dry_run,
+                    cli.quiet,
+                    metrics,
+                )
+                .await?;
+            } else {
+                let alias = args
+                    .alias
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("alias is required when manifest is not provided"))?;
+                let url = args
+                    .url
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("url is required when manifest is not provided"))?;
+
+                let descriptor = DescriptorInput::from_cli_inputs(
+                    &args.aliases,
+                    args.name.as_deref(),
+                    args.description.as_deref(),
+                    args.category.as_deref(),
+                    &args.tags,
+                );
+
+                let request = AddRequest::new(
+                    alias.to_string(),
+                    url.to_string(),
+                    descriptor,
+                    args.dry_run,
+                    cli.quiet,
+                    metrics,
+                );
+
+                commands::add_source(request).await?;
+            }
         },
         Some(Commands::Lookup { query, format }) => {
             commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))
@@ -551,8 +585,12 @@ async fn execute_command(
         Some(Commands::Info { alias, format }) => {
             commands::execute_info(&alias, format.resolve(cli.quiet)).await?;
         },
-        Some(Commands::List { format, status }) => {
-            commands::list_sources(format.resolve(cli.quiet), status).await?;
+        Some(Commands::List {
+            format,
+            status,
+            details,
+        }) => {
+            commands::list_sources(format.resolve(cli.quiet), status, details).await?;
         },
         Some(Commands::Stats { format }) => {
             commands::show_stats(format.resolve(cli.quiet))?;
@@ -1472,19 +1510,17 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Add {
-            alias,
-            url,
-            aliases,
-            yes,
-            dry_run,
-        }) = cli.command
-        {
-            assert_eq!(alias, "test");
-            assert_eq!(url, "https://example.com/llms.txt");
-            assert!(aliases.is_empty());
-            assert!(yes);
-            assert!(!dry_run);
+        if let Some(Commands::Add(args)) = cli.command {
+            assert_eq!(args.alias.as_deref(), Some("test"));
+            assert_eq!(args.url.as_deref(), Some("https://example.com/llms.txt"));
+            assert!(args.aliases.is_empty());
+            assert!(args.tags.is_empty());
+            assert!(args.name.is_none());
+            assert!(args.description.is_none());
+            assert!(args.category.is_none());
+            assert!(args.yes);
+            assert!(!args.dry_run);
+            assert!(args.manifest.is_none());
         } else {
             panic!("Expected add command");
         }

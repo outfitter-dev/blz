@@ -29,8 +29,6 @@ use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
-const BASE_FLAVOR: &str = "llms";
-
 /// Create realistic test data for benchmarking
 fn create_realistic_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
     let mut blocks = Vec::with_capacity(count);
@@ -143,7 +141,7 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
             b.iter(|| {
                 let query = black_box("React hooks");
                 original_index
-                    .search(query, Some("bench"), None, 10)
+                    .search(query, Some("bench"), 10)
                     .expect("Search failed")
             });
         });
@@ -352,7 +350,6 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 source_url: Some(format!("https://example.com/{}", i)),
                 checksum: format!("checksum_{}", i),
                 anchor: Some("bench-anchor".to_string()),
-                flavor: Some(BASE_FLAVOR.to_string()),
             })
             .collect()
     };

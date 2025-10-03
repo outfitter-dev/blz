@@ -23,7 +23,9 @@ mod search;
 mod stats;
 mod update;
 
-pub use add::execute as add_source;
+pub use add::{
+    AddRequest, DescriptorInput, execute as add_source, execute_manifest as add_manifest,
+};
 pub use alias::{AliasCommand, execute as manage_alias};
 // Anchor commands are behind a feature flag and not re-exported in v0.2
 pub use clear::run as clear_cache;

@@ -173,8 +173,8 @@ mod tests {
         assert_eq!(format_number(123), "123");
         assert_eq!(format_number(1234), "1,234");
         assert_eq!(format_number(12345), "12,345");
-        assert_eq!(format_number(123456), "123,456");
-        assert_eq!(format_number(1234567), "1,234,567");
+        assert_eq!(format_number(123_456), "123,456");
+        assert_eq!(format_number(1_234_567), "1,234,567");
     }
 
     #[test]

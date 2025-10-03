@@ -1,0 +1,21 @@
+version = "1"
+
+[[source]]
+alias = "bun"
+name = "Bun"
+description = "Fast all-in-one JavaScript runtime"
+url = "https://bun.sh/llms-full.txt"
+category = "runtime"
+tags = ["javascript", "runtime"]
+
+  [source.aliases]
+  npm = ["bun"]
+  github = ["oven-sh/bun"]
+
+[[source]]
+alias = "internal-sdk"
+name = "Internal SDK"
+path = "./docs/internal-sdk.llms.txt"
+description = "Private SDK docs"
+category = "internal"
+tags = ["sdk", "internal"]

@@ -1,6 +1,6 @@
-use crate::{Error, LlmsJson, Result, Source};
+use crate::{Error, LlmsJson, Result, Source, SourceDescriptor};
 use chrono::Utc;
-use directories::ProjectDirs;
+use directories::{BaseDirs, ProjectDirs};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
@@ -11,6 +11,7 @@ const MAX_ALIAS_LEN: usize = 64;
 /// Local filesystem storage for cached llms.txt documentation
 pub struct Storage {
     root_dir: PathBuf,
+    config_dir: PathBuf,
 }
 
 impl Storage {
@@ -55,7 +56,8 @@ impl Storage {
         // Test/dev override: allow BLZ_DATA_DIR to set the root directory explicitly
         if let Ok(dir) = std::env::var("BLZ_DATA_DIR") {
             let root = PathBuf::from(dir);
-            return Self::with_root(root);
+            let config_dir = Self::default_config_dir()?;
+            return Self::with_paths(root, config_dir);
         }
 
         // Use XDG_DATA_HOME if explicitly set
@@ -73,7 +75,8 @@ impl Storage {
         // Check for migration from old cache directory
         Self::check_and_migrate_old_cache(&root_dir);
 
-        Self::with_root(root_dir)
+        let config_dir = Self::default_config_dir()?;
+        Self::with_paths(root_dir, config_dir)
     }
 
     /// Fallback data directory when `XDG_DATA_HOME` is not set
@@ -84,18 +87,116 @@ impl Storage {
         Ok(home.home_dir().join(".blz"))
     }
 
+    /// Determine the default configuration directory honoring overrides
+    fn default_config_dir() -> Result<PathBuf> {
+        if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                return Ok(PathBuf::from(trimmed));
+            }
+        }
+
+        if let Ok(dir) = std::env::var("BLZ_GLOBAL_CONFIG_DIR") {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                return Ok(PathBuf::from(trimmed));
+            }
+        }
+
+        if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+            let trimmed = xdg.trim();
+            if !trimmed.is_empty() {
+                return Ok(PathBuf::from(trimmed).join("blz"));
+            }
+        }
+
+        if let Some(base_dirs) = BaseDirs::new() {
+            return Ok(base_dirs.home_dir().join(".blz"));
+        }
+
+        Err(Error::Storage(
+            "Failed to determine configuration directory".into(),
+        ))
+    }
+
     /// Creates a new storage instance with a custom root directory
     pub fn with_root(root_dir: PathBuf) -> Result<Self> {
+        let config_dir = root_dir.join("config");
+        Self::with_paths(root_dir, config_dir)
+    }
+
+    /// Creates a new storage instance with explicit data and config directories
+    pub fn with_paths(root_dir: PathBuf, config_dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root_dir)
             .map_err(|e| Error::Storage(format!("Failed to create root directory: {e}")))?;
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| Error::Storage(format!("Failed to create config directory: {e}")))?;
 
-        Ok(Self { root_dir })
+        Ok(Self {
+            root_dir,
+            config_dir,
+        })
     }
 
     /// Returns the root data directory path
     #[must_use]
     pub fn root_dir(&self) -> &Path {
         &self.root_dir
+    }
+
+    /// Returns the root configuration directory path used for descriptors
+    #[must_use]
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
+    }
+
+    fn descriptors_dir(&self) -> PathBuf {
+        self.config_dir.join("sources")
+    }
+
+    /// Returns the path to the descriptor TOML for a source
+    pub fn descriptor_path(&self, alias: &str) -> Result<PathBuf> {
+        Self::validate_alias(alias)?;
+        Ok(self.descriptors_dir().join(format!("{alias}.toml")))
+    }
+
+    /// Persist a descriptor to disk, creating parent directories if necessary
+    pub fn save_descriptor(&self, descriptor: &SourceDescriptor) -> Result<()> {
+        let path = self.descriptor_path(&descriptor.alias)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| Error::Storage(format!("Failed to create descriptor dir: {e}")))?;
+        }
+
+        let toml = toml::to_string_pretty(descriptor)
+            .map_err(|e| Error::Storage(format!("Failed to serialize descriptor: {e}")))?;
+        fs::write(&path, toml)
+            .map_err(|e| Error::Storage(format!("Failed to write descriptor: {e}")))?;
+        Ok(())
+    }
+
+    /// Load a descriptor if it exists
+    pub fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
+        let path = self.descriptor_path(alias)?;
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        let contents = fs::read_to_string(&path)
+            .map_err(|e| Error::Storage(format!("Failed to read descriptor: {e}")))?;
+        let descriptor = toml::from_str::<SourceDescriptor>(&contents)
+            .map_err(|e| Error::Storage(format!("Failed to parse descriptor: {e}")))?;
+        Ok(Some(descriptor))
+    }
+
+    /// Remove descriptor file for an alias if present
+    pub fn remove_descriptor(&self, alias: &str) -> Result<()> {
+        let path = self.descriptor_path(alias)?;
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| Error::Storage(format!("Failed to remove descriptor: {e}")))?;
+        }
+        Ok(())
     }
 
     /// Returns the directory path for a given alias
@@ -577,6 +678,16 @@ mod tests {
                 variant: SourceVariant::Llms,
                 aliases: Vec::new(),
                 tags: Vec::new(),
+                description: None,
+                category: None,
+                npm_aliases: Vec::new(),
+                github_aliases: Vec::new(),
+                origin: crate::types::SourceOrigin {
+                    manifest: None,
+                    source_type: Some(crate::types::SourceType::Remote {
+                        url: format!("https://example.com/{source_name}/llms.txt"),
+                    }),
+                },
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],

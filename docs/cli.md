@@ -54,7 +54,18 @@ blz add <ALIAS> <URL> [OPTIONS]
 
 **Options:**
 
-- `-y, --yes` - Auto-select the best flavor without prompts
+- `-y, --yes` - Skip interactive prompts
+- `--aliases <ALIAS1,ALIAS2>` - Register additional lookup aliases
+- `--dry-run` - Analyze the source and emit JSON without saving files
+- `--manifest <FILE>` - Add multiple sources from a TOML manifest (batch mode)
+- `--only <ALIAS1,ALIAS2>` - Restrict manifest processing to specific entries
+- `--name <NAME>` - Override the display name (defaults to Title Case alias)
+- `--description <TEXT>` - Set a description; omitted entries write an empty field
+- `--category <CATEGORY>` - Category label (defaults to `uncategorized`)
+- `--tags <TAG1,TAG2>` - Attach comma-separated tags for list filtering
+
+When `--manifest` is used the positional `<ALIAS> <URL>` arguments are optional. Each source added (single or batch) writes a descriptor to
+`~/.config/blz/sources/<alias>.toml`, capturing the resolved URL/path plus tags and metadata.
 
 **Examples:**
 
@@ -64,7 +75,47 @@ blz add bun https://bun.sh/llms.txt
 
 # Add with auto-confirmation
 blz add node https://nodejs.org/llms.txt --yes
+
+# Provide metadata inline
+blz add react https://react.dev/llms.txt \
+  --name "React" \
+  --category framework \
+  --tags javascript,ui,library
+
+# Import a manifest of sources (remote + local)
+blz add --manifest docs/blz.sources.toml
+
+# Dry-run analysis for a manifest (no files written)
+blz add --manifest docs/blz.sources.toml --dry-run
 ```
+
+Minimal manifest example (`docs/blz.sources.toml`):
+
+```toml
+version = "1"
+
+[[source]]
+alias = "bun"
+name = "Bun"
+description = "Fast all-in-one JavaScript runtime"
+url = "https://bun.sh/llms-full.txt"
+category = "runtime"
+tags = ["javascript", "runtime"]
+
+  [source.aliases]
+  npm = ["bun"]
+  github = ["oven-sh/bun"]
+
+[[source]]
+alias = "internal-sdk"
+name = "Internal SDK"
+path = "./docs/internal-sdk.llms.txt"
+description = "Private SDK docs"
+category = "internal"
+tags = ["sdk", "internal"]
+```
+
+You can copy this template directly from `registry/templates/batch-manifest.example.toml`.
 
 ### `blz lookup`
 
@@ -211,13 +262,12 @@ blz list [OPTIONS]
 
 **Options:**
 
-- `-f, --format <FORMAT>` - Output format: `text` (default) or `json`
+- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl`
+- `--status` - Include fetch metadata (fetched time, etag, last-modified, checksum)
+- `--details` - Show descriptor metadata (description, category, npm/github aliases, origin)
 
-JSON keys
-
-- Each entry includes: `alias`, `source` (canonical handle), `url`, `fetchedAt`, `lines`, `sha256`
-- When available: `etag`, `lastModified`, and `aliases` (array of metadata aliases)
+JSON output always includes the descriptor payload (`descriptor` object) in addition to the standard summary fields (`alias`, `url`, `lines`, `headings`, `tags`, `aliases`, `origin`, `sha256`, etc.).
 
 **Examples:**
 
@@ -227,6 +277,9 @@ blz list
 
 # JSON output for scripting
 blz list --format json
+
+# Verbose descriptor view
+blz list --details
 ```
 
 ### `blz update`

@@ -146,7 +146,39 @@ where
     }
     llms_json.metadata.aliases.clone_from(&merged_aliases);
     llms_json.metadata.tags.clone_from(&existing_metadata.tags);
+    llms_json
+        .metadata
+        .description
+        .clone_from(&existing_metadata.description);
+    llms_json
+        .metadata
+        .category
+        .clone_from(&existing_metadata.category);
+    llms_json
+        .metadata
+        .npm_aliases
+        .clone_from(&existing_metadata.npm_aliases);
+    llms_json
+        .metadata
+        .github_aliases
+        .clone_from(&existing_metadata.github_aliases);
     storage.save_llms_json(alias, &llms_json)?;
+
+    let mut origin = existing_metadata.origin.clone();
+    origin.source_type = match (&origin.source_type, &existing_metadata.origin.source_type) {
+        (Some(blz_core::SourceType::Remote { .. }), _) => Some(blz_core::SourceType::Remote {
+            url: existing_metadata.url.clone(),
+        }),
+        (Some(blz_core::SourceType::LocalFile { path }), _) => {
+            Some(blz_core::SourceType::LocalFile { path: path.clone() })
+        },
+        (None, Some(existing)) => Some(existing.clone()),
+        (None, None) => Some(blz_core::SourceType::Remote {
+            url: existing_metadata.url.clone(),
+        }),
+    };
+
+    llms_json.metadata.origin = origin.clone();
 
     let metadata = Source {
         url: existing_metadata.url,
@@ -157,6 +189,11 @@ where
         variant: existing_metadata.variant,
         aliases: merged_aliases,
         tags: existing_metadata.tags,
+        description: existing_metadata.description,
+        category: existing_metadata.category,
+        npm_aliases: existing_metadata.npm_aliases,
+        github_aliases: existing_metadata.github_aliases,
+        origin,
     };
     storage.save_metadata(alias, &metadata)?;
 
@@ -510,6 +547,16 @@ mod tests {
             variant: blz_core::SourceVariant::Llms,
             aliases: vec!["alpha".into()],
             tags: vec!["docs".into()],
+            description: Some("Example source".into()),
+            category: Some("library".into()),
+            npm_aliases: vec!["alpha".into()],
+            github_aliases: vec!["org/alpha".into()],
+            origin: blz_core::SourceOrigin {
+                manifest: None,
+                source_type: Some(blz_core::SourceType::Remote {
+                    url: "https://example.com".into(),
+                }),
+            },
         }
     }
 

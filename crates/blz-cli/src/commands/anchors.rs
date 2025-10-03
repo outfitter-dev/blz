@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
@@ -45,6 +45,9 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
                         m.anchor.bright_black()
                     );
                 }
+            },
+            OutputFormat::Raw => {
+                return Err(anyhow!("Raw output is not supported for anchors"));
             },
         }
         return Ok(());
@@ -95,6 +98,9 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
             for e in &llms.toc {
                 print_text(e, 0);
             }
+        },
+        OutputFormat::Raw => {
+            return Err(anyhow!("Raw output is not supported for anchors"));
         },
     }
     Ok(())
@@ -169,7 +175,8 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
-            crate::commands::get::execute(alias, &entry.lines, context, OutputFormat::Text).await
+            crate::commands::get::execute(alias, &entry.lines, context, OutputFormat::Text, false)
+                .await
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context
@@ -206,6 +213,7 @@ pub async fn get_by_anchor(
             }
             Ok(())
         },
+        OutputFormat::Raw => Err(anyhow!("Raw output is not supported for anchors")),
     }
 }
 

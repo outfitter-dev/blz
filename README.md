@@ -81,6 +81,14 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 
 ## Installation
 
+### Quick Install (macOS/Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh
+```
+
+This installs the latest release to `~/.local/bin`. Override the target location with `BLZ_INSTALL_DIR=/path`, or pin a version via `BLZ_VERSION=v0.4.1`. Run `sh install.sh --help` for additional options (e.g., `--dir`, `--version`, `--dry-run`).
+
 ### From Source
 
 ```bash

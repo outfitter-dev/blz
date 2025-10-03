@@ -55,7 +55,7 @@
 //! - Validation of inputs before execution
 //! - Helpful suggestions for common mistakes
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 // ConfigCommand removed in v1.0.0-beta.1
 use crate::output::OutputFormat;
@@ -250,21 +250,7 @@ pub enum Commands {
     //     mappings: bool,
     // },
     /// Add a new source
-    Add {
-        /// Source name (used as identifier)
-        alias: String,
-        /// URL to fetch llms.txt from
-        url: String,
-        /// Additional aliases for this source (comma-separated, e.g., "react-docs,@react/docs")
-        #[arg(long, value_delimiter = ',')]
-        aliases: Vec<String>,
-        /// Skip confirmation prompts (non-interactive mode)
-        #[arg(short = 'y', long)]
-        yes: bool,
-        /// Analyze source without adding it (outputs JSON analysis)
-        #[arg(long)]
-        dry_run: bool,
-    },
+    Add(AddArgs),
 
     /// Search registries for documentation to add
     Lookup {
@@ -417,6 +403,9 @@ pub enum Commands {
         /// Include status/health information (etag, lastModified, checksum)
         #[arg(long)]
         status: bool,
+        /// Show descriptor metadata (description, category, tags, origin)
+        #[arg(long)]
+        details: bool,
     },
 
     /// Show cache statistics and overview
@@ -464,6 +453,54 @@ pub enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+}
+
+/// Arguments for `blz add`
+#[derive(Args, Clone, Debug)]
+pub struct AddArgs {
+    /// Source name (used as identifier)
+    #[arg(value_name = "ALIAS", required_unless_present_any = ["manifest"])]
+    pub alias: Option<String>,
+
+    /// URL to fetch llms.txt from
+    #[arg(value_name = "URL", required_unless_present_any = ["manifest"], requires = "alias")]
+    pub url: Option<String>,
+
+    /// Path to a manifest TOML describing multiple sources
+    #[arg(long, value_name = "FILE")]
+    pub manifest: Option<PathBuf>,
+
+    /// Restrict manifest processing to specific aliases
+    #[arg(long = "only", value_delimiter = ',', requires = "manifest")]
+    pub only: Vec<String>,
+
+    /// Additional aliases for this source (comma-separated, e.g., "react-docs,@react/docs")
+    #[arg(long, value_delimiter = ',')]
+    pub aliases: Vec<String>,
+
+    /// Display name for the source (defaults to a Title Case version of the alias)
+    #[arg(long)]
+    pub name: Option<String>,
+
+    /// Description for the source (plain text)
+    #[arg(long)]
+    pub description: Option<String>,
+
+    /// Category label used for grouping (defaults to "uncategorized")
+    #[arg(long)]
+    pub category: Option<String>,
+
+    /// Tags to associate with the source (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub tags: Vec<String>,
+
+    /// Skip confirmation prompts (non-interactive mode)
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Analyze source without adding it (outputs JSON analysis)
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 /// Additional columns that can be displayed in text search results

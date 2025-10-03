@@ -7,7 +7,7 @@ use dialoguer::{Input, Select};
 use serde_json::json;
 use std::io::IsTerminal;
 
-use crate::commands::add_source;
+use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
@@ -143,16 +143,24 @@ pub async fn execute(
         );
     }
 
-    add_source(
-        final_alias,
-        &selected_entry.llms_url,
-        &[], // No additional aliases from lookup
-        false,
+    let descriptor = DescriptorInput::from_cli_inputs(
+        &[],
+        Some(&selected_entry.name),
+        Some(&selected_entry.description),
+        None,
+        &[],
+    );
+
+    let request = AddRequest::new(
+        final_alias.to_string(),
+        selected_entry.llms_url.clone(),
+        descriptor,
         false,
         quiet,
         metrics,
-    )
-    .await
+    );
+
+    add_source(request).await
 }
 
 async fn display_results_with_health(

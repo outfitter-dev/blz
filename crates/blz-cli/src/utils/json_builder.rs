@@ -27,6 +27,16 @@ pub fn build_llms_json(
             variant: blz_core::SourceVariant::Llms, // Default, will be updated by caller
             aliases: Vec::new(),
             tags: Vec::new(),
+            description: None,
+            category: None,
+            npm_aliases: Vec::new(),
+            github_aliases: Vec::new(),
+            origin: blz_core::SourceOrigin {
+                manifest: None,
+                source_type: Some(blz_core::SourceType::Remote {
+                    url: url.to_string(),
+                }),
+            },
         },
         toc: parse_result.toc.clone(),
         files: vec![FileInfo {
