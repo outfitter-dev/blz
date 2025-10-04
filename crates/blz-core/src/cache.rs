@@ -4,6 +4,7 @@
 // .agents/rules/conventions/rust/unsafe-policy.md
 // Advanced caching strategies with LRU, TTL, and multi-level caching
 use crate::{Error, Result, SearchHit};
+use chrono::Utc;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -796,7 +797,12 @@ fn search_result_size(results: &Vec<SearchHit>) -> usize {
         hit.line_numbers.as_ref().map(|v| v.len() * std::mem::size_of::<usize>()).unwrap_or(0) +
         hit.snippet.len() +
         hit.source_url.as_ref().map(|s| s.len()).unwrap_or(0) +
-        hit.checksum.len()
+        hit.checksum.len() +
+        hit.context.as_ref().map(|ctx| {
+            ctx.lines.len()
+                + ctx.line_numbers.len() * std::mem::size_of::<usize>()
+                + ctx.content.len()
+        }).unwrap_or(0)
     }).sum::<usize>()
 }
 
@@ -1049,7 +1055,6 @@ mod tests {
         let cache = SearchCache::new_search_cache();
         
         let results = vec![SearchHit {
-            alias: "test".to_string(),
             source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
@@ -1058,8 +1063,11 @@ mod tests {
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: None,
+            context: None,
         }];
 
         cache
@@ -1111,7 +1119,6 @@ mod tests {
     #[test]
     fn test_search_result_size() {
         let results = vec![SearchHit {
-            alias: "test".to_string(),
             source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
@@ -1120,8 +1127,11 @@ mod tests {
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: None,
+            context: None,
         }];
 
         let size = search_result_size(&results);

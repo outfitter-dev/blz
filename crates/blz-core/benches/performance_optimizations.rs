@@ -23,6 +23,7 @@ use blz_core::{
     // optimized_index::OptimizedSearchIndex,
     // string_pool::StringPool,
 };
+use chrono::Utc;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::Duration;
@@ -348,8 +349,11 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 snippet: format!("This is test content for result {}", i),
                 score: 0.95 - (i as f32 * 0.01),
                 source_url: Some(format!("https://example.com/{}", i)),
+                fetched_at: Some(Utc::now()),
+                is_stale: false,
                 checksum: format!("checksum_{}", i),
                 anchor: Some("bench-anchor".to_string()),
+                context: None,
             })
             .collect()
     };

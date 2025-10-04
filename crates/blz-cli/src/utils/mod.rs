@@ -66,6 +66,7 @@ pub mod preferences;
 pub mod process_guard;
 pub mod resolver;
 pub mod settings;
+pub mod staleness;
 pub mod store;
 pub mod toc;
 pub mod url_resolver;

@@ -47,9 +47,8 @@ pub fn execute(format: OutputFormat) -> Result<()> {
 
     for alias in &sources {
         // Get source metadata
-        let metadata = match storage.load_source_metadata(alias)? {
-            Some(meta) => meta,
-            None => continue, // Skip sources without metadata
+        let Some(metadata) = storage.load_source_metadata(alias)? else {
+            continue; // Skip sources without metadata
         };
 
         // Get file size
@@ -174,9 +173,13 @@ fn format_size(bytes: u64) -> String {
     const GB: u64 = MB * 1024;
 
     if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
+        #[allow(clippy::cast_precision_loss)]
+        let result = bytes as f64 / GB as f64;
+        format!("{result:.1} GB")
     } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
+        #[allow(clippy::cast_precision_loss)]
+        let result = bytes as f64 / MB as f64;
+        format!("{result:.1} MB")
     } else if bytes >= KB {
         format!("{} KB", bytes / KB)
     } else {
@@ -185,12 +188,12 @@ fn format_size(bytes: u64) -> String {
 }
 
 fn format_number(n: usize) -> String {
-    n.to_string()
-        .as_bytes()
+    let s = n.to_string();
+    let bytes = s.as_bytes();
+    let chunks: Vec<&str> = bytes
         .rchunks(3)
         .rev()
-        .map(std::str::from_utf8)
-        .collect::<std::result::Result<Vec<&str>, _>>()
-        .unwrap()
-        .join(",")
+        .filter_map(|chunk| std::str::from_utf8(chunk).ok())
+        .collect();
+    chunks.join(",")
 }

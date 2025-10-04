@@ -26,7 +26,7 @@ pub struct SourceInfo {
     pub size_bytes: u64,
     /// Last updated timestamp (ISO 8601)
     pub last_updated: Option<String>,
-    /// ETag for conditional fetching
+    /// `ETag` for conditional fetching
     pub etag: Option<String>,
     /// SHA256 checksum
     pub checksum: Option<String>,
@@ -51,33 +51,33 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
 
     let source = storage
         .load_source_metadata(&canonical)?
-        .with_context(|| format!("Failed to load metadata for '{}'", canonical))?;
+        .with_context(|| format!("Failed to load metadata for '{canonical}'"))?;
 
     let llms_file = storage.llms_txt_path(&canonical)?;
 
     // Read file stats
     let metadata = fs::metadata(&llms_file)
-        .with_context(|| format!("Failed to read source file for '{}'", canonical))?;
+        .with_context(|| format!("Failed to read source file for '{canonical}'"))?;
 
     let size_bytes = metadata.len();
 
     // Count lines in the file
     let content = fs::read_to_string(&llms_file)
-        .with_context(|| format!("Failed to read content for '{}'", canonical))?;
+        .with_context(|| format!("Failed to read content for '{canonical}'"))?;
     let lines = content.lines().count();
 
     let cache_path = llms_file.parent().map(PathBuf::from).unwrap_or_default();
 
     let info = SourceInfo {
-        alias: canonical.clone(),
-        url: source.url.clone(),
+        alias: canonical,
+        url: source.url,
         variant: format!("{:?}", source.variant),
-        aliases: source.aliases.clone(),
+        aliases: source.aliases,
         lines,
         size_bytes,
         last_updated: Some(source.fetched_at.to_rfc3339()),
-        etag: source.etag.clone(),
-        checksum: Some(source.sha256.clone()),
+        etag: source.etag,
+        checksum: Some(source.sha256),
         cache_path,
     };
 
@@ -116,16 +116,16 @@ fn print_text_info(info: &SourceInfo) {
     println!("Lines: {}", format_number(info.lines));
     println!("Size: {}", format_bytes(info.size_bytes));
 
-    if let Some(ref updated) = info.last_updated {
-        println!("Last Updated: {}", updated);
+    if let Some(updated) = &info.last_updated {
+        println!("Last Updated: {updated}");
     }
 
-    if let Some(ref etag) = info.etag {
-        println!("ETag: {}", etag);
+    if let Some(etag) = &info.etag {
+        println!("ETag: {etag}");
     }
 
-    if let Some(ref checksum) = info.checksum {
-        println!("Checksum: {}", checksum);
+    if let Some(checksum) = &info.checksum {
+        println!("Checksum: {checksum}");
     }
 
     println!("Cache Location: {}", info.cache_path.display());
@@ -148,18 +148,23 @@ fn format_number(n: usize) -> String {
 
 fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
-    let mut size = bytes as f64;
-    let mut unit_index = 0;
 
-    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
-        size /= 1024.0;
+    // Find appropriate unit
+    let mut unit_index = 0;
+    let mut divisor = 1u64;
+
+    while bytes >= divisor * 1024 && unit_index < UNITS.len() - 1 {
+        divisor *= 1024;
         unit_index += 1;
     }
 
     if unit_index == 0 {
-        format!("{} {}", size as u64, UNITS[unit_index])
+        format!("{bytes} {}", UNITS[unit_index])
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        // Use f64 for fractional display
+        #[allow(clippy::cast_precision_loss)]
+        let size_f64 = bytes as f64 / divisor as f64;
+        format!("{size_f64:.1} {}", UNITS[unit_index])
     }
 }
 

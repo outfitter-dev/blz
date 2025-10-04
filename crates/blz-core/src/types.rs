@@ -50,8 +50,11 @@
 //!     snippet: "useState returns an array with two elements...".to_string(),
 //!     score: 0.92,
 //!     source_url: Some("https://react.dev/hooks".to_string()),
+//!     fetched_at: None,
+//!     is_stale: false,
 //!     checksum: "abc123".to_string(),
 //!     anchor: Some("react-hooks-usestate".to_string()),
+//!     context: None,
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
@@ -617,6 +620,15 @@ pub struct SearchHit {
     /// May be `None` for local or generated content.
     pub source_url: Option<String>,
 
+    /// Timestamp when this content was last fetched locally.
+    ///
+    /// Allows consumers to reason about staleness without additional metadata calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetched_at: Option<DateTime<Utc>>,
+
+    /// Whether this hit's source is considered stale relative to the default TTL (30 days).
+    pub is_stale: bool,
+
     /// Content checksum for verification.
     ///
     /// Used to verify that the search result corresponds to the expected
@@ -626,6 +638,25 @@ pub struct SearchHit {
     /// Stable anchor for the section (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
+
+    /// Optional expanded content context returned when `--context` or `--block` flags are used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<HitContext>,
+}
+
+/// Additional context returned alongside a search hit when requested.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HitContext {
+    /// The line range covered by the context in "start-end" format.
+    pub lines: String,
+    /// Individual line numbers contained in the context range.
+    pub line_numbers: Vec<usize>,
+    /// Raw content extracted for the context range.
+    pub content: String,
+    /// Indicates whether the context was truncated by a `--max-lines` limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
 }
 
 /// Mapping between stable content anchors and line ranges across updates.
@@ -778,8 +809,11 @@ mod tests {
             snippet: "useState is a React hook...".to_string(),
             score: 0.95,
             source_url: Some("https://react.dev".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
+            context: None,
         };
 
         let hit2 = SearchHit {
@@ -791,8 +825,11 @@ mod tests {
             snippet: "useState is a React hook...".to_string(),
             score: 0.90, // Different score
             source_url: Some("https://react.dev".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
+            context: None,
         };
 
         // Should be considered the same for deduplication (same source, lines, heading_path)

@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.1] - 2025-10-03
+
+### Breaking Changes
+- Removed dual-flavor system (llms.txt vs llms-full.txt). BLZ now intelligently auto-prefers llms-full.txt when available.
+- Removed backwards compatibility for v0.4.x cache format. Use `blz clear --force` to migrate from older versions.
+
+### Added
+- **One-line installation**: New install script with SHA-256 verification and platform detection
+  - Download via: `curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh`
+  - Support for macOS (x64, arm64) and Linux (x64)
+  - SHA-256 checksum verification (use `--skip-check` to bypass)
+  - Custom install directory with `--dir` flag
+  - `--dry-run` mode for testing
+- **Clipboard support**: Copy search results directly with `--copy` flag (OSC 52 escape sequences)
+- **Search history**: New `.blz_history` command to view and manage persistent search history
+  - History filtering by date, source, and query
+  - Configurable retention (default: 1000 entries)
+  - Clean command with date-based pruning
+- **Source insights**: New commands for better visibility
+  - `blz stats`: Cache statistics including source count, storage size, and index metrics
+  - `blz info <source>`: Detailed source information with metadata
+  - `blz validate`: Verify source integrity with URL accessibility, checksum validation, and staleness detection
+  - `blz doctor`: Comprehensive health checks with auto-fix capability for cache and sources
+- **Batch operations**: Add multiple sources via TOML manifest files
+  - Template at `registry/templates/batch-manifest.example.toml`
+  - Supports aliases, tags, npm/github mappings
+  - Parallel indexing for faster setup
+- **Rich metadata**: Source descriptors with name, description, and category
+  - `blz list --details`: View extended source information
+  - Auto-populated from registry or customizable
+  - Persisted in `.blz/descriptor.toml` per source
+- **Enhanced search**:
+  - Multi-source filtering with `--source` flag (comma-separated)
+  - Improved snippet extraction with configurable context lines
+  - Search history integration with `.blz_history` replay
+
+### Changed
+- **URL intelligence**: Automatically prefers llms-full.txt when available (no manual configuration needed)
+- **Simplified CLI**: Removed confusing `--flavor` flags from all commands
+- **Better defaults**: Intelligent fallback to llms.txt if llms-full.txt unavailable
+- **Descriptor defaults**: Sources added without explicit metadata get sensible auto-generated values
+
+### Fixed
+- 40+ code quality improvements from strict clippy enforcement
+- Redundant clones and inefficient Option handling eliminated
+- Float precision warnings properly annotated
+- All `.unwrap()` usage replaced with proper error handling
+- Format string optimizations throughout CLI
+- Documentation URL formatting fixed
+
+### Performance
+- Optimized format! string usage in hot paths
+- Reduced unnecessary allocations in search results formatting
+- Improved clipboard copy performance with write! macro
+
+### Developer Experience
+- All tests passing (224/224)
+- Zero clippy warnings with strict configuration
+- Clean release builds (~42s)
+- Comprehensive v1.0-beta release checklist
+
 ## [0.5.0] - 2025-10-02
 
 ### Breaking Changes
@@ -209,11 +270,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
+[1.0.0-beta.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.0-beta.1
+[0.5.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.5.0
+[0.4.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.4.1
+[0.4.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.4.0
+[0.3.3]: https://github.com/outfitter-dev/blz/releases/tag/v0.3.3
+[0.3.2]: https://github.com/outfitter-dev/blz/releases/tag/v0.3.2
+[0.3.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.3.1
+[0.3.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.3.0
+[0.2.4]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.4
+[0.2.2]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.2
+[0.2.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.1
+[0.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.0
+[0.1.7]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.7
 [0.1.6]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.6
 [0.1.5]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.5
-[0.1.7]: https://github.com/outfitter-dev/blz/releases/tag/v0.1.7
-[0.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.0
-[0.2.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.1
-[0.2.2]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.2
-[0.2.4]: https://github.com/outfitter-dev/blz/releases/tag/v0.2.4
-[0.3.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.3.0

@@ -175,12 +175,9 @@ pub fn clear_before(cutoff: &chrono::DateTime<chrono::Utc>) -> std::io::Result<(
 
     // Filter out records before the cutoff date
     records.retain(|record| {
-        if let Ok(timestamp) = chrono::DateTime::parse_from_rfc3339(&record.entry.timestamp) {
+        chrono::DateTime::parse_from_rfc3339(&record.entry.timestamp).map_or(true, |timestamp| {
             timestamp.with_timezone(&chrono::Utc) >= *cutoff
-        } else {
-            // Keep records with unparseable timestamps
-            true
-        }
+        })
     });
 
     write_all(&records)

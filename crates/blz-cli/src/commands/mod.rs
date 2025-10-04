@@ -13,6 +13,7 @@ mod completions;
 mod create_source;
 mod diff;
 pub mod docs;
+mod doctor;
 mod get;
 mod history;
 mod info;
@@ -22,6 +23,7 @@ mod remove;
 mod search;
 mod stats;
 mod update;
+mod validate;
 
 pub use add::{
     AddRequest, DescriptorInput, execute as add_source, execute_manifest as add_manifest,
@@ -35,6 +37,7 @@ pub use completions::list_supported;
 pub use create_source::execute as create_registry_source;
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};
+pub use doctor::execute as run_doctor;
 pub use get::execute as get_lines;
 pub use history::show as show_history;
 pub use info::execute_info;
@@ -44,5 +47,6 @@ pub use remove::execute as remove_source;
 pub use search::{execute as search, handle_default as handle_default_search};
 pub use stats::execute as show_stats;
 pub use update::{execute as update_source, execute_all as update_all};
+pub use validate::execute as validate_source;
 
 // Re-export types that commands might need

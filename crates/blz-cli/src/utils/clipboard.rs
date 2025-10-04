@@ -6,8 +6,8 @@
 //! The format is: `\x1b]52;c;<base64_content>\x1b\\` or `\x1b]52;c;<base64_content>\x07`
 //!
 //! References:
-//! - https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands
-//! - https://github.com/ojroques/vim-oscyank
+//! - <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands>
+//! - <https://github.com/ojroques/vim-oscyank>
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use std::io::{self, Write};
@@ -18,8 +18,8 @@ use std::io::{self, Write};
 /// * `text` - The text to copy to the clipboard
 ///
 /// # Returns
-/// Returns Ok(()) if the escape sequence was successfully written to stdout,
-/// or an io::Error if writing failed.
+/// Returns `Ok(())` if the escape sequence was successfully written to stdout,
+/// or an `io::Error` if writing failed.
 ///
 /// # Examples
 /// ```no_run

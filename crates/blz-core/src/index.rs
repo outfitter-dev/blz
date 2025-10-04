@@ -335,8 +335,11 @@ impl SearchIndex {
                     snippet,
                     score,
                     source_url: None,
+                    fetched_at: None,
+                    is_stale: false,
                     checksum: String::new(),
                     anchor,
+                    context: None,
                 });
             }
             Ok::<(), Error>(())

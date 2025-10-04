@@ -325,13 +325,34 @@ pub enum Commands {
         score_precision: Option<u8>,
         /// Maximum snippet lines to display around a hit (1-10)
         #[arg(
-        long = "snippet-lines",
-        value_name = "LINES",
-        value_parser = clap::value_parser!(u8).range(1..=10),
-        env = "BLZ_SNIPPET_LINES",
-        default_value_t = 3
-    )]
+            long = "snippet-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(u8).range(1..=10),
+            env = "BLZ_SNIPPET_LINES",
+            default_value_t = 3
+        )]
         snippet_lines: u8,
+        /// Return surrounding context lines for each hit (defaults to 5 when no value supplied)
+        #[arg(
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            value_parser = clap::value_parser!(usize),
+            conflicts_with = "block"
+        )]
+        context: Option<usize>,
+        /// Return the full heading block containing each hit
+        #[arg(long, conflicts_with = "context")]
+        block: bool,
+        /// Maximum number of lines to include when --block is used
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            requires = "block"
+        )]
+        max_lines: Option<usize>,
         /// Don't save this search to history
         #[arg(long = "no-history")]
         no_history: bool,
@@ -375,8 +396,19 @@ pub enum Commands {
         #[arg(short = 'l', long, value_name = "RANGE")]
         lines: Option<String>,
         /// Context lines around each line/range
-        #[arg(short = 'c', long)]
+        #[arg(short = 'c', long, conflicts_with = "block")]
         context: Option<usize>,
+        /// Return the full heading block containing the range
+        #[arg(long, conflicts_with = "context")]
+        block: bool,
+        /// Maximum number of lines to include when --block is used
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            requires = "block"
+        )]
+        max_lines: Option<usize>,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
@@ -413,6 +445,28 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+    },
+
+    /// Validate source integrity and availability
+    Validate {
+        /// Source to validate (validates all if not specified)
+        alias: Option<String>,
+        /// Validate all sources
+        #[arg(long)]
+        all: bool,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    /// Run health checks on cache and sources
+    Doctor {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Fix issues automatically where possible
+        #[arg(long)]
+        fix: bool,
     },
 
     /// Update sources

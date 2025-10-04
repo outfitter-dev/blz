@@ -160,6 +160,22 @@ pub fn parse_line_ranges(input: &str) -> Result<Vec<LineRange>> {
     Ok(ranges)
 }
 
+/// Parse a single line span string into `(start, end)` bounds.
+///
+/// Returns `None` if the input cannot be parsed into a valid range.
+#[must_use]
+pub fn parse_line_span(input: &str) -> Option<(usize, usize)> {
+    let mut iter = parse_line_ranges(input).ok()?.into_iter();
+    let first = iter.next()?;
+    match first {
+        LineRange::Single(n) => Some((n, n)),
+        LineRange::Range(start, end) => Some((start, end)),
+        LineRange::PlusCount(start, count) => {
+            Some((start, start.saturating_add(count.saturating_sub(1))))
+        },
+    }
+}
+
 fn parse_colon_range(part: &str, colon_pos: usize) -> Result<LineRange> {
     let start_str = part[..colon_pos].trim();
     let end_str = part[colon_pos + 1..].trim();

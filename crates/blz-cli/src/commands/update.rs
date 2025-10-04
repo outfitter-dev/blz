@@ -166,16 +166,15 @@ where
 
     let mut origin = existing_metadata.origin.clone();
     origin.source_type = match (&origin.source_type, &existing_metadata.origin.source_type) {
-        (Some(blz_core::SourceType::Remote { .. }), _) => Some(blz_core::SourceType::Remote {
-            url: existing_metadata.url.clone(),
-        }),
+        (Some(blz_core::SourceType::Remote { .. }), _) | (None, None) => {
+            Some(blz_core::SourceType::Remote {
+                url: existing_metadata.url.clone(),
+            })
+        },
         (Some(blz_core::SourceType::LocalFile { path }), _) => {
             Some(blz_core::SourceType::LocalFile { path: path.clone() })
         },
         (None, Some(existing)) => Some(existing.clone()),
-        (None, None) => Some(blz_core::SourceType::Remote {
-            url: existing_metadata.url.clone(),
-        }),
     };
 
     llms_json.metadata.origin = origin.clone();

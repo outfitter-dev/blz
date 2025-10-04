@@ -201,10 +201,10 @@ fn render_text<W: Write>(
 
         if details {
             if let Some(description) = &source.description {
-                writeln!(writer, "  Description: {}", description)?;
+                writeln!(writer, "  Description: {description}")?;
             }
             if let Some(category) = &source.category {
-                writeln!(writer, "  Category: {}", category)?;
+                writeln!(writer, "  Category: {category}")?;
             }
             if !source.npm_aliases.is_empty() {
                 writeln!(writer, "  npm: {}", source.npm_aliases.join(", "))?;
@@ -214,10 +214,10 @@ fn render_text<W: Write>(
             }
             if let Some(descriptor) = &source.descriptor {
                 if let Some(url) = &descriptor.url {
-                    writeln!(writer, "  Descriptor URL: {}", url)?;
+                    writeln!(writer, "  Descriptor URL: {url}")?;
                 }
                 if let Some(path) = &descriptor.path {
-                    writeln!(writer, "  Local path: {}", path)?;
+                    writeln!(writer, "  Local path: {path}")?;
                 }
                 if let Some(manifest) = &descriptor.origin.manifest {
                     writeln!(

@@ -175,8 +175,16 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
-            crate::commands::get::execute(alias, &entry.lines, context, OutputFormat::Text, false)
-                .await
+            crate::commands::get::execute(
+                alias,
+                &entry.lines,
+                context,
+                false,
+                None,
+                OutputFormat::Text,
+                false,
+            )
+            .await
         },
         OutputFormat::Json | OutputFormat::Jsonl => {
             // Build content string for the range +/- context

@@ -499,6 +499,9 @@ async fn execute_command(
             no_summary,
             score_precision,
             snippet_lines,
+            context,
+            block,
+            max_lines,
             no_history,
             copy,
         }) => {
@@ -517,6 +520,9 @@ async fn execute_command(
                 no_summary,
                 score_precision,
                 snippet_lines,
+                context,
+                block,
+                max_lines,
                 no_history,
                 copy,
                 metrics,
@@ -543,6 +549,8 @@ async fn execute_command(
             alias,
             lines,
             context,
+            block,
+            max_lines,
             format,
             copy,
         }) => {
@@ -553,15 +561,12 @@ async fn execute_command(
                 let lines_part = &l[1..]; // Skip the colon
 
                 // If --lines flag was also provided, prefer it over colon syntax
-                if let Some(explicit_lines) = lines {
-                    (a.to_string(), explicit_lines.clone())
-                } else {
-                    (a.to_string(), lines_part.to_string())
-                }
+                let chosen_lines = lines.map_or_else(|| lines_part.to_string(), |l| l);
+                (a.to_string(), chosen_lines)
             } else {
                 // No colon, must have --lines flag or error
                 match lines {
-                    Some(l) => (alias.clone(), l.clone()),
+                    Some(l) => (alias.clone(), l),
                     None => {
                         anyhow::bail!(
                             "Missing line specification. Use one of:\n  \
@@ -577,6 +582,8 @@ async fn execute_command(
                 &parsed_alias,
                 &parsed_lines,
                 context,
+                block,
+                max_lines,
                 format.resolve(cli.quiet),
                 copy,
             )
@@ -594,6 +601,12 @@ async fn execute_command(
         },
         Some(Commands::Stats { format }) => {
             commands::show_stats(format.resolve(cli.quiet))?;
+        },
+        Some(Commands::Validate { alias, all, format }) => {
+            commands::validate_source(alias.clone(), all, format.resolve(cli.quiet)).await?;
+        },
+        Some(Commands::Doctor { format, fix }) => {
+            commands::run_doctor(format.resolve(cli.quiet), fix).await?;
         },
         Some(Commands::Update {
             alias,
@@ -710,6 +723,9 @@ async fn handle_search(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    context: Option<usize>,
+    block: bool,
+    max_lines: Option<usize>,
     no_history: bool,
     copy: bool,
     metrics: PerformanceMetrics,
@@ -763,16 +779,14 @@ async fn handle_search(
         sources
     } else if let Some(entry) = history_entry.as_ref() {
         // Parse comma-separated sources from history
-        if let Some(source_str) = &entry.source {
+        entry.source.as_ref().map_or_else(Vec::new, |source_str| {
             source_str
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect()
-        } else {
-            vec![]
-        }
+        })
     } else {
-        vec![]
+        Vec::new()
     };
 
     let mut actual_limit = if all {
@@ -840,6 +854,9 @@ async fn handle_search(
         no_summary,
         score_precision,
         snippet_lines,
+        context,
+        block,
+        max_lines,
         no_history,
         copy,
         Some(prefs),
@@ -1541,6 +1558,8 @@ mod tests {
             alias,
             lines,
             context,
+            block,
+            max_lines,
             format,
             copy: _,
         }) = cli.command
@@ -1548,6 +1567,8 @@ mod tests {
             assert_eq!(alias, "test");
             assert_eq!(lines, Some("1-10".to_string()));
             assert_eq!(context, Some(5));
+            assert!(!block);
+            assert_eq!(max_lines, None);
             let _ = format; // ignore
         } else {
             panic!("Expected get command");

@@ -246,9 +246,9 @@ pub async fn execute_manifest(
         validate_alias(&normalized_alias)?;
 
         let descriptor_input = DescriptorInput {
-            name: non_empty_string(&Some(entry.name.clone())),
+            name: non_empty_string(Some(&entry.name)),
             description: entry.description.clone().map(|s| s.trim().to_string()),
-            category: non_empty_string(&Some(entry.category.clone())),
+            category: non_empty_string(Some(&entry.category)),
             tags: dedupe_sorted(entry.tags.clone()),
             aliases: Vec::new(),
             npm_aliases: dedupe_sorted(entry.alias_sets.npm.clone()),
@@ -618,8 +618,8 @@ fn finalize_add(
         .unwrap_or_else(|| "uncategorized".to_string());
     let descriptor_description = descriptor_input.description.unwrap_or_default();
 
-    let metadata_description = non_empty_string(&Some(descriptor_description.clone()));
-    let metadata_category = non_empty_string(&Some(descriptor_category.clone()));
+    let metadata_description = non_empty_string(Some(&descriptor_description));
+    let metadata_category = non_empty_string(Some(&descriptor_category));
 
     let mut llms_json = build_llms_json(
         alias,
@@ -646,7 +646,7 @@ fn finalize_add(
         .clone_from(&github_aliases);
 
     let mut origin = resolved.origin.clone();
-    origin.manifest = descriptor_input.manifest.clone();
+    origin.manifest.clone_from(&descriptor_input.manifest);
     llms_json.metadata.origin = origin.clone();
     storage.save_llms_json(alias, &llms_json)?;
 
@@ -671,7 +671,7 @@ fn finalize_add(
     let (descriptor_url, descriptor_path) = match &origin.source_type {
         Some(SourceType::Remote { url }) => (Some(url.clone()), None),
         Some(SourceType::LocalFile { path }) => (None, Some(path.clone())),
-        None => (Some(resolved.resolved_url.clone()), None),
+        None => (Some(resolved.resolved_url), None),
     };
 
     let descriptor = SourceDescriptor {
@@ -708,12 +708,11 @@ fn dedupe_sorted(values: Vec<String>) -> Vec<String> {
     cleaned
 }
 
-fn non_empty_string(value: &Option<String>) -> Option<String> {
+fn non_empty_string(value: Option<&String>) -> Option<String> {
     value
-        .as_ref()
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 fn display_name_from_alias(alias: &str) -> String {

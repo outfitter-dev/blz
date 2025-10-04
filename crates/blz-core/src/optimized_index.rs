@@ -384,7 +384,6 @@ impl OptimizedSearchIndex {
             };
 
             results.push(SearchHit {
-                alias: alias_interned.to_string(),
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
@@ -393,9 +392,11 @@ impl OptimizedSearchIndex {
                 snippet: snippet_buffer.as_str().to_string(),
                 score,
                 source_url: None,
+                fetched_at: None,
+                is_stale: false,
                 checksum: String::new(),
                 anchor: None,
-                flavor,
+                context: None,
             });
         }
 
