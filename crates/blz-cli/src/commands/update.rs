@@ -138,13 +138,15 @@ where
         &parse_result,
     );
 
-    let mut merged_aliases = existing_metadata.aliases.clone();
-    for alias_value in existing_aliases {
-        if !merged_aliases.contains(&alias_value) {
-            merged_aliases.push(alias_value);
+    let mut metadata_aliases = existing_aliases;
+    for alias_value in &existing_metadata.aliases {
+        if !metadata_aliases.contains(alias_value) {
+            metadata_aliases.push(alias_value.clone());
         }
     }
-    llms_json.metadata.aliases.clone_from(&merged_aliases);
+    metadata_aliases.sort();
+    metadata_aliases.dedup();
+    llms_json.metadata.aliases = metadata_aliases;
     llms_json.metadata.tags.clone_from(&existing_metadata.tags);
     llms_json
         .metadata
@@ -162,6 +164,7 @@ where
         .metadata
         .github_aliases
         .clone_from(&existing_metadata.github_aliases);
+    llms_json.metadata.variant = existing_metadata.variant.clone();
     storage.save_llms_json(alias, &llms_json)?;
 
     let mut origin = existing_metadata.origin.clone();
@@ -186,7 +189,7 @@ where
         fetched_at: Utc::now(),
         sha256: payload.sha256,
         variant: existing_metadata.variant,
-        aliases: merged_aliases,
+        aliases: existing_metadata.aliases,
         tags: existing_metadata.tags,
         description: existing_metadata.description,
         category: existing_metadata.category,

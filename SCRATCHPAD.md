@@ -1,6 +1,21 @@
 # Scratchpad
 
+## 2025-10-05
+
+- Verified formatting via `cargo fmt -- --check`.
+- Ran `cargo bench`; Tantivy index and search benchmarks completed within targets (noted expected Criterion warnings about sample counts).
+- Ran full workspace suite via `cargo test` (139 core + CLI tests plus doctests, all green).
+- Ran full CLI suite via `cargo test -p blz-cli` (all 110 unit + 28 integration tests passed).
+- Verified workspace lints via `cargo clippy --all-targets --all-features -- -D warnings` (clean).
+- Verified metadata alias end-to-end flow by running `cargo test -p blz-cli --test alias_resolver_update_remove`; integration scenario succeeded.
+
 Quick notes and links to detailed work logs.
+
+## 2025-10-04
+
+- Restored GET fallback in URL resolver for providers that reject HEAD (405/501), matching legacy `blz add` behavior so URL intelligence continues to work for S3/GitBook-style hosts; verified with local fixture that returns 405 to HEAD but 200 to GET.
+- Preserved resolved variant during `blz update` so llms.json keeps `llms-full` metadata after upgrades.
+- Kept metadata aliases out of persisted `Source.aliases` during update to restore removal-by-alias behavior and satisfy `alias_resolver_update_remove` expectations.
 
 ## 2025-10-02
 

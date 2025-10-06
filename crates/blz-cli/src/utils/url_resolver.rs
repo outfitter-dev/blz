@@ -4,8 +4,9 @@
 //! fallback to exact URL if neither variant exists. Uses HEAD requests to
 //! check availability before fetching content.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use blz_core::{ContentType, Fetcher, SourceVariant};
+use tracing::{debug, warn};
 
 /// Result of URL resolution with variant and content info
 #[derive(Debug, Clone)]
@@ -57,46 +58,73 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
     for (idx, maybe_url) in variants.iter().enumerate() {
         if let Some(url) = maybe_url {
             // Check if this URL is available
-            match fetcher.head_metadata(url).await {
-                Ok(head_info) if (200..300).contains(&head_info.status) => {
-                    // URL exists, fetch the content to analyze it
-                    let (content, _sha256) = fetcher
-                        .fetch(url)
-                        .await
-                        .with_context(|| format!("Failed to fetch {url}"))?;
-
-                    let line_count = content.lines().count();
-                    let (content_type, should_warn) = classify_content(line_count);
-
-                    // Determine variant based on which URL succeeded
-                    let variant = match idx {
-                        0 => SourceVariant::LlmsFull, // llms-full.txt variant
-                        1 => {
-                            // Exact URL - determine if it's a known variant
-                            if base_url.ends_with("llms-full.txt") {
-                                SourceVariant::LlmsFull
-                            } else if base_url.ends_with("llms.txt") {
-                                SourceVariant::Llms
-                            } else {
-                                SourceVariant::Custom
-                            }
-                        },
-                        2 => SourceVariant::Llms, // llms.txt fallback
-                        _ => SourceVariant::Custom,
-                    };
-
-                    return Ok(ResolvedUrl {
-                        final_url: url.clone(),
-                        variant,
-                        content_type,
-                        line_count,
-                        should_warn,
-                    });
+            let should_fetch = match fetcher.head_metadata(url).await {
+                Ok(head_info) => {
+                    let status = head_info.status;
+                    if (200..=399).contains(&status) {
+                        true
+                    } else if status == 405 || status == 501 {
+                        warn!(
+                            %status,
+                            %url,
+                            "HEAD not supported; falling back to GET for candidate URL"
+                        );
+                        true
+                    } else {
+                        debug!(
+                            %status,
+                            %url,
+                            "HEAD preflight rejected candidate URL"
+                        );
+                        false
+                    }
                 },
-                Ok(_) | Err(_) => {
-                    // Non-2xx status or network error, try next variant
+                Err(err) => {
+                    debug!(error = %err, %url, "HEAD preflight failed for candidate URL");
+                    false
                 },
+            };
+
+            if !should_fetch {
+                continue;
             }
+
+            // URL exists or HEAD is unsupported; fetch the content to analyze it
+            let (content, _sha256) = match fetcher.fetch(url).await {
+                Ok(result) => result,
+                Err(err) => {
+                    debug!(error = %err, %url, "GET fallback failed for candidate URL");
+                    continue;
+                },
+            };
+
+            let line_count = content.lines().count();
+            let (content_type, should_warn) = classify_content(line_count);
+
+            // Determine variant based on which URL succeeded
+            let variant = match idx {
+                0 => SourceVariant::LlmsFull, // llms-full.txt variant
+                1 => {
+                    // Exact URL - determine if it's a known variant
+                    if base_url.ends_with("llms-full.txt") {
+                        SourceVariant::LlmsFull
+                    } else if base_url.ends_with("llms.txt") {
+                        SourceVariant::Llms
+                    } else {
+                        SourceVariant::Custom
+                    }
+                },
+                2 => SourceVariant::Llms, // llms.txt fallback
+                _ => SourceVariant::Custom,
+            };
+
+            return Ok(ResolvedUrl {
+                final_url: url.clone(),
+                variant,
+                content_type,
+                line_count,
+                should_warn,
+            });
         }
     }
 

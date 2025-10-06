@@ -69,8 +69,14 @@ See [docs/performance.md](docs/performance.md) for detailed benchmarks and metho
 
 ## Features
 
+- **One-line installation**: New install script with SHA-256 verification and platform detection
 - **Fast Search**: 6ms typical search latency (yes, milliseconds)
 - **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
+- **Clipboard support**: Copy search results directly with `--copy` flag (OSC 52 escape sequences)
+- **Search history**: New `blz history` command to view and manage persistent search history
+- **Source insights**: New commands for better visibility (`blz stats`, `blz info`, `blz validate`, `blz doctor`)
+- **Batch operations**: Add multiple sources via TOML manifest files
+- **Rich metadata**: Source descriptors with name, description, and category
 - **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
 - **Automatic Best Version**: Uses `llms-full.txt` when available, falls back to `llms.txt` seamlessly
 - **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
@@ -146,8 +152,11 @@ blz get bun --lines 120-142 --context 3
 # Inspect recent searches and persisted defaults
 blz history --limit 5
 
-# Upgrade sources to llms-full.txt when available
-blz upgrade bun
+# Get stats about your cache
+blz stats
+
+# Get info about a source
+blz info bun
 
 # List all sources
 blz list

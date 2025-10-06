@@ -1,0 +1,3 @@
+[[source]]
+alias = "local-test"
+path = "local-llms.txt"

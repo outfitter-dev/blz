@@ -90,7 +90,7 @@ blz get bun --lines 304-324
 
 This shows the exact content from those lines with line numbers.
 
-### 4. List Your Sources
+### 4. View Your Cache
 
 See all indexed documentation:
 
@@ -98,14 +98,44 @@ See all indexed documentation:
 blz list
 ```
 
-Output:
+Get stats about your cache:
 
+```bash
+blz stats
 ```
-Indexed sources:
 
-  bun https://bun.sh/llms.txt
-    Fetched: 2025-08-23 00:55:33
-    Lines: 364
+Get info about a source:
+
+```bash
+blz info bun
+```
+
+### 5. View Your Search History
+
+Inspect recent searches and persisted defaults:
+
+```bash
+blz history --limit 5
+```
+
+### 6. Batch Operations
+
+You can add multiple sources at once using a manifest file. Create a `manifest.toml` file like this:
+
+```toml
+[[source]]
+alias = "react"
+url = "https://react.dev/llms-full.txt"
+
+[[source]]
+alias = "typescript"
+url = "https://www.typescriptlang.org/docs/handbook/llms-full.txt"
+```
+
+Then, add the sources using the `blz add --manifest` command:
+
+```bash
+blz add --manifest manifest.toml
 ```
 
 ## Common Use Cases

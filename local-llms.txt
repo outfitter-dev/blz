@@ -1,0 +1,3 @@
+# Local llms.txt
+
+This is a local llms.txt file for testing purposes.
