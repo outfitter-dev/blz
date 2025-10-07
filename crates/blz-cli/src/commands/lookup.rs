@@ -11,6 +11,34 @@ use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
+const REGISTRY_NOTE: &str =
+    "Note: BLZ's built-in registry is nascent. Have a favorite llms.txt? Send a PR to add it!";
+
+#[derive(Clone, Copy)]
+enum NoteChannel {
+    Auto,
+    ForceStderr,
+}
+
+fn emit_registry_note(format: OutputFormat, quiet: bool, channel: NoteChannel) {
+    match channel {
+        NoteChannel::ForceStderr => {
+            eprintln!("{REGISTRY_NOTE}");
+        },
+        NoteChannel::Auto => {
+            if matches!(format, OutputFormat::Text) {
+                if quiet {
+                    eprintln!("{REGISTRY_NOTE}");
+                } else {
+                    println!("\n{REGISTRY_NOTE}");
+                }
+            } else {
+                eprintln!("{REGISTRY_NOTE}");
+            }
+        },
+    }
+}
+
 /// Execute the lookup command to search registries
 #[allow(clippy::too_many_lines)]
 pub async fn execute(
@@ -27,9 +55,6 @@ pub async fn execute(
             )
         })
         .unwrap_or(true);
-
-    const REGISTRY_NOTE: &str =
-        "Note: BLZ's built-in registry is nascent. Have a favorite llms.txt? Send a PR to add it!";
 
     if !registry_enabled {
         let _ = metrics; // keep signature for future use
@@ -61,15 +86,7 @@ pub async fn execute(
             }
         }
 
-        if matches!(format, OutputFormat::Text) {
-            if quiet {
-                eprintln!("{REGISTRY_NOTE}");
-            } else {
-                println!("\n{REGISTRY_NOTE}");
-            }
-        } else {
-            eprintln!("{REGISTRY_NOTE}");
-        }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
 
         return Ok(());
     }
@@ -88,15 +105,7 @@ pub async fn execute(
         if matches!(format, OutputFormat::Json) {
             println!("[]");
         }
-        if matches!(format, OutputFormat::Text) {
-            if quiet {
-                eprintln!("{REGISTRY_NOTE}");
-            } else {
-                println!("\n{REGISTRY_NOTE}");
-            }
-        } else {
-            eprintln!("{REGISTRY_NOTE}");
-        }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
         return Ok(());
     }
 
@@ -138,7 +147,7 @@ pub async fn execute(
                 println!("{}", serde_json::to_string(&o)?);
             }
         }
-        eprintln!("{REGISTRY_NOTE}");
+        emit_registry_note(format, quiet, NoteChannel::ForceStderr);
         return Ok(());
     }
 
@@ -147,10 +156,8 @@ pub async fn execute(
         // Not interactive, show instructions
         if matches!(format, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
-            println!("\n{REGISTRY_NOTE}");
-        } else {
-            eprintln!("{REGISTRY_NOTE}");
         }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
         return Ok(());
     };
 
@@ -193,15 +200,7 @@ pub async fn execute(
 
     add_source(request).await?;
 
-    if matches!(format, OutputFormat::Text) {
-        if quiet {
-            eprintln!("{REGISTRY_NOTE}");
-        } else {
-            println!("\n{REGISTRY_NOTE}");
-        }
-    } else {
-        eprintln!("{REGISTRY_NOTE}");
-    }
+    emit_registry_note(format, quiet, NoteChannel::Auto);
 
     Ok(())
 }

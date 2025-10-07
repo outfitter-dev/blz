@@ -10,6 +10,9 @@ description = "CLI for blz – fast local llms.txt search"
 [lints]
 workspace = true
 
+[lib]
+doctest = false
+
 [features]
 flamegraph = ["dep:pprof", "blz-core/flamegraph"]
 anchors = []

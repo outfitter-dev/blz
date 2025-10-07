@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated": "2025-10-07T17:51:58Z",
+  "updated": "2025-09-30T20:51:03Z",
   "sources": [
     {
       "id": "ai-sdk",
@@ -387,19 +387,6 @@
           "mui/material-ui"
         ]
       }
-    },
-    {
-      "id": "my-bun-clone",
-      "name": "my-bun-clone",
-      "description": "A clone of the bun source",
-      "url": "https://bun.sh/llms-full.txt",
-      "category": "testing",
-      "tags": [
-        "test",
-        "clone"
-      ],
-      "registeredAt": "2025-10-07T17:51:58.268239+00:00",
-      "verifiedAt": "2025-10-07T17:51:58.268239+00:00"
     },
     {
       "id": "pinecone",
