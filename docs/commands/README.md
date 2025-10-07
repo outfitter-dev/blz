@@ -11,7 +11,7 @@ This section lists individual command reference pages. For the single‑page ref
 - [Remove](./remove.md)
 - [Docs](./docs.md)
 - [Completions](./completions.md)
-- [Instruct](./instruct.md)
+- [Prompt](./prompt.md)
 - [History](./history.md)
 - [Config](./config.md)
 - [Global Options](./global.md)

@@ -6,7 +6,7 @@ Search registries for documentation to add.
 blz lookup <QUERY> [--format text|json|jsonl]
 ```
 
-> **Beta** · Results come from BLZ’s built-in registry, which is still tiny. Every lookup prints a reminder to open a PR with any helpful llms.txt manifests.
+> **Beta** · BLZ’s built-in llms.txt registry is still small. You can always add any llms-full.txt manually with `blz add <alias> <url>`. If you want it included for everyone, open a PR at https://github.com/outfitter-dev/blz/.
 Examples
 
 ```bash

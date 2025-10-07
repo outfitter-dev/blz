@@ -7,6 +7,7 @@
 - Gated `blz-dev` behind optional `dev-profile` feature and created manual `install-dev.sh`; refreshed README docs and reran `cargo check -p blz-cli` / `cargo check -p blz-cli --features dev-profile`.
 - Documented the local dev workflow in `docs/development/local-development.md` and linked it from the development index + README snippet.
 - Refined `blz get` docs/help to recommend the `source:lines` shorthand (matches search output) and re-enabled `blz lookup` with a beta footnote plus registry invitation.
+- Replaced `blz instruct` with a global `--prompt` flag that emits JSON guidance. Added prompt JSON files alongside each command, wired `prompt.rs` loader, updated docs/tests, and refreshed registry note text.
 - Created `hydrate-dev.sh` script to copy production blz data to blz-dev for testing with realistic data; script is XDG-aware and supports selective copying (config-only, sources-only) with dry-run mode.
 - Fixed hydration script path detection to always use XDG paths for blz-dev (preventing fallback to dot-directory) while still detecting legacy dot-directory for production blz.
 - Installed blz-dev binary and successfully hydrated with production sources (bun, local-test); verified with doctor command showing 2 healthy sources.

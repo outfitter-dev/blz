@@ -114,6 +114,20 @@ pub struct Cli {
     #[arg(value_name = "QUERY", trailing_var_arg = true)]
     pub query: Vec<String>,
 
+    /// Emit agent-focused JSON prompt for the CLI or a specific command
+    ///
+    /// Example usages:
+    /// - `blz --prompt` (general guidance)
+    /// - `blz --prompt search` (command-specific guidance)
+    #[arg(
+        long,
+        global = true,
+        value_name = "TARGET",
+        num_args = 0..=1,
+        default_missing_value = "__global__"
+    )]
+    pub prompt: Option<String>,
+
     #[arg(short = 'v', long, global = true)]
     pub verbose: bool,
 
@@ -196,7 +210,8 @@ pub struct Cli {
 /// ```
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
-    /// Print instructions for agent use of blz
+    /// Deprecated: use `blz --prompt`
+    #[command(hide = true)]
     Instruct,
     /// Generate shell completions
     Completions {

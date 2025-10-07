@@ -1,0 +1,47 @@
+{
+  "target": "add",
+  "summary": "Register new documentation sources by alias. Supports single URLs or manifest batches and stores metadata (aliases, tags, descriptors) alongside indexed content.",
+  "usage": [
+    {
+      "command": "blz add <alias> <https://domain.com/llms-full.txt> -y",
+      "description": "Fetch, parse, and index a single llms.txt/llms-full.txt without interactive confirmation."
+    },
+    {
+      "command": "blz add --manifest sources.manifest.toml",
+      "description": "Batch ingest multiple sources defined in TOML. Combine with `--only alias1,alias2` for scoped runs."
+    },
+    {
+      "command": "blz add <alias> <url> --dry-run",
+      "description": "Validate a candidate source and return JSON analysis (line counts, section stats) without writing to disk."
+    }
+  ],
+  "required_inputs": [
+    "alias – lowercase identifier used for search/get commands and storage paths",
+    "url – points to llms-full.txt when available; fallback llms.txt content is handled automatically",
+    "manifest (optional) – TOML file describing multiple sources (alias, url, display name, tags)"
+  ],
+  "supporting_flags": [
+    {
+      "flag": "--aliases <a,b,c>",
+      "impact": "Adds lookup aliases that resolve back to the canonical source."
+    },
+    {
+      "flag": "--description / --category / --tags",
+      "impact": "Persists richer metadata for list/lookup output and downstream agents."
+    },
+    {
+      "flag": "--yes",
+      "impact": "Skips confirmation prompts—necessary for agent/scheduled runs."
+    }
+  ],
+  "agent_workflow": [
+    "Call `blz add <alias> <url> -y` when a documentation set is required for a conversation.",
+    "If unsure about quality, run `--dry-run` first to inspect line count and headings.",
+    "After adding, run `blz list --format json | jq '.[] | select(.alias==\"<alias>\")'` to verify metadata, then proceed with searches."
+  ],
+  "error_recovery": [
+    "Checksum mismatches typically indicate the upstream file changed mid-run. Retry after `blz update <alias>`.",
+    "HTTP 404/401 responses surface as user errors—confirm the llms.txt URL is publicly accessible or supply credentials via manifest if supported.",
+    "Duplicate alias? Run `blz remove <alias>` first or choose an alternative canonical name."
+  ]
+}

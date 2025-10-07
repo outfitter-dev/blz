@@ -14,7 +14,7 @@ A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` f
 
 ## Usage For AI Agents
 
-- Quick primer in your terminal: `blz instruct`
+- Quick primer in your terminal: `blz --prompt`
 - Programmatic CLI docs for agents: `blz docs --format json`
 - Detailed instructions you can copy into CLAUDE.md or AGENTS.md: see `.agents/instructions/use-blz.md`
   - You can inline it directly or @‑mention it from your agent’s rules file
@@ -57,8 +57,8 @@ blz add bun https://bun.sh/llms.txt
 blz search "bun:sqlite"
 
 # Get exact lines
-blz get bun --lines 1853-1862
-blz get bun --lines 34366 --context 3   # Adds 3 lines of context from either side
+blz get bun:1853-1862
+blz get bun:34366 --context 3   # Adds 3 lines of context from either side
 ```
 
 - Downloading and indexing is fast (often far less than 1 second)
@@ -150,8 +150,8 @@ blz search "test runner"
 blz search "concurrency" --source bun
 
 # Get exact lines
-blz get bun --lines 120-142
-blz get bun --lines 120-142 --context 3
+blz get bun:120-142
+blz get bun:120-142 --context 3
 
 # Inspect recent searches and persisted defaults
 blz history --limit 5
@@ -207,7 +207,7 @@ IDE agents can run `blz` commands directly for millisecond responses:
 blz search "test runner" --source bun --format json
 
 # Get exact line ranges
-blz get bun --lines 423-445
+blz get bun:423-445
 
 # List all indexed sources
 blz list --format json | jq 'length'

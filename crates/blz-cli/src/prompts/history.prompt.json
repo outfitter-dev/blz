@@ -1,0 +1,27 @@
+{
+  "target": "history",
+  "summary": "Inspect or prune the locally stored search history (`history.jsonl`). Handy for agents that want to replay queries or keep the cache lean.",
+  "usage": [
+    {
+      "command": "blz history --limit 20 --format json",
+      "description": "Return the most recent queries with timestamp, alias filter, and whether results were found."
+    },
+    {
+      "command": "blz history --clear-before 2025-01-01",
+      "description": "Delete entries older than a given ISO date."
+    },
+    {
+      "command": "blz history --clear",
+      "description": "Wipe the entire history file."
+    }
+  ],
+  "agent_use_cases": [
+    "Replay previous troubleshooting sessions: iterate over JSON output and feed queries back into `blz search`.",
+    "Audit which docs are heavily referenced by counting occurrences of aliases.",
+    "Compact history before sharing a workspace snapshot (`--clear-before` or `--clear`)."
+  ],
+  "notes": [
+    "History is scoped to the profile (`~/.blz/` for stable, `~/.blz-dev/` for the dev binary).",
+    "Entries store resolved alias + query payload so you can detect drift when sources are renamed."
+  ]
+}

@@ -33,7 +33,7 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `completions` | | Generate shell completions |
 | `docs` | | Generate CLI docs (Markdown/JSON) |
 | `alias` | | Manage aliases for a source |
-| `instruct` | | Print instructions for BLZ agent use |
+| `--prompt` | | Emit agent-focused JSON guidance for the CLI or specific commands |
 | `history` | | Show recent searches and CLI defaults |
 | `config` | | Manage configuration (global/local/project scopes) |
 
@@ -553,13 +553,17 @@ Config discovery order:
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
-### `blz instruct`
+### `blz --prompt`
 
-Print instructions for agent use of BLZ, followed by the current `--help` content so onboarding takes a single command. Examples and flags are kept in sync with the CLI.
+Emit JSON guidance for the CLI or a specific command. Replaces the legacy `blz instruct` command.
 
 ```bash
-blz instruct
+blz --prompt            # General overview
+blz --prompt search     # Command-specific workflow
+blz --prompt alias.add  # Dot notation for nested subcommands
 ```
+
+The JSON payload is designed for agent consumption (fields include summaries, workflows, recommended flags, and examples).
 
 ### `blz history`
 

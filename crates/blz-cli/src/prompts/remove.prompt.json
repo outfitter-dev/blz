@@ -1,0 +1,24 @@
+{
+  "target": "remove",
+  "summary": "Delete cached documentation for a source, including indexed content, descriptors, and history references.",
+  "usage": [
+    {
+      "command": "blz remove <alias>",
+      "description": "Interactive removal (asks for confirmation). Aliases respect metadata alias resolution."
+    },
+    {
+      "command": "blz remove <alias> --yes",
+      "description": "Non-interactive deletion suitable for automation or cleanup scripts."
+    }
+  ],
+  "safety_mechanics": [
+    "Confirmation prompt prevents accidental deletion in interactive shells.",
+    "Operation removes: llms.txt, llms.json, Tantivy index, descriptor TOML, and history entries for the alias.",
+    "Search results referencing a removed alias will fail fast, helping agents detect stale references."
+  ],
+  "agent_workflow": [
+    "List sources (`blz list`) to identify stale or temporary caches.",
+    "Call `blz remove <alias> --yes` when the docs are no longer needed or before re-importing under a new canonical alias.",
+    "Optionally run `blz lookup <query>` afterward to discover replacements."
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "target": "docs",
+  "summary": "Generate single-page CLI documentation in Markdown or JSON. Useful for agents that need an authoritative command reference.",
+  "usage": [
+    {
+      "command": "blz docs --format markdown",
+      "description": "Emit comprehensive Markdown documentation (mirrors the content in `docs/cli.md`)."
+    },
+    {
+      "command": "blz docs --format json",
+      "description": "Structured JSON containing every command, argument, alias, and description — perfect for tool schemas."
+    }
+  ],
+  "agent_tips": [
+    "Cache the JSON output during tool initialization so the LLM has access to command schemas without re-invoking `blz`.",
+    "Pair with `blz --prompt <command>` to retrieve actionable workflows while the JSON docs supply the raw argument metadata."
+  ],
+  "fields_in_json_mode": [
+    "name – command name",
+    "about / long_about – help strings",
+    "args – array of arguments with type, default, requirements",
+    "subcommands – nested structure reflecting the Clap hierarchy"
+  ]
+}

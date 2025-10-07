@@ -221,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Large document handling**: Fallback to windowed segmentation for documents exceeding limits
 
 ### Developer Experience
-- **`blz instruct` command**: Append live CLI documentation to agent instructions
+- **`blz --prompt` flag**: Emit JSON guidance for agents (replaces the old `blz instruct` output)
 - **Improved logging**: All logs go to stderr, keeping stdout clean for JSON/JSONL output
 - **Better error messages**: More actionable error messages with suggestions
 

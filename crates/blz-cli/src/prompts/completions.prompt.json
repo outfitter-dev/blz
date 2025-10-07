@@ -1,0 +1,18 @@
+{
+  "target": "completions",
+  "summary": "Generate shell completion scripts or enumerate supported shells so agents can bootstrap human-friendly environments.",
+  "usage": [
+    {
+      "command": "blz completions <bash|zsh|fish|powershell>",
+      "description": "Print the completion script to stdout. Redirect into the appropriate location for your shell."
+    },
+    {
+      "command": "blz completions --list",
+      "description": "Return available shells in the selected output format (text/json/jsonl)."
+    }
+  ],
+  "agent_tips": [
+    "For dynamic completions (aliases, anchors) consider sourcing the helper scripts in `scripts/blz-*-init` after installing static completions.",
+    "When automating environment setup, pair this command with `install-dev.sh` or `cargo install` in a bootstrap script."
+  ]
+}

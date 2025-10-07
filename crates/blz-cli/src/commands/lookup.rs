@@ -9,34 +9,8 @@ use std::io::IsTerminal;
 
 use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
+use crate::prompt::{NoteChannel, emit_registry_note};
 use crate::utils::validation::validate_alias;
-
-const REGISTRY_NOTE: &str = "Note: BLZ's built-in llms.txt registry is nascent. For now you can still take any llms-full.txt you find and add it locally. If you want to submit one to the BLZ registry, just file a PR at https://github.com/outfitter-dev/blz!";
-
-#[derive(Clone, Copy)]
-enum NoteChannel {
-    Auto,
-    ForceStderr,
-}
-
-fn emit_registry_note(format: OutputFormat, quiet: bool, channel: NoteChannel) {
-    match channel {
-        NoteChannel::ForceStderr => {
-            eprintln!("{REGISTRY_NOTE}");
-        },
-        NoteChannel::Auto => {
-            if matches!(format, OutputFormat::Text) {
-                if quiet {
-                    eprintln!("{REGISTRY_NOTE}");
-                } else {
-                    println!("\n{REGISTRY_NOTE}");
-                }
-            } else {
-                eprintln!("{REGISTRY_NOTE}");
-            }
-        },
-    }
-}
 
 /// Execute the lookup command to search registries
 #[allow(clippy::too_many_lines)]

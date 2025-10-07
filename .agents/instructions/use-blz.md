@@ -53,11 +53,11 @@ blz "routing" --json    # shortcut
 
 ```bash
 # Get specific line range from source
-blz get anthropic 100-150
-blz get nextjs 2000-2100
+blz get anthropic:100-150
+blz get nextjs:2000-2100
 
 # With context lines
-blz get react 500-510 --context 5  # ±5 lines around range
+blz get react:500-510 --context 5  # ±5 lines around range
 ```
 
 ## Advanced Usage
@@ -73,8 +73,8 @@ blz "authentication" --json | jq '.[] | select(.score > 50)'
 blz "typescript" --json | jq 'group_by(.alias) | map({alias: .[0].alias, count: length})'
 
 # Find and open in editor (macOS)
-blz "useReducer" --json | jq -r '.[0] | "\(.alias) \(.lines)"' | read alias lines && \
-  blz get $alias $lines | pbcopy && echo "Copied to clipboard"
+blz "useReducer" --json | jq -r '.[0] | "\(.alias):\(.lines)"' | read target && \
+  blz get "$target" | pbcopy && echo "Copied to clipboard"
 
 # Update sources
 blz update --all        # update all sources
@@ -82,6 +82,11 @@ blz update anthropic    # update specific source
 
 # Check for stale sources (>7 days old)
 blz list --json | jq '.[] | select((.last_updated | fromdate) < (now - 604800))'
+
+# Pull JSON prompts for tooling/agents
+blz --prompt           # Global overview and workflows
+blz --prompt search    # Retrieval playbook
+blz --prompt add       # Onboarding checklist for new sources
 ```
 
 ## Search Tips
@@ -109,8 +114,8 @@ for source in react typescript eslint prettier; do
 done
 
 # 2. Search → Get full context
-result=$(blz "custom hooks" --json | jq -r '.[0] | "\(.alias) \(.lines)"')
-blz get $result --context 10
+result=$(blz "custom hooks" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+blz get "$result" --context 10
 
 # 3. Build knowledge base
 blz "api reference" --json > api_refs.json

@@ -199,7 +199,7 @@ pub async fn handle_default(
         println!("\nNotes:");
         println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
         println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
-        println!("  • Run 'blz instruct' for agent-focused guidance.");
+        println!("  • Run 'blz --prompt search' for agent-focused guidance.");
         return Ok(());
     }
 

@@ -1,0 +1,33 @@
+{
+  "target": "lookup",
+  "summary": "Search the bundled llms.txt registry (plus any custom entries) to find new documentation sources worth adding.",
+  "usage": [
+    {
+      "command": "blz lookup <keyword>",
+      "description": "Interactive by default. Shows ranked matches, HEAD health checks, and copy-pasteable `blz add` commands."
+    },
+    {
+      "command": "BLZ_OUTPUT_FORMAT=json blz lookup <keyword>",
+      "description": "Machine-readable output suitable for agents; each entry includes slug, aliases, score, and HEAD metadata."
+    },
+    {
+      "command": "BLZ_REGISTRY_ENABLED=0 blz lookup ...",
+      "description": "Temporarily disable the registry (for air-gapped environments) – BLZ responds with guidance to add sources manually."
+    }
+  ],
+  "agent_process": [
+    "Query the registry using a concise keyword: framework name, company, or tooling category.",
+    "When the registry returns matches, pick a slug and call `blz add <slug> <llms-url> -y` to index it locally.",
+    "If no results appear, fall back to manual ingestion: locate an official llms-full.txt and call `blz add` directly."
+  ],
+  "json_shape": {
+    "fields": [
+      "name / slug – canonical identifier",
+      "aliases – helpful when matching package names",
+      "llmsUrl – canonical llms-full.txt endpoint (add this)",
+      "score – BM25-style relevance score within the registry",
+      "head.status / head.etag – quick health probe of the remote file"
+    ]
+  },
+  "footnote": "Note: BLZ's built-in llms.txt registry is nascent. Submit additional manifests via PR at https://github.com/outfitter-dev/blz/. You can still add any llms-full.txt manually with `blz add <alias> <url>`."
+}

@@ -16,17 +16,8 @@ use std::sync::OnceLock;
 mod cli;
 mod commands;
 mod output;
+mod prompt;
 mod utils;
-mod instruct_mod {
-    pub fn print() {
-        // Embed a simple, agent-friendly text with no special formatting.
-        const INSTRUCT: &str = include_str!("../agent-instructions.txt");
-        println!("{}", INSTRUCT.trim());
-        println!(
-            "\nNeed full command reference? Run `blz docs --format markdown` or `blz docs --format json`."
-        );
-    }
-}
 
 use crate::commands::{AddRequest, DescriptorInput};
 
@@ -204,8 +195,11 @@ fn classify_global_flag(arg: &str) -> Option<FlagKind> {
     match arg {
         "-v" | "--verbose" | "-q" | "--quiet" | "--debug" | "--profile" | "--no-color" | "-h"
         | "--help" | "-V" | "--version" | "--flamegraph" => Some(FlagKind::Switch),
-        "--config" | "--config-dir" => Some(FlagKind::TakesValue),
-        _ if arg.starts_with("--config=") || arg.starts_with("--config-dir=") => {
+        "--config" | "--config-dir" | "--prompt" => Some(FlagKind::TakesValue),
+        _ if arg.starts_with("--config=")
+            || arg.starts_with("--config-dir=")
+            || arg.starts_with("--prompt=") =>
+        {
             Some(FlagKind::Switch)
         },
         _ => None,
@@ -303,6 +297,11 @@ pub async fn run() -> Result<()> {
     // Preprocess arguments to handle shorthand search with flags
     let args = preprocess_args();
     let mut cli = Cli::parse_from(args);
+
+    if let Some(target) = cli.prompt.clone() {
+        prompt::emit(&target, cli.command.as_ref())?;
+        return Ok(());
+    }
 
     initialize_logging(&cli)?;
 
@@ -420,6 +419,10 @@ async fn execute_command(
     prefs: &mut CliPreferences,
 ) -> Result<()> {
     match cli.command {
+        Some(Commands::Instruct) => {
+            prompt::emit("__global__", Some(&Commands::Instruct))?;
+            eprintln!("`blz instruct` is deprecated. Use `blz --prompt` instead.");
+        },
         Some(Commands::Completions {
             shell,
             list,
@@ -436,7 +439,6 @@ async fn execute_command(
         },
         Some(Commands::Docs { format }) => handle_docs(format)?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
-        Some(Commands::Instruct) => instruct_mod::print(),
         Some(Commands::Add(args)) => {
             if let Some(manifest) = &args.manifest {
                 commands::add_manifest(

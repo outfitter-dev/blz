@@ -1,0 +1,53 @@
+{
+  "target": "search",
+  "summary": "Full-text query across every indexed source (or a filtered subset) with BM25 scoring, pagination, and JSON outputs that are friendly to LLM agents.",
+  "primary_usage": [
+    {
+      "command": "blz search \"<query>\" --format json",
+      "description": "Default mode. Returns an array of hits containing alias, headingPath, lines, snippet, checksum, and score."
+    },
+    {
+      "command": "blz search \"<query>\" --source <alias> --limit 20 --page 2",
+      "description": "Scope to a specific source and paginate deterministically."
+    },
+    {
+      "command": "blz \"<query>\"",
+      "description": "Shortcut—positional queries without a subcommand behave like `search`."
+    }
+  ],
+  "query_language": [
+    "Space-delimited terms default to OR semantics (match any).",
+    "Wrap phrases in double quotes. Use single quotes outside the shell: `blz '\"background fetch\"'`.",
+    "Prefix required terms with `+` or use explicit AND: `blz '+api +key rotation'`.",
+    "BM25 rankings combine term frequency and doc length; higher numeric score = better match."
+  ],
+  "workflow_for_agents": [
+    "Always request JSON (`--format json` or set `BLZ_OUTPUT_FORMAT=json`).",
+    "Pick the best hit by alias + score + snippet relevance.",
+    "Pass the alias/lines into `blz get <alias>:<lines>` to retrieve authoritative context before prompting the model.",
+    "Log the checksum for deduping or verifying cached spans."
+  ],
+  "helpful_flags": [
+    {
+      "flag": "--next / --last",
+      "impact": "Traverse pagination without manually tracking page numbers."
+    },
+    {
+      "flag": "--top <percent>",
+      "impact": "Keep only top percentile of hits (post-pagination) to reduce noise."
+    },
+    {
+      "flag": "--show <components>",
+      "impact": "Augment text output (when not using JSON) with rank/url/anchor metadata."
+    },
+    {
+      "flag": "--block / --context",
+      "impact": "Augments hits with pre-expanded context, useful when piping text output."
+    }
+  ],
+  "post_processing_examples": [
+    "Filter by minimum score: `blz search \"sdk\" --format json | jq '[.[] | select(.score > 60)]'`.",
+    "Group by alias: `blz search \"migration\" --format json | jq 'group_by(.alias) | map({alias: .[0].alias, hits: length})'`.",
+    "Pipe to get spans: `blz search \"hooks\" --format json | jq -r '.[0].alias + \":\" + .[0].lines' | xargs blz get`."
+  ]
+}
