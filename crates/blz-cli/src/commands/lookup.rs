@@ -11,8 +11,7 @@ use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
 use crate::utils::validation::validate_alias;
 
-const REGISTRY_NOTE: &str =
-    "Note: BLZ's built-in registry is nascent. Have a favorite llms.txt? Send a PR to add it!";
+const REGISTRY_NOTE: &str = "Note: BLZ's built-in llms.txt registry is nascent. For now you can still take any llms-full.txt you find and add it locally. If you want to submit one to the BLZ registry, just file a PR at https://github.com/outfitter-dev/blz!";
 
 #[derive(Clone, Copy)]
 enum NoteChannel {
