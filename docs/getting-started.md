@@ -85,7 +85,7 @@ Search results for 'test':
 Retrieve specific line ranges:
 
 ```bash
-blz get bun --lines 304-324
+blz get bun:304-324
 ```
 
 This shows the exact content from those lines with line numbers.
@@ -177,7 +177,7 @@ alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 
 echo "Found in $alias at lines $lines"
-blz get "$alias" --lines "$lines"
+blz get "$alias:$lines"
 ```
 
 ## Shell Completion

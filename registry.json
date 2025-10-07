@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated": "2025-09-30T20:51:03Z",
+  "updated": "2025-10-07T17:51:58Z",
   "sources": [
     {
       "id": "ai-sdk",
@@ -18,13 +18,13 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
+        "github": [
+          "vercel/ai"
+        ],
         "npm": [
           "ai",
           "@ai-sdk/openai",
           "@ai-sdk/anthropic"
-        ],
-        "github": [
-          "vercel/ai"
         ]
       }
     },
@@ -68,11 +68,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "npm": [
-          "astro"
-        ],
         "github": [
           "withastro/astro"
+        ],
+        "npm": [
+          "astro"
         ]
       }
     },
@@ -92,11 +92,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "oven-sh/bun"
-        ],
         "npm": [
           "bun"
+        ],
+        "github": [
+          "oven-sh/bun"
         ]
       }
     },
@@ -116,11 +116,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "npm": [
-          "@chakra-ui/react"
-        ],
         "github": [
           "chakra-ui/chakra-ui"
+        ],
+        "npm": [
+          "@chakra-ui/react"
         ]
       }
     },
@@ -184,11 +184,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "denoland/deno"
-        ],
         "npm": [
           "deno"
+        ],
+        "github": [
+          "denoland/deno"
         ]
       }
     },
@@ -208,11 +208,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "drizzle-team/drizzle-orm"
-        ],
         "npm": [
           "drizzle-orm"
+        ],
+        "github": [
+          "drizzle-team/drizzle-orm"
         ]
       }
     },
@@ -282,11 +282,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "langchain-ai/langchain"
-        ],
         "pypi": [
           "langchain"
+        ],
+        "github": [
+          "langchain-ai/langchain"
         ]
       }
     },
@@ -308,11 +308,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "npm": [
-          "@langchain/langgraph"
-        ],
         "github": [
           "langchain-ai/langgraphjs"
+        ],
+        "npm": [
+          "@langchain/langgraph"
         ]
       }
     },
@@ -333,11 +333,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "pypi": [
-          "langgraph"
-        ],
         "github": [
           "langchain-ai/langgraph"
+        ],
+        "pypi": [
+          "langgraph"
         ]
       }
     },
@@ -356,11 +356,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "mastra-ai/mastra"
-        ],
         "npm": [
           "@mastra/core"
+        ],
+        "github": [
+          "mastra-ai/mastra"
         ]
       }
     },
@@ -389,6 +389,19 @@
       }
     },
     {
+      "id": "my-bun-clone",
+      "name": "my-bun-clone",
+      "description": "A clone of the bun source",
+      "url": "https://bun.sh/llms-full.txt",
+      "category": "testing",
+      "tags": [
+        "test",
+        "clone"
+      ],
+      "registeredAt": "2025-10-07T17:51:58.268239+00:00",
+      "verifiedAt": "2025-10-07T17:51:58.268239+00:00"
+    },
+    {
       "id": "pinecone",
       "name": "Pinecone",
       "description": "Vector database for AI applications",
@@ -404,14 +417,14 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "pinecone-io/pinecone-ts-client"
+        "npm": [
+          "@pinecone-database/pinecone"
         ],
         "pypi": [
           "pinecone-client"
         ],
-        "npm": [
-          "@pinecone-database/pinecone"
+        "github": [
+          "pinecone-io/pinecone-ts-client"
         ]
       }
     },
@@ -431,11 +444,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "npm": [
-          "preact"
-        ],
         "github": [
           "preactjs/preact"
+        ],
+        "npm": [
+          "preact"
         ]
       }
     },
@@ -455,12 +468,12 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "prisma/prisma"
-        ],
         "npm": [
           "prisma",
           "@prisma/client"
+        ],
+        "github": [
+          "prisma/prisma"
         ]
       }
     },
@@ -633,11 +646,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "supabase/supabase-py"
-        ],
         "pypi": [
           "supabase"
+        ],
+        "github": [
+          "supabase/supabase-py"
         ]
       }
     },
@@ -678,11 +691,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "npm": [
-          "svelte"
-        ],
         "github": [
           "sveltejs/svelte"
+        ],
+        "npm": [
+          "svelte"
         ]
       }
     },
@@ -702,11 +715,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "vercel/vercel"
-        ],
         "npm": [
           "vercel"
+        ],
+        "github": [
+          "vercel/vercel"
         ]
       }
     },
@@ -749,11 +762,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "vuejs/core"
-        ],
         "npm": [
           "vue"
+        ],
+        "github": [
+          "vuejs/core"
         ]
       }
     }

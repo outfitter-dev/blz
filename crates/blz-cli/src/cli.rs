@@ -379,11 +379,11 @@ pub enum Commands {
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
     ///
-    /// Supports colon syntax for convenience: `blz get bun:1-3`
+    /// Preferred syntax matches search results: `blz get bun:120-142`
     ///
-    /// Or use the --lines flag: `blz get bun --lines 1-3`
+    /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
     Get {
-        /// Source or "source:lines" (e.g., "bun:1-3")
+        /// Source or "source:lines" (preferred: matches search output, e.g., "bun:1-3")
         ///
         /// When using colon syntax, the --lines flag is optional
         #[arg(value_name = "ALIAS")]

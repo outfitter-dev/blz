@@ -125,6 +125,8 @@ Search registries for available documentation sources.
 blz lookup <QUERY> [--format text|json|jsonl]
 ```
 
+> **Beta** · The bundled registry is still small. After each lookup you’ll see a reminder to open a PR with any llms.txt sources we’re missing.
+
 **Arguments:**
 
 - `<QUERY>` - Search term (tool name, partial name, etc.)
@@ -216,16 +218,20 @@ Aliases and resolution
 Retrieve exact line ranges from an indexed source.
 
 ```bash
+blz get <SOURCE:LINES> [OPTIONS]
+
+# Back-compat form if you prefer flags:
 blz get <SOURCE> --lines <RANGE> [OPTIONS]
 ```
 
 **Arguments:**
 
-- `<SOURCE>` - Canonical source or metadata alias to read from
+- `<SOURCE:LINES>` - Preferred shorthand (matches search output, e.g., `bun:120-142`)
+- `<SOURCE>` - Canonical source or metadata alias (use with `--lines`)
 
 **Options:**
 
-- `-l, --lines <RANGE>` - Line range(s) to retrieve
+- `-l, --lines <RANGE>` - Line range(s) to retrieve (optional when using `source:lines`)
 - `-c, --context <N>` - Include N context lines around each range
 - `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
 
@@ -239,17 +245,17 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 **Examples:**
 
 ```bash
-# Get lines 120-142 from Bun docs
-blz get bun --lines 120-142
+# Get lines 120-142 from Bun docs (preferred syntax)
+blz get bun:120-142
 
 # Get multiple ranges
-blz get node --lines "10:20,50:60"
+blz get node:10:20,50:60
 
-# Include 3 lines of context
-blz get deno --lines 100-110 --context 3
+# Include 3 lines of context (still works with shorthand)
+blz get deno:100-110 --context 3
 
 # JSON output for agents
-blz get bun --lines 42-55 -f json | jq '.content'
+blz get bun:42-55 -f json | jq '.content'
 ```
 
 ### `blz list` / `blz sources`

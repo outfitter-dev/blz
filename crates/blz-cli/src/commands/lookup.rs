@@ -20,8 +20,16 @@ pub async fn execute(
     format: OutputFormat,
 ) -> Result<()> {
     let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
-        .map(|value| matches!(value.as_str(), "1" | "true" | "on"))
-        .unwrap_or(false);
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "on" | "yes"
+            )
+        })
+        .unwrap_or(true);
+
+    const REGISTRY_NOTE: &str =
+        "Note: BLZ's built-in registry is nascent. Have a favorite llms.txt? Send a PR to add it!";
 
     if !registry_enabled {
         let _ = metrics; // keep signature for future use
@@ -53,6 +61,16 @@ pub async fn execute(
             }
         }
 
+        if matches!(format, OutputFormat::Text) {
+            if quiet {
+                eprintln!("{REGISTRY_NOTE}");
+            } else {
+                println!("\n{REGISTRY_NOTE}");
+            }
+        } else {
+            eprintln!("{REGISTRY_NOTE}");
+        }
+
         return Ok(());
     }
 
@@ -69,6 +87,15 @@ pub async fn execute(
         }
         if matches!(format, OutputFormat::Json) {
             println!("[]");
+        }
+        if matches!(format, OutputFormat::Text) {
+            if quiet {
+                eprintln!("{REGISTRY_NOTE}");
+            } else {
+                println!("\n{REGISTRY_NOTE}");
+            }
+        } else {
+            eprintln!("{REGISTRY_NOTE}");
         }
         return Ok(());
     }
@@ -111,6 +138,7 @@ pub async fn execute(
                 println!("{}", serde_json::to_string(&o)?);
             }
         }
+        eprintln!("{REGISTRY_NOTE}");
         return Ok(());
     }
 
@@ -119,6 +147,9 @@ pub async fn execute(
         // Not interactive, show instructions
         if matches!(format, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
+            println!("\n{REGISTRY_NOTE}");
+        } else {
+            eprintln!("{REGISTRY_NOTE}");
         }
         return Ok(());
     };
@@ -160,7 +191,19 @@ pub async fn execute(
         metrics,
     );
 
-    add_source(request).await
+    add_source(request).await?;
+
+    if matches!(format, OutputFormat::Text) {
+        if quiet {
+            eprintln!("{REGISTRY_NOTE}");
+        } else {
+            println!("\n{REGISTRY_NOTE}");
+        }
+    } else {
+        eprintln!("{REGISTRY_NOTE}");
+    }
+
+    Ok(())
 }
 
 async fn display_results_with_health(

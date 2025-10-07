@@ -283,7 +283,7 @@ alias=$(echo "$result" | jq -r '.results[0].alias')
 lines=$(echo "$result" | jq -r '.results[0].lines')
 
 echo "Best match in $alias at lines $lines"
-blz get "$alias" --lines "$lines"
+blz get "$alias:$lines"
 ```
 
 ### Search and Open
@@ -300,7 +300,7 @@ if [ "$result" != "null" ]; then
   lines=$(echo "$result" | jq -r '.lines')
 
   echo "Opening $alias at lines $lines..."
-  blz get "$alias" --lines "$lines"
+  blz get "$alias:$lines"
 else
   echo "No results found for: $query"
 fi

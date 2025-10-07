@@ -45,7 +45,7 @@ blz add bun https://bun.sh/llms.txt
 blz search "test concurrency" --source bun
 
 # Get specific lines
-blz get bun --lines 304-324
+blz get bun:304-324
 ```
 
 ## Performance at a Glance
