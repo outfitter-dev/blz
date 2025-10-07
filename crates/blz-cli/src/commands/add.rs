@@ -1,6 +1,7 @@
 //! Add command implementation
 
 use anyhow::Result;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
     Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, SourceDescriptor,
     SourceOrigin, SourceType, SourceVariant, Storage,
@@ -493,7 +494,8 @@ async fn add_local_source(
 
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
-    let sha256 = format!("{:x}", hasher.finalize());
+    // Use base64 encoding to match remote sources
+    let sha256 = STANDARD.encode(hasher.finalize());
 
     spinner.set_message("Parsing markdown...");
     let mut parser = MarkdownParser::new()?;

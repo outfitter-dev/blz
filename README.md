@@ -105,6 +105,10 @@ cargo install --path crates/blz-cli
 
 # Or install directly from GitHub
 cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
+
+# Optional dev build (installs `blz-dev` only)
+./install-dev.sh --root "$HOME/.local/share/blz-dev"
+# See docs/development/local-development.md for full local workflow guidance.
 ```
 
 ### Shell Setup

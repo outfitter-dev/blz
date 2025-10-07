@@ -67,6 +67,8 @@ pub mod index;
 pub mod mapping;
 /// Tree-sitter based markdown parser
 pub mod parser;
+/// Application profile detection helpers
+pub mod profile;
 /// Performance profiling utilities
 pub mod profiling;
 /// Built-in registry of known documentation sources

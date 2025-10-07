@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use blz_core::profile;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::warn;
@@ -109,13 +111,13 @@ pub fn global_config_dir() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
         let trimmed = xdg.trim();
         if !trimmed.is_empty() {
-            return PathBuf::from(trimmed).join("blz");
+            return PathBuf::from(trimmed).join(profile::app_dir_slug());
         }
     }
 
-    // Fallback to ~/.blz/ (dotfile convention for non-XDG systems)
+    // Fallback to ~/.blz*/ (dotfile convention for non-XDG systems)
     if let Some(base_dirs) = directories::BaseDirs::new() {
-        return base_dirs.home_dir().join(".blz");
+        return base_dirs.home_dir().join(profile::dot_dir_slug());
     }
 
     // Last resort: current directory

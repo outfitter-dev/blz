@@ -13,10 +13,16 @@ workspace = true
 [features]
 flamegraph = ["dep:pprof", "blz-core/flamegraph"]
 anchors = []
+dev-profile = []
 
 [[bin]]
 name = "blz"
 path = "src/main.rs"
+
+[[bin]]
+name = "blz-dev"
+path = "src/bin/blz-dev.rs"
+required-features = ["dev-profile"]
 
 [dependencies]
 blz-core.workspace = true

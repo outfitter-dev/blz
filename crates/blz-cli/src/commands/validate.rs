@@ -1,6 +1,7 @@
 //! Source validation command - verify source integrity and availability
 
 use anyhow::{Context, Result};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::Storage;
 use colored::Colorize;
 use serde::Serialize;
@@ -94,22 +95,49 @@ async fn validate_source(storage: &Storage, alias: &str) -> Result<ValidationRes
     let mut checksum_matches = false;
     let mut actual_checksum = None;
 
-    // Check if URL is accessible
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()?;
-
-    match client.head(&metadata.url).send().await {
-        Ok(response) => {
-            url_accessible = response.status().is_success();
-            url_status_code = Some(response.status().as_u16());
-
-            if !url_accessible {
-                issues.push(format!("URL returned status code {}", response.status()));
+    // Check if URL/file is accessible based on source type
+    match &metadata.origin.source_type {
+        Some(blz_core::SourceType::LocalFile { path }) => {
+            // For local files, check filesystem existence
+            if std::path::Path::new(path).exists() {
+                url_accessible = true;
+                // No HTTP status code for local files
+            } else {
+                issues.push(format!("Local file not found: {path}"));
             }
         },
-        Err(e) => {
-            issues.push(format!("Failed to connect to URL: {e}"));
+        Some(blz_core::SourceType::Remote { url: _ }) | None => {
+            // For remote sources (or when source_type is not set), check HTTP accessibility
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()?;
+
+            let check_url = metadata
+                .origin
+                .source_type
+                .as_ref()
+                .and_then(|st| {
+                    if let blz_core::SourceType::Remote { url } = st {
+                        Some(url.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(&metadata.url);
+
+            match client.head(check_url).send().await {
+                Ok(response) => {
+                    url_accessible = response.status().is_success();
+                    url_status_code = Some(response.status().as_u16());
+
+                    if !url_accessible {
+                        issues.push(format!("URL returned status code {}", response.status()));
+                    }
+                },
+                Err(e) => {
+                    issues.push(format!("Failed to connect to URL: {e}"));
+                },
+            }
         },
     }
 
@@ -119,7 +147,10 @@ async fn validate_source(storage: &Storage, alias: &str) -> Result<ValidationRes
         let content = tokio::fs::read(&llms_path).await?;
         let mut hasher = Sha256::new();
         hasher.update(&content);
-        let checksum = format!("{:x}", hasher.finalize());
+
+        // Convert to base64 to match metadata format
+        let checksum = STANDARD.encode(hasher.finalize());
+
         actual_checksum = Some(checksum.clone());
         checksum_matches = checksum == metadata.sha256;
 

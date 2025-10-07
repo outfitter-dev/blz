@@ -151,23 +151,35 @@ impl<'a> FormatParams<'a> {
 ///   separate JSON object. Enables streaming processing and is memory-efficient
 ///   for large result sets.
 ///
+/// # Default Behavior
+///
+/// When no format is specified:
+/// - **Interactive terminals**: Text format (human-readable)
+/// - **Piped/redirected output**: JSON format (machine-readable)
+///
+/// This ensures optimal defaults for both human and programmatic usage.
+/// Use `--format text` to force text output when piping.
+///
 /// # Usage in CLI
 ///
 /// ```bash
-/// # Default text output
+/// # Default text output (interactive terminal)
 /// blz search "useEffect"
 ///
-/// # JSON output for scripting
-/// blz search "useEffect" --format json | jq '.[0].content'
+/// # Pipe automatically uses JSON
+/// blz search "useEffect" | jq '.[0].content'
+///
+/// # Force text when piping
+/// blz search "useEffect" --format text | less
 ///
 /// # JSON Lines for streaming
 /// blz search "useEffect" --format jsonl | head -5
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
-    /// Pretty text output (default)
+    /// Pretty text output (default for terminals, use --format text to force when piping)
     Text,
-    /// Single JSON array
+    /// Single JSON array (default when output is piped/redirected)
     Json,
     /// Newline-delimited JSON (aka JSON Lines)
     #[value(name = "jsonl", alias = "ndjson")]

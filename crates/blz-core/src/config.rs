@@ -51,7 +51,7 @@
 //! # Ok::<(), blz_core::Error>(())
 //! ```
 
-use crate::{Error, Result};
+use crate::{Error, Result, profile};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -319,14 +319,14 @@ impl Config {
             .map(PathBuf::from)
             .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join(".config")))
             .ok_or_else(|| Error::Config("Failed to determine XDG config directory".into()))?;
-        Ok(xdg.join("blz").join("config.toml"))
+        Ok(xdg.join(profile::app_dir_slug()).join("config.toml"))
     }
 
     fn dotfile_config_path() -> Result<PathBuf> {
         let home = directories::BaseDirs::new()
             .map(|b| b.home_dir().to_path_buf())
             .ok_or_else(|| Error::Config("Failed to determine home directory".into()))?;
-        Ok(home.join(".blz").join("config.toml"))
+        Ok(home.join(profile::dot_dir_slug()).join("config.toml"))
     }
 
     fn existing_config_path() -> Result<Option<PathBuf>> {
@@ -444,16 +444,21 @@ impl Default for Config {
                 allowlist: Vec::new(),
             },
             paths: PathsConfig {
-                root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
-                    || {
-                        // Expand home directory properly
-                        directories::BaseDirs::new().map_or_else(
-                            || PathBuf::from(".outfitter/blz"),
-                            |base| base.home_dir().join(".outfitter").join("blz"),
-                        )
-                    },
-                    |dirs| dirs.data_dir().to_path_buf(),
-                ),
+                root: directories::ProjectDirs::from("dev", "outfitter", profile::app_dir_slug())
+                    .map_or_else(
+                        || {
+                            // Expand home directory properly
+                            directories::BaseDirs::new().map_or_else(
+                                || PathBuf::from(".outfitter").join(profile::app_dir_slug()),
+                                |base| {
+                                    base.home_dir()
+                                        .join(".outfitter")
+                                        .join(profile::app_dir_slug())
+                                },
+                            )
+                        },
+                        |dirs| dirs.data_dir().to_path_buf(),
+                    ),
             },
         }
     }

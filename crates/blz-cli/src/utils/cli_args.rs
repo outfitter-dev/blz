@@ -31,8 +31,16 @@ pub struct FormatArg {
 
 impl FormatArg {
     /// Returns the effective output format, preferring the canonical flag and falling back to
-    /// the deprecated alias when necessary. If output is piped and no format is specified,
-    /// defaults to JSON for better machine readability.
+    /// the deprecated alias when necessary.
+    ///
+    /// # Default Behavior
+    ///
+    /// When no format is explicitly specified:
+    /// - Interactive terminal: Returns `OutputFormat::Text` (human-readable)
+    /// - Piped/redirected output: Returns `OutputFormat::Json` (machine-readable)
+    ///
+    /// This automatic switching optimizes for the most common use cases while allowing
+    /// explicit override with `--format text` when needed.
     #[must_use]
     pub fn resolve(&self, quiet: bool) -> OutputFormat {
         // If --json flag is set, return JSON immediately

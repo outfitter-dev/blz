@@ -1,4 +1,4 @@
-use crate::{Error, LlmsJson, Result, Source, SourceDescriptor};
+use crate::{Error, LlmsJson, Result, Source, SourceDescriptor, profile};
 use chrono::Utc;
 use directories::{BaseDirs, ProjectDirs};
 use std::fs;
@@ -66,7 +66,7 @@ impl Storage {
             if trimmed.is_empty() {
                 Self::fallback_data_dir()?
             } else {
-                PathBuf::from(trimmed).join("blz")
+                PathBuf::from(trimmed).join(profile::app_dir_slug())
             }
         } else {
             Self::fallback_data_dir()?
@@ -84,7 +84,7 @@ impl Storage {
         // Use ~/.blz/ for data (same location as config for non-XDG systems)
         let home = directories::BaseDirs::new()
             .ok_or_else(|| Error::Storage("Failed to determine home directory".into()))?;
-        Ok(home.home_dir().join(".blz"))
+        Ok(home.home_dir().join(profile::dot_dir_slug()))
     }
 
     /// Determine the default configuration directory honoring overrides
@@ -106,12 +106,12 @@ impl Storage {
         if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
             let trimmed = xdg.trim();
             if !trimmed.is_empty() {
-                return Ok(PathBuf::from(trimmed).join("blz"));
+                return Ok(PathBuf::from(trimmed).join(profile::app_dir_slug()));
             }
         }
 
         if let Some(base_dirs) = BaseDirs::new() {
-            return Ok(base_dirs.home_dir().join(".blz"));
+            return Ok(base_dirs.home_dir().join(profile::dot_dir_slug()));
         }
 
         Err(Error::Storage(

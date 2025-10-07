@@ -6,6 +6,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 
 - [CI/CD Pipeline](./ci-cd.md) - Continuous integration and deployment setup
 - [Contributing](./contributing.md) - How to contribute to the project
+- [Local Development Setup](./local-development.md) - Run `blz-dev` alongside the stable CLI
 - [Development Workflow](./workflow.md) - Our development process and tools
 
 ## 🚀 Quick Start

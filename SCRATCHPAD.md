@@ -1,5 +1,24 @@
 # Scratchpad
 
+## 2025-10-07
+
+- Added `blz-dev` secondary binary with isolated profile routing to keep config/data under `blz-dev` directories while sharing core CLI logic.
+- Introduced `blz_core::profile` helpers for profile detection; storage/config/store logic now derives paths from profile slug so dev builds avoid clobbering release state.
+- Gated `blz-dev` behind optional `dev-profile` feature and created manual `install-dev.sh`; refreshed README docs and reran `cargo check -p blz-cli` / `cargo check -p blz-cli --features dev-profile`.
+- Documented the local dev workflow in `docs/development/local-development.md` and linked it from the development index + README snippet.
+- Created `hydrate-dev.sh` script to copy production blz data to blz-dev for testing with realistic data; script is XDG-aware and supports selective copying (config-only, sources-only) with dry-run mode.
+- Fixed hydration script path detection to always use XDG paths for blz-dev (preventing fallback to dot-directory) while still detecting legacy dot-directory for production blz.
+- Installed blz-dev binary and successfully hydrated with production sources (bun, local-test); verified with doctor command showing 2 healthy sources.
+- Ran comprehensive testing with blz-tester agent; identified and fixed 3 critical bugs:
+  1. Updated help text and documentation to clarify JSON-for-pipes behavior (keeping the smart default, just documenting it properly)
+  2. Fixed checksum validation format mismatch (was comparing hex to base64, now both use base64)
+  3. Fixed local file validation to use filesystem checks instead of HTTP requests
+- All fixes tested and verified: checksums now match, local files validate correctly, help text accurately describes behavior.
+- Ran cargo fmt and cargo clippy (all passing).
+- Second round of testing revealed checksum format inconsistency: local files stored checksums in hex while remote used base64.
+- Fixed local file checksum storage in `crates/blz-cli/src/commands/add.rs:498` to use base64 encoding (matching remote sources).
+- Re-added local-test source via manifest, verified both remote (bun) and local (local-test) sources now validate with `checksum_matches: true`.
+
 ## 2025-10-05
 
 - Verified formatting via `cargo fmt -- --check`.
