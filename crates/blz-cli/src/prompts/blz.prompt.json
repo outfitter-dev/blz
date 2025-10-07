@@ -1,62 +1,46 @@
 {
   "target": "blz",
-  "summary": "Local-first CLI for pulling llms.txt / llms-full.txt docs, indexing them with Tantivy, and retrieving exact spans for prompting or audits.",
+  "summary": "Local-first CLI for fetching llms-full.txt documentation, indexing it with Tantivy, and returning exact spans for agent workflows.",
   "core_workflows": [
     {
-      "name": "First-time setup",
+      "name": "Bootstrap sources",
       "steps": [
-        "Identify the docs you need (React, Next.js, internal handbooks, etc.).",
-        "Install the CLI (`cargo install --path crates/blz-cli`).",
-        "Add each source once with `blz add <alias> <llms-full.txt> -y`.",
-        "Run `blz list --format json` to confirm they indexed cleanly."
+        "Install with `cargo install --path crates/blz-cli` or use the provided install script.",
+        "Call `blz add <alias> <https://domain/llms-full.txt> -y` for each documentation set.",
+        "Verify with `blz list --format json` before allowing agents to use the cache."
       ]
     },
     {
-      "name": "Agent retrieval loop",
+      "name": "Retrieval loop",
       "steps": [
         "Call `blz search \"<query>\" --format json` to gather ranked snippets.",
-        "Pick the best hit (highest score / relevant alias).",
-        "Call `blz get <alias>:<lines> --context 3 --format text` to pull verified context.",
-        "Compose the LLM prompt using the retrieved span + metadata (alias, line numbers, checksum)."
+        "Take the top result’s alias and lines (e.g. `bun:1853-1858`).",
+        "Fetch context with `blz get bun:1853-1858 --context 3 --format text`.",
+        "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" --context 2 --format json` and merge spans client-side."
       ]
     },
     {
       "name": "Maintenance",
       "steps": [
-        "Schedule `blz update --all` (daily/weekly) so caches stay fresh.",
-        "Use `blz list --status` to monitor stale sources or checksum mismatches.",
-        "Hydrate dev environments with `./hydrate-dev.sh` if you use the `blz-dev` binary."
+        "Schedule `blz update --all` routinely to keep checksums current.",
+        "Audit staleness via `blz list --format json | jq '.[] | select(.stalenessDays > 3)'`.",
+        "Use `./hydrate-dev.sh --force` to clone production caches into the `blz-dev` profile when testing."
       ]
     }
   ],
   "key_commands": [
-    {
-      "command": "blz search \"<query>\" [--source <alias>] --format json",
-      "purpose": "Retrieve ranked snippets with alias, lines, and checksum for downstream prompts."
-    },
-    {
-      "command": "blz get <alias>:<start-end> [--context N] --format text",
-      "purpose": "Pull deterministic spans (exact lines) when preparing assistant answers."
-    },
-    {
-      "command": "blz add <alias> <llms-full.txt> -y",
-      "purpose": "Onboard a new documentation source. Supports manifests for batch ingestion."
-    },
-    {
-      "command": "blz update --all",
-      "purpose": "Refresh previously indexed sources while respecting ETag/Last-Modified headers."
-    },
-    {
-      "command": "blz --prompt <command>",
-      "purpose": "Print JSON guidance for any command when building scripts or LLM tool prompts."
-    }
+    { "command": "blz search \"query\" --source <alias> --format json", "purpose": "Structured retrieval entry point for agents." },
+    { "command": "blz get <alias>:<start-end> --context 3 --format text", "purpose": "Deterministic span extraction for prompts." },
+    { "command": "blz get <alias> --lines \"start-end,other\" --context 2 --format json", "purpose": "Multi-range extraction when a single hit is insufficient." },
+    { "command": "blz add <alias> <https://domain/llms-full.txt> -y", "purpose": "Source onboarding with non-interactive confirmation." },
+    { "command": "blz update --all", "purpose": "Refresh caches while honoring HTTP caching headers." },
+    { "command": "blz --prompt <target>", "purpose": "Obtain JSON guidance for any command when constructing tool schemas." }
   ],
   "agent_tips": [
-    "Set `BLZ_OUTPUT_FORMAT=json` globally so scripted runs default to machine-friendly payloads.",
-    "Treat aliases as canonical identifiers (they map to directory names under the data directory).",
-    "Use the checksum returned from `blz search`/`blz get` to deduplicate spans inside prompts.",
-    "Keep prompts small: prefer 2-5 spans with tight context instead of dumping entire pages.",
-    "When working alongside MCP servers, use BLZ for deterministic recall and the MCP endpoint for exploratory browsing."
+    "Set `BLZ_OUTPUT_FORMAT=json` to avoid sprinkling `--format json` across every call.",
+    "Treat aliases as canonical ids (directory names and resolver lookups rely on them).",
+    "Surface `checksum` fields in tool outputs so downstream steps can verify span freshness.",
+    "Keep spans short (2-5 snippets) and derive broader context by chaining `get` calls instead of dumping whole documents."
   ],
   "integration_points": {
     "environment_variables": [
