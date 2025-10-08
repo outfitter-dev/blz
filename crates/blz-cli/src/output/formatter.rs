@@ -212,22 +212,34 @@ pub enum OutputFormat {
 /// # Examples
 ///
 /// ```rust,no_run
+/// use blz_cli::output::formatter::{FormatParams, SearchResultFormatter};
+/// use blz_cli::output::OutputFormat;
+/// use blz_core::SearchHit;
 /// use std::time::Duration;
 ///
-/// let formatter = SearchResultFormatter::new(OutputFormat::Text);
-///
-/// // Format results with comprehensive metadata
-/// formatter.format(
-///     &search_hits,
+/// # let hits: Vec<SearchHit> = Vec::new();
+/// # let sources = vec!["react".to_string()];
+/// let params = FormatParams::new(
+///     &hits,
 ///     "React hooks",
-///     250,                    // total matching results
-///     45000,                  // total lines searched  
-///     Duration::from_millis(8), // search execution time
-///     true,                   // show pagination info
-///     false,                  // multiple sources
-///     &["react".to_string(), "next".to_string()],
-///     0,                      // starting index for pagination
-/// )?;
+///     0,
+///     0,
+///     Duration::from_millis(8),
+///     &sources,
+///     0,
+///     1,
+///     1,
+///     10,
+///     true,
+///     true,
+///     false,
+///     false,
+///     2,
+///     6,
+/// );
+/// SearchResultFormatter::new(OutputFormat::Text)
+///     .format(&params)
+///     .unwrap();
 /// ```
 pub struct SearchResultFormatter {
     format: OutputFormat,
@@ -242,7 +254,10 @@ impl SearchResultFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
+    /// use blz_cli::output::formatter::SearchResultFormatter;
+    /// use blz_cli::output::OutputFormat;
+    ///
     /// let text_formatter = SearchResultFormatter::new(OutputFormat::Text);
     /// let json_formatter = SearchResultFormatter::new(OutputFormat::Json);
     /// ```
@@ -283,29 +298,34 @@ impl SearchResultFormatter {
     /// ```rust,no_run
     /// use std::time::Duration;
     ///
-    /// let formatter = SearchResultFormatter::new(OutputFormat::Text);
-    /// let search_time = Duration::from_millis(12);
+    /// use blz_cli::output::formatter::{FormatParams, SearchResultFormatter};
+    /// use blz_cli::output::OutputFormat;
+    /// use blz_core::SearchHit;
+    /// use std::time::Duration;
     ///
-    /// // Display first page of results
+    /// # let hits: Vec<SearchHit> = Vec::new();
+    /// # let sources = vec!["react".to_string(), "next".to_string()];
     /// let params = FormatParams::new(
-    ///     &hits[0..10],
+    ///     &hits,
     ///     "useEffect cleanup",
     ///     156,
     ///     38_000,
-    ///     search_time,
-    ///     &["react".to_string(), "next".to_string()],
+    ///     Duration::from_millis(12),
+    ///     &sources,
     ///     0,
     ///     1,
     ///     16,
     ///     10,
+    ///     true,
+    ///     true,
     ///     false,
     ///     false,
-    ///     false,
-    ///     false,
-    ///     1,
-    ///     3,
+    ///     2,
+    ///     4,
     /// );
-    /// formatter.format(&params)?;
+    /// SearchResultFormatter::new(OutputFormat::Text)
+    ///     .format(&params)
+    ///     .unwrap();
     /// ```
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {

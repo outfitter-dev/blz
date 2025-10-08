@@ -35,8 +35,8 @@ pub struct ResolvedUrl {
 /// # Examples
 ///
 /// ```no_run
+/// use blz_cli::utils::url_resolver::resolve_best_url;
 /// use blz_core::Fetcher;
-/// use crate::utils::url_resolver::resolve_best_url;
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let fetcher = Fetcher::new()?;

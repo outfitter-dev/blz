@@ -257,31 +257,41 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 
 **Options:**
 
-- `-l, --lines <RANGE>` - Line range(s) to retrieve (optional when using `source:lines`)
-- `-c, --context <N>` - Include N context lines around each range
-- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
+- `-l, --lines <RANGE>` – Line range(s) to retrieve (optional when using `source:lines`)
+- `-c, --context <N>` – Include N context lines around each range
+- `--block` – Expand to the entire heading block that contains the first requested range
+- `--max-lines <N>` – Optional hard cap when using `--block` (prevents oversized spans)
+- `-f, --format <FORMAT>` – Output format: `text` (default), `json`, `jsonl`, or `raw`
+- `--json`, `--jsonl` – Convenience shorthands for their respective formats
+- `--copy` – Copy results to the clipboard via OSC 52 (useful in interactive shells)
+- `--prompt` – Emit agent guidance JSON (e.g. `blz get --prompt`)
 
 **Line Range Formats:**
 
 - Single line: `42`
 - Range: `120-142`
-- Multiple ranges: `36:43,320:350`
+- Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
+
+> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges the distinct spans, removes duplicates, and keeps line numbers sorted. Combining this with `--block` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
 
 **Examples:**
 
 ```bash
-# Get lines 120-142 from Bun docs (preferred syntax)
-blz get bun:120-142
+# Preferred shorthand (matches search output)
+blz get bun:41994-42009
 
-# Get multiple ranges
-blz get node:10:20,50:60
+# Retrieve multiple spans for the same source
+blz get bun --lines "41994-42009,42010-42020" --json
 
-# Include 3 lines of context (still works with shorthand)
-blz get deno:100-110 -c3
+# Heading-aware retrieval (grabs the whole section, capped at 80 lines)
+blz get bun:41994-42009 --block --max-lines 80 --json
 
-# JSON output for agents
-blz get bun:42-55 --json | jq '.content'
+# Include 3 lines of context around the range (text output)
+blz get bun:25760-25780 -c3
+
+# Pipe structured output to jq
+blz get bun:41994-42009 --json | jq '.content'
 ```
 
 ## Management Commands
@@ -643,7 +653,7 @@ Scopes behave as follows:
 - `project`: writes to the project config (current `.blz/config.toml` or directory pointed to by `BLZ_CONFIG_DIR`/`BLZ_CONFIG`)
 - `local`: stores overrides in `blz.json`, keyed by the working directory
 
-Use this to quickly onboard agents without external rules files. For a longer guide, see `.agents/instructions/use-blz.md`.
+Use this to quickly onboard agents without external rules files. For a longer guide, see `docs/agents/use-blz.md`.
 ### Setting a Global Default
 
 Set a single environment variable to control default output across commands that support `--format` (deprecated alias: `-o`/`--output`; JSONL accepts `jsonl` or `ndjson`):

@@ -20,7 +20,7 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 ## Use blz
 
 - You're working on blz, so you should use it!
-- For docs search, use the `blz` CLI tool: @.agents/instructions/use-blz.md
+- For docs search, use the `blz` CLI tool: @docs/agents/use-blz.md
 
 ## 🚀 Quick Start for Agents
 

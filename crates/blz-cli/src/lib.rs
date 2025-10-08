@@ -22,7 +22,7 @@ mod utils;
 use crate::commands::{AddRequest, DescriptorInput};
 
 use crate::utils::preferences::{self, CliPreferences};
-use cli::{AliasCommands, /* AnchorCommands, */ Cli, Commands, RegistryCommands};
+use cli::{AliasCommands, AnchorCommands, Cli, Commands, RegistryCommands};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -626,6 +626,16 @@ async fn execute_command(
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
+        Some(Commands::Anchor { command }) => {
+            handle_anchor(command).await?;
+        },
+        Some(Commands::Anchors {
+            alias,
+            output,
+            mappings,
+        }) => {
+            commands::show_anchors(&alias, output, mappings).await?;
+        },
         None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
     }
 
@@ -643,22 +653,21 @@ fn handle_docs(format: crate::commands::DocsFormat) -> Result<()> {
     commands::generate_docs(effective)
 }
 
-// Anchor commands disabled for v0.2 release
-// async fn handle_anchor(command: AnchorCommands) -> Result<()> {
-//     match command {
-//         AnchorCommands::List {
-//             alias,
-//             output,
-//             mappings,
-//         } => commands::show_anchors(&alias, output, mappings).await,
-//         AnchorCommands::Get {
-//             alias,
-//             anchor,
-//             context,
-//             output,
-//         } => commands::get_by_anchor(&alias, &anchor, context, output).await,
-//     }
-// }
+async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+    match command {
+        AnchorCommands::List {
+            alias,
+            output,
+            mappings,
+        } => commands::show_anchors(&alias, output, mappings).await,
+        AnchorCommands::Get {
+            alias,
+            anchor,
+            context,
+            output,
+        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+    }
+}
 
 async fn handle_alias(command: AliasCommands) -> Result<()> {
     match command {

@@ -99,26 +99,26 @@ pub enum LineRange {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use blz_cli::utils::{parse_line_ranges, LineRange};
 ///
 /// // Single line
-/// let ranges = parse_line_ranges("42")?;
+/// let ranges = parse_line_ranges("42").expect("valid single line");
 /// assert!(matches!(ranges[0], LineRange::Single(42)));
 ///
 /// // Range formats
-/// let ranges = parse_line_ranges("120:142")?;
+/// let ranges = parse_line_ranges("120:142").expect("colon range");
 /// assert!(matches!(ranges[0], LineRange::Range(120, 142)));
 ///
-/// let ranges = parse_line_ranges("120-142")?; // Equivalent
+/// let ranges = parse_line_ranges("120-142").expect("dash range"); // Equivalent
 /// assert!(matches!(ranges[0], LineRange::Range(120, 142)));
 ///
 /// // Plus syntax
-/// let ranges = parse_line_ranges("36+20")?;
+/// let ranges = parse_line_ranges("36+20").expect("plus range");
 /// assert!(matches!(ranges[0], LineRange::PlusCount(36, 20)));
 ///
 /// // Multiple ranges
-/// let ranges = parse_line_ranges("1:5,100,200+10")?;
+/// let ranges = parse_line_ranges("1:5,100,200+10").expect("multiple ranges");
 /// assert_eq!(ranges.len(), 3);
 /// assert!(matches!(ranges[0], LineRange::Range(1, 5)));
 /// assert!(matches!(ranges[1], LineRange::Single(100)));

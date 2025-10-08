@@ -46,7 +46,7 @@ pub struct SourceSummary {
     pub tags: Vec<String>,
     pub aliases: Vec<String>,
     pub fetched_at: String,
-    pub sha256: String,
+    pub checksum: String,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
     pub lines: usize,
@@ -88,7 +88,7 @@ pub fn collect_source_summaries<S: ListStorage>(storage: &S) -> Result<Vec<Sourc
             tags: metadata.tags,
             aliases: metadata.aliases,
             fetched_at: metadata.fetched_at.to_rfc3339(),
-            sha256: metadata.sha256,
+            checksum: llms.metadata.sha256.clone(),
             etag: metadata.etag,
             last_modified: metadata.last_modified,
             lines: llms.line_index.total_lines,
@@ -196,7 +196,7 @@ fn render_text<W: Write>(
             if let Some(last_modified) = &source.last_modified {
                 writeln!(writer, "  Last-Modified: {last_modified}")?;
             }
-            writeln!(writer, "  SHA256: {}", source.sha256)?;
+            writeln!(writer, "  SHA256: {}", source.checksum)?;
         }
 
         if details {
@@ -277,7 +277,7 @@ fn summary_to_json(source: &SourceSummary, status: bool) -> Value {
         "fetchedAt".to_string(),
         Value::String(source.fetched_at.clone()),
     );
-    obj.insert("sha256".to_string(), Value::String(source.sha256.clone()));
+    obj.insert("sha256".to_string(), Value::String(source.checksum.clone()));
 
     if let Some(description) = &source.description {
         obj.insert(
@@ -457,7 +457,7 @@ mod tests {
             tags: vec!["stable".into()],
             aliases: vec![],
             fetched_at: "2025-10-01T12:00:00Z".into(),
-            sha256: "abc".into(),
+            checksum: "abc".into(),
             etag: Some("tag".into()),
             last_modified: Some("Wed".into()),
             lines: 42,

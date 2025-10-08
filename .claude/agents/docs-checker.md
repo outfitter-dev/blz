@@ -49,10 +49,10 @@ You are a meticulous documentation auditor specializing in CLI tool documentatio
 
 **Primary user documentation** (ALWAYS check):
 3. Read all files in `/docs` directory recursively
-   - Command documentation in `/docs/commands/`
-   - Configuration docs in `/docs/configuration/`
-   - Development docs in `/docs/development/`
-   - Shell integration docs in `/docs/shell-integration/`
+   - CLI docs in `/docs/cli/` (commands, configuration, how-tos, troubleshooting)
+   - Architecture and subsystem docs in `/docs/architecture/`
+   - Core development guides in `/docs/development/`
+   - Quick start overview in `/docs/QUICKSTART.md`
 
 **Development/internal documentation** (ONLY check if explicitly instructed):
 4. `CLAUDE.md` files (project and crate-specific)
@@ -95,7 +95,7 @@ You are a meticulous documentation auditor specializing in CLI tool documentatio
 - Version-specific features are noted
 
 **Cross-Documentation Consistency** (for checked docs only):
-- Root `README.md` examples match `/docs/commands/` documentation
+- Root `README.md` examples match `/docs/cli/` documentation (especially `commands.md`, `howto.md`, `quick-reference.md`)
 - `.agents/instructions/use-blz.md` aligns with actual CLI behavior
 - All user-facing documentation uses consistent terminology and examples
 - Deprecated features are consistently marked across all user docs

@@ -1,6 +1,6 @@
 //! Registry create-source command implementation
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use blz_core::PerformanceMetrics;
 use chrono::Utc;
 use colored::Colorize;
@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use tokio::process::Command;
 
 use crate::commands::{AddRequest, DescriptorInput, add_source};
+use crate::utils::validation::{normalize_alias, validate_alias};
 
 /// TOML source file structure
 #[derive(Debug, Serialize, Deserialize)]
@@ -76,12 +77,19 @@ pub async fn execute(
     quiet: bool,
     metrics: PerformanceMetrics,
 ) -> Result<()> {
+    let normalized_alias = normalize_alias(name);
+    let safe_name = sanitize_id(&normalized_alias)?;
+    validate_alias(&safe_name)?;
+    if !quiet && safe_name != name {
+        println!("[info] Normalized alias to '{}'", safe_name.green());
+    }
+
     // Step 1: Analyze source using dry-run
     if !quiet {
         println!("Analyzing source...");
     }
 
-    let analysis = analyze_source(name, url, metrics.clone()).await?;
+    let analysis = analyze_source(&safe_name, url, metrics.clone()).await?;
 
     // Step 2: Display analysis
     if !quiet {
@@ -124,13 +132,13 @@ pub async fn execute(
     };
 
     // Step 5: Create TOML file
-    create_source_toml(name, url, &analysis, &metadata)?;
+    create_source_toml(&safe_name, name, &analysis, &metadata)?;
 
     if !quiet {
         println!(
             "{} Created registry source: {}",
             "✓".green(),
-            format!("registry/sources/{name}.toml").bright_black()
+            format!("registry/sources/{safe_name}.toml").bright_black()
         );
     }
 
@@ -138,26 +146,26 @@ pub async fn execute(
     rebuild_registry(quiet).await?;
 
     if !quiet {
-        println!("{} Added {} to registry", "✓".green(), name.green());
+        println!("{} Added {} to registry", "✓".green(), safe_name.green());
     }
 
     // Step 7: Optionally add to local index
     if add_to_index {
         if !quiet {
-            println!("\nAdding {} to local index...", name.green());
+            println!("\nAdding {} to local index...", safe_name.green());
         }
 
         let descriptor = DescriptorInput::from_cli_inputs(
             &[],
-            Some(name),
+            Some(&safe_name),
             Some(&metadata.description),
             Some(&metadata.category),
             &metadata.tags,
         );
 
         let request = AddRequest::new(
-            name.to_string(),
-            url.to_string(),
+            safe_name.clone(),
+            analysis.final_url.clone(),
             descriptor,
             false,
             quiet,
@@ -204,6 +212,28 @@ struct SourceMetadata {
     tags: Vec<String>,
     npm_packages: Vec<String>,
     github_repos: Vec<String>,
+}
+
+fn sanitize_id(input: &str) -> Result<String> {
+    if input.is_empty() {
+        bail!("Name cannot be empty.");
+    }
+    if input.starts_with('.') {
+        bail!("Name cannot start with '.'.");
+    }
+    if input.contains('/') || input.contains('\\') {
+        bail!("Name cannot contain path separators.");
+    }
+    if input.contains("..") {
+        bail!("Name cannot contain '..' sequences.");
+    }
+    let valid = input
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+    if !valid {
+        bail!("Invalid name. Use [a-z0-9_-] only.");
+    }
+    Ok(input.to_string())
 }
 
 /// Analyze source using blz add --dry-run
@@ -374,8 +404,8 @@ fn prompt_metadata(
 
 /// Create TOML file for the source
 fn create_source_toml(
-    name: &str,
-    _url: &str,
+    id: &str,
+    display_name: &str,
     analysis: &SourceAnalysis,
     metadata: &SourceMetadata,
 ) -> Result<()> {
@@ -383,7 +413,7 @@ fn create_source_toml(
     fs::create_dir_all(&registry_sources_dir)
         .context("Failed to create registry/sources directory")?;
 
-    let toml_path = registry_sources_dir.join(format!("{name}.toml"));
+    let toml_path = registry_sources_dir.join(format!("{id}.toml"));
 
     let now = Utc::now().to_rfc3339();
 
@@ -407,8 +437,8 @@ fn create_source_toml(
 
     // Build the TOML structure
     let source_toml = SourceToml {
-        id: name.to_string(),
-        name: name.to_string(),
+        id: id.to_string(),
+        name: display_name.to_string(),
         description: metadata.description.clone(),
         url: analysis.final_url.clone(),
         category: metadata.category.clone(),

@@ -35,6 +35,11 @@ Deep dive into how @outfitter/blz achieves 6ms search latency.
 
 ## Core Components
 
+For deeper dives on supporting subsystems, see:
+
+- [Storage Layout](STORAGE.md) – cache directories, file formats, cleanup
+- [Performance Benchmarks](PERFORMANCE.md) – latency targets, benchmark methodology
+
 ### 1. Fetcher (`blz-core/src/fetcher.rs`)
 
 Handles network operations with smart caching:

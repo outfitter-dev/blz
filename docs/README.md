@@ -25,8 +25,8 @@
 ### Technical Details
 
 - [**Architecture**](architecture/README.md) - How BLZ works under the hood
-- [**Performance**](PERFORMANCE.md) - Benchmarks and optimization details
-- [**Storage**](storage.md) - Storage layout and data organization
+- [**Performance**](architecture/PERFORMANCE.md) - Benchmarks and optimization details
+- [**Storage**](architecture/STORAGE.md) - Storage layout and data organization
 
 ### Development
 
@@ -83,7 +83,7 @@ $ blz bun "watch mode"
 Bun > CLI > Test runner
   Lines 423-445: Run tests with --watch to re-run on file changes…
   src: https://bun.sh/llms.txt#L423-L445
-# Typical end-to-end: ~6ms on a warm cache (see PERFORMANCE.md)
+# Typical end-to-end: ~6ms on a warm cache (see architecture/PERFORMANCE.md)
 ```
 
 ### Why this matters for agents (not just humans)

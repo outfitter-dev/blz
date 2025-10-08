@@ -49,35 +49,32 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         );
     }
 
-    let source = storage
-        .load_source_metadata(&canonical)?
+    let llms = storage
+        .load_llms_json(&canonical)
         .with_context(|| format!("Failed to load metadata for '{canonical}'"))?;
+    let metadata = llms.metadata.clone();
 
     let llms_file = storage.llms_txt_path(&canonical)?;
 
     // Read file stats
-    let metadata = fs::metadata(&llms_file)
+    let file_metadata = fs::metadata(&llms_file)
         .with_context(|| format!("Failed to read source file for '{canonical}'"))?;
 
-    let size_bytes = metadata.len();
-
-    // Count lines in the file
-    let content = fs::read_to_string(&llms_file)
-        .with_context(|| format!("Failed to read content for '{canonical}'"))?;
-    let lines = content.lines().count();
+    let size_bytes = file_metadata.len();
+    let lines = llms.line_index.total_lines;
 
     let cache_path = llms_file.parent().map(PathBuf::from).unwrap_or_default();
 
     let info = SourceInfo {
         alias: canonical,
-        url: source.url,
-        variant: format!("{:?}", source.variant),
-        aliases: source.aliases,
+        url: metadata.url.clone(),
+        variant: format!("{:?}", metadata.variant),
+        aliases: metadata.aliases.clone(),
         lines,
         size_bytes,
-        last_updated: Some(source.fetched_at.to_rfc3339()),
-        etag: source.etag,
-        checksum: Some(source.sha256),
+        last_updated: Some(metadata.fetched_at.to_rfc3339()),
+        etag: metadata.etag.clone(),
+        checksum: Some(metadata.sha256.clone()),
         cache_path,
     };
 

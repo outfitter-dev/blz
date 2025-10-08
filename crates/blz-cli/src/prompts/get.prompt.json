@@ -1,19 +1,24 @@
 {
   "target": "get",
-  "summary": "Retrieve exact line ranges from a cached source for grounded responses. Use colon syntax for single spans and `--lines` for multi-range pulls.",
+  "summary": "Retrieve exact line ranges or whole heading blocks from a cached source. Use colon syntax for single spans, `--lines` for multi-range pulls, and `--block` when you need the entire section.",
   "usage": [
     { "command": "blz get <alias>:<start-end> --context 3 --format text", "description": "Primary pattern for single spans. Context expands ±3 lines." },
-    { "command": "blz get <alias> --lines \"start-end,other-start-end\" --context 2 --format json", "description": "Opinionated multi-range variant (returns JSON with combined content and lineNumbers)." }
+    { "command": "blz get <alias> --lines \"start-end,other-start-end\" --context 2 --format json", "description": "Opinionated multi-range variant (returns JSON with combined content and lineNumbers)." },
+    { "command": "blz get <alias>:<start-end> --block --max-lines 80 --format json", "description": "Heading-aware retrieval. Expands to the enclosing section and caps the payload to 80 lines." }
   ],
   "options": [
     { "flag": "--context <N>", "impact": "Expands each range. Keep N small (0-3) for prompt efficiency." },
+    { "flag": "--block", "impact": "Return the entire heading that contains the requested lines (great for API intros, tables, or multi-step guides)." },
+    { "flag": "--max-lines <N>", "impact": "Hard limit when using --block so agents avoid oversized payloads." },
     { "flag": "--format json", "impact": "Structured payload containing alias, content, lineNumbers, and checksum." },
     { "flag": "--copy", "impact": "Emit OSC 52 sequence so compatible terminals copy the result." }
   ],
   "agent_playbook": [
     "Feed the `alias:lines` string from `blz search --format json` directly into `blz get <alias>:<lines> --context 3 --format text` for the primary span.",
     "When the same alias requires multiple segments, invoke `blz get <alias> --lines \"range1,range2\" --context 2 --format json` and merge the JSON result into your tool output.",
-    "Store the checksum returned by the JSON mode alongside your prompt payload to catch stale caches." ],
+    "When you need a complete explanation, prefer `blz get <alias>:<lines> --block --max-lines 80 --format json` so the heading, subheadings, and prose arrive in one payload.",
+    "Store the checksum returned by the JSON mode alongside your prompt payload to catch stale caches."
+  ],
   "error_handling": [
     "If a range falls outside the cached document, re-run `blz search` to confirm the alias/lines combination and update the source if necessary.",
     "If content looks outdated, run `blz update <alias>` before fetching spans again."

@@ -23,6 +23,9 @@ blz add bun https://bun.sh/llms.txt
 
 # Search (results in 6ms)
 blz "test runner"
+
+# Pull exact lines (matches the search citation format)
+blz get bun:304-324 --json
 ```
 
 **What you'll see:**
@@ -78,7 +81,7 @@ Cache & index `llms.txt` locally → search in ms → retrieve only needed lines
 
 With BLZ, agents can get the docs they need in a fraction of the time, and context.
 
-See [docs/performance.md](docs/performance.md) for detailed benchmarks and methodology.
+See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ## Features
 
@@ -148,17 +151,25 @@ blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 
 - **Quick primer**: `blz --prompt` in your terminal
 - **Programmatic CLI docs**: `blz docs --json`
-- **Detailed instructions**: See `.agents/instructions/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
+- **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
 
 ### Typical Agent Flow
 
 ```bash
 # Ensure sources exist (add non-interactively)
-blz add react https://react.dev/llms-full.txt -y
+blz add bun https://bun.sh/llms.txt -y
 
-# Search and get exact lines
-blz "react hooks" --json | jq -r '.[0] | "\(.alias):\(.lines)"' | \
-  xargs -I{} blz get {} -c3
+# Search Bun docs and capture the first alias:lines citation
+span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+
+# Retrieve the exact lines with a small amount of context
+blz get "$span" -c5 --json
+
+# Need more than one range? Supply --lines with a comma-separated list
+blz get bun --lines "41994-42009,42010-42020" --json
+
+# Want the full heading section? Expand with --block (and cap the output)
+blz get bun:41994-42009 --block --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -173,6 +184,12 @@ blz "test runner" -s bun --json
 
 # Get exact line ranges
 blz get bun:423-445
+
+# Merge multiple spans for the same source (comma-separated)
+blz get bun --lines "41994-42009,42010-42020" --json
+
+# Expand to the entire heading block when the agent needs full prose
+blz get bun:41994-42009 --block --max-lines 80 --json
 
 # List all indexed sources
 blz list --json | jq 'length'
@@ -233,7 +250,7 @@ For Fish users, completions can auto-regenerate when the binary updates:
 - **Search**: P50 6ms on typical queries
 - **Update**: Conditional fetch + no-op reindex < 30ms
 
-See [PERFORMANCE.md](docs/PERFORMANCE.md) for detailed benchmarks and methodology.
+See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ## Building from Source
 
@@ -281,11 +298,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
 
 ### Configuration & Storage
-- [Storage Layout](docs/storage.md) - Directory structure and disk management
+- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
 
 ### Technical Details
 - [Architecture](docs/architecture/README.md) - System design and performance
-- [Performance](docs/performance.md) - Benchmarks and optimization
+- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
 
 ## Contributing
 

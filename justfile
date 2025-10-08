@@ -95,7 +95,7 @@ ci: check-deps lint fmt-check test link-check
 
 # Verify Markdown links
 link-check:
-    lychee --no-progress README.md docs .agents/rules .agents/instructions AGENTS.md
+    lychee --no-progress README.md docs .agents/rules docs/agents AGENTS.md
 
 # Quick security check without graphs
 quick-security:

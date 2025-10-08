@@ -20,16 +20,12 @@
 //! ## Common Usage Patterns
 //!
 //! ```rust,no_run
-//! use crate::utils::{validate_alias, parse_line_ranges, get_alias_color};
+//! use blz_cli::utils::{get_alias_color, parse_line_ranges, validate_alias};
 //!
-//! // Validate user input
-//! validate_alias("react")?;
-//!
-//! // Parse line ranges
-//! let ranges = parse_line_ranges("120-142,200+10")?;
-//!
-//! // Get consistent colors
+//! validate_alias("react").expect("valid alias");
+//! let ranges = parse_line_ranges("120-142,200+10").expect("valid ranges");
 //! let color = get_alias_color("react");
+//! println!("{ranges:?} -> {color}");
 //! ```
 //!
 //! ## Reserved Keywords

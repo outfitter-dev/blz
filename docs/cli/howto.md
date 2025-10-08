@@ -107,11 +107,17 @@ blz "query"
 After searching:
 
 ```bash
-# Copy the alias:lines from result (e.g., bun:304-324)
-blz get bun:304-324
+# Copy the alias:lines from the result (e.g., bun:41994-42009)
+blz get bun:41994-42009
 
-# With context
-blz get bun:304-324 -c5
+# Include ±5 lines of context without changing the span
+blz get bun:41994-42009 -c5
+
+# Merge multiple spans for the same source
+blz get bun --lines "41994-42009,42010-42020" --json
+
+# Pull the entire heading block (great for sections with tables or prose)
+blz get bun:41994-42009 --block --max-lines 80 --json
 ```
 
 ### I want to limit search results
@@ -280,7 +286,7 @@ blz "query" --json | jq '.results | group_by(.alias) | map({alias: .[0].alias, c
 
 See detailed agent integration patterns in:
 - [Commands Reference](commands.md#blz---prompt) (`--prompt` flag)
-- `.agents/instructions/use-blz.md` (agent-specific patterns)
+- `docs/agents/use-blz.md` (agent-specific patterns)
 
 Quick example:
 

@@ -89,7 +89,7 @@ allowlist = ["bun.sh", "github.com/oven-sh"]
 max_heading_block_lines = 400
 ```
 
-See [Per-Source Settings](cli/configuration.md#per-source-settings) for all available options.
+See [Per-Source Settings](../cli/configuration.md#per-source-settings) for all available options.
 
 ## Storage Management
 
@@ -146,6 +146,6 @@ rm -rf ~/.local/share/dev.outfitter.blz/
 
 ## See Also
 
-- [Configuration](cli/configuration.md) - Global and per-source configuration
-- [Architecture](architecture/README.md) - How BLZ components interact with storage
+- [Configuration](../cli/configuration.md) - Global and per-source configuration
+- [Architecture](README.md) - How BLZ components interact with storage
 - [Performance](PERFORMANCE.md) - Storage-related performance considerations

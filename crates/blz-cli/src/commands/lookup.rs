@@ -54,8 +54,10 @@ pub async fn execute(
 
             match format {
                 OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
-                OutputFormat::Jsonl => println!("{}", serde_json::to_string(&payload)?),
-                OutputFormat::Text | OutputFormat::Raw => unreachable!(),
+                OutputFormat::Jsonl | OutputFormat::Raw => {
+                    println!("{}", serde_json::to_string(&payload)?);
+                },
+                OutputFormat::Text => unreachable!(),
             }
         }
 

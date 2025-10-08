@@ -1,5 +1,9 @@
 # Scratchpad
 
+## 2025-10-08
+
+- Added MCP `linear` server configuration to `.codex/config.toml` pointing at `https://mcp.linear.app/sse` via `npx mcp-remote`.
+
 ## 2025-10-07
 
 - Added `blz-dev` secondary binary with isolated profile routing to keep config/data under `blz-dev` directories while sharing core CLI logic.
@@ -30,6 +34,10 @@
 - Reinstalled both `blz` and `blz-dev` binaries; ran comprehensive verification testing confirming all exit code fixes working correctly.
 - Audited `.agents/logs/` directory and archived 11 outdated logs (v0.2-v0.5.0 era documents, completed flavor work, old release notes) to `.agents/logs/.archive/`.
 - Remaining logs are current: v1.0-beta testing reports, planning docs, and reference material (AGENTS.md, CLAUDE.md, MIGRATION-NOTES.md).
+- Queried Linear MCP for Blaze team metadata and current BLZ issues list (BLZ-100 through BLZ-106 plus backlog items).
+- Reviewed `snapshot-20251008T192218Z.json`; identified additional CodeRabbit findings (diff metadata SHA mismatch, doctor symlink recursion, history ISO parsing, info error context) not yet represented in Linear backlog.
+- Logged follow-up tickets in Linear: BLZ-107 (metadata.sha256), BLZ-108 (doctor symlink guard), BLZ-109 (history ISO parsing), BLZ-110 (info metadata context); all set to Todo with priorities.
+- Implemented release blockers for BLZ-101 through BLZ-110: restored anchors CLI, sanitized registry create-source inputs, ensured JSON outputs/history parsing, updated stats/prompt/lookup behavior, fixed metadata checksum usage, added build.rs help-file watcher, and hardened doctor/info flows. Ran `cargo test -p blz-cli` (all passing).
 
 ## 2025-10-05
 

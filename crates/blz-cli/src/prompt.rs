@@ -63,8 +63,8 @@ pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
         "target": normalized,
         "available": available_targets(),
     });
-    println!("{}", serde_json::to_string_pretty(&error)?);
-    Ok(())
+    eprintln!("{}", serde_json::to_string_pretty(&error)?);
+    Err(anyhow::anyhow!("unknown_prompt_target"))
 }
 
 fn normalize_target(target: &str, command: Option<&Commands>) -> String {
@@ -94,6 +94,8 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Doctor { .. } => "doctor".into(),
                 Commands::Clear { .. } => "clear".into(),
                 Commands::Diff { .. } => "diff".into(),
+                Commands::Anchor { .. } => "anchor".into(),
+                Commands::Anchors { .. } => "anchor".into(),
             };
         }
         return "blz".into();
@@ -118,6 +120,7 @@ fn available_targets() -> Vec<&'static str> {
         "lookup",
         "docs",
         "history",
+        "anchor",
         "completions",
         "alias",
         "registry",

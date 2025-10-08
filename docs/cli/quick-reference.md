@@ -53,17 +53,17 @@ blz "query" --page 2
 ### Getting Content
 
 ```bash
-# Colon syntax (preferred)
-blz get bun:120-142
+# Colon syntax (preferred, matches search output)
+blz get bun:41994-42009
 
-# With context lines
-blz get bun:120-142 -c3
+# Multiple ranges (comma-separated)
+blz get bun --lines "41994-42009,42010-42020" --json
 
-# Multiple ranges
-blz get bun:36:43,320:350
+# Heading-aware retrieval (entire section, capped at 80 lines)
+blz get bun:41994-42009 --block --max-lines 80 --json
 
-# JSON output
-blz get bun:120-142 --json
+# Add context lines without blocks
+blz get bun:25760-25780 -c3
 ```
 
 ### Managing Sources

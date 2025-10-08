@@ -66,12 +66,19 @@ coverage.json
 # Claude
 !.claude/commands/log
 
-# Agent logs archive (keep directory but not contents)
-.agents/logs/.archive/*
-!.agents/logs/.archive/.gitkeep
+# Agent archives (keep directory but not contents)
+.agents/.archive/*
+!.agents/.archive/.gitkeep
 
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
+
+# Graphite local data
+.xdg-data/
+
+# Old hooks directory (no longer used)
+.hooks/
+
 # npm local binaries and packs (do not commit)
 /npm/bin/blz-*
 /outfitter-blz-*.tgz

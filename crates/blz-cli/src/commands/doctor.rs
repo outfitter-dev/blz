@@ -320,12 +320,16 @@ fn calculate_cache_size(dir: &PathBuf) -> Result<u64> {
     if dir.is_dir() {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
+            let file_type = entry.file_type()?;
+            if file_type.is_symlink() {
+                continue;
+            }
             let path = entry.path();
 
-            if path.is_dir() {
+            if file_type.is_dir() {
                 total += calculate_cache_size(&path)?;
-            } else if path.is_file() {
-                total += path.metadata()?.len();
+            } else if file_type.is_file() {
+                total += entry.metadata()?.len();
             }
         }
     }
@@ -339,11 +343,15 @@ fn count_files_recursive(dir: &PathBuf) -> Result<usize> {
     if dir.is_dir() {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
+            let file_type = entry.file_type()?;
+            if file_type.is_symlink() {
+                continue;
+            }
             let path = entry.path();
 
-            if path.is_dir() {
+            if file_type.is_dir() {
                 count += count_files_recursive(&path)?;
-            } else {
+            } else if file_type.is_file() {
                 count += 1;
             }
         }

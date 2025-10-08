@@ -22,11 +22,10 @@ use std::io::{self, Write};
 /// or an `io::Error` if writing failed.
 ///
 /// # Examples
-/// ```no_run
+/// ```rust,no_run
 /// use blz_cli::utils::clipboard::copy_to_clipboard;
 ///
-/// copy_to_clipboard("Hello, clipboard!")?;
-/// # Ok::<(), std::io::Error>(())
+/// copy_to_clipboard("Hello, clipboard!").expect("clipboard write");
 /// ```
 pub fn copy_to_clipboard(text: &str) -> io::Result<()> {
     let encoded = STANDARD.encode(text);

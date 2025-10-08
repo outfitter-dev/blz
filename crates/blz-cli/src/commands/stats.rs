@@ -98,7 +98,7 @@ pub fn execute(format: OutputFormat) -> Result<()> {
     let cache_location = storage.root_dir().to_string_lossy().to_string();
 
     let stats = CacheStats {
-        total_sources: sources.len(),
+        total_sources: source_stats.len(),
         total_size_bytes: total_size,
         total_lines,
         cache_location,

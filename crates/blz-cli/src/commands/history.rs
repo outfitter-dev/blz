@@ -17,8 +17,16 @@ pub fn show(
     // Handle clear operations
     if clear {
         history_log::clear_all()?;
-        if format == OutputFormat::Text {
-            println!("{}", "All search history cleared.".green());
+        match format {
+            OutputFormat::Text => {
+                println!("{}", "All search history cleared.".green());
+            },
+            OutputFormat::Json | OutputFormat::Jsonl => {
+                println!("{}", json!({"status": "ok", "cleared": "all"}));
+            },
+            OutputFormat::Raw => {
+                // exit code communicates success
+            },
         }
         return Ok(());
     }
@@ -26,15 +34,30 @@ pub fn show(
     if let Some(date_str) = clear_before {
         let cutoff_date = parse_date(date_str)?;
         history_log::clear_before(&cutoff_date)?;
-        if format == OutputFormat::Text {
-            println!(
-                "{}",
-                format!(
-                    "Search history before {} cleared.",
-                    cutoff_date.to_rfc3339()
-                )
-                .green()
-            );
+        match format {
+            OutputFormat::Text => {
+                println!(
+                    "{}",
+                    format!(
+                        "Search history before {} cleared.",
+                        cutoff_date.to_rfc3339()
+                    )
+                    .green()
+                );
+            },
+            OutputFormat::Json | OutputFormat::Jsonl => {
+                println!(
+                    "{}",
+                    json!({
+                        "status": "ok",
+                        "cleared": "before",
+                        "cutoff": cutoff_date.to_rfc3339()
+                    })
+                );
+            },
+            OutputFormat::Raw => {
+                // exit code communicates success
+            },
         }
         return Ok(());
     }
@@ -120,8 +143,10 @@ fn parse_date(date_str: &str) -> Result<DateTime<Utc>> {
             .and_utc());
     }
 
-    // Try parsing as ISO 8601 format
-    date_str
-        .parse::<DateTime<Utc>>()
-        .map_err(|_| anyhow::anyhow!("Invalid date format. Use YYYY-MM-DD or ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00:00Z)"))
+    // Try parsing as ISO 8601 / RFC3339 format
+    chrono::DateTime::parse_from_rfc3339(date_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|_| anyhow::anyhow!(
+            "Invalid date format. Use YYYY-MM-DD or ISO 8601 (e.g., 2024-01-01 or 2024-01-01T00:00:00Z)"
+        ))
 }
