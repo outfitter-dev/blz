@@ -160,12 +160,13 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
         },
     )?;
 
-    // For quiet mode or not-found cases we've already written appropriate messages
-    if matches!(outcome, RemoveOutcome::NotFound) && quiet {
-        // Emit nothing further in quiet mode
+    // Return error for not-found to ensure proper exit code
+    match outcome {
+        RemoveOutcome::NotFound => {
+            anyhow::bail!("Source '{}' not found", canonical);
+        },
+        RemoveOutcome::Cancelled | RemoveOutcome::Removed { .. } => Ok(()),
     }
-
-    Ok(())
 }
 
 #[cfg(test)]

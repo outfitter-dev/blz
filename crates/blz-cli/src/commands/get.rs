@@ -181,26 +181,28 @@ pub async fn execute(
         .map_or_else(|| alias.to_string(), |c| c);
 
     if !storage.exists(&canonical) {
-        println!("Source '{alias}' not found.");
         let available = storage.list_sources();
         if available.is_empty() {
-            println!(
-                "No sources available. Use 'blz lookup <name>' or 'blz add <alias> <url>' to add one."
+            anyhow::bail!(
+                "Source '{alias}' not found.\n\
+                 No sources available. Use 'blz lookup <name>' or 'blz add <alias> <url>' to add one."
             );
-        } else {
-            let preview = available.iter().take(8).cloned().collect::<Vec<_>>();
-            println!(
-                "Available: {}{}",
-                preview.join(", "),
-                if available.len() > preview.len() {
-                    format!(" (+{} more)", available.len() - preview.len())
-                } else {
-                    String::new()
-                }
-            );
-            println!("Hint: 'blz list' to see all, or 'blz lookup <name>' to search registries.");
         }
-        return Ok(());
+        let preview = available.iter().take(8).cloned().collect::<Vec<_>>();
+        let preview_str = if available.len() > preview.len() {
+            format!(
+                "{} (+{} more)",
+                preview.join(", "),
+                available.len() - preview.len()
+            )
+        } else {
+            preview.join(", ")
+        };
+        anyhow::bail!(
+            "Source '{alias}' not found.\n\
+             Available: {preview_str}\n\
+             Hint: 'blz list' to see all, or 'blz lookup <name>' to search registries."
+        );
     }
 
     // Always read from llms.txt (simplified from flavor logic)
@@ -219,6 +221,29 @@ pub async fn execute(
         .collect();
     let ranges =
         parse_line_ranges(lines).map_err(|err| anyhow::anyhow!("Invalid --lines format: {err}"))?;
+
+    // Validate that requested ranges are within bounds
+    let max_line = file_lines.len();
+    let all_out_of_range = ranges.iter().all(|range| {
+        let (start, _end) = match range {
+            LineRange::Single(n) => (*n, *n),
+            LineRange::Range(s, e) => (*s, *e),
+            LineRange::PlusCount(s, count) => (*s, s.saturating_add(count.saturating_sub(1))),
+        };
+        start > max_line
+    });
+
+    if all_out_of_range {
+        let first_requested = match ranges.first() {
+            Some(LineRange::Single(n)) => *n,
+            Some(LineRange::Range(s, _) | LineRange::PlusCount(s, _)) => *s,
+            None => 1,
+        };
+        anyhow::bail!(
+            "Line range starts at line {first_requested}, but source '{canonical}' only has {max_line} lines.\n\
+             Use 'blz info {canonical}' to see source details."
+        );
+    }
 
     // Collect all requested line numbers (1-based) and expand with context
     let block_result = if block {

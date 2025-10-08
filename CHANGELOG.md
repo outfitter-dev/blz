@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Custom install directory with `--dir` flag
   - `--dry-run` mode for testing
 - **Clipboard support**: Copy search results directly with `--copy` flag (OSC 52 escape sequences)
-- **Search history**: New `.blz_history` command to view and manage persistent search history
+- **Search history**: New `blz history` command to view and manage persistent search history
   - History filtering by date, source, and query
   - Configurable retention (default: 1000 entries)
   - Clean command with date-based pruning
@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Descriptor defaults**: Sources added without explicit metadata get sensible auto-generated values
 
 ### Fixed
+- **Exit codes**: Commands now properly return exit code 1 on errors for better scripting support
+  - `blz get` with non-existent source now exits with code 1
+  - `blz remove` with non-existent source now exits with code 1
+  - `blz get` with out-of-range lines now exits with code 1 and provides helpful error message
 - 40+ code quality improvements from strict clippy enforcement
 - Redundant clones and inefficient Option handling eliminated
 - Float precision warnings properly annotated

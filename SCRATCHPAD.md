@@ -20,6 +20,16 @@
 - Second round of testing revealed checksum format inconsistency: local files stored checksums in hex while remote used base64.
 - Fixed local file checksum storage in `crates/blz-cli/src/commands/add.rs:498` to use base64 encoding (matching remote sources).
 - Re-added local-test source via manifest, verified both remote (bun) and local (local-test) sources now validate with `checksum_matches: true`.
+- Ran comprehensive verification testing with blz-tester agent on blz-dev binary; confirmed `--prompt` flag works excellently across all commands.
+- Fixed 3 exit code issues found during testing:
+  1. Fixed `get` command to exit with code 1 when source not found (was returning code 0) in `get.rs:183-206`
+  2. Fixed `remove` command to exit with code 1 when source not found (was returning code 0) in `remove.rs:164-169`
+  3. Added validation for out-of-range line requests in `get` command with helpful error message in `get.rs:222-246`
+- All error cases now properly exit with code 1, success cases exit with code 0.
+- Ran cargo fmt and cargo clippy (all passing), rebuilt blz-dev binary successfully.
+- Reinstalled both `blz` and `blz-dev` binaries; ran comprehensive verification testing confirming all exit code fixes working correctly.
+- Audited `.agents/logs/` directory and archived 11 outdated logs (v0.2-v0.5.0 era documents, completed flavor work, old release notes) to `.agents/logs/.archive/`.
+- Remaining logs are current: v1.0-beta testing reports, planning docs, and reference material (AGENTS.md, CLAUDE.md, MIGRATION-NOTES.md).
 
 ## 2025-10-05
 

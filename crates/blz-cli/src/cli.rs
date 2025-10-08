@@ -283,6 +283,18 @@ pub enum Commands {
     },
 
     /// Search across cached docs
+    ///
+    /// Query Syntax:
+    ///   "exact phrase"      Match exact phrase (use single quotes: blz '"exact phrase"')
+    ///   +term               Require term (AND)
+    ///   term1 term2         Match any term (OR - default)
+    ///   +api +key           Require both terms
+    ///
+    /// Examples:
+    ///   blz "react hooks"              # Search all sources
+    ///   blz '+api +key'                # Require both terms
+    ///   blz '"exact phrase"'           # Exact phrase match
+    ///   blz search "async" -s bun      # Search specific source
     Search {
         /// Search query (required unless --next or --last)
         #[arg(required_unless_present_any = ["next", "last"])]

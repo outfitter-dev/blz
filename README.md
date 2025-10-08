@@ -30,8 +30,6 @@ blz "react hooks" --format json | jq -r '.[0] | "\(.alias) --lines \(.lines)"' |
   xargs -n3 blz get --context 3
 ```
 
-> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` instead. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
-
 ### Wait, what's `llms.txt`?
 
 [`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that typically includes all of the documentation for a given project.

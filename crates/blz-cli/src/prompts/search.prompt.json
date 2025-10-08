@@ -7,10 +7,10 @@
     { "command": "BLZ_OUTPUT_FORMAT=json blz \"<query>\"", "description": "Shortcut—no subcommand still performs a search; force JSON via the env var." }
   ],
   "query_language": [
-    "Terms separated by spaces are OR’d (match any).",
-    "Wrap phrases in double quotes, escape with single quotes: `blz '\"background fetch\"'`.",
-    "Prefix required terms with `+`, e.g. `blz '+api +key rotation'`.",
-    "Scores are BM25—larger numbers indicate stronger matches."
+    "Terms separated by spaces are OR'd (match any term by default).",
+    "Exact phrase: wrap in double quotes, escape with single quotes: `blz '\"background fetch\"'`.",
+    "Require terms: prefix with `+` for AND logic: `blz '+api +key rotation'` (requires 'api' AND 'key', 'rotation' optional).",
+    "Scores are BM25—higher scores indicate stronger matches."
   ],
   "workflow_for_agents": [
     "Ensure output is JSON (set `BLZ_OUTPUT_FORMAT=json`).",
