@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **One-line installation**: New install script with SHA-256 verification and platform detection
-  - Download via: `curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh`
+  - Download via: `curl -fsSL https://blz.run/install.sh | sh`
   - Support for macOS (x64, arm64) and Linux (x64)
   - SHA-256 checksum verification (use `--skip-check` to bypass)
   - Custom install directory with `--dir` flag
@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 - Updated 11 documentation files to reflect flavor simplification and automatic llms-full preference (#234).
-- Added comprehensive `docs/commands/upgrade.md` documentation (#234).
+- Added comprehensive `docs/cli/commands.md#upgrade` documentation (#234).
 - Fixed 5 broken internal links in documentation index (#234).
 - Added `SCRATCHPAD.md` for tracking session work and progress.
 

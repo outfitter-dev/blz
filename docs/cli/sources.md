@@ -75,7 +75,7 @@ Cached sources:
 For scripting and automation:
 
 ```bash
-blz list --format json
+blz list --json
 ```
 
 Output:
@@ -341,6 +341,6 @@ done
 
 ## Next Steps
 
-- Learn about [Searching](search.md) your indexed sources
-- Understand the storage layout details in [AGENTS.md](../AGENTS.md#storage-layout)
-- Read about [Architecture](architecture.md) for technical details
+- Learn about [searching](search.md) your indexed sources
+- Understand the storage layout details in [AGENTS.md](../../AGENTS.md#storage-layout)
+- Read about [architecture](../architecture/README.md) for technical details

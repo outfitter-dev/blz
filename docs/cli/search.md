@@ -54,8 +54,8 @@ blz search QUERY --source SOURCE
 Simple word searches:
 
 ```bash
-blz search "bundler"      # Finds: bundler, bundlers, bundling
-blz search "test"         # Finds: test, testing, tests
+blz "bundler"      # Finds: bundler, bundlers, bundling
+blz "test"         # Finds: test, testing, tests
 ```
 
 ### Multiple Terms
@@ -64,9 +64,9 @@ Space-separated terms are combined with OR by default (Lucene syntax). To requir
 every word, prefix each term with `+` or connect them with `AND`:
 
 ```bash
-blz search "test runner"        # Finds docs with "test" OR "runner"
-blz search '+test +runner'       # Must contain both words
-blz search 'test AND runner'     # Same as above using explicit boolean
+blz "test runner"        # Finds docs with "test" OR "runner"
+blz '+test +runner'       # Must contain both words
+blz 'test AND runner'     # Same as above using explicit boolean
 ```
 
 ### Phrase Search
@@ -76,23 +76,23 @@ your shell does not strip them:
 
 ```bash
 # Unix shells (Bash, Zsh, Fish)
-blz search '"test runner"'                # Exact phrase
-blz search '"test runner" "cli output"'  # Either phrase (OR)
-blz search '+"test runner" +"cli output"' # Require both phrases
+blz '"test runner"'                # Exact phrase
+blz '"test runner" "cli output"'  # Either phrase (OR)
+blz '+"test runner" +"cli output"' # Require both phrases
 
 # Windows CMD (no single quotes)
-blz search "\"test runner\""
-blz search "+\"test runner\" +\"cli output\""
+blz "\"test runner\""
+blz "+\"test runner\" +\"cli output\""
 
 # PowerShell (single quotes work as literals)
-blz search '"test runner"'
+blz '"test runner"'
 ```
 
 Use parentheses to group boolean logic around phrases—keep the double quotes to
 preserve exact matches:
 
 ```bash
-blz search '("test runner") AND ("cli output")'
+blz '("test runner") AND ("cli output")'
 ```
 
 ## Search Options
@@ -102,10 +102,30 @@ blz search '("test runner") AND ("cli output")'
 Control how many results you get:
 
 ```bash
-blz search "test" --limit 5    # Default: 50
-blz search "test" --limit 20   # Get fewer results
-blz search "test" --limit 1    # Just the best match
+blz "test" -n5    # Default: 50
+blz "test" -n20   # Get more results
+blz "test" -n1    # Just the best match
 ```
+
+### Filter by Source
+
+Search only specific documentation sources:
+
+```bash
+# Search single source
+blz "test" -s bun
+blz "test" --source bun  # Long form
+
+# Search multiple sources
+blz "test" -s bun,node
+blz "test" --source bun,node
+
+# Aliases also work
+blz "test" --alias react
+blz "test" --sources vue,svelte
+```
+
+Filtering by source is faster than searching all sources and helps reduce noise in results.
 
 ### Output Format
 
@@ -113,7 +133,7 @@ blz search "test" --limit 1    # Just the best match
 Human-readable output with colors:
 
 ```bash
-blz search "test"
+blz "test"
 ```
 
 Output:
@@ -134,7 +154,7 @@ Bun Documentation > Guides > Test runner
 Machine-readable for scripting:
 
 ```bash
-blz search "test" --format json
+blz "test" --json
 ```
 
 Output:
@@ -258,14 +278,14 @@ blz node "file system"
 
 1. **Use aliases** - Searching one source is faster
    ```bash
-   blz bun "test"                 # Fastest - quick pattern
-   blz search "test" --source bun  # Fast - explicit command
-   blz "test"                     # Slower - searches all
+   blz bun "test"         # Fastest - quick pattern
+   blz "test" -s bun      # Fast - explicit flag
+   blz "test"             # Slower - searches all
    ```
 
 2. **Limit results** - Get results faster
    ```bash
-   blz search "test" --limit 3
+   blz "test" -n3
    ```
 
 3. **Cache warmup** - First search may be slower as OS caches the index
@@ -278,7 +298,7 @@ blz node "file system"
 #!/bin/bash
 # Get the best match for a query
 
-result=$(blz search "test runner" --limit 1 --format json)
+result=$(blz "test runner" -n1 --json)
 alias=$(echo "$result" | jq -r '.results[0].alias')
 lines=$(echo "$result" | jq -r '.results[0].lines')
 
@@ -293,7 +313,7 @@ blz get "$alias:$lines"
 # Search and display the top result
 
 query="$1"
-result=$(blz search "$query" --limit 1 --format json | jq -r '.results[0]')
+result=$(blz "$query" -n1 --json | jq -r '.results[0]')
 
 if [ "$result" != "null" ]; then
   alias=$(echo "$result" | jq -r '.alias')
@@ -313,7 +333,7 @@ fi
 # Gather context for an AI prompt
 
 query="typescript config"
-results=$(blz search "$query" --limit 5 --format json)
+results=$(blz "$query" -n5 --json)
 
 echo "Context for query: $query"
 echo "$results" | jq -r '.results[] |
@@ -326,43 +346,43 @@ echo "$results" | jq -r '.results[] |
 
 ```bash
 # Testing
-blz search "test"
-blz search "test runner"
-blz search "unit test"
+blz "test"
+blz "test runner"
+blz "unit test"
 
 # Performance
-blz search "performance"
-blz search "benchmark"
-blz search "optimization"
+blz "performance"
+blz "benchmark"
+blz "optimization"
 
 # Configuration
-blz search "config"
-blz search "settings"
-blz search "options"
+blz "config"
+blz "settings"
+blz "options"
 
 # APIs
-blz search "API"
-blz search "http"
-blz search "fetch"
+blz "API"
+blz "http"
+blz "fetch"
 ```
 
 ### By Technology
 
 ```bash
 # Languages
-blz search "typescript"
-blz search "javascript"
-blz search "jsx"
+blz "typescript"
+blz "javascript"
+blz "jsx"
 
 # Tools
-blz search "bundler"
-blz search "transpiler"
-blz search "compiler"
+blz "bundler"
+blz "transpiler"
+blz "compiler"
 
 # Frameworks
-blz search "react"
-blz search "vue"
-blz search "express"
+blz "react"
+blz "vue"
+blz "express"
 ```
 
 ## Troubleshooting
@@ -379,9 +399,9 @@ If search returns nothing:
 
 If overwhelmed with results:
 
-1. Use `--source` (or `-s`) to focus on one source
+1. Use `-s` to focus on one source
 2. Use more specific terms
-3. Reduce `--limit`
+3. Reduce `-n` value
 
 ### Unexpected Results
 
@@ -414,6 +434,6 @@ Each source has its own Tantivy index with:
 
 ## Next Steps
 
-- Learn about the "get" command in [CLI documentation](cli.md) for retrieving exact content
-- Set up [Shell Integration](shell-integration/README.md) for better productivity
-- Understand the [Architecture](architecture.md) for deeper knowledge
+- Learn about the "get" command in [commands](commands.md) for retrieving exact content
+- Set up [shell integration](shell_integration.md) for better productivity
+- Understand the [architecture](../architecture/README.md) for deeper knowledge

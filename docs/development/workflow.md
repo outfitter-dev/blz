@@ -329,11 +329,11 @@ alias cf='cargo fmt'
 
 - [Graphite Docs](https://graphite.dev/docs)
 - [Graphite Video Tutorials](https://graphite.dev/guides)
-- [Project Guidelines](./.agents/rules/DEVELOPMENT.md)
+- [Project Guidelines](../../.agents/rules/DEVELOPMENT.md)
 - [Rust Book](https://doc.rust-lang.org/book/)
 
 ## Questions?
 
-- Check [existing discussions](https://github.com/outfitter-dev/blz/discussions)
+- Check [existing issues](https://github.com/outfitter-dev/blz/issues)
 - Ask in a new discussion
 - Review our [contributing guide](./contributing.md)

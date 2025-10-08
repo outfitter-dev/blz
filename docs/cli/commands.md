@@ -1,8 +1,8 @@
-# BLZ CLI Reference
+# BLZ Command Reference
 
-Complete command-line interface reference for BLZ.
+Complete reference for all BLZ CLI commands.
 
-For enhanced productivity with tab completion and shell integration, see the [Shell Integration Guide](shell-integration/README.md).
+For shell integration, see [Shell Integration](shell_integration.md). For task-oriented guides, see [How-To](howto.md).
 
 ## Global Options
 
@@ -37,7 +37,33 @@ For enhanced productivity with tab completion and shell integration, see the [Sh
 | `history` | | Show recent searches and CLI defaults |
 | `config` | | Manage configuration (global/local/project scopes) |
 
-## Command Reference
+## Table of Contents
+
+- [Global Options](#global-options)
+- [Commands Overview](#commands-overview)
+- [Core Commands](#core-commands)
+  - [blz add](#blz-add)
+  - [blz lookup](#blz-lookup)
+  - [blz search](#blz-search)
+  - [blz get](#blz-get)
+- [Management Commands](#management-commands)
+  - [blz list](#blz-list--blz-sources)
+  - [blz update](#blz-update)
+  - [blz upgrade](#blz-upgrade)
+  - [blz remove](#blz-remove--blz-rm--blz-delete)
+- [Utility Commands](#utility-commands)
+  - [blz diff](#blz-diff-hiddenexperimental)
+  - [blz completions](#blz-completions)
+  - [blz docs](#blz-docs)
+  - [blz history](#blz-history)
+  - [blz config](#blz-config)
+  - [blz alias](#blz-alias)
+  - [blz --prompt](#blz---prompt)
+- [Output Formats](#output-formats)
+
+---
+
+## Core Commands
 
 ### `blz add`
 
@@ -142,7 +168,7 @@ blz lookup <QUERY> [--format text|json|jsonl]
 blz lookup typescript
 
 # Search for web frameworks (JSON for scripting)
-blz lookup react -f json | jq '.[0]'
+blz lookup react --json | jq '.[0]'
 ```
 
 ### `blz search`
@@ -174,33 +200,33 @@ blz search <QUERY> [OPTIONS]
 
 ```bash
 # Basic search
-blz search "test runner"
+blz "test runner"
 
 # Search only in Bun docs
-blz search "bundler" --source bun
+blz "bundler" -s bun
 
 # Get more results
-blz search "performance" --limit 100
+blz "performance" -n100
 
 # JSON output for scripting
-blz search "async" --format json
+blz "async" --json
 
 # Top 10% of results only
-blz search "database" --top 10
+blz "database" --top 10
 
 # Exact phrase (Unix shells - single quotes around double quotes)
-blz search '"test runner"'
+blz '"test runner"'
 
 # Require both phrases
-blz search '+"test runner" +"cli output"'
+blz '+"test runner" +"cli output"'
 
 # Windows CMD (use backslash escaping)
-blz search "\"test runner\""
-blz search "+\"test runner\" +\"cli output\""
+blz "\"test runner\""
+blz "+\"test runner\" +\"cli output\""
 
 # PowerShell (single quotes work as literals)
-blz search '"test runner"'
-blz search '+"test runner" +"cli output"'
+blz '"test runner"'
+blz '+"test runner" +"cli output"'
 ```
 
 > **Query tips:** Space-separated terms are ORed by default. Prefix them with `+`
@@ -252,11 +278,13 @@ blz get bun:120-142
 blz get node:10:20,50:60
 
 # Include 3 lines of context (still works with shorthand)
-blz get deno:100-110 --context 3
+blz get deno:100-110 -c3
 
 # JSON output for agents
-blz get bun:42-55 -f json | jq '.content'
+blz get bun:42-55 --json | jq '.content'
 ```
+
+## Management Commands
 
 ### `blz list` / `blz sources`
 
@@ -282,7 +310,7 @@ JSON output always includes the descriptor payload (`descriptor` object) in addi
 blz list
 
 # JSON output for scripting
-blz list --format json
+blz list --json
 
 # Verbose descriptor view
 blz list --details
@@ -338,6 +366,8 @@ blz remove bun
 blz rm bun
 blz delete bun
 ```
+
+## Utility Commands
 
 ### `blz diff` (Hidden/Experimental)
 
@@ -405,13 +435,13 @@ blz docs [--format markdown|json]
 
 ```bash
 # Human-readable CLI docs
-blz docs --format markdown
+blz docs
 
 # Structured docs for agents / tooling
-blz docs --format json | jq '.subcommands[] | {name, usage}'
+blz docs --json | jq '.subcommands[] | {name, usage}'
 
 # Pipe docs into a file for offline reference
-blz docs --format markdown > BLZ-CLI.md
+blz docs > BLZ-CLI.md
 
 # Use global env var to default to JSON
 BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
@@ -483,10 +513,10 @@ JSON + jq examples
 export BLZ_OUTPUT_FORMAT=json
 
 # List result summaries
-blz search "hooks" | jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"'
+blz "hooks" | jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"'
 
 # Top 10 results with score > 2.0
-blz search "sqlite" | jq '.results | map(select(.score > 2.0)) | .[:10]'
+blz "sqlite" | jq '.results | map(select(.score > 2.0)) | .[:10]'
 ```
 
 ## Performance Profiling
@@ -495,13 +525,13 @@ Use global flags to analyze performance:
 
 ```bash
 # Show detailed timing metrics
-blz search "performance" --debug
+blz "performance" --debug
 
 # Show memory and CPU usage
-blz search "bundler" --profile
+blz "bundler" --profile
 
 # Generate CPU flamegraph (requires flamegraph feature)
-blz search "complex query" --flamegraph
+blz "complex query" --flamegraph
 ```
 
 ## Exit Codes
@@ -549,7 +579,7 @@ Config discovery order:
 ## Tips
 
 1. **Use aliases** - They make commands shorter and searches faster
-2. **Combine with shell tools** - `blz search "test" | grep -i jest`
+2. **Combine with shell tools** - `blz "test" | grep -i jest`
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
@@ -582,10 +612,10 @@ blz history [--limit <N>] [-f text|json|jsonl]
 
 ```bash
 # Show the most recent searches in text mode
-blz history --limit 10
+blz history -n10
 
 # Inspect history for agents in JSON
-blz history -f json | jq '.[0]'
+blz history --json | jq '.[0]'
 ```
 
 Text output includes the stored defaults (show components, snippet lines, score precision) followed by the most recent entries (newest first).
@@ -622,7 +652,7 @@ Set a single environment variable to control default output across commands that
 export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 
 # Now these default to JSON unless overridden
-blz search "async"
+blz "async"
 blz list --status
 ```
 # `blz alias`
@@ -645,3 +675,109 @@ Notes:
 - Canonical "source" remains the primary handle; aliases are alternate names.
 - Alias formats like `@scope/package` are allowed (not used for directories).
 - Ambiguous aliases across multiple sources will produce an error; use the canonical name instead.
+
+---
+
+## Output Formats
+
+The BLZ CLI supports multiple output formats to suit different use cases and integrations.
+
+### Available Formats
+
+#### Text (default)
+
+Human-readable colored output optimized for terminal display.
+
+```bash
+blz "async rust"
+```
+
+#### JSON
+
+Machine-readable JSON output for programmatic consumption.
+
+```bash
+# JSON (aggregated with metadata)
+blz "async rust" --json
+
+# JSONL (one hit per line)
+blz "async rust" --jsonl
+```
+
+Output structure (JSON):
+```json
+{
+  "query": "async rust",
+  "page": 1,
+  "limit": 5,
+  "totalResults": 42,
+  "totalPages": 9,
+  "totalLinesSearched": 123456,
+  "searchTimeMs": 6,
+  "sources": ["rust", "node"],
+  "results": [
+    {
+      "alias": "rust",
+      "file": "llms.txt",
+      "headingPath": ["Async", "Futures"],
+      "lines": "123-145",
+      "lineNumbers": [123, 145],
+      "snippet": "...",
+      "score": 0.95,
+      "sourceUrl": "https://...",
+      "checksum": "..."
+    }
+  ],
+  "suggestions": [
+    { "alias": "rust", "heading": "Futures", "lines": "200-210", "score": 0.5 }
+  ]
+}
+```
+
+Notes:
+- `suggestions` may be included when results are sparse or low-quality to aid discovery
+- `jsonl` emits one SearchHit per line (no aggregation metadata)
+
+#### Compact
+
+Minimal output showing only essential information.
+
+```bash
+blz "async rust" --format compact
+```
+
+Format: `<alias>:<lines> <heading_path>`
+
+### Environment Detection
+
+The CLI automatically detects the output context:
+- TTY: Uses colored text output
+- Pipe: Uses plain text without colors
+- CI: Adjusts formatting for CI environments
+
+### Custom Formatting
+
+Override automatic detection:
+
+```bash
+# Force colors even when piping
+blz "async rust" --color always
+
+# Disable colors for TTY
+blz "async rust" --color never
+
+# Let CLI decide (default)
+blz "async rust" --color auto
+```
+
+### Environment Variables
+
+Set a global default output format:
+
+```bash
+export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
+
+# Now these default to JSON unless overridden
+blz "async"
+blz list --status
+```

@@ -17,7 +17,7 @@ blz add react https://react.dev/llms-full.txt -y
 
 # List all sources
 blz list
-blz list --format json  # machine-readable
+blz list --json  # machine-readable
 ```
 
 ## Search
@@ -38,15 +38,14 @@ blz "server components" -s nextjs
 blz "query invalidation" -s tanstack
 
 # Pagination
-blz "async" --limit 20 --page 2
+blz "async" -n20 --page 2
 blz "async" --last  # jump to last page
 
 # Output formats
-blz "routing" --format json   # JSON array
-blz "routing" --format jsonl  # newline-delimited
-blz "routing" --json    # shortcut
+blz "routing" --json   # JSON array (shorthand for --format json)
+blz "routing" --jsonl  # newline-delimited (shorthand for --format jsonl)
 
-> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
+> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` or the shorthands `--json`/`--jsonl`.
 ```
 
 ## Get Exact Lines
@@ -57,7 +56,7 @@ blz get anthropic:100-150
 blz get nextjs:2000-2100
 
 # With context lines
-blz get react:500-510 --context 5  # ±5 lines around range
+blz get react:500-510 -c5  # ±5 lines around range
 ```
 
 ## Advanced Usage
@@ -115,7 +114,7 @@ done
 
 # 2. Search → Get full context
 result=$(blz "custom hooks" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
-blz get "$result" --context 10
+blz get "$result" -c10
 
 # 3. Build knowledge base
 blz "api reference" --json > api_refs.json

@@ -418,7 +418,7 @@ cargo instruments -t "Allocations" --bin blz -- add bun URL
 
 ## Contributing
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for development setup.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for development setup.
 
 Key areas for contribution:
 

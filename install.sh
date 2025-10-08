@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Simplified installer for the blz CLI.
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh
+#   curl -fsSL https://blz.run/install.sh | sh
 # or download locally and run `sh install.sh`.
 
 set -eu

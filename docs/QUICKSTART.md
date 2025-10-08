@@ -4,20 +4,21 @@ This guide will walk you through installing and using `blz` for the first time.
 
 ## Installation
 
-### Prerequisites
+### Quick Install (Recommended)
 
-- Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
-- Git
-
-### Quick Install (macOS/Linux)
+**No prerequisites needed** - the install script handles everything:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/outfitter-dev/blz/main/install.sh | sh
+curl -fsSL https://blz.run/install.sh | sh
 ```
 
 The script installs the latest release to `~/.local/bin`. Override the location with `BLZ_INSTALL_DIR=/path`, or pin a version using `BLZ_VERSION=v0.4.1`.
 
-### Install from Source
+### From Source (Optional)
+
+If you prefer building from source, you'll need:
+- Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
+- Git
 
 ```bash
 # Clone the repository
@@ -31,7 +32,7 @@ cargo install --path crates/blz-cli
 blz --help
 ```
 
-### Install from GitHub
+### From GitHub (Optional)
 
 ```bash
 # Direct install from GitHub
@@ -42,23 +43,37 @@ cargo install --git https://github.com/outfitter-dev/blz blz-cli
 
 ### 1. Add Your First Source
 
-Let's start by adding Bun's documentation:
+Choose a documentation set you use often:
+
+```bash
+# Option 1: Bun (if you use Bun)
+blz add bun https://bun.sh/llms.txt
+
+# Option 2: Discover sources from the registry
+blz lookup react
+
+# Option 3: Add directly from a known URL
+blz add nextjs https://nextjs.org/llms-full.txt
+```
+
+💡 **Tip**: Start with docs you reference daily for maximum impact.
+
+Let's use Bun as an example:
 
 ```bash
 blz add bun https://bun.sh/llms.txt
 ```
 
-This command:
-
+**What happens:**
 - Fetches the llms.txt file from Bun's website
 - Parses it into structured heading blocks
 - Builds a search index
 - Stores everything locally
 
-Expected output:
+**You'll see** (~1s):
 
 ```
-✓ Added bun (26 headings, 364 lines)
+✓ Added bun (1,926 headings, 43,150 lines) in 890ms
 ```
 
 ### 2. Search Your Indexed Docs
@@ -66,18 +81,21 @@ Expected output:
 Now search for something:
 
 ```bash
-blz search "test" --source bun
+blz "test runner" -s bun
 ```
 
-You'll see results in ~6ms:
+**You'll see** (~6ms):
 
 ```
-Search results for 'test':
+Search results for 'test runner' (6ms):
 
-1. bun (score: 4.09)
-   Path: Bun Documentation > Guides > Test runner
-   Lines: L304-324
-   Snippet: ### Guides: Test runner...
+1. bun:304-324 (score: 92%)
+   📍 Bun Documentation > Guides > Test runner
+   Lines: 304-324
+
+   ### Test runner
+   Bun includes a fast built-in test runner with built-in code
+   coverage, snapshot testing, and mocking...
 ```
 
 ### 3. Get Exact Content
@@ -88,7 +106,19 @@ Retrieve specific line ranges:
 blz get bun:304-324
 ```
 
-This shows the exact content from those lines with line numbers.
+**You'll see:**
+
+```
+Source: bun
+Lines: 304-324
+Path: Bun Documentation > Guides > Test runner
+
+  304 │ ### Test runner
+  305 │
+  306 │ Bun includes a fast built-in test runner with built-in code
+  307 │ coverage, snapshot testing, and mocking...
+  ...
+```
 
 ### 4. View Your Cache
 
@@ -115,28 +145,9 @@ blz info bun
 Inspect recent searches and persisted defaults:
 
 ```bash
-blz history --limit 5
+blz history -n5
 ```
 
-### 6. Batch Operations
-
-You can add multiple sources at once using a manifest file. Create a `manifest.toml` file like this:
-
-```toml
-[[source]]
-alias = "react"
-url = "https://react.dev/llms-full.txt"
-
-[[source]]
-alias = "typescript"
-url = "https://www.typescriptlang.org/docs/handbook/llms-full.txt"
-```
-
-Then, add the sources using the `blz add --manifest` command:
-
-```bash
-blz add --manifest manifest.toml
-```
 
 ## Common Use Cases
 
@@ -150,20 +161,20 @@ blz add node https://nodejs.org/llms.txt
 blz add deno https://deno.land/llms.txt
 
 # Search across all sources
-blz search "http server"
+blz "http server"
 ```
 
 ### Searching with Filters
 
 ```bash
 # Search only in Bun docs
-blz search "test" --source bun --limit 5
+blz "test" -s bun -n5
 
 # Get more results
-blz search "performance" --limit 20
+blz "performance" -n20
 
 # JSON output for scripts
-blz search "bundler" --format json
+blz "bundler" --json
 ```
 
 ### Integration with Scripts
@@ -172,7 +183,7 @@ blz search "bundler" --format json
 #!/bin/bash
 # Find and display TypeScript information
 
-result=$(blz search "typescript" --format json | jq -r '.results[0]')
+result=$(blz "typescript" --json | jq -r '.results[0]')
 alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 
@@ -213,34 +224,65 @@ blz get <TAB>        # Shows available aliases
 ## Performance Tips
 
 1. **Use aliases** - Searching within a specific source is faster
-2. **Limit results** - Use `--limit` to get results quicker
+2. **Limit results** - Use `-n` to get results quicker
 3. **Cache locally** - Sources are stored in `~/.outfitter/blz/`
 
 ## Troubleshooting
 
-### Command not found
-Add `~/.cargo/bin` to your PATH:
+### "Command not found: blz"
+
+Make sure the install script completed successfully. Add the install location to your PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Or if you installed with Cargo:
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
-### No sources found
+### "No sources found"
+
 Make sure you've added at least one source:
 
 ```bash
-blz add bun https://bun.sh/llms.txt
+blz list  # Check current sources
+blz add bun https://bun.sh/llms.txt  # Add a source
+```
+
+### "No results found"
+
+1. Check you have sources indexed: `blz list`
+2. Verify source content: `blz info <alias>`
+3. Try broader search terms
+4. Search across all sources (omit `-s` flag)
+
+### "Source already exists"
+
+Use a different alias or update the existing source:
+
+```bash
+# Update existing source
+blz update bun
+
+# Use a different alias
+blz add bun-docs https://bun.sh/llms.txt
 ```
 
 ### Slow first search
+
 The first search after adding a source may take longer as the OS caches the index. Subsequent searches will be much faster (6ms).
+
+For more task-oriented solutions, see the [CLI How-To Guide](cli/howto.md).
 
 ## Next Steps
 
-- Read about [Managing Sources](sources.md) to learn about updates and organization
-- Explore [Search Syntax](search.md) for advanced queries
-- Set up [Shell Integration](shell-integration/README.md) for better productivity
-- Understand the [Architecture](architecture.md) for deeper knowledge
+- Read about [managing sources](cli/sources.md) to learn about updates and organization
+- Explore [search syntax](cli/search.md) for advanced queries
+- Set up [shell integration](cli/shell_integration.md) for better productivity
+- Understand the [architecture](architecture/README.md) for deeper knowledge
 
 ## Getting Help
 

@@ -5,7 +5,7 @@
 - Added `blz-dev` secondary binary with isolated profile routing to keep config/data under `blz-dev` directories while sharing core CLI logic.
 - Introduced `blz_core::profile` helpers for profile detection; storage/config/store logic now derives paths from profile slug so dev builds avoid clobbering release state.
 - Gated `blz-dev` behind optional `dev-profile` feature and created manual `install-dev.sh`; refreshed README docs and reran `cargo check -p blz-cli` / `cargo check -p blz-cli --features dev-profile`.
-- Documented the local dev workflow in `docs/development/local-development.md` and linked it from the development index + README snippet.
+- Documented the local dev workflow (content now lives in `docs/development/README.md`) and linked it from the development index + README snippet.
 - Refined `blz get` docs/help to recommend the `source:lines` shorthand (matches search output) and re-enabled `blz lookup` with a beta footnote plus registry invitation.
 - Replaced `blz instruct` with a global `--prompt` flag that emits JSON guidance. Added prompt JSON files alongside each command, wired `prompt.rs` loader, updated docs/tests, and refreshed registry note text.
 - Created `hydrate-dev.sh` script to copy production blz data to blz-dev for testing with realistic data; script is XDG-aware and supports selective copying (config-only, sources-only) with dry-run mode.
@@ -109,29 +109,6 @@ Quick notes and links to detailed work logs.
 - Feature flag implementation (FORCE_PREFER_FULL)
 - Updated documentation to remove flavor complexity
 - Version bumped to 0.5.0 across all crates
-
-## Related Logs
-
-- **[202510021153-feature-flavor-elimination-and-url-intelligence-v1-0.md](.agents/logs/202510021153-feature-flavor-elimination-and-url-intelligence-v1-0.md)** - v1.0.0-beta.1 implementation plan (active)
-- [v0.5.0-release-work.md](.agents/logs/v0.5.0-release-work.md) - Comprehensive v0.5.0 work log (superseded)
-- [alias-terminology-audit.md](.agents/logs/alias-terminology-audit.md) - Analysis of alias terminology issues
-- [flavor-removal-impact-analysis.md](.agents/logs/flavor-removal-impact-analysis.md) - Impact analysis for flavor simplification
-- [202509301145-checkpoint-v0.5.0-release-prep.md](.agents/logs/202509301145-checkpoint-v0.5.0-release-prep.md) - Earlier checkpoint
-
-## Branch Status
-
-- **Current**: `gt/v0.5-release` (will become v1.0.0-beta.1)
-- **Remote**: Synced with `origin/gt/v0.5-release`
-- **Tests**: ✅ 224/224 passing
-- **Status**: Active development - major refactor in progress
-
-## Next Steps
-
-- ✅ Research and planning complete for v1.0.0-beta.1
-- 🚧 Phase 0: Implement URL intelligence (llms-full.txt preference)
-- 🚧 Phases 1-8: Execute flavor elimination cleanup sequentially
-- Create PR for v1.0.0-beta.1 after implementation complete
-- Consider removing old `gt/fix-normalize-heading-counts-and-filter-placeholder-pages` branch (fixes cherry-picked)
 
 ## 2025-10-03
 
