@@ -74,7 +74,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         size_bytes,
         last_updated: Some(metadata.fetched_at.to_rfc3339()),
         etag: metadata.etag.clone(),
-        checksum: Some(metadata.sha256.clone()),
+        checksum: Some(metadata.sha256),
         cache_path,
     };
 

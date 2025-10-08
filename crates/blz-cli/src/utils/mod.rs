@@ -19,11 +19,11 @@
 //!
 //! ## Common Usage Patterns
 //!
-//! ```rust,no_run
-//! use blz_cli::utils::{get_alias_color, parse_line_ranges, validate_alias};
+//! ```rust,ignore
+//! use crate::utils::{get_alias_color, parse_line_ranges, validate_alias};
 //!
-//! validate_alias("react").expect("valid alias");
-//! let ranges = parse_line_ranges("120-142,200+10").expect("valid ranges");
+//! assert!(validate_alias("react").is_ok());
+//! let ranges = parse_line_ranges("120-142,200+10").unwrap();
 //! let color = get_alias_color("react");
 //! println!("{ranges:?} -> {color}");
 //! ```

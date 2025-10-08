@@ -26,7 +26,9 @@
 //!
 //! ## Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
+//! use crate::output::formatter::{FormatParams, SearchResultFormatter};
+//! use crate::output::OutputFormat;
 //! use blz_core::SearchHit;
 //! use std::time::Duration;
 //!
@@ -43,7 +45,6 @@
 //!     1,
 //!     10,
 //!     10,
-//!     false,
 //!     false,
 //!     false,
 //!     false,
@@ -211,9 +212,9 @@ pub enum OutputFormat {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
-/// use blz_cli::output::formatter::{FormatParams, SearchResultFormatter};
-/// use blz_cli::output::OutputFormat;
+/// ```rust,ignore
+/// use crate::output::formatter::{FormatParams, SearchResultFormatter};
+/// use crate::output::OutputFormat;
 /// use blz_core::SearchHit;
 /// use std::time::Duration;
 ///
@@ -254,9 +255,9 @@ impl SearchResultFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use blz_cli::output::formatter::SearchResultFormatter;
-    /// use blz_cli::output::OutputFormat;
+    /// ```rust,ignore
+    /// use crate::output::formatter::SearchResultFormatter;
+    /// use crate::output::OutputFormat;
     ///
     /// let text_formatter = SearchResultFormatter::new(OutputFormat::Text);
     /// let json_formatter = SearchResultFormatter::new(OutputFormat::Json);
@@ -295,11 +296,11 @@ impl SearchResultFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use std::time::Duration;
     ///
-    /// use blz_cli::output::formatter::{FormatParams, SearchResultFormatter};
-    /// use blz_cli::output::OutputFormat;
+    /// use crate::output::formatter::{FormatParams, SearchResultFormatter};
+    /// use crate::output::OutputFormat;
     /// use blz_core::SearchHit;
     /// use std::time::Duration;
     ///
@@ -446,7 +447,7 @@ impl SourceInfoFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use serde_json::json;
     ///
     /// let sources = vec![

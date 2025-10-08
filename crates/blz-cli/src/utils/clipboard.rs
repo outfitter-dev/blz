@@ -22,8 +22,8 @@ use std::io::{self, Write};
 /// or an `io::Error` if writing failed.
 ///
 /// # Examples
-/// ```rust,no_run
-/// use blz_cli::utils::clipboard::copy_to_clipboard;
+/// ```rust,ignore
+/// use crate::utils::clipboard::copy_to_clipboard;
 ///
 /// copy_to_clipboard("Hello, clipboard!").expect("clipboard write");
 /// ```

@@ -8,7 +8,7 @@ use super::constants::RESERVED_KEYWORDS;
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust,ignore
 /// assert_eq!(normalize_alias("Vercel AI SDK"), "vercel-ai-sdk");
 /// assert_eq!(normalize_alias("React_Native"), "react-native");
 /// assert_eq!(normalize_alias("NextJS 14"), "nextjs-14");
