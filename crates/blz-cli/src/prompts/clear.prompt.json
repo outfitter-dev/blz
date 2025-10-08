@@ -1,0 +1,24 @@
+{
+  "target": "clear",
+  "summary": "Delete the entire BLZ cache (all sources, indices, and metadata). Use sparingly—most workflows should prefer `blz remove <alias>`.",
+  "usage": [
+    {
+      "command": "blz clear",
+      "description": "Interactive wipe. Prompts for confirmation before deleting files."
+    },
+    {
+      "command": "blz clear --force",
+      "description": "Skip the confirmation prompt. Recommended only for scripted resets or CI."
+    }
+  ],
+  "effects": [
+    "Deletes every source directory under the BLZ data path (llms.txt, llms.json, indices, archives).",
+    "Removes per-source descriptors and registry state (data.json) so aliases/tags must be reintroduced.",
+    "Does not touch global configuration files outside the cache."
+  ],
+  "agent_guidance": [
+    "Call `blz list --format json` beforehand and persist any metadata you need to restore.",
+    "Immediately follow with manifest-driven `blz add` or `blz update --all` to repopulate key sources.",
+    "Use `./hydrate-dev.sh --force` instead when you only need to clone production data into the dev profile."
+  ]
+}

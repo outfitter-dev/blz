@@ -26,7 +26,9 @@
 //!
 //! ## Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
+//! use crate::output::formatter::{FormatParams, SearchResultFormatter};
+//! use crate::output::OutputFormat;
 //! use blz_core::SearchHit;
 //! use std::time::Duration;
 //!
@@ -43,7 +45,6 @@
 //!     1,
 //!     10,
 //!     10,
-//!     false,
 //!     false,
 //!     false,
 //!     false,
@@ -151,27 +152,41 @@ impl<'a> FormatParams<'a> {
 ///   separate JSON object. Enables streaming processing and is memory-efficient
 ///   for large result sets.
 ///
+/// # Default Behavior
+///
+/// When no format is specified:
+/// - **Interactive terminals**: Text format (human-readable)
+/// - **Piped/redirected output**: JSON format (machine-readable)
+///
+/// This ensures optimal defaults for both human and programmatic usage.
+/// Use `--format text` to force text output when piping.
+///
 /// # Usage in CLI
 ///
 /// ```bash
-/// # Default text output
+/// # Default text output (interactive terminal)
 /// blz search "useEffect"
 ///
-/// # JSON output for scripting
-/// blz search "useEffect" --format json | jq '.[0].content'
+/// # Pipe automatically uses JSON
+/// blz search "useEffect" | jq '.[0].content'
+///
+/// # Force text when piping
+/// blz search "useEffect" --format text | less
 ///
 /// # JSON Lines for streaming
 /// blz search "useEffect" --format jsonl | head -5
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
-    /// Pretty text output (default)
+    /// Pretty text output (default for terminals, use --format text to force when piping)
     Text,
-    /// Single JSON array
+    /// Single JSON array (default when output is piped/redirected)
     Json,
     /// Newline-delimited JSON (aka JSON Lines)
     #[value(name = "jsonl", alias = "ndjson")]
     Jsonl,
+    /// Raw content only (no formatting, no metadata)
+    Raw,
 }
 
 /// Formatter for search results with multiple output format support
@@ -197,23 +212,35 @@ pub enum OutputFormat {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust,ignore
+/// use crate::output::formatter::{FormatParams, SearchResultFormatter};
+/// use crate::output::OutputFormat;
+/// use blz_core::SearchHit;
 /// use std::time::Duration;
 ///
-/// let formatter = SearchResultFormatter::new(OutputFormat::Text);
-///
-/// // Format results with comprehensive metadata
-/// formatter.format(
-///     &search_hits,
+/// # let hits: Vec<SearchHit> = Vec::new();
+/// # let sources = vec!["react".to_string()];
+/// let params = FormatParams::new(
+///     &hits,
 ///     "React hooks",
-///     250,                    // total matching results
-///     45000,                  // total lines searched  
-///     Duration::from_millis(8), // search execution time
-///     true,                   // show pagination info
-///     false,                  // multiple sources
-///     &["react".to_string(), "next".to_string()],
-///     0,                      // starting index for pagination
-/// )?;
+///     0,
+///     0,
+///     Duration::from_millis(8),
+///     &sources,
+///     0,
+///     1,
+///     1,
+///     10,
+///     true,
+///     true,
+///     false,
+///     false,
+///     2,
+///     6,
+/// );
+/// SearchResultFormatter::new(OutputFormat::Text)
+///     .format(&params)
+///     .unwrap();
 /// ```
 pub struct SearchResultFormatter {
     format: OutputFormat,
@@ -228,7 +255,10 @@ impl SearchResultFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
+    /// use crate::output::formatter::SearchResultFormatter;
+    /// use crate::output::OutputFormat;
+    ///
     /// let text_formatter = SearchResultFormatter::new(OutputFormat::Text);
     /// let json_formatter = SearchResultFormatter::new(OutputFormat::Json);
     /// ```
@@ -266,32 +296,37 @@ impl SearchResultFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use std::time::Duration;
     ///
-    /// let formatter = SearchResultFormatter::new(OutputFormat::Text);
-    /// let search_time = Duration::from_millis(12);
+    /// use crate::output::formatter::{FormatParams, SearchResultFormatter};
+    /// use crate::output::OutputFormat;
+    /// use blz_core::SearchHit;
+    /// use std::time::Duration;
     ///
-    /// // Display first page of results
+    /// # let hits: Vec<SearchHit> = Vec::new();
+    /// # let sources = vec!["react".to_string(), "next".to_string()];
     /// let params = FormatParams::new(
-    ///     &hits[0..10],
+    ///     &hits,
     ///     "useEffect cleanup",
     ///     156,
     ///     38_000,
-    ///     search_time,
-    ///     &["react".to_string(), "next".to_string()],
+    ///     Duration::from_millis(12),
+    ///     &sources,
     ///     0,
     ///     1,
     ///     16,
     ///     10,
+    ///     true,
+    ///     true,
     ///     false,
     ///     false,
-    ///     false,
-    ///     false,
-    ///     1,
-    ///     3,
+    ///     2,
+    ///     4,
     /// );
-    /// formatter.format(&params)?;
+    /// SearchResultFormatter::new(OutputFormat::Text)
+    ///     .format(&params)
+    ///     .unwrap();
     /// ```
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
@@ -317,6 +352,12 @@ impl SearchResultFormatter {
             },
             OutputFormat::Text => {
                 TextFormatter::format_search_results(params);
+            },
+            OutputFormat::Raw => {
+                // Raw format: just print snippet from each hit
+                for hit in params.hits {
+                    println!("{}", hit.snippet);
+                }
             },
         }
         Ok(())
@@ -406,7 +447,7 @@ impl SourceInfoFormatter {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use serde_json::json;
     ///
     /// let sources = vec![
@@ -439,6 +480,14 @@ impl SourceInfoFormatter {
             },
             OutputFormat::Text => {
                 // Text formatting is handled in the list command
+            },
+            OutputFormat::Raw => {
+                // Raw format: just names/aliases, one per line
+                for info in source_info {
+                    if let Some(alias) = info.get("alias").and_then(|v| v.as_str()) {
+                        println!("{alias}");
+                    }
+                }
             },
         }
         Ok(())

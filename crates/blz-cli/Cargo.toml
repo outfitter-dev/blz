@@ -10,13 +10,22 @@ description = "CLI for blz – fast local llms.txt search"
 [lints]
 workspace = true
 
+[lib]
+doctest = false
+
 [features]
 flamegraph = ["dep:pprof", "blz-core/flamegraph"]
 anchors = []
+dev-profile = []
 
 [[bin]]
 name = "blz"
 path = "src/main.rs"
+
+[[bin]]
+name = "blz-dev"
+path = "src/bin/blz-dev.rs"
+required-features = ["dev-profile"]
 
 [dependencies]
 blz-core.workspace = true
@@ -44,6 +53,9 @@ serde.workspace = true
 sysinfo.workspace = true
 is-terminal = { workspace = true }
 fs2 = { workspace = true }
+base64 = "0.22"
+sha2.workspace = true
+reqwest.workspace = true
 
 # Performance & profiling (optional; enabled via feature "flamegraph")
 pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }

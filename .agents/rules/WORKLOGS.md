@@ -1,8 +1,8 @@
 # Worklogs
 
-Keep track of your work and progress by default in the `.agents/logs/CURRENT.md` file.
+Keep track of your work and progress using timestamped log files in `.agents/logs/`.
 
-For more detailed worklogs, use the commands and templates below.
+Use the commands and templates below to create structured logs.
 
 ## Commands
 
@@ -57,10 +57,10 @@ Use `.agents/scripts/get-date.sh` for consistent timestamps:
 
 ## Templates
 
-- [`CHECKPOINT.md`](./.agents/logs/templates/CHECKPOINT.md): Session checkpoints with comprehensive state tracking
-- [`RECAP.md`](./.agents/logs/templates/RECAP.md): Daily development recaps
-- [`REVIEW.md`](./.agents/logs/templates/REVIEW.md): PR review notes and fixes
-- [`DEBUG.md`](./.agents/logs/templates/DEBUG.md): Debugging sessions and investigations
-- [`REFACTOR.md`](./.agents/logs/templates/REFACTOR.md): Major refactoring sessions
-- [`FEATURE.md`](./.agents/logs/templates/FEATURE.md): Feature implementation logs
-- [`MIGRATION.md`](./.agents/logs/templates/MIGRATION.md): Migrations or upgrades
+- [`CHECKPOINT.md`](../logs/templates/CHECKPOINT.md): Session checkpoints with comprehensive state tracking
+- [`RECAP.md`](../logs/templates/RECAP.md): Daily development recaps
+- [`REVIEW.md`](../logs/templates/REVIEW.md): PR review notes and fixes
+- [`DEBUG.md`](../logs/templates/DEBUG.md): Debugging sessions and investigations
+- [`REFACTOR.md`](../logs/templates/REFACTOR.md): Major refactoring sessions
+- [`FEATURE.md`](../logs/templates/FEATURE.md): Feature implementation logs
+- [`MIGRATION.md`](../logs/templates/MIGRATION.md): Migrations or upgrades

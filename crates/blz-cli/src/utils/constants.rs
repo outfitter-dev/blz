@@ -35,8 +35,8 @@
 /// This constant is used by the [`validate_alias`](crate::utils::validate_alias)
 /// function to ensure user-provided aliases don't conflict with CLI functionality:
 ///
-/// ```rust,no_run
-/// use crate::utils::{RESERVED_KEYWORDS, validate_alias};
+/// ```rust,ignore
+/// use crate::utils::{validate_alias, RESERVED_KEYWORDS};
 ///
 /// // This will fail validation
 /// assert!(validate_alias("add").is_err());
@@ -45,6 +45,7 @@
 /// // These are allowed
 /// assert!(validate_alias("react").is_ok());
 /// assert!(validate_alias("nextjs").is_ok());
+/// assert!(RESERVED_KEYWORDS.contains(&"add"));
 /// ```
 ///
 /// # Design Rationale

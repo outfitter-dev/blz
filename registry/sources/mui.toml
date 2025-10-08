@@ -1,0 +1,12 @@
+id = "mui"
+name = "Material-UI"
+description = "React components that implement Google's Material Design"
+url = "https://mui.com/x/llms.txt"
+category = "library"
+tags = ["react", "ui", "components", "material-design"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["@mui/material", "@mui/x-data-grid"]
+github = ["mui/material-ui"]

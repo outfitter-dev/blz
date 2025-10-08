@@ -1,0 +1,43 @@
+warning: function `head_with_retries` is never used
+  --> crates/blz-cli/src/utils/http.rs:11:14
+   |
+11 | pub async fn head_with_retries(
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `blz-cli` (bin "blz") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/alias_resolver_update_remove.rs (target/debug/deps/alias_resolver_update_remove-6b663a498edba97d)
+
+running 1 test
+test update_and_remove_accept_metadata_alias ... FAILED
+
+failures:
+
+---- update_and_remove_accept_metadata_alias stdout ----
+List output: [
+  {
+    "alias": "canon",
+    "aliases": [
+      "@scope/pkg"
+    ],
+    "fetchedAt": "2025-09-30T22:28:55.208974+00:00",
+    "headings": 1,
+    "lines": 4,
+    "tags": [],
+    "url": "http://127.0.0.1:55124/llms.txt"
+  }
+]
+
+thread 'update_and_remove_accept_metadata_alias' panicked at crates/blz-cli/tests/alias_resolver_update_remove.rs:77:5:
+assertion failed: v.as_array().is_none_or(std::vec::Vec::is_empty)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    update_and_remove_accept_metadata_alias
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+
+error: test failed, to rerun pass `-p blz-cli --test alias_resolver_update_remove`

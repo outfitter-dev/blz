@@ -15,6 +15,7 @@ install-tools:
     command -v cargo-nextest >/dev/null 2>&1 || cargo install cargo-nextest
     command -v sccache >/dev/null 2>&1 || cargo install sccache
     command -v commitlint >/dev/null 2>&1 || cargo install commitlint-rs
+    command -v lychee >/dev/null 2>&1 || cargo install lychee
     echo "✅ Tools installed successfully"
 
 # Run all dependency checks
@@ -87,10 +88,14 @@ fmt-check:
     cargo fmt --all -- --check
 
 # Run full CI validation locally
-ci: check-deps lint fmt-check test
+ci: check-deps lint fmt-check test link-check
     @echo "📖 Building documentation..."
     cargo doc --no-deps --all-features
     @echo "✅ CI validation complete"
+
+# Verify Markdown links
+link-check:
+    lychee --no-progress README.md docs .agents/rules docs/agents AGENTS.md
 
 # Quick security check without graphs
 quick-security:

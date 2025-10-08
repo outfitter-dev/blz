@@ -23,13 +23,12 @@ use blz_core::{
     // optimized_index::OptimizedSearchIndex,
     // string_pool::StringPool,
 };
+use chrono::Utc;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
-
-const BASE_FLAVOR: &str = "llms";
 
 /// Create realistic test data for benchmarking
 fn create_realistic_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
@@ -95,7 +94,7 @@ fn setup_original_index(blocks: &[HeadingBlock]) -> (TempDir, SearchIndex) {
         .with_metrics(PerformanceMetrics::default());
 
     index
-        .index_blocks("bench", "test.md", blocks, BASE_FLAVOR)
+        .index_blocks("bench", blocks)
         .expect("Failed to index blocks");
 
     (temp_dir, index)
@@ -143,7 +142,7 @@ fn bench_search_performance_comparison(c: &mut Criterion) {
             b.iter(|| {
                 let query = black_box("React hooks");
                 original_index
-                    .search(query, Some("bench"), None, 10)
+                    .search(query, Some("bench"), 10)
                     .expect("Search failed")
             });
         });
@@ -342,7 +341,6 @@ fn bench_caching_strategies(c: &mut Criterion) {
     let create_search_results = |count: usize| {
         (0..count)
             .map(|i| blz_core::SearchHit {
-                alias: format!("alias_{}", i % 5),
                 source: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
@@ -351,9 +349,11 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 snippet: format!("This is test content for result {}", i),
                 score: 0.95 - (i as f32 * 0.01),
                 source_url: Some(format!("https://example.com/{}", i)),
+                fetched_at: Some(Utc::now()),
+                is_stale: false,
                 checksum: format!("checksum_{}", i),
                 anchor: Some("bench-anchor".to_string()),
-                flavor: Some(BASE_FLAVOR.to_string()),
+                context: None,
             })
             .collect()
     };
@@ -436,7 +436,7 @@ fn bench_indexing_performance(c: &mut Criterion) {
                 },
                 |(temp_dir, index)| {
                     index
-                        .index_blocks("bench", "test.md", black_box(&blocks), BASE_FLAVOR)
+                        .index_blocks("bench", black_box(&blocks))
                         .expect("Failed to index blocks");
                     drop(temp_dir);
                 },

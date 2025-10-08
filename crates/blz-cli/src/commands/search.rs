@@ -1,18 +1,25 @@
 //! Search command implementation
 
 use anyhow::{Context, Result};
-use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Storage};
+use blz_core::{
+    HitContext, LlmsJson, PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Source,
+    Storage,
+};
 use futures::stream::{self, StreamExt};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::warn;
 
 use crate::cli::ShowComponent;
-use crate::commands::FlavorMode;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
-use crate::utils::flavor::{BASE_FLAVOR, FULL_FLAVOR, resolve_flavor};
 use crate::utils::history_log;
+use crate::utils::parsing::parse_line_span;
 use crate::utils::preferences::{self, CliPreferences};
+use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
+use crate::utils::toc::{
+    extract_block_slice, finalize_block_slice, find_heading_span, heading_level_from_line,
+};
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 const DEFAULT_SCORE_PRECISION: u8 = 1;
@@ -22,7 +29,7 @@ const DEFAULT_SCORE_PRECISION: u8 = 1;
 #[allow(clippy::struct_excessive_bools)]
 pub struct SearchOptions {
     pub query: String,
-    pub alias: Option<String>,
+    pub sources: Vec<String>,
     pub last: bool,
     pub limit: usize,
     pub page: usize,
@@ -35,8 +42,12 @@ pub struct SearchOptions {
     pub no_summary: bool,
     pub score_precision: Option<u8>,
     pub snippet_lines: u8,
-    pub flavor: crate::commands::FlavorMode,
     pub(crate) all: bool,
+    pub no_history: bool,
+    pub copy: bool,
+    pub context: Option<usize>,
+    pub block: bool,
+    pub max_block_lines: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -66,19 +77,24 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
 
 /// Execute a search across cached documentation
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
     query: &str,
-    alias: Option<&str>,
+    sources: &[String],
     last: bool,
     limit: usize,
     page: usize,
     top_percentile: Option<u8>,
     format: OutputFormat,
-    flavor: FlavorMode,
     show: &[ShowComponent],
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    context: Option<usize>,
+    block: bool,
+    max_block_lines: Option<usize>,
+    no_history: bool,
+    copy: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -86,7 +102,7 @@ pub async fn execute(
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
-        alias: alias.map(String::from),
+        sources: sources.to_vec(),
         last,
         limit,
         page,
@@ -99,13 +115,22 @@ pub async fn execute(
         no_summary,
         score_precision,
         snippet_lines: snippet_lines.max(1),
-        flavor,
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
+        no_history,
+        copy,
+        context,
+        block,
+        max_block_lines,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
     let ((page, actual_limit, total_pages), total_results) =
         format_and_display(&results, &options)?;
+
+    // Copy results to clipboard if --copy flag was set
+    if options.copy && !results.hits.is_empty() {
+        copy_results_to_clipboard(&results, page, actual_limit)?;
+    }
 
     if let Some(prefs) = prefs {
         let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
@@ -118,9 +143,19 @@ pub async fn execute(
         prefs.set_default_show(&show_components);
         prefs.set_default_score_precision(precision);
         prefs.set_default_snippet_lines(options.snippet_lines);
+        let history_source_str;
+        let history_source = if options.sources.is_empty() {
+            None
+        } else if options.sources.len() == 1 {
+            Some(options.sources[0].as_str())
+        } else {
+            // For multiple sources, store as comma-separated list
+            history_source_str = options.sources.join(",");
+            Some(history_source_str.as_str())
+        };
         let history_entry = preferences::HistoryEntryBuilder::new(
             &options.query,
-            options.alias.as_deref(),
+            history_source,
             options.format,
             show,
         )
@@ -133,8 +168,10 @@ pub async fn execute(
             total_results: Some(total_results),
         })
         .build();
-        if let Err(err) = history_log::append(&history_entry) {
-            warn!("failed to persist search history: {err}");
+        if !options.no_history {
+            if let Err(err) = history_log::append(&history_entry) {
+                warn!("failed to persist search history: {err}");
+            }
         }
     }
 
@@ -162,7 +199,7 @@ pub async fn handle_default(
         println!("\nNotes:");
         println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
         println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
-        println!("  • Run 'blz instruct' for agent-focused guidance.");
+        println!("  • Run 'blz --prompt search' for agent-focused guidance.");
         return Ok(());
     }
 
@@ -208,19 +245,25 @@ pub async fn handle_default(
         .filter(|value| (1..=10).contains(value));
     let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
 
+    let sources = alias.map_or_else(Vec::new, |alias_str| vec![alias_str]);
+
     execute(
         &query,
-        alias.as_deref(),
+        &sources,
         false,
         50,
         1,
         None,
         OutputFormat::Text,
-        FlavorMode::Current,
         &show_components,
         false,
         Some(score_precision),
         snippet_lines,
+        None,
+        false,
+        None,
+        false, // no_history: false for default search
+        false, // copy: false for default search
         Some(prefs),
         metrics,
         resource_monitor,
@@ -268,25 +311,41 @@ async fn perform_search(
 ) -> Result<SearchResults> {
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
-    // Resolve requested source (supports metadata aliases)
-    let sources = if let Some(requested) = &options.alias {
-        match crate::utils::resolver::resolve_source(&storage, requested) {
-            Ok(Some(canonical)) => vec![canonical],
-            Ok(None) => {
-                // Fallback: show hint and continue with zero sources handled below
-                let known = storage.list_sources();
-                if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
-                    eprintln!(
-                        "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
-                    );
-                }
-                vec![requested.clone()]
-            },
-            Err(e) => return Err(e),
-        }
-    } else {
+    // Resolve requested sources (supports metadata aliases)
+    let sources = if options.sources.is_empty() {
         storage.list_sources()
+    } else {
+        let mut resolved = Vec::new();
+        for requested in &options.sources {
+            match crate::utils::resolver::resolve_source(&storage, requested) {
+                Ok(Some(canonical)) => resolved.push(canonical),
+                Ok(None) => {
+                    // Fallback: show hint and continue with the requested name
+                    let known = storage.list_sources();
+                    if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
+                        eprintln!(
+                            "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
+                        );
+                    }
+                    resolved.push(requested.clone());
+                },
+                Err(e) => return Err(e),
+            }
+        }
+        resolved
     };
+
+    // Filter out index-only sources (navigation-only, no searchable content)
+    let sources: Vec<String> = sources
+        .into_iter()
+        .filter(|alias| {
+            // Load source metadata and check if it's index-only
+            match storage.load_source_metadata(alias) {
+                Ok(Some(metadata)) => !metadata.is_index_only(),
+                Ok(None) | Err(_) => true, // Allow search when metadata missing or failed
+            }
+        })
+        .collect();
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -308,13 +367,10 @@ async fn perform_search(
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
-    let warn_missing = matches!(options.format, OutputFormat::Text);
-
     let search_tasks = sources.into_iter().map(|source| {
         let storage = Arc::clone(&storage);
         let metrics = metrics.clone();
         let query = options.query.clone();
-        let flavor_mode = options.flavor;
 
         async move {
             tokio::task::spawn_blocking(
@@ -333,26 +389,15 @@ async fn perform_search(
                             )
                         })?
                         .with_metrics(metrics);
-                    let desired_flavor =
-                        select_flavor_for_search(&storage, &source, flavor_mode, warn_missing)?;
+
                     let hits = index
-                        .search(
-                            &query,
-                            Some(&source),
-                            Some(&desired_flavor),
-                            effective_limit,
-                        )
+                        .search(&query, Some(&source), effective_limit)
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
                     let total_lines = storage
-                        .load_flavor_json(&source, &desired_flavor)?
-                        .or_else(|| {
-                            storage
-                                .load_flavor_json(&source, BASE_FLAVOR)
-                                .ok()
-                                .flatten()
-                        })
+                        .load_llms_json(&source)
+                        .ok()
                         .map_or(0, |json| json.line_index.total_lines);
 
                     Ok((hits, total_lines, source))
@@ -396,25 +441,39 @@ async fn perform_search(
         matches!(options.format, OutputFormat::Text),
     );
 
-    // Enrich results with sourceUrl and checksum where available
-    // Best-effort: failures are ignored to avoid impacting search flow
-    let mut alias_meta: std::collections::HashMap<String, (String, String)> =
-        std::collections::HashMap::new();
-    for hit in &all_hits {
-        if !alias_meta.contains_key(&hit.alias) {
-            if let Ok(json) = storage.load_llms_json(&hit.alias) {
-                alias_meta.insert(
-                    hit.alias.clone(),
-                    (json.source.url.clone(), json.source.sha256.clone()),
-                );
-            }
-        }
-    }
+    // Enrich results with metadata for provenance and staleness calculations
+    // Best-effort: metadata loading failures are ignored so search results still display
+    let mut metadata_cache: HashMap<String, Option<Source>> = HashMap::new();
     for hit in &mut all_hits {
-        if let Some((url, sha)) = alias_meta.get(&hit.alias) {
-            hit.source_url = Some(url.clone());
-            hit.checksum = sha.clone();
+        let entry = metadata_cache
+            .entry(hit.source.clone())
+            .or_insert_with(|| storage.load_source_metadata(&hit.source).ok().flatten());
+        if let Some(meta) = entry {
+            hit.source_url = Some(meta.url.clone());
+            hit.checksum = meta.sha256.clone();
+            hit.fetched_at = Some(meta.fetched_at);
+            hit.is_stale = staleness::is_stale(meta.fetched_at, DEFAULT_STALE_AFTER_DAYS);
+        } else {
+            hit.source_url = None;
+            hit.fetched_at = None;
+            hit.is_stale = false;
         }
+        hit.context = None;
+    }
+
+    let mut llms_cache: HashMap<String, Option<LlmsJson>> = HashMap::new();
+    let mut line_cache: HashMap<String, Vec<String>> = HashMap::new();
+
+    if options.block {
+        enrich_hits_with_blocks(
+            &mut all_hits,
+            options.max_block_lines,
+            &storage,
+            &mut llms_cache,
+            &mut line_cache,
+        );
+    } else if let Some(context_lines) = options.context {
+        enrich_hits_with_context(&mut all_hits, context_lines, &storage, &mut line_cache);
     }
 
     sources_searched.sort();
@@ -426,55 +485,10 @@ async fn perform_search(
     })
 }
 
-fn select_flavor_for_search(
-    storage: &Storage,
-    alias: &str,
-    mode: FlavorMode,
-    warn_missing: bool,
-) -> Result<String> {
-    match mode {
-        FlavorMode::Current => resolve_flavor(storage, alias),
-        FlavorMode::Auto => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == FULL_FLAVOR) {
-                Ok(FULL_FLAVOR.to_string())
-            } else {
-                resolve_flavor(storage, alias)
-            }
-        },
-        FlavorMode::Full => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == FULL_FLAVOR) {
-                Ok(FULL_FLAVOR.to_string())
-            } else {
-                if warn_missing {
-                    eprintln!(
-                        "Warning: full flavor not available for '{alias}', using resolved default."
-                    );
-                }
-                resolve_flavor(storage, alias)
-            }
-        },
-        FlavorMode::Txt => {
-            let available = storage.available_flavors(alias)?;
-            if available.iter().any(|f| f == BASE_FLAVOR) {
-                Ok(BASE_FLAVOR.to_string())
-            } else {
-                if warn_missing {
-                    eprintln!(
-                        "Warning: base flavor not available for '{alias}', using resolved default."
-                    );
-                }
-                resolve_flavor(storage, alias)
-            }
-        },
-    }
-}
-
 fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
     use std::collections::HashSet;
     let mut seen = HashSet::new();
-    hits.retain(|h| seen.insert((h.alias.clone(), h.lines.clone(), h.heading_path.clone())));
+    hits.retain(|h| seen.insert((h.source.clone(), h.lines.clone(), h.heading_path.clone())));
 }
 
 fn sort_by_score(hits: &mut [SearchHit]) {
@@ -484,7 +498,7 @@ fn sort_by_score(hits: &mut [SearchHit]) {
         match b.score.total_cmp(&a.score) {
             std::cmp::Ordering::Equal => {
                 // Then by alias (ascending)
-                a.alias.cmp(&b.alias)
+                a.source.cmp(&b.source)
                     // Then by line number (ascending)
                     .then(a.lines.cmp(&b.lines))
                     // Finally by heading path (ascending)
@@ -521,6 +535,136 @@ fn apply_percentile_filter(
     }
 }
 
+fn enrich_hits_with_context(
+    hits: &mut [SearchHit],
+    context_lines: usize,
+    storage: &Arc<Storage>,
+    line_cache: &mut HashMap<String, Vec<String>>,
+) {
+    for hit in hits {
+        let Some((base_start, base_end)) = parse_line_span(&hit.lines) else {
+            continue;
+        };
+
+        if let Some(lines) = ensure_lines(line_cache, storage, &hit.source) {
+            if lines.is_empty() {
+                continue;
+            }
+            let total = lines.len();
+            let start = base_start.saturating_sub(context_lines).max(1);
+            let end = (base_end + context_lines).min(total);
+            if start > end {
+                continue;
+            }
+            let slice = &lines[start - 1..end];
+            let content = slice.join("\n");
+            let line_numbers: Vec<usize> = (start..=end).collect();
+            hit.context = Some(HitContext {
+                lines: format!("{start}-{end}"),
+                line_numbers,
+                content,
+                truncated: None,
+            });
+        }
+    }
+}
+
+fn enrich_hits_with_blocks(
+    hits: &mut [SearchHit],
+    max_lines: Option<usize>,
+    storage: &Arc<Storage>,
+    llms_cache: &mut HashMap<String, Option<LlmsJson>>,
+    line_cache: &mut HashMap<String, Vec<String>>,
+) {
+    for hit in hits {
+        let lines = match ensure_lines(line_cache, storage, &hit.source) {
+            Some(lines) if !lines.is_empty() => lines,
+            _ => continue,
+        };
+
+        let doc = ensure_llms(llms_cache, storage, &hit.source);
+        let (start, end) = doc
+            .and_then(|llms| find_heading_span(&llms.toc, &hit.heading_path))
+            .or_else(|| parse_line_span(&hit.lines))
+            .unwrap_or((1, 1));
+
+        let adjusted_max = max_lines.map(|limit| limit.saturating_add(1));
+        if let Some(mut block) = extract_block_slice(lines, start, end, adjusted_max) {
+            if let Some(level) = heading_level_from_line(&lines[start.saturating_sub(1)]) {
+                let mut inferred_end = start;
+                for idx in (start + 1)..=lines.len() {
+                    if let Some(next_level) = heading_level_from_line(&lines[idx - 1]) {
+                        if next_level <= level {
+                            break;
+                        }
+                    }
+                    inferred_end = idx;
+                }
+
+                if inferred_end > start {
+                    if let Some(extended) =
+                        extract_block_slice(lines, start, inferred_end, adjusted_max)
+                    {
+                        block = extended;
+                    }
+                }
+            }
+
+            let finalized = finalize_block_slice(block);
+            let render_end = finalized
+                .content_line_numbers
+                .last()
+                .copied()
+                .unwrap_or(finalized.heading_line);
+
+            hit.context = Some(HitContext {
+                lines: format!(
+                    "{start}-{end}",
+                    start = finalized.heading_line,
+                    end = render_end
+                ),
+                line_numbers: finalized.content_line_numbers,
+                content: finalized.content_lines.join("\n"),
+                truncated: finalized.truncated.then_some(true),
+            });
+        }
+    }
+}
+
+fn ensure_lines<'a>(
+    cache: &'a mut HashMap<String, Vec<String>>,
+    storage: &Arc<Storage>,
+    source: &str,
+) -> Option<&'a Vec<String>> {
+    if !cache.contains_key(source) {
+        let lines = storage
+            .llms_txt_path(source)
+            .ok()
+            .and_then(|path| std::fs::read_to_string(&path).ok())
+            .map(|content| {
+                content
+                    .lines()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        cache.insert(source.to_string(), lines);
+    }
+    cache.get(source)
+}
+
+fn ensure_llms<'a>(
+    cache: &'a mut HashMap<String, Option<LlmsJson>>,
+    storage: &Arc<Storage>,
+    source: &str,
+) -> Option<&'a LlmsJson> {
+    if !cache.contains_key(source) {
+        let value = storage.load_llms_json(source).ok();
+        cache.insert(source.to_string(), value);
+    }
+    cache.get(source).and_then(|entry| entry.as_ref())
+}
+
 /// Formats and displays search results with pagination
 ///
 /// This function safely handles edge cases in pagination including:
@@ -542,7 +686,7 @@ fn apply_percentile_filter(
 ///
 /// let options = SearchOptions {
 ///     query: "test".to_string(),
-///     alias: None,
+///     sources: vec![],
 ///     last: false,
 ///     limit: 10,  // Even with limit 0, actual_limit would be max(0, 1) = 1
 ///     page: 1,
@@ -794,28 +938,61 @@ fn score_tokens(h: &[String], q: &[String]) -> f32 {
 
 // alias resolution moved to utils::resolver
 
+/// Copy search results to clipboard using OSC 52
+fn copy_results_to_clipboard(results: &SearchResults, page: usize, page_size: usize) -> Result<()> {
+    use crate::utils::clipboard;
+
+    // Calculate which hits are on the current page
+    let start_idx = (page - 1) * page_size;
+    let end_idx = (start_idx + page_size).min(results.hits.len());
+    let page_hits = &results.hits[start_idx..end_idx];
+
+    // Build clipboard content with source, heading, and snippet for each hit
+    let mut content = String::new();
+    for hit in page_hits {
+        use std::fmt::Write;
+        writeln!(
+            content,
+            "# {} > {}",
+            hit.source,
+            hit.heading_path.join(" > ")
+        )
+        .ok();
+        writeln!(content, "{}\n", hit.snippet).ok();
+    }
+
+    // Trim trailing whitespace
+    let content = content.trim_end();
+
+    clipboard::copy_to_clipboard(content).context("Failed to copy results to clipboard")?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)] // Test code precision is not critical
 mod tests {
     use super::*;
     use blz_core::SearchHit;
+    use chrono::Utc;
 
     /// Creates a test `SearchResults` with the specified number of hits
     fn create_test_results(num_hits: usize) -> SearchResults {
         let hits: Vec<SearchHit> = (0..num_hits)
             .map(|i| SearchHit {
-                alias: format!("test-{i}"),
                 source: format!("test-{i}"),
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
-                lines: format!("{}-{}", i * 10, i * 10 + 5),
+                lines: format!("{start}-{end}", start = i * 10, end = i * 10 + 5),
                 line_numbers: Some(vec![i * 10, i * 10 + 5]),
                 snippet: format!("test content {i}"),
                 score: (i as f32).mul_add(-0.01, 1.0),
                 source_url: Some(format!("https://example.com/test-{i}")),
+                fetched_at: Some(Utc::now()),
+                is_stale: false,
                 checksum: format!("checksum-{i}"),
                 anchor: Some("unit-test-anchor".to_string()),
-                flavor: Some(BASE_FLAVOR.to_string()),
+                context: None,
             })
             .collect();
 
@@ -833,7 +1010,7 @@ mod tests {
         let results = create_test_results(0);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -846,8 +1023,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         // Should not panic even with empty results
@@ -861,7 +1042,7 @@ mod tests {
         let results = create_test_results(1);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -874,8 +1055,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let result = format_and_display(&results, &options);
@@ -889,7 +1074,7 @@ mod tests {
         let empty_results = create_test_results(0);
         let options_empty = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 2, // Try to access page 2 to trigger div_ceil
@@ -902,8 +1087,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         // This should NOT panic even with empty results
@@ -914,7 +1103,7 @@ mod tests {
         let results = create_test_results(5);
         let options_high_page = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 100, // Very high page to trigger the div_ceil in the message
@@ -927,8 +1116,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -944,7 +1137,7 @@ mod tests {
         let results = create_test_results(5);
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 2,
             page: 100, // Way beyond available pages
@@ -957,8 +1150,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let result = format_and_display(&results, &options);
@@ -973,7 +1170,7 @@ mod tests {
         // Exactly at the boundary (page 2 with limit 5 for 10 results)
         let options = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 5,
             page: 2,
@@ -986,8 +1183,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let result = format_and_display(&results, &options);
@@ -996,7 +1197,7 @@ mod tests {
         // Just beyond the boundary (page 3 with limit 5 for 10 results)
         let options_beyond = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 5,
             page: 3,
@@ -1009,8 +1210,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let test_results = create_test_results(10);
@@ -1026,7 +1231,7 @@ mod tests {
         // Case 1: Normal limit
         let options1 = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: 10,
             page: 1,
@@ -1039,8 +1244,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: false,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let results1 = create_test_results(8);
@@ -1054,7 +1263,7 @@ mod tests {
         // Case 2: ALL_RESULTS_LIMIT with empty results
         let options2 = SearchOptions {
             query: "test".to_string(),
-            alias: None,
+            sources: vec![],
             last: false,
             limit: ALL_RESULTS_LIMIT,
             page: 1,
@@ -1067,8 +1276,12 @@ mod tests {
             no_summary: false,
             score_precision: None,
             snippet_lines: 3,
-            flavor: FlavorMode::Current,
             all: true,
+            no_history: false,
+            copy: false,
+            context: None,
+            block: false,
+            max_block_lines: None,
         };
 
         let results2 = create_test_results(0);

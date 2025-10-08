@@ -4,6 +4,7 @@
 // .agents/rules/conventions/rust/unsafe-policy.md
 // Advanced caching strategies with LRU, TTL, and multi-level caching
 use crate::{Error, Result, SearchHit};
+use chrono::Utc;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -710,19 +711,14 @@ impl SearchCache {
     fn build_cache_key(
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
     ) -> String {
         let alias_key = alias.filter(|a| !a.is_empty()).unwrap_or("~");
-        let flavor_key = flavor
-            .filter(|f| !f.is_empty())
-            .unwrap_or("default");
         let version_key = version.filter(|v| !v.is_empty()).unwrap_or("v0");
 
         format!(
-            "a:{alias}|f:{flavor}|v:{version}|q:{query}",
+            "a:{alias}|v:{version}|q:{query}",
             alias = alias_key,
-            flavor = flavor_key,
             version = version_key,
             query = query
         )
@@ -748,10 +744,9 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         results: Vec<SearchHit>,
     ) {
-        let cache_key = Self::build_cache_key(query, alias, flavor, None);
+        let cache_key = Self::build_cache_key(query, alias, None);
         self.put(cache_key, results).await;
     }
 
@@ -760,9 +755,8 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
-        let cache_key = Self::build_cache_key(query, alias, flavor, None);
+        let cache_key = Self::build_cache_key(query, alias, None);
         self.get(&cache_key).await
     }
 
@@ -772,11 +766,10 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
         results: Vec<SearchHit>,
     ) {
-        let cache_key = Self::build_cache_key(query, alias, flavor, version);
+        let cache_key = Self::build_cache_key(query, alias, version);
         self.put(cache_key, results).await;
     }
 
@@ -785,10 +778,9 @@ impl SearchCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         version: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
-        let cache_key = Self::build_cache_key(query, alias, flavor, version);
+        let cache_key = Self::build_cache_key(query, alias, version);
         self.get(&cache_key).await
     }
 }
@@ -798,14 +790,19 @@ fn search_result_size(results: &Vec<SearchHit>) -> usize {
     std::mem::size_of::<Vec<SearchHit>>() + 
     results.len() * std::mem::size_of::<SearchHit>() +
     results.iter().map(|hit| {
-        hit.alias.len() +
+        hit.source.len() +
         hit.file.len() +
         hit.heading_path.iter().map(|s| s.len()).sum::<usize>() +
         hit.lines.len() +
         hit.line_numbers.as_ref().map(|v| v.len() * std::mem::size_of::<usize>()).unwrap_or(0) +
         hit.snippet.len() +
         hit.source_url.as_ref().map(|s| s.len()).unwrap_or(0) +
-        hit.checksum.len()
+        hit.checksum.len() +
+        hit.context.as_ref().map(|ctx| {
+            ctx.lines.len()
+                + ctx.line_numbers.len() * std::mem::size_of::<usize>()
+                + ctx.content.len()
+        }).unwrap_or(0)
     }).sum::<usize>()
 }
 
@@ -861,14 +858,13 @@ impl QueryCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
     ) -> Option<Vec<SearchHit>> {
         {
             let mut analyzer = self.query_analyzer.write().await;
             analyzer.record_query(query);
         }
 
-        self.cache.get_cached_results(query, alias, flavor).await
+        self.cache.get_cached_results(query, alias).await
     }
 
     /// Cache results and update analytics
@@ -876,11 +872,10 @@ impl QueryCache {
         &self,
         query: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         results: Vec<SearchHit>,
     ) {
         self.cache
-            .cache_search_results(query, alias, flavor, results)
+            .cache_search_results(query, alias, results)
             .await;
     }
 
@@ -1060,7 +1055,6 @@ mod tests {
         let cache = SearchCache::new_search_cache();
         
         let results = vec![SearchHit {
-            alias: "test".to_string(),
             source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
@@ -1069,17 +1063,19 @@ mod tests {
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: None,
-            flavor: Some("llms".to_string()),
+            context: None,
         }];
-        
+
         cache
-            .cache_search_results("test query", Some("test"), Some("llms"), results.clone())
+            .cache_search_results("test query", Some("test"), results.clone())
             .await;
 
         let cached = cache
-            .get_cached_results("test query", Some("test"), Some("llms"))
+            .get_cached_results("test query", Some("test"))
             .await;
         assert_eq!(cached, Some(results));
     }
@@ -1089,9 +1085,9 @@ mod tests {
         let cache = QueryCache::new();
 
         // Record some queries
-        cache.get("test query", Some("alias"), None).await;
-        cache.get("test query", Some("alias"), None).await;
-        cache.get("another query", None, None).await;
+        cache.get("test query", Some("alias")).await;
+        cache.get("test query", Some("alias")).await;
+        cache.get("another query", None).await;
         
         let stats = cache.stats().await;
         assert_eq!(stats.total_queries, 3);
@@ -1123,7 +1119,6 @@ mod tests {
     #[test]
     fn test_search_result_size() {
         let results = vec![SearchHit {
-            alias: "test".to_string(),
             source: "test".to_string(),
             file: "test.md".to_string(),
             heading_path: vec!["Test".to_string()],
@@ -1132,11 +1127,13 @@ mod tests {
             snippet: "test snippet".to_string(),
             score: 0.95,
             source_url: Some("https://test.com".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: None,
-            flavor: Some("llms".to_string()),
+            context: None,
         }];
-        
+
         let size = search_result_size(&results);
         assert!(size > 0);
     }

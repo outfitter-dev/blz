@@ -8,7 +8,7 @@ Thank you for your interest in contributing!
 
 - [Development Setup](./docs/development/contributing.md#development-environment)
 - [Development Workflow](./docs/development/workflow.md)
-- [CI/CD Pipeline](./docs/development/ci-cd.md)
+- [CI/CD Pipeline](./docs/development/ci_cd.md)
 - [Code of Conduct](./docs/development/contributing.md#code-of-conduct)
 
 ## Quick Start

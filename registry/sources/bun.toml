@@ -1,0 +1,13 @@
+id = "bun"
+name = "Bun"
+description = "Fast all-in-one JavaScript runtime"
+url = "https://bun.sh/llms-full.txt"
+fallback = "https://bun.sh/llms.txt"
+category = "runtime"
+tags = ["javascript", "runtime", "bundler", "package-manager"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["bun"]
+github = ["oven-sh/bun"]

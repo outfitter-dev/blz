@@ -1,5 +1,4 @@
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
-use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use sha2::{Digest, Sha256};
@@ -20,8 +19,6 @@ pub struct SearchIndex {
     heading_path_field: Field,
     lines_field: Field,
     alias_field: Field,
-    flavor_field: Option<Field>,
-    alias_flavor_field: Option<Field>,
     anchor_field: Option<Field>,
     reader: IndexReader,
     metrics: Option<PerformanceMetrics>,
@@ -49,8 +46,6 @@ impl SearchIndex {
         let heading_path_field = schema_builder.add_text_field("heading_path", TEXT | STORED);
         let lines_field = schema_builder.add_text_field("lines", STRING | STORED);
         let alias_field = schema_builder.add_text_field("alias", STRING | STORED);
-        let flavor_field = schema_builder.add_text_field("flavor", STRING | STORED);
-        let alias_flavor_field = schema_builder.add_text_field("alias_flavor", STRING | STORED);
         let anchor_field = schema_builder.add_text_field("anchor", STRING | STORED);
 
         let schema = schema_builder.build();
@@ -75,8 +70,6 @@ impl SearchIndex {
             heading_path_field,
             lines_field,
             alias_field,
-            flavor_field: Some(flavor_field),
-            alias_flavor_field: Some(alias_flavor_field),
             reader,
             anchor_field: Some(anchor_field),
             metrics: None,
@@ -115,9 +108,6 @@ impl SearchIndex {
             .get_field("alias")
             .map_err(|_| Error::Index("Missing alias field".into()))?;
 
-        let flavor_field = schema.get_field("flavor").ok();
-        let alias_flavor_field = schema.get_field("alias_flavor").ok();
-
         // Anchor is optional for backward compatibility with older indexes
         let anchor_field = schema.get_field("anchor").ok();
 
@@ -135,8 +125,6 @@ impl SearchIndex {
             heading_path_field,
             lines_field,
             alias_field,
-            flavor_field,
-            alias_flavor_field,
             reader,
             anchor_field,
             metrics: None,
@@ -144,13 +132,7 @@ impl SearchIndex {
     }
 
     /// Indexes a collection of heading blocks for a given alias
-    pub fn index_blocks(
-        &self,
-        alias: &str,
-        file_path: &str,
-        blocks: &[HeadingBlock],
-        flavor: &str,
-    ) -> Result<()> {
+    pub fn index_blocks(&self, alias: &str, blocks: &[HeadingBlock]) -> Result<()> {
         let timer = self.metrics.as_ref().map_or_else(
             || OperationTimer::new(&format!("index_{alias}")),
             |metrics| OperationTimer::with_metrics(&format!("index_{alias}"), metrics.clone()),
@@ -164,15 +146,9 @@ impl SearchIndex {
                 .map_err(|e| Error::Index(format!("Failed to create writer: {e}")))
         })?;
 
-        let alias_flavor_value = format!("{alias}::{flavor}");
-
+        // Delete all existing documents for this alias
         let _deleted = timings.time("delete_existing", || {
-            self.alias_flavor_field.map_or_else(
-                || writer.delete_term(tantivy::Term::from_field_text(self.alias_field, alias)),
-                |field| {
-                    writer.delete_term(tantivy::Term::from_field_text(field, &alias_flavor_value))
-                },
-            )
+            writer.delete_term(tantivy::Term::from_field_text(self.alias_field, alias))
         });
 
         let mut total_content_bytes = 0usize;
@@ -187,17 +163,11 @@ impl SearchIndex {
 
                 let mut doc = doc!(
                     self.content_field => block.content.as_str(),  // Use &str instead of clone
-                    self.path_field => file_path,
+                    self.path_field => "llms.txt",  // Always llms.txt (no flavor variants)
                     self.heading_path_field => heading_path_str,
                     self.lines_field => lines_str,
                     self.alias_field => alias
                 );
-                if let Some(field) = self.flavor_field {
-                    doc.add_text(field, flavor);
-                }
-                if let Some(field) = self.alias_flavor_field {
-                    doc.add_text(field, &alias_flavor_value);
-                }
                 if let (Some(f), Some(a)) = (self.anchor_field, anchor) {
                     doc.add_text(f, a);
                 }
@@ -245,7 +215,6 @@ impl SearchIndex {
         &self,
         query_str: &str,
         alias: Option<&str>,
-        flavor: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
         let timer = self.metrics.as_ref().map_or_else(
@@ -276,43 +245,6 @@ impl SearchIndex {
         let mut filter_clauses = Vec::new();
         if let Some(alias) = alias {
             filter_clauses.push(format!("alias:{alias}"));
-        }
-
-        let normalized_flavors = flavor.and_then(|raw| {
-            let normalized = normalize_flavor_filters(raw);
-            if normalized.is_empty() {
-                if !raw.trim().is_empty() {
-                    tracing::debug!(
-                        filter = raw,
-                        "Ignoring flavor filter with no recognized values"
-                    );
-                }
-                None
-            } else {
-                Some(normalized)
-            }
-        });
-
-        match (self.flavor_field, normalized_flavors) {
-            (Some(_), Some(values)) => {
-                if values.len() == 1 {
-                    filter_clauses.push(format!("flavor:{}", values[0]));
-                } else {
-                    let clause = values
-                        .iter()
-                        .map(|value| format!("flavor:{value}"))
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
-                    filter_clauses.push(format!("({clause})"));
-                }
-            },
-            (None, Some(values)) => {
-                tracing::warn!(
-                    filters = %values.join(","),
-                    "Flavor filtering requested but index schema has no flavor field; ignoring"
-                );
-            },
-            _ => {},
         }
 
         let sanitized_query = if needs_escaping {
@@ -376,11 +308,6 @@ impl SearchIndex {
                         .and_then(|v| v.as_str())
                         .map(std::string::ToString::to_string)
                 });
-                let flavor_value = self.flavor_field.and_then(|f| {
-                    doc.get_first(f)
-                        .and_then(|v| v.as_str())
-                        .map(std::string::ToString::to_string)
-                });
 
                 // Count lines for metrics
                 lines_searched += content.lines().count();
@@ -400,7 +327,6 @@ impl SearchIndex {
                 let line_numbers = Self::parse_lines_range(&exact_lines);
 
                 hits.push(SearchHit {
-                    alias: alias.clone(),
                     source: alias,
                     file,
                     heading_path,
@@ -409,9 +335,11 @@ impl SearchIndex {
                     snippet,
                     score,
                     source_url: None,
+                    fetched_at: None,
+                    is_stale: false,
                     checksum: String::new(),
                     anchor,
-                    flavor: flavor_value,
+                    context: None,
                 });
             }
             Ok::<(), Error>(())
@@ -693,12 +621,12 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks("test", "test.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         // Search for content
         let hits = index
-            .search("useState", Some("test"), None, 10)
+            .search("useState", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results for useState");
@@ -706,8 +634,8 @@ mod tests {
             hits[0].snippet.contains("useState"),
             "Result should contain useState"
         );
-        assert_eq!(hits[0].alias, "test");
-        assert_eq!(hits[0].file, "test.md");
+        assert_eq!(hits[0].source, "test");
+        assert_eq!(hits[0].file, "llms.txt");
     }
 
     #[test]
@@ -719,12 +647,12 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks("test", "test.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         // Search with limit
         let hits = index
-            .search("React", Some("test"), None, 1)
+            .search("React", Some("test"), 1)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
@@ -746,11 +674,11 @@ mod tests {
         }];
 
         index
-            .index_blocks("test", "api.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         let hits = index
-            .search("token", Some("test"), None, 10)
+            .search("token", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty());
@@ -758,105 +686,6 @@ mod tests {
         // Anchor should be derived from the last heading segment
         let expected = SearchIndex::compute_anchor("Reference");
         assert_eq!(hits[0].anchor.clone().unwrap(), expected);
-    }
-
-    #[test]
-    fn test_search_filters_by_flavor() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let index_path = temp_dir.path().join("test_index");
-
-        let index = SearchIndex::create(&index_path).expect("Should create index");
-
-        let llms_blocks = vec![HeadingBlock {
-            path: vec!["Docs".to_string()],
-            content: "base flavor content".to_string(),
-            start_line: 1,
-            end_line: 5,
-        }];
-
-        let full_blocks = vec![HeadingBlock {
-            path: vec!["Docs".to_string(), "Full".to_string()],
-            content: "full flavor content".to_string(),
-            start_line: 6,
-            end_line: 10,
-        }];
-
-        index
-            .index_blocks("alias", "llms.txt", &llms_blocks, "llms")
-            .expect("Should index base flavor");
-        index
-            .index_blocks("alias", "llms-full.txt", &full_blocks, "llms-full")
-            .expect("Should index full flavor");
-
-        let all_hits = index
-            .search("flavor", Some("alias"), None, 10)
-            .expect("Should search without flavor filter");
-        assert_eq!(all_hits.len(), 2);
-
-        let full_hits = index
-            .search("flavor", Some("alias"), Some("llms-full"), 10)
-            .expect("Should filter by llms-full");
-        assert_eq!(full_hits.len(), 1);
-        assert_eq!(full_hits[0].flavor.as_deref(), Some("llms-full"));
-        assert_eq!(full_hits[0].file, "llms-full.txt");
-
-        let base_hits = index
-            .search("flavor", Some("alias"), Some("llms"), 10)
-            .expect("Should filter by llms");
-        assert_eq!(base_hits.len(), 1);
-        assert_eq!(base_hits[0].flavor.as_deref(), Some("llms"));
-        assert_eq!(base_hits[0].file, "llms.txt");
-
-        let missing_hits = index
-            .search("flavor", Some("alias"), Some("nonexistent-flavor"), 10)
-            .expect("Should handle non-existent flavor");
-        assert_eq!(missing_hits.len(), 2);
-    }
-
-    #[test]
-    fn test_search_mixed_flavor_filters() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let index_path = temp_dir.path().join("test_index_mixed");
-
-        let index = SearchIndex::create(&index_path).expect("Should create index");
-
-        let base_blocks = vec![HeadingBlock {
-            path: vec!["Docs".to_string()],
-            content: "base flavor content".to_string(),
-            start_line: 1,
-            end_line: 5,
-        }];
-
-        let full_blocks = vec![HeadingBlock {
-            path: vec!["Docs".to_string(), "Full".to_string()],
-            content: "full flavor content".to_string(),
-            start_line: 6,
-            end_line: 10,
-        }];
-
-        index
-            .index_blocks("alias", "llms.txt", &base_blocks, "llms")
-            .expect("Should index base flavor");
-        index
-            .index_blocks("alias", "llms-full.txt", &full_blocks, "llms-full")
-            .expect("Should index full flavor");
-
-        let mixed_full_hits = index
-            .search("flavor", Some("alias"), Some("llms-full,unknown"), 10)
-            .expect("Should ignore unknown flavor token");
-        assert_eq!(mixed_full_hits.len(), 1);
-        assert_eq!(mixed_full_hits[0].flavor.as_deref(), Some("llms-full"));
-
-        let mixed_base_hits = index
-            .search("flavor", Some("alias"), Some("unknown|llms"), 10)
-            .expect("Should ignore unknown flavor token and return base hits");
-        assert_eq!(mixed_base_hits.len(), 1);
-        assert_eq!(mixed_base_hits[0].flavor.as_deref(), Some("llms"));
-
-        let ignored_hits = index
-            .search("flavor", Some("alias"), Some("unknown"), 10)
-            .expect("Should ignore unknown-only filters");
-        assert_eq!(ignored_hits.len(), 2);
     }
 
     #[test]
@@ -868,12 +697,12 @@ mod tests {
         let blocks = create_test_blocks();
 
         index
-            .index_blocks("test", "test.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         // Search for non-existent term
         let hits = index
-            .search("nonexistentterm12345", Some("test"), None, 10)
+            .search("nonexistentterm12345", Some("test"), 10)
             .expect("Should search");
 
         assert!(
@@ -901,13 +730,13 @@ mod tests {
         }
 
         index
-            .index_blocks("perftest", "large.md", &blocks, "llms")
+            .index_blocks("perftest", &blocks)
             .expect("Should index many blocks");
 
         // Test search performance
         let start = Instant::now();
         let hits = index
-            .search("React", Some("perftest"), None, 50)
+            .search("React", Some("perftest"), 50)
             .expect("Should search");
         let duration = start.elapsed();
 
@@ -948,11 +777,11 @@ mod tests {
         ];
 
         index
-            .index_blocks("test", "test.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         let hits = index
-            .search("React hooks", Some("test"), None, 10)
+            .search("React hooks", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
@@ -991,16 +820,16 @@ mod tests {
         }];
 
         index
-            .index_blocks("test", "api.md", &blocks, "llms")
+            .index_blocks("test", &blocks)
             .expect("Should index blocks");
 
         let hits = index
-            .search("useState", Some("test"), None, 10)
+            .search("useState", Some("test"), 10)
             .expect("Should search");
 
         assert!(!hits.is_empty(), "Should find results");
         assert_eq!(hits[0].heading_path, vec!["API", "Reference", "Hooks"]);
-        assert_eq!(hits[0].file, "api.md");
+        assert_eq!(hits[0].file, "llms.txt");
         // Lines should point to the exact match within the block (first line)
         assert!(
             hits[0].lines.starts_with("100-"),
@@ -1039,7 +868,7 @@ mod tests {
         ];
 
         index
-            .index_blocks("unicode_test", "test.md", &unicode_blocks, "llms")
+            .index_blocks("unicode_test", &unicode_blocks)
             .expect("Should index blocks");
 
         // Test searching for various Unicode content
@@ -1047,7 +876,7 @@ mod tests {
 
         for (query, _expected_content) in test_cases {
             let results = index
-                .search(query, Some("unicode_test"), None, 10)
+                .search(query, Some("unicode_test"), 10)
                 .unwrap_or_else(|_| panic!("Should search for '{query}'"));
 
             if !results.is_empty() {
@@ -1086,11 +915,11 @@ mod tests {
         }];
 
         index
-            .index_blocks("edge_test", "test.md", &blocks, "llms")
+            .index_blocks("edge_test", &blocks)
             .expect("Should index blocks");
 
         let results = index
-            .search("MARKER", Some("edge_test"), None, 10)
+            .search("MARKER", Some("edge_test"), 10)
             .expect("Should search");
 
         assert!(!results.is_empty());

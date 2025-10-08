@@ -1,0 +1,13 @@
+id = "pinecone"
+name = "Pinecone"
+description = "Vector database for AI applications"
+url = "https://docs.pinecone.io/llms-full.txt"
+category = "database"
+tags = ["vector", "database", "ai", "embeddings", "search"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["@pinecone-database/pinecone"]
+github = ["pinecone-io/pinecone-ts-client"]
+pypi = ["pinecone-client"]

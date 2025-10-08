@@ -29,7 +29,7 @@ impl TextFormatter {
         let mut sorted_aliases: Vec<String> = params
             .hits
             .iter()
-            .map(|h| h.alias.clone())
+            .map(|h| h.source.clone())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
@@ -43,12 +43,12 @@ impl TextFormatter {
         let mut groups: Vec<(String, Vec<String>, Vec<&SearchHit>)> = Vec::new();
         for hit in params.hits {
             if let Some((last_alias, last_path, grouped_hits)) = groups.last_mut() {
-                if *last_alias == hit.alias && *last_path == hit.heading_path {
+                if *last_alias == hit.source && *last_path == hit.heading_path {
                     grouped_hits.push(hit);
                     continue;
                 }
             }
-            groups.push((hit.alias.clone(), hit.heading_path.clone(), vec![hit]));
+            groups.push((hit.source.clone(), hit.heading_path.clone(), vec![hit]));
         }
 
         let mut rendered_groups: Vec<String> = Vec::with_capacity(groups.len());
@@ -243,7 +243,10 @@ fn resolve_group_url(
         return Some(url);
     }
     let storage = storage?;
-    storage.load_llms_json(alias).ok().map(|doc| doc.source.url)
+    storage
+        .load_llms_json(alias)
+        .ok()
+        .map(|doc| doc.metadata.url)
 }
 
 fn format_score_value(score: f32, precision: u8) -> String {
@@ -261,8 +264,8 @@ fn extract_context_lines(
     let (start, end) = parse_line_range(&hit.lines);
     let lines = match storage {
         Some(storage) => cache
-            .entry(hit.alias.clone())
-            .or_insert_with(|| load_llms_lines(storage, &hit.alias)),
+            .entry(hit.source.clone())
+            .or_insert_with(|| load_llms_lines(storage, &hit.source)),
         None => return Vec::new(),
     };
 

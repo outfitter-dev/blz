@@ -1,0 +1,27 @@
+{
+  "target": "registry",
+  "summary": "Maintain the bundled registry of llms.txt sources. Useful when contributing new documentation entries upstream.",
+  "subcommands": [
+    {
+      "name": "registry create-source",
+      "command": "blz registry create-source <name> --url <llms.txt> [--description TEXT] [--category TAG] [--tags fast,ai] [--npm pkg] [--github org/repo]",
+      "description": "Append a source to `registry.json` and optionally add it to your local cache (`--add`)."
+    }
+  ],
+  "workflow": [
+    "Validate the candidate docs manually: run `blz add <temp-alias> <url> --dry-run` to ensure quality.",
+    "Invoke `blz registry create-source ... --add` to persist metadata and index locally in one shot.",
+    "Run `blz lookup <name>` to confirm the new entry surfaces with healthy HEAD metadata.",
+    "Open a PR against https://github.com/outfitter-dev/blz with the updated `registry.json`."
+  ],
+  "fields": [
+    "name – slug used by lookup/search results.",
+    "url – canonical llms-full.txt endpoint (use the llms-full variant when available).",
+    "tags/category – help agents and humans filter registry results.",
+    "npm/github – optional enrichments that lookup can expose."
+  ],
+  "notes": [
+    "Registry commands mutate the repo workspace; they are intended for maintainers preparing PRs.",
+    "Set `BLZ_REGISTRY_ENABLED=0` when you want to test the CLI without contacting the registry (e.g., air-gapped environments)."
+  ]
+}

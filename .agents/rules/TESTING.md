@@ -8,6 +8,21 @@ Testing in Rust should leverage the type system to catch bugs at compile time, t
 
 ### 1. Unit Tests
 
+#### Command/CLI seams
+
+We are moving CLI commands toward a "thin shell + testable core" pattern. When touching CLI code:
+
+- Extract work into a pure function (`execute_*` or `*_core`) that accepts injected traits for storage/indexing/network prompts. See:
+  - `crates/blz-cli/src/commands/clear.rs` (`ClearStorage`, `execute_clear`).
+  - `crates/blz-cli/src/commands/list.rs` (`ListStorage`, `render_list`).
+  - `crates/blz-cli/src/commands/remove.rs` (`RemoveStorage`, `execute_remove`).
+  - `crates/blz-cli/src/commands/update.rs` (`UpdateStorage`, `apply_update`).
+- Keep the public `execute` wrapper responsible only for wiring real dependencies (stdout, stdin confirmations, progress bars).
+- Mock storage/indexers in unit tests to avoid hitting the filesystem or network. Prefer light in-crate structs (no external mocking framework yet).
+- Verify both behavior and side effects by inspecting the mock (e.g., which aliases were saved/indexed).
+
+This keeps unit tests fast, deterministic, and unlocks seamless coverage without complex integration scaffolding.
+
 **Co-located with Source Code**
 
 ```rust

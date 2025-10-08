@@ -289,7 +289,7 @@ hyperfine --warmup 10 --min-runs 50 \
 
 ### Communication
 
-- **Questions**: Open a [GitHub Discussion](https://github.com/outfitter-dev/blz/discussions)
+- **Questions**: Open a [GitHub Issue](https://github.com/outfitter-dev/blz/issues)
 - **Bugs**: File an [Issue](https://github.com/outfitter-dev/blz/issues)
 - **Security**: Email security concerns privately
 

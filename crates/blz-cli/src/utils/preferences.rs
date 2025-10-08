@@ -27,7 +27,7 @@ pub struct SearchHistoryEntry {
     pub timestamp: String,
     pub query: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub alias: Option<String>,
+    pub source: Option<String>,
     pub format: String,
     pub show: Vec<String>,
     pub snippet_lines: u8,
@@ -185,7 +185,7 @@ impl<'a> HistoryEntryBuilder<'a> {
         SearchHistoryEntry {
             timestamp,
             query: self.query.to_string(),
-            alias: self.alias.map(std::string::ToString::to_string),
+            source: self.alias.map(std::string::ToString::to_string),
             format: format_to_string(self.format),
             show: components_to_strings(self.show),
             snippet_lines: clamp_snippet(self.snippet_lines),
@@ -203,6 +203,7 @@ pub fn format_to_string(format: OutputFormat) -> String {
         OutputFormat::Text => "text".to_string(),
         OutputFormat::Json => "json".to_string(),
         OutputFormat::Jsonl => "jsonl".to_string(),
+        OutputFormat::Raw => "raw".to_string(),
     }
 }
 
@@ -330,11 +331,7 @@ pub fn local_scope_key() -> Option<String> {
         .map(|dir| format!("local:{}", canonicalize_path(&dir)))
 }
 
-pub fn local_scope_path() -> Option<PathBuf> {
-    env::current_dir()
-        .ok()
-        .map(|dir| PathBuf::from(canonicalize_path(&dir)))
-}
+// Removed local_scope_path - was only used by flavor preferences (eliminated in v1.0.0-beta.1)
 
 fn canonicalize(value: &str) -> String {
     canonicalize_path(Path::new(value))

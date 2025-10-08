@@ -1,0 +1,12 @@
+id = "ant-design"
+name = "Ant Design"
+description = "Enterprise-class UI design language and React UI library"
+url = "https://ant.design/llms-full.txt"
+category = "library"
+tags = ["react", "ui", "components", "design-system", "enterprise"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["antd"]
+github = ["ant-design/ant-design"]

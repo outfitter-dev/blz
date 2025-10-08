@@ -51,7 +51,7 @@
 //! # Ok::<(), blz_core::Error>(())
 //! ```
 
-use crate::{Error, Result};
+use crate::{Error, Result, profile};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -124,11 +124,6 @@ pub struct DefaultsConfig {
     /// Only used when `follow_links` is set to `Allowlist`. Links to domains
     /// not in this list will be ignored.
     pub allowlist: Vec<String>,
-
-    /// Prefer upgrading/using llms-full.txt when available.
-    /// When true, update operations default to choosing llms-full.txt where available.
-    #[serde(default)]
-    pub prefer_llms_full: bool,
 }
 
 /// Policy for following external links in llms.txt files.
@@ -324,14 +319,14 @@ impl Config {
             .map(PathBuf::from)
             .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join(".config")))
             .ok_or_else(|| Error::Config("Failed to determine XDG config directory".into()))?;
-        Ok(xdg.join("blz").join("config.toml"))
+        Ok(xdg.join(profile::app_dir_slug()).join("config.toml"))
     }
 
     fn dotfile_config_path() -> Result<PathBuf> {
         let home = directories::BaseDirs::new()
             .map(|b| b.home_dir().to_path_buf())
             .ok_or_else(|| Error::Config("Failed to determine home directory".into()))?;
-        Ok(home.join(".blz").join("config.toml"))
+        Ok(home.join(profile::dot_dir_slug()).join("config.toml"))
     }
 
     fn existing_config_path() -> Result<Option<PathBuf>> {
@@ -435,10 +430,6 @@ impl Config {
                 self.paths.root = p;
             }
         }
-        if let Ok(v) = std::env::var("BLZ_PREFER_LLMS_FULL") {
-            let s = v.trim().to_ascii_lowercase();
-            self.defaults.prefer_llms_full = matches!(s.as_str(), "1" | "true" | "yes" | "on");
-        }
     }
 }
 
@@ -451,19 +442,23 @@ impl Default for Config {
                 fetch_enabled: true,
                 follow_links: FollowLinks::FirstParty,
                 allowlist: Vec::new(),
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
-                root: directories::ProjectDirs::from("dev", "outfitter", "blz").map_or_else(
-                    || {
-                        // Expand home directory properly
-                        directories::BaseDirs::new().map_or_else(
-                            || PathBuf::from(".outfitter/blz"),
-                            |base| base.home_dir().join(".outfitter").join("blz"),
-                        )
-                    },
-                    |dirs| dirs.data_dir().to_path_buf(),
-                ),
+                root: directories::ProjectDirs::from("dev", "outfitter", profile::app_dir_slug())
+                    .map_or_else(
+                        || {
+                            // Expand home directory properly
+                            directories::BaseDirs::new().map_or_else(
+                                || PathBuf::from(".outfitter").join(profile::app_dir_slug()),
+                                |base| {
+                                    base.home_dir()
+                                        .join(".outfitter")
+                                        .join(profile::app_dir_slug())
+                                },
+                            )
+                        },
+                        |dirs| dirs.data_dir().to_path_buf(),
+                    ),
             },
         }
     }
@@ -697,7 +692,6 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec!["example.com".to_string(), "docs.rs".to_string()],
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp/test"),
@@ -945,7 +939,6 @@ mod tests {
                 fetch_enabled: false,
                 follow_links: FollowLinks::None,
                 allowlist: vec!["a".repeat(1000)], // Very long domain
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/".repeat(100)), // Very long path
@@ -978,7 +971,6 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec![], // Empty allowlist
-                prefer_llms_full: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp"),
@@ -1010,7 +1002,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1032,7 +1023,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1054,7 +1044,6 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::Allowlist,
                     allowlist: allowlist.clone(),
-                    prefer_llms_full: false,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),

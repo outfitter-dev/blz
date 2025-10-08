@@ -1,0 +1,48 @@
+{
+  "target": "add",
+  "summary": "Register new documentation sources by alias. Prefer llms-full.txt endpoints to maximise coverage before falling back to llms.txt.",
+  "usage": [
+    {
+      "command": "blz add <alias> <https://domain.com/llms-full.txt> -y",
+      "description": "Fetch, parse, and index a single llms-full.txt without interactive confirmation."
+    },
+    {
+      "command": "blz add --manifest sources.manifest.toml",
+      "description": "Batch ingest multiple sources defined in TOML. Combine with `--only alias1,alias2` for scoped runs."
+    },
+    {
+      "command": "blz add <alias> <url> --dry-run",
+      "description": "Validate a candidate source and return JSON analysis (line counts, section stats) without writing to disk."
+    }
+  ],
+  "required_inputs": [
+    "alias – lowercase identifier used for search/get commands and storage paths",
+    "url – use llms-full.txt when available; BLZ will downgrade to llms.txt only if no full variant exists",
+    "manifest (optional) – TOML file describing multiple sources (alias, url, display name, tags)"
+  ],
+  "supporting_flags": [
+    {
+      "flag": "--aliases <a,b,c>",
+      "impact": "Adds lookup aliases that resolve back to the canonical source."
+    },
+    {
+      "flag": "--description / --category / --tags",
+      "impact": "Persists richer metadata for list/lookup output and downstream agents."
+    },
+    {
+      "flag": "--yes",
+      "impact": "Skips confirmation prompts—necessary for agent/scheduled runs."
+    }
+  ],
+  "agent_workflow": [
+    "If the registry misses a source, probe for llms-full.txt manually: check `<docs-root>/llms-full.txt`, inspect the site's robots/config, or search the repo for `llms-full`. Always prefer the `llms-full` variant before settling on `llms.txt`.",
+    "Run `blz add <alias> <https://domain/llms-full.txt> -y` to ingest it once confirmed.",
+    "Use `blz add <alias> <url> --dry-run` to sanity-check heading counts before committing.",
+    "Verify ingestion with `blz list --format json | jq '.[] | select(.alias==\"<alias>\")'` before handing off to prompts."
+  ],
+  "error_recovery": [
+    "Checksum mismatches typically indicate the upstream file changed mid-run. Retry after `blz update <alias>`.",
+    "HTTP 404/401 responses surface as user errors—confirm the llms.txt URL is publicly accessible or supply credentials via manifest if supported.",
+    "Duplicate alias? Run `blz remove <alias>` first or choose an alternative canonical name."
+  ]
+}

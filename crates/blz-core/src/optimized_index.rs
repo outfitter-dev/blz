@@ -2,7 +2,6 @@
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
-use crate::types::normalize_flavor_filters;
 use crate::{Error, HeadingBlock, Result, SearchHit};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
@@ -56,7 +55,6 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
-    flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -386,7 +384,6 @@ impl OptimizedSearchIndex {
             };
 
             results.push(SearchHit {
-                alias: alias_interned.to_string(),
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
@@ -395,9 +392,11 @@ impl OptimizedSearchIndex {
                 snippet: snippet_buffer.as_str().to_string(),
                 score,
                 source_url: None,
+                fetched_at: None,
+                is_stale: false,
                 checksum: String::new(),
                 anchor: None,
-                flavor,
+                context: None,
             });
         }
 

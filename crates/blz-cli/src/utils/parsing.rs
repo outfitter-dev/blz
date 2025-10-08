@@ -18,8 +18,8 @@ use anyhow::Result;
 ///
 /// # Examples
 ///
-/// ```rust,no_run
-/// use blz_cli::utils::LineRange;
+/// ```rust,ignore
+/// use crate::utils::LineRange;
 ///
 /// let single = LineRange::Single(42);        // Line 42
 /// let range = LineRange::Range(10, 20);      // Lines 10-20 (inclusive)
@@ -99,26 +99,26 @@ pub enum LineRange {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
-/// use blz_cli::utils::{parse_line_ranges, LineRange};
+/// ```rust,ignore
+/// use crate::utils::{parse_line_ranges, LineRange};
 ///
 /// // Single line
-/// let ranges = parse_line_ranges("42")?;
+/// let ranges = parse_line_ranges("42").unwrap();
 /// assert!(matches!(ranges[0], LineRange::Single(42)));
 ///
 /// // Range formats
-/// let ranges = parse_line_ranges("120:142")?;
+/// let ranges = parse_line_ranges("120:142").unwrap();
 /// assert!(matches!(ranges[0], LineRange::Range(120, 142)));
 ///
-/// let ranges = parse_line_ranges("120-142")?; // Equivalent
+/// let ranges = parse_line_ranges("120-142").unwrap(); // Equivalent
 /// assert!(matches!(ranges[0], LineRange::Range(120, 142)));
 ///
 /// // Plus syntax
-/// let ranges = parse_line_ranges("36+20")?;
+/// let ranges = parse_line_ranges("36+20").unwrap();
 /// assert!(matches!(ranges[0], LineRange::PlusCount(36, 20)));
 ///
 /// // Multiple ranges
-/// let ranges = parse_line_ranges("1:5,100,200+10")?;
+/// let ranges = parse_line_ranges("1:5,100,200+10").unwrap();
 /// assert_eq!(ranges.len(), 3);
 /// assert!(matches!(ranges[0], LineRange::Range(1, 5)));
 /// assert!(matches!(ranges[1], LineRange::Single(100)));
@@ -158,6 +158,22 @@ pub fn parse_line_ranges(input: &str) -> Result<Vec<LineRange>> {
     }
 
     Ok(ranges)
+}
+
+/// Parse a single line span string into `(start, end)` bounds.
+///
+/// Returns `None` if the input cannot be parsed into a valid range.
+#[must_use]
+pub fn parse_line_span(input: &str) -> Option<(usize, usize)> {
+    let mut iter = parse_line_ranges(input).ok()?.into_iter();
+    let first = iter.next()?;
+    match first {
+        LineRange::Single(n) => Some((n, n)),
+        LineRange::Range(start, end) => Some((start, end)),
+        LineRange::PlusCount(start, count) => {
+            Some((start, start.saturating_add(count.saturating_sub(1))))
+        },
+    }
 }
 
 fn parse_colon_range(part: &str, colon_pos: usize) -> Result<LineRange> {

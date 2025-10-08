@@ -19,17 +19,13 @@
 //!
 //! ## Common Usage Patterns
 //!
-//! ```rust,no_run
-//! use crate::utils::{validate_alias, parse_line_ranges, get_alias_color};
+//! ```rust,ignore
+//! use crate::utils::{get_alias_color, parse_line_ranges, validate_alias};
 //!
-//! // Validate user input
-//! validate_alias("react")?;
-//!
-//! // Parse line ranges
-//! let ranges = parse_line_ranges("120-142,200+10")?;
-//!
-//! // Get consistent colors
+//! assert!(validate_alias("react").is_ok());
+//! let ranges = parse_line_ranges("120-142,200+10").unwrap();
 //! let color = get_alias_color("react");
+//! println!("{ranges:?} -> {color}");
 //! ```
 //!
 //! ## Reserved Keywords
@@ -56,20 +52,24 @@
 //! - Color output respects `NO_COLOR` and terminal capabilities
 
 pub mod cli_args;
+pub mod clipboard;
 pub mod constants;
-pub mod flavor;
 pub mod formatting;
 pub mod history_log;
-pub mod http;
+pub mod json_builder;
 pub mod parsing;
 pub mod preferences;
 pub mod process_guard;
 pub mod resolver;
 pub mod settings;
+pub mod staleness;
 pub mod store;
+pub mod toc;
+pub mod url_resolver;
 pub mod validation;
 
 #[cfg(test)]
 pub mod test_support;
 
 // Re-export commonly used utilities
+pub use toc::count_headings;

@@ -110,10 +110,10 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
         "alias": alias,
         "source": canonical,
         "previous": {
-            "sha256": prev.source.sha256,
+            "sha256": prev.metadata.sha256,
         },
         "current": {
-            "sha256": current.source.sha256,
+            "sha256": current.metadata.sha256,
         },
         "moved": moved_enriched,
         "added": added,

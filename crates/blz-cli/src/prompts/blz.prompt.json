@@ -1,0 +1,54 @@
+{
+  "target": "blz",
+  "summary": "Local-first CLI for fetching llms-full.txt documentation, indexing it with Tantivy, and returning exact spans for agent workflows.",
+  "core_workflows": [
+    {
+      "name": "Bootstrap sources",
+      "steps": [
+        "Install with `cargo install --path crates/blz-cli` or use the provided install script.",
+        "Call `blz add <alias> <https://domain/llms-full.txt> -y` for each documentation set.",
+        "Verify with `blz list --format json` before allowing agents to use the cache."
+      ]
+    },
+    {
+      "name": "Retrieval loop",
+      "steps": [
+        "Call `blz search \"<query>\" --format json` to gather ranked snippets.",
+        "Take the top result’s alias and lines (e.g. `bun:1853-1858`).",
+        "Fetch context with `blz get bun:1853-1858 --context 3 --format text`.",
+        "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" --context 2 --format json` and merge spans client-side."
+      ]
+    },
+    {
+      "name": "Maintenance",
+      "steps": [
+        "Schedule `blz update --all` routinely to keep checksums current.",
+        "Audit staleness via `blz list --format json | jq '.[] | select(.stalenessDays > 3)'`.",
+        "Use `./hydrate-dev.sh --force` to clone production caches into the `blz-dev` profile when testing."
+      ]
+    }
+  ],
+  "key_commands": [
+    { "command": "blz search \"query\" --source <alias> --format json", "purpose": "Structured retrieval entry point for agents." },
+    { "command": "blz get <alias>:<start-end> --context 3 --format text", "purpose": "Deterministic span extraction for prompts." },
+    { "command": "blz get <alias> --lines \"start-end,other\" --context 2 --format json", "purpose": "Multi-range extraction when a single hit is insufficient." },
+    { "command": "blz add <alias> <https://domain/llms-full.txt> -y", "purpose": "Source onboarding with non-interactive confirmation." },
+    { "command": "blz update --all", "purpose": "Refresh caches while honoring HTTP caching headers." },
+    { "command": "blz --prompt <target>", "purpose": "Obtain JSON guidance for any command when constructing tool schemas." }
+  ],
+  "agent_tips": [
+    "Set `BLZ_OUTPUT_FORMAT=json` to avoid sprinkling `--format json` across every call.",
+    "Treat aliases as canonical ids (directory names and resolver lookups rely on them).",
+    "Surface `checksum` fields in tool outputs so downstream steps can verify span freshness.",
+    "Keep spans short (2-5 snippets) and derive broader context by chaining `get` calls instead of dumping whole documents."
+  ],
+  "integration_points": {
+    "environment_variables": [
+      "BLZ_OUTPUT_FORMAT (text/json/jsonl)",
+      "BLZ_CONFIG / BLZ_CONFIG_DIR / BLZ_DATA_DIR for custom storage locations",
+      "BLZ_SUPPRESS_DEPRECATIONS=1 to silence compatibility warnings"
+    ],
+    "dev_binary": "Use `./install-dev.sh` to install the `blz-dev` variant. It scopes data to ~/.blz-dev/ so you can test without touching production caches.",
+    "hydration": "Run `./hydrate-dev.sh` to copy production sources into the dev profile when you need realistic fixtures."
+  }
+}

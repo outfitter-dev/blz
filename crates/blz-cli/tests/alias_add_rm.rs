@@ -30,6 +30,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     // Add source
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["add", "e2e", &url, "-y"])
         .assert()
         .success();
@@ -37,6 +38,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     // Add alias
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["alias", "add", "e2e", "@scope/package"])
         .assert()
         .success();
@@ -45,6 +47,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["list", "--format", "json"])
         .assert()
         .success()
@@ -65,6 +68,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     // Remove alias
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["alias", "rm", "e2e", "@scope/package"])
         .assert()
         .success();
@@ -73,6 +77,7 @@ async fn alias_add_and_remove_updates_list_json() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let out2 = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["list", "--format", "json"])
         .assert()
         .success()

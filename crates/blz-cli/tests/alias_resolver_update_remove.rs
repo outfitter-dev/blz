@@ -29,6 +29,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     // Add canonical
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["add", "canon", &url, "-y"])
         .assert()
         .success();
@@ -36,6 +37,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     // Add metadata alias
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["alias", "add", "canon", "@scope/pkg"])
         .assert()
         .success();
@@ -43,6 +45,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     // Update using metadata alias
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["update", "@scope/pkg", "--quiet"])
         .assert()
         .success();
@@ -50,6 +53,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     // Remove using metadata alias
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["remove", "@scope/pkg", "-y"]) // should resolve to canonical and delete
         .assert()
         .success();
@@ -58,6 +62,7 @@ async fn update_and_remove_accept_metadata_alias() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["list", "-f", "json"])
         .assert()
         .success()

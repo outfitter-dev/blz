@@ -1,0 +1,10 @@
+{
+  "target": "diff",
+  "summary": "Experimental command to compare cached versions of a source. Intended for maintainers while the feature is in development.",
+  "status": "hidden",
+  "guidance": [
+    "Feature may change without notice; it's primarily for manual QA right now.",
+    "When enabled, it highlights differences between archived versions in `.archive/`."
+  ],
+  "next_steps": "Until the command stabilises, rely on `git diff` against `.archive/` entries or use blz history to track updates."
+}

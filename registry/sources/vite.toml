@@ -1,0 +1,12 @@
+id = "vite"
+name = "Vite"
+description = "Next generation frontend build tool"
+url = "https://vitejs.dev/llms-full.txt"
+category = "tool"
+tags = ["build", "bundler", "dev-server", "frontend"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["vite"]
+github = ["vitejs/vite"]

@@ -1,0 +1,24 @@
+{
+  "target": "info",
+  "summary": "Inspect a single source’s metadata, storage paths, cache sizes, and variant information.",
+  "usage": [
+    {
+      "command": "blz info <alias> --format json",
+      "description": "Detailed JSON payload including descriptor, storage paths, last update timestamps, archive counts, and checksum."
+    },
+    {
+      "command": "blz info <alias>",
+      "description": "Readable table summarising the same data."
+    }
+  ],
+  "agent_insights": [
+    "Use before destructive operations to capture the filesystem location (`rootDir`) and descriptor for backups.",
+    "Check `content.llmsFull` vs `content.llmsTxt` to confirm which variant is active.",
+    "Consult `archives` to understand how many historical snapshots are stored (useful for diff workflows)."
+  ],
+  "follow_up": [
+    "Combine with `blz stats --format json` for a workspace-level view.",
+    "If a source is stale, jump straight to `blz update <alias>`.",
+    "To remove it afterwards, call `blz remove <alias> --yes`."
+  ]
+}

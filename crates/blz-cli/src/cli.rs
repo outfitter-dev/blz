@@ -55,9 +55,9 @@
 //! - Validation of inputs before execution
 //! - Helpful suggestions for common mistakes
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
-use crate::commands::ConfigCommand;
+// ConfigCommand removed in v1.0.0-beta.1
 use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
@@ -113,6 +113,20 @@ pub struct Cli {
     /// Positional query arguments used when no explicit command is provided
     #[arg(value_name = "QUERY", trailing_var_arg = true)]
     pub query: Vec<String>,
+
+    /// Emit agent-focused JSON prompt for the CLI or a specific command
+    ///
+    /// Example usages:
+    /// - `blz --prompt` (general guidance)
+    /// - `blz --prompt search` (command-specific guidance)
+    #[arg(
+        long,
+        global = true,
+        value_name = "TARGET",
+        num_args = 0..=1,
+        default_missing_value = "__global__"
+    )]
+    pub prompt: Option<String>,
 
     #[arg(short = 'v', long, global = true)]
     pub verbose: bool,
@@ -196,7 +210,8 @@ pub struct Cli {
 /// ```
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
-    /// Print instructions for agent use of blz
+    /// Deprecated: use `blz --prompt`
+    #[command(hide = true)]
     Instruct,
     /// Generate shell completions
     Completions {
@@ -225,40 +240,31 @@ pub enum Commands {
         format: crate::commands::DocsFormat,
     },
 
-    // Anchor commands disabled for v0.2 release - functionality needs more work
-    // /// Anchor utilities
-    // Anchor {
-    //     #[command(subcommand)]
-    //     command: AnchorCommands,
-    // },
-
-    // /// Show anchors for a source or remap mappings
-    // Anchors {
-    //     /// Source alias
-    //     alias: String,
-    //     /// Output format
-    //     #[arg(
-    //         short = 'o',
-    //         long,
-    //         value_enum,
-    //         default_value = "text",
-    //         env = "BLZ_OUTPUT_FORMAT"
-    //     )]
-    //     output: OutputFormat,
-    //     /// Show anchors remap mappings if available
-    //     #[arg(long)]
-    //     mappings: bool,
-    // },
-    /// Add a new source
-    Add {
-        /// Alias for the source
-        alias: String,
-        /// URL to fetch llms.txt from
-        url: String,
-        /// Auto-select the best flavor without prompts
-        #[arg(short = 'y', long)]
-        yes: bool,
+    /// Anchor utilities
+    Anchor {
+        #[command(subcommand)]
+        command: AnchorCommands,
     },
+
+    /// Show anchors for a source or remap mappings
+    Anchors {
+        /// Source alias
+        alias: String,
+        /// Output format
+        #[arg(
+            short = 'o',
+            long,
+            value_enum,
+            default_value = "text",
+            env = "BLZ_OUTPUT_FORMAT"
+        )]
+        output: OutputFormat,
+        /// Show anchors remap mappings if available
+        #[arg(long)]
+        mappings: bool,
+    },
+    /// Add a new source
+    Add(AddArgs),
 
     /// Search registries for documentation to add
     Lookup {
@@ -269,19 +275,40 @@ pub enum Commands {
         format: FormatArg,
     },
 
+    /// Manage the registry (create sources, validate, etc.)
+    Registry {
+        #[command(subcommand)]
+        command: RegistryCommands,
+    },
+
     /// Search across cached docs
+    ///
+    /// Query Syntax:
+    ///   "exact phrase"      Match exact phrase (use single quotes: blz '"exact phrase"')
+    ///   +term               Require term (AND)
+    ///   term1 term2         Match any term (OR - default)
+    ///   +api +key           Require both terms
+    ///
+    /// Examples:
+    ///   blz "react hooks"              # Search all sources
+    ///   blz '+api +key'                # Require both terms
+    ///   blz '"exact phrase"'           # Exact phrase match
+    ///   blz search "async" -s bun      # Search specific source
     Search {
         /// Search query (required unless --next or --last)
         #[arg(required_unless_present_any = ["next", "last"])]
         query: Option<String>,
-        /// Filter by source
+        /// Filter by source(s) - comma-separated for multiple
         #[arg(
             long = "source",
             short = 's',
             visible_alias = "alias",
-            value_name = "SOURCE"
+            visible_alias = "sources",
+            value_name = "SOURCE",
+            value_delimiter = ',',
+            num_args = 0..
         )]
-        source: Option<String>,
+        sources: Vec<String>,
         /// Continue from previous search (next page)
         #[arg(long, conflicts_with = "page", conflicts_with = "last")]
         next: bool,
@@ -314,9 +341,6 @@ pub enum Commands {
         /// Hide the summary/footer line
         #[arg(long = "no-summary")]
         no_summary: bool,
-        /// Override the flavor used for this search
-        #[arg(long = "flavor", value_enum, default_value = "current")]
-        flavor: crate::commands::FlavorMode,
         /// Number of decimal places to show for scores (0-4)
         #[arg(
             long = "score-precision",
@@ -327,13 +351,40 @@ pub enum Commands {
         score_precision: Option<u8>,
         /// Maximum snippet lines to display around a hit (1-10)
         #[arg(
-        long = "snippet-lines",
-        value_name = "LINES",
-        value_parser = clap::value_parser!(u8).range(1..=10),
-        env = "BLZ_SNIPPET_LINES",
-        default_value_t = 3
-    )]
+            long = "snippet-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(u8).range(1..=10),
+            env = "BLZ_SNIPPET_LINES",
+            default_value_t = 3
+        )]
         snippet_lines: u8,
+        /// Return surrounding context lines for each hit (defaults to 5 when no value supplied)
+        #[arg(
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            value_parser = clap::value_parser!(usize),
+            conflicts_with = "block"
+        )]
+        context: Option<usize>,
+        /// Return the full heading block containing each hit
+        #[arg(long, conflicts_with = "context")]
+        block: bool,
+        /// Maximum number of lines to include when --block is used
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            requires = "block"
+        )]
+        max_lines: Option<usize>,
+        /// Don't save this search to history
+        #[arg(long = "no-history")]
+        no_history: bool,
+        /// Copy results to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Show recent search history and defaults
@@ -344,26 +395,58 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Clear all search history
+        #[arg(long, conflicts_with = "clear_before")]
+        clear: bool,
+        /// Clear search history before the specified date (format: YYYY-MM-DD or ISO 8601)
+        #[arg(long = "clear-before", value_name = "DATE", conflicts_with = "clear")]
+        clear_before: Option<String>,
     },
-    /// Manage CLI configuration files and preferences
-    Config {
-        #[command(subcommand)]
-        command: Option<ConfigCommand>,
+    // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
+    /// Get exact lines from a source
+    ///
+    /// Preferred syntax matches search results: `blz get bun:120-142`
+    ///
+    /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
+    Get {
+        /// Source or "source:lines" (preferred: matches search output, e.g., "bun:1-3")
+        ///
+        /// When using colon syntax, the --lines flag is optional
+        #[arg(value_name = "ALIAS")]
+        alias: String,
+        /// Line range(s) to retrieve
+        ///
+        /// Format: "120-142", "36:43,320:350", "36+20", "1,5,10-15"
+        ///
+        /// Can be omitted if using colon syntax (e.g., "bun:1-3")
+        #[arg(short = 'l', long, value_name = "RANGE")]
+        lines: Option<String>,
+        /// Context lines around each line/range
+        #[arg(short = 'c', long, conflicts_with = "block")]
+        context: Option<usize>,
+        /// Return the full heading block containing the range
+        #[arg(long, conflicts_with = "context")]
+        block: bool,
+        /// Maximum number of lines to include when --block is used
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            requires = "block"
+        )]
+        max_lines: Option<usize>,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Copy output to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
     },
 
-    /// Get exact lines from a source
-    Get {
-        /// Source alias
+    /// Show detailed information about a source
+    Info {
+        /// Source to inspect
         alias: String,
-        /// Line range(s) (e.g., "120-142", "36:43,320:350", "36+20")
-        #[arg(short = 'l', long)]
-        lines: String,
-        /// Context lines around each line/range
-        #[arg(short = 'c', long)]
-        context: Option<usize>,
-        /// Override the flavor to use
-        #[arg(long = "flavor", value_enum, default_value = "current")]
-        flavor: crate::commands::FlavorMode,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
@@ -378,18 +461,47 @@ pub enum Commands {
         /// Include status/health information (etag, lastModified, checksum)
         #[arg(long)]
         status: bool,
+        /// Show descriptor metadata (description, category, tags, origin)
+        #[arg(long)]
+        details: bool,
+    },
+
+    /// Show cache statistics and overview
+    Stats {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    /// Validate source integrity and availability
+    Validate {
+        /// Source to validate (validates all if not specified)
+        alias: Option<String>,
+        /// Validate all sources
+        #[arg(long)]
+        all: bool,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    /// Run health checks on cache and sources
+    Doctor {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Fix issues automatically where possible
+        #[arg(long)]
+        fix: bool,
     },
 
     /// Update sources
     Update {
-        /// Specific alias to update (updates all if not specified)
+        /// Source to update (updates all if not specified)
         alias: Option<String>,
         /// Update all sources
         #[arg(long)]
         all: bool,
-        /// Choose update flavor policy
-        #[arg(long = "flavor", value_enum, default_value = "current")]
-        flavor: crate::commands::FlavorMode,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
         #[arg(short = 'y', long = "yes")]
         yes: bool,
@@ -398,22 +510,77 @@ pub enum Commands {
     /// Remove/delete a source
     #[command(alias = "rm", alias = "delete")]
     Remove {
-        /// Source alias
+        /// Source to remove
         alias: String,
         /// Apply removal without prompting
         #[arg(short = 'y', long = "yes")]
         yes: bool,
     },
 
+    /// Clear the entire cache (removes all sources and their data)
+    Clear {
+        /// Skip confirmation prompt
+        #[arg(short = 'f', long = "force")]
+        force: bool,
+    },
+
     /// View diffs (coming soon)
     #[command(hide = true)]
     Diff {
-        /// Source alias
+        /// Source to compare
         alias: String,
         /// Show changes since timestamp
         #[arg(long)]
         since: Option<String>,
     },
+}
+
+/// Arguments for `blz add`
+#[derive(Args, Clone, Debug)]
+pub struct AddArgs {
+    /// Source name (used as identifier)
+    #[arg(value_name = "ALIAS", required_unless_present_any = ["manifest"])]
+    pub alias: Option<String>,
+
+    /// URL to fetch llms.txt from
+    #[arg(value_name = "URL", required_unless_present_any = ["manifest"], requires = "alias")]
+    pub url: Option<String>,
+
+    /// Path to a manifest TOML describing multiple sources
+    #[arg(long, value_name = "FILE")]
+    pub manifest: Option<PathBuf>,
+
+    /// Restrict manifest processing to specific aliases
+    #[arg(long = "only", value_delimiter = ',', requires = "manifest")]
+    pub only: Vec<String>,
+
+    /// Additional aliases for this source (comma-separated, e.g., "react-docs,@react/docs")
+    #[arg(long, value_delimiter = ',')]
+    pub aliases: Vec<String>,
+
+    /// Display name for the source (defaults to a Title Case version of the alias)
+    #[arg(long)]
+    pub name: Option<String>,
+
+    /// Description for the source (plain text)
+    #[arg(long)]
+    pub description: Option<String>,
+
+    /// Category label used for grouping (defaults to "uncategorized")
+    #[arg(long)]
+    pub category: Option<String>,
+
+    /// Tags to associate with the source (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub tags: Vec<String>,
+
+    /// Skip confirmation prompts (non-interactive mode)
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Analyze source without adding it (outputs JSON analysis)
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 /// Additional columns that can be displayed in text search results
@@ -487,5 +654,38 @@ pub enum AliasCommands {
         source: String,
         /// Alias to remove
         alias: String,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum RegistryCommands {
+    /// Create a new source in the registry
+    CreateSource {
+        /// Source name/alias
+        name: String,
+        /// URL to fetch llms.txt from
+        #[arg(long)]
+        url: String,
+        /// Description of the source
+        #[arg(long)]
+        description: Option<String>,
+        /// Category (library, framework, language, tool, etc.)
+        #[arg(long)]
+        category: Option<String>,
+        /// Tags (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        tags: Vec<String>,
+        /// NPM package names (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        npm: Vec<String>,
+        /// GitHub repositories (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        github: Vec<String>,
+        /// Also add this source to your local index after creating
+        #[arg(long)]
+        add: bool,
+        /// Skip confirmation prompts (non-interactive mode)
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 }

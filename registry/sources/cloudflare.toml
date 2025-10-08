@@ -1,0 +1,12 @@
+id = "cloudflare"
+name = "Cloudflare"
+description = "Developer platform for edge computing and serverless applications"
+url = "https://developers.cloudflare.com/llms-full.txt"
+category = "platform"
+tags = ["edge", "serverless", "workers", "cdn", "platform"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["wrangler", "@cloudflare/workers-types"]
+github = ["cloudflare/workers-sdk"]

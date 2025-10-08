@@ -1,0 +1,24 @@
+{
+  "target": "validate",
+  "summary": "Check that cached sources remain reachable and that their checksums match the stored metadata.",
+  "usage": [
+    {
+      "command": "blz validate <alias> --format json",
+      "description": "Validate a single source and emit structured results (URL accessibility, checksum match, issues array)."
+    },
+    {
+      "command": "blz validate --all --format json",
+      "description": "Batch validation for every source—useful for CI health checks."
+    }
+  ],
+  "fields": [
+    "urlAccessible – boolean derived from HEAD/GET depending on source type",
+    "checksumMatches – confirms local cache matches stored sha256",
+    "issues – array of human-readable warnings (missing files, mismatched checksums, offline URLs)"
+  ],
+  "agent_workflow": [
+    "Run after `blz update --all` to confirm nothing drifted during ingestion.",
+    "If `checksumMatches` is false, re-index via `blz update <alias>` or re-add the source.",
+    "Surface `issues` back to operators or logs so they can repair failing sources."
+  ]
+}

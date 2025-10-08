@@ -67,6 +67,8 @@ pub mod index;
 pub mod mapping;
 /// Tree-sitter based markdown parser
 pub mod parser;
+/// Application profile detection helpers
+pub mod profile;
 /// Performance profiling utilities
 pub mod profiling;
 /// Built-in registry of known documentation sources
@@ -82,7 +84,7 @@ pub use config::{
     ToolMeta,
 };
 pub use error::{Error, Result};
-pub use fetcher::{FetchResult, Fetcher, FlavorInfo};
+pub use fetcher::{FetchResult, Fetcher};
 pub use index::SearchIndex;
 pub use mapping::{build_anchors_map, compute_anchor_mappings};
 pub use parser::{MarkdownParser, ParseResult};

@@ -1,0 +1,12 @@
+id = "supabase-js"
+name = "Supabase JavaScript"
+description = "Supabase JavaScript client library reference"
+url = "https://supabase.com/llms/js.txt"
+category = "library"
+tags = ["database", "postgres", "javascript", "typescript", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["@supabase/supabase-js"]
+github = ["supabase/supabase-js"]

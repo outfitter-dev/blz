@@ -42,7 +42,6 @@
 //! use blz_core::SearchHit;
 //!
 //! let hit = SearchHit {
-//!     alias: "react".to_string(),
 //!     source: "react".to_string(),
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
@@ -51,91 +50,50 @@
 //!     snippet: "useState returns an array with two elements...".to_string(),
 //!     score: 0.92,
 //!     source_url: Some("https://react.dev/hooks".to_string()),
+//!     fetched_at: None,
+//!     is_stale: false,
 //!     checksum: "abc123".to_string(),
 //!     anchor: Some("react-hooks-usestate".to_string()),
-//!     flavor: Some("llms-full".to_string()),
+//!     context: None,
 //! };
 //!
 //! println!("Found: {} in {} (score: {:.2})",
 //!     hit.heading_path.join(" > "),
-//!     hit.alias,
+//!     hit.source,
 //!     hit.score);
 //! ```
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Supported documentation flavors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Flavor {
-    /// Standard `llms.txt` content.
-    Llms,
-    /// Expanded `llms-full.txt` content.
+/// Which llms.txt variant was successfully resolved and used
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceVariant {
+    /// llms-full.txt was found and used
     LlmsFull,
+    /// llms.txt was found and used
+    Llms,
+    /// Custom URL (neither llms.txt nor llms-full.txt)
+    Custom,
 }
 
-impl Flavor {
-    /// Return the canonical identifier used in JSON sidecars and settings.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Llms => "llms",
-            Self::LlmsFull => "llms-full",
-        }
-    }
-
-    /// Return the on-disk filename for the flavor's markdown source.
-    pub const fn file_name(self) -> &'static str {
-        match self {
-            Self::Llms => "llms.txt",
-            Self::LlmsFull => "llms-full.txt",
-        }
-    }
-
-    /// Attempt to resolve a flavor from a normalized identifier (e.g., "llms").
-    pub fn from_identifier(identifier: &str) -> Option<Self> {
-        match identifier {
-            id if id.eq_ignore_ascii_case("llms") => Some(Self::Llms),
-            id if id.eq_ignore_ascii_case("llms-full") => Some(Self::LlmsFull),
-            _ => None,
-        }
-    }
-
-    /// Attempt to resolve a flavor from a file name (e.g., "llms-full.txt").
-    pub fn from_file_name(file_name: &str) -> Option<Self> {
-        match file_name {
-            name if name.eq_ignore_ascii_case("llms.txt") => Some(Self::Llms),
-            name if name.eq_ignore_ascii_case("llms-full.txt") => Some(Self::LlmsFull),
-            _ => None,
-        }
+impl Default for SourceVariant {
+    fn default() -> Self {
+        Self::Llms
     }
 }
 
-/// Normalize a raw flavor filter string into canonical identifiers.
-///
-/// Accepts comma-, pipe-, or semicolon-delimited lists, ignores empty entries,
-/// and filters out unknown identifiers. Returned identifiers are deduplicated
-/// while preserving order.
-pub fn normalize_flavor_filters(raw: &str) -> Vec<String> {
-    use std::collections::HashSet;
-
-    let mut seen = HashSet::new();
-    let mut normalized = Vec::new();
-
-    for token in raw.split([',', '|', ';']) {
-        let trimmed = token.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        if let Some(flavor) = Flavor::from_identifier(trimmed) {
-            let canonical = flavor.as_str().to_string();
-            if seen.insert(canonical.clone()) {
-                normalized.push(canonical);
-            }
-        }
-    }
-
-    normalized
+/// Content type based on line count analysis
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ContentType {
+    /// Full documentation (> 1000 lines)
+    Full,
+    /// Navigation index only (< 100 lines) - should warn user
+    Index,
+    /// Mixed content (100-1000 lines)
+    Mixed,
 }
 
 /// Information about a documentation source.
@@ -187,6 +145,15 @@ pub struct Source {
     /// Calculated from the raw content bytes, not the parsed structure.
     pub sha256: String,
 
+    /// Which llms.txt variant was resolved and used for this source.
+    ///
+    /// Tracks whether llms-full.txt, llms.txt, or a custom URL was used.
+    /// Enables upgrade detection when llms-full.txt becomes available.
+    /// Defaults to Llms for backward compatibility with existing sources.
+    #[serde(default)]
+    #[allow(clippy::struct_field_names)]
+    pub variant: SourceVariant,
+
     /// Alternate human-friendly names (aliases) for this source.
     ///
     /// These do not affect on-disk storage paths and may include relaxed
@@ -194,6 +161,196 @@ pub struct Source {
     /// Defaults to empty for backward compatibility.
     #[serde(default)]
     pub aliases: Vec<String>,
+
+    /// Tags categorizing this source's content and searchability.
+    ///
+    /// Common tags include language/framework names, content types,
+    /// and special markers like "index" for navigation-only sources.
+    /// Sources tagged with "index" contain only a table of contents
+    /// and are excluded from full-text search by default.
+    /// Defaults to empty for backward compatibility.
+    #[serde(default)]
+    pub tags: Vec<String>,
+
+    /// Optional human-readable description of the source.
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Optional category that groups similar sources (framework, runtime, etc.).
+    #[serde(default)]
+    pub category: Option<String>,
+
+    /// Additional alias metadata for npm packages associated with the source.
+    #[serde(default, rename = "npmAliases")]
+    pub npm_aliases: Vec<String>,
+
+    /// Additional alias metadata for GitHub repositories associated with the source.
+    #[serde(default, rename = "githubAliases")]
+    pub github_aliases: Vec<String>,
+
+    /// Provenance information describing how the source was added.
+    #[serde(default)]
+    pub origin: SourceOrigin,
+}
+
+impl Source {
+    /// Returns true if this source is tagged as index-only (navigation/TOC only).
+    ///
+    /// Index-only sources contain a table of contents with links to
+    /// external documentation pages, but no substantial content for
+    /// full-text search. They are excluded from searches by default.
+    #[must_use]
+    pub fn is_index_only(&self) -> bool {
+        self.tags
+            .iter()
+            .any(|tag| tag.eq_ignore_ascii_case("index"))
+    }
+}
+
+/// Records provenance information for a source.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceOrigin {
+    /// Manifest relationship if the source was imported from a manifest file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<ManifestOrigin>,
+
+    /// Concrete type of source that influences update behavior (remote vs local file).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_type: Option<SourceType>,
+}
+
+/// Details about the manifest file that seeded this source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestOrigin {
+    /// Absolute path to the manifest file when it was imported.
+    pub path: String,
+
+    /// Alias entry referenced within the manifest.
+    pub entry_alias: String,
+
+    /// Manifest schema/version if provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// Indicates how a source should be refreshed during updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SourceType {
+    /// Remote HTTP(S) endpoint.
+    Remote {
+        /// Fully-qualified URL used for fetching documentation.
+        url: String,
+    },
+    /// Local filesystem file.
+    LocalFile {
+        /// Absolute filesystem path to the source document.
+        path: String,
+    },
+}
+
+/// Canonical descriptor persisted alongside configuration for each source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceDescriptor {
+    /// Canonical alias used for on-disk storage.
+    pub alias: String,
+
+    /// Human-readable display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Optional description for tooling/UX.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Optional category grouping similar sources.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+
+    /// Tags describing the source (language, framework, etc.).
+    #[serde(default)]
+    pub tags: Vec<String>,
+
+    /// Remote endpoint for documentation, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+
+    /// Local filesystem path for documentation, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+
+    /// Additional aliases recognized by the CLI.
+    #[serde(default)]
+    pub aliases: Vec<String>,
+
+    /// npm package aliases associated with this source.
+    #[serde(default, rename = "npmAliases")]
+    pub npm_aliases: Vec<String>,
+
+    /// GitHub repository aliases associated with this source.
+    #[serde(default, rename = "githubAliases")]
+    pub github_aliases: Vec<String>,
+
+    /// Provenance metadata.
+    #[serde(default)]
+    pub origin: SourceOrigin,
+}
+
+impl SourceDescriptor {
+    /// Create a descriptor snapshot from an existing `Source` record.
+    #[must_use]
+    pub fn from_source(alias: &str, source: &Source) -> Self {
+        let (url, path) = match &source.origin.source_type {
+            Some(SourceType::Remote { url }) => (Some(url.clone()), None),
+            Some(SourceType::LocalFile { path }) => (None, Some(path.clone())),
+            None => (Some(source.url.clone()), None),
+        };
+
+        Self {
+            alias: alias.to_string(),
+            name: None,
+            description: source.description.clone(),
+            category: source.category.clone(),
+            tags: source.tags.clone(),
+            url,
+            path,
+            aliases: source.aliases.clone(),
+            npm_aliases: source.npm_aliases.clone(),
+            github_aliases: source.github_aliases.clone(),
+            origin: source.origin.clone(),
+        }
+    }
+
+    /// Apply descriptor fields back onto a mutable `Source` reference.
+    pub fn apply_to_source(&self, source: &mut Source) {
+        source.description.clone_from(&self.description);
+        source.category.clone_from(&self.category);
+        source.tags.clone_from(&self.tags);
+        source.aliases.clone_from(&self.aliases);
+        source.npm_aliases.clone_from(&self.npm_aliases);
+        source.github_aliases.clone_from(&self.github_aliases);
+        source.origin = self.origin.clone();
+
+        match (&self.origin.source_type, (&self.url, &self.path)) {
+            (Some(SourceType::Remote { .. }) | None, (Some(url), _)) => {
+                source
+                    .origin
+                    .source_type
+                    .clone_from(&Some(SourceType::Remote { url: url.clone() }));
+                source.url.clone_from(url);
+            },
+            (Some(SourceType::LocalFile { .. }) | None, (_, Some(path))) => {
+                source
+                    .origin
+                    .source_type
+                    .clone_from(&Some(SourceType::LocalFile { path: path.clone() }));
+            },
+            _ => {},
+        }
+    }
 }
 
 /// An entry in the table of contents.
@@ -340,7 +497,7 @@ pub enum DiagnosticSeverity {
 ///
 /// ## Storage Location
 ///
-/// Stored as `<cache_root>/<alias>/llms.json` for each source.
+/// Stored as `<cache_root>/<source>/llms.json` for each source.
 ///
 /// ## Version Compatibility
 ///
@@ -352,11 +509,12 @@ pub struct LlmsJson {
     /// Unique identifier for this source.
     ///
     /// Used as the directory name and in search results. Should be
-    /// URL-safe and filesystem-safe.
-    pub alias: String,
+    /// URL-safe and filesystem-safe. This is the canonical source name,
+    /// not an alias (which are stored in metadata.aliases).
+    pub source: String,
 
-    /// Source metadata and caching information.
-    pub source: Source,
+    /// Source metadata including URL, caching headers, and aliases.
+    pub metadata: Source,
 
     /// Table of contents extracted from the document.
     ///
@@ -412,16 +570,10 @@ pub struct ParseMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
-    /// Source alias where this hit was found.
+    /// Source identifier where this hit was found.
     ///
-    /// Corresponds to the directory name in the cache and the `alias`
-    /// field in [`LlmsJson`].
-    pub alias: String,
-
-    /// Canonical source name (user-facing "source").
-    ///
-    /// For now, this is the same as `alias`. Kept separate to allow future
-    /// rename/alias semantics without breaking JSON consumers.
+    /// Corresponds to the directory name in the cache and the `source`
+    /// field in [`LlmsJson`]. This is the canonical source name.
     pub source: String,
 
     /// Filename within the source where the hit was found.
@@ -468,6 +620,15 @@ pub struct SearchHit {
     /// May be `None` for local or generated content.
     pub source_url: Option<String>,
 
+    /// Timestamp when this content was last fetched locally.
+    ///
+    /// Allows consumers to reason about staleness without additional metadata calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetched_at: Option<DateTime<Utc>>,
+
+    /// Whether this hit's source is considered stale relative to the default TTL (30 days).
+    pub is_stale: bool,
+
     /// Content checksum for verification.
     ///
     /// Used to verify that the search result corresponds to the expected
@@ -478,9 +639,24 @@ pub struct SearchHit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
 
-    /// Document flavor that produced this hit (e.g., `llms` or `llms-full`).
+    /// Optional expanded content context returned when `--context` or `--block` flags are used.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub flavor: Option<String>,
+    pub context: Option<HitContext>,
+}
+
+/// Additional context returned alongside a search hit when requested.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HitContext {
+    /// The line range covered by the context in "start-end" format.
+    pub lines: String,
+    /// Individual line numbers contained in the context range.
+    pub line_numbers: Vec<usize>,
+    /// Raw content extracted for the context range.
+    pub content: String,
+    /// Indicates whether the context was truncated by a `--max-lines` limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
 }
 
 /// Mapping between stable content anchors and line ranges across updates.
@@ -520,8 +696,8 @@ pub struct DiffEntry {
     /// Timestamp when this change was detected.
     pub ts: DateTime<Utc>,
 
-    /// Source alias that was changed.
-    pub alias: String,
+    /// Source identifier that was changed.
+    pub source: String,
 
     /// `ETag` before the change.
     ///
@@ -625,7 +801,6 @@ mod tests {
     fn test_search_hit_equality() {
         // Test that SearchHit can be compared for deduplication
         let hit1 = SearchHit {
-            alias: "react".to_string(),
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
@@ -634,13 +809,14 @@ mod tests {
             snippet: "useState is a React hook...".to_string(),
             score: 0.95,
             source_url: Some("https://react.dev".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
-            flavor: Some("llms-full".to_string()),
+            context: None,
         };
 
         let hit2 = SearchHit {
-            alias: "react".to_string(),
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
@@ -649,24 +825,17 @@ mod tests {
             snippet: "useState is a React hook...".to_string(),
             score: 0.90, // Different score
             source_url: Some("https://react.dev".to_string()),
+            fetched_at: Some(Utc::now()),
+            is_stale: false,
             checksum: "abc123".to_string(),
             anchor: Some("anchor1".to_string()),
-            flavor: Some("llms-full".to_string()),
+            context: None,
         };
 
-        // Should be considered the same for deduplication (same alias, lines, heading_path)
-        assert_eq!(hit1.alias, hit2.alias);
+        // Should be considered the same for deduplication (same source, lines, heading_path)
+        assert_eq!(hit1.source, hit2.source);
         assert_eq!(hit1.lines, hit2.lines);
         assert_eq!(hit1.heading_path, hit2.heading_path);
-    }
-
-    #[test]
-    fn test_normalize_flavor_filters_deduplicates_and_ignores_unknowns() {
-        let values = normalize_flavor_filters(" llms-full , unknown , llms , ndjson ");
-        assert_eq!(values, vec!["llms-full".to_string(), "llms".to_string()]);
-
-        let empty = normalize_flavor_filters(" , , ");
-        assert!(empty.is_empty());
     }
 
     #[test]
@@ -678,12 +847,25 @@ mod tests {
             last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
             fetched_at: now,
             sha256: "deadbeef".to_string(),
+            variant: SourceVariant::Llms,
             aliases: Vec::new(),
+            tags: Vec::new(),
+            description: None,
+            category: None,
+            npm_aliases: Vec::new(),
+            github_aliases: Vec::new(),
+            origin: SourceOrigin {
+                manifest: None,
+                source_type: Some(SourceType::Remote {
+                    url: "https://example.com/llms.txt".to_string(),
+                }),
+            },
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
         assert_eq!(source.etag, Some("abc123".to_string()));
         assert_eq!(source.sha256, "deadbeef");
+        assert_eq!(source.variant, SourceVariant::Llms);
     }
 
     #[test]
@@ -734,14 +916,26 @@ mod tests {
     #[test]
     fn test_llms_json_structure() {
         let llms_json = LlmsJson {
-            alias: "test".to_string(),
-            source: Source {
+            source: "test".to_string(),
+            metadata: Source {
                 url: "https://example.com".to_string(),
                 etag: None,
                 last_modified: None,
                 fetched_at: Utc::now(),
                 sha256: "hash".to_string(),
+                variant: SourceVariant::Llms,
                 aliases: Vec::new(),
+                tags: Vec::new(),
+                description: None,
+                category: None,
+                npm_aliases: Vec::new(),
+                github_aliases: Vec::new(),
+                origin: SourceOrigin {
+                    manifest: None,
+                    source_type: Some(SourceType::Remote {
+                        url: "https://example.com".to_string(),
+                    }),
+                },
             },
             toc: vec![],
             files: vec![FileInfo {
@@ -756,7 +950,7 @@ mod tests {
             parse_meta: None,
         };
 
-        assert_eq!(llms_json.alias, "test");
+        assert_eq!(llms_json.source, "test");
         assert_eq!(llms_json.files.len(), 1);
         assert_eq!(llms_json.line_index.total_lines, 100);
     }

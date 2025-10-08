@@ -1,0 +1,11 @@
+id = "supabase-swift"
+name = "Supabase Swift"
+description = "Supabase Swift/iOS client library reference"
+url = "https://supabase.com/llms/swift.txt"
+category = "library"
+tags = ["database", "postgres", "swift", "ios", "client"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+github = ["supabase/supabase-swift"]

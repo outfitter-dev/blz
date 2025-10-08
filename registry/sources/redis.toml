@@ -1,0 +1,12 @@
+id = "redis"
+name = "Redis (Index)"
+description = "Redis documentation index - links to full docs"
+url = "https://redis.io/llms.txt"
+category = "database"
+tags = ["database", "cache", "in-memory", "key-value", "index"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["redis", "ioredis"]
+github = ["redis/redis"]

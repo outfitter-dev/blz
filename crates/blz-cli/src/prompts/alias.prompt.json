@@ -1,0 +1,30 @@
+{
+  "target": "alias",
+  "summary": "Manage metadata aliases that resolve back to a canonical source. Helpful when different teams use different nicknames for the same docs.",
+  "subcommands": [
+    {
+      "name": "alias add",
+      "command": "blz alias add <canonical> <alias> [alias2 ...]",
+      "description": "Attach one or more alternate names to an existing source."
+    },
+    {
+      "name": "alias remove",
+      "command": "blz alias remove <canonical> <alias>",
+      "description": "Detach an alias. Future searches will no longer resolve it automatically."
+    },
+    {
+      "name": "alias list",
+      "command": "blz alias list <canonical>",
+      "description": "Show all aliases for the source in text or JSON form."
+    }
+  ],
+  "agent_workflow": [
+    "Use `alias add` when ingesting docs that have multiple ecosystem names (e.g., `react` vs `reactjs`).",
+    "After adjusting aliases, run `blz list --format json | jq '.[] | select(.alias==\"<canonical>\")'` to confirm they persisted.",
+    "Remember aliases only affect CLI resolution; storage paths remain tied to the canonical alias."
+  ],
+  "notes": [
+    "Alias changes are persisted in the configuration directory under `sources/<alias>.toml`.",
+    "Aliases propagate to `blz search` (via `--source`) and the registry resolver."
+  ]
+}

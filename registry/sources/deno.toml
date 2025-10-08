@@ -1,0 +1,12 @@
+id = "deno"
+name = "Deno"
+description = "Modern JavaScript and TypeScript runtime"
+url = "https://docs.deno.com/llms-full.txt"
+category = "runtime"
+tags = ["javascript", "typescript", "runtime", "secure"]
+registeredAt = "2025-09-30T20:00:00Z"
+verifiedAt = "2025-09-30T20:00:00Z"
+
+[aliases]
+npm = ["deno"]
+github = ["denoland/deno"]

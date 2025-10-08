@@ -52,7 +52,7 @@ fn add_alias(source: &str, new_alias: &str) -> Result<()> {
         .load_llms_json(source)
         .with_context(|| format!("Failed loading llms.json for '{source}'"))?;
 
-    if llms.source.aliases.iter().any(|a| a == new_alias) {
+    if llms.metadata.aliases.iter().any(|a| a == new_alias) {
         println!(
             "{} '{}' already has alias '{}'.",
             "No-op".bright_black(),
@@ -61,9 +61,9 @@ fn add_alias(source: &str, new_alias: &str) -> Result<()> {
         );
         return Ok(());
     }
-    llms.source.aliases.push(new_alias.to_string());
+    llms.metadata.aliases.push(new_alias.to_string());
     storage.save_llms_json(source, &llms)?;
-    storage.save_source_metadata(source, &llms.source)?;
+    storage.save_source_metadata(source, &llms.metadata)?;
 
     println!(
         "{} Added alias '{}' to {}",
@@ -84,9 +84,9 @@ fn remove_alias(source: &str, alias: &str) -> Result<()> {
         .load_llms_json(source)
         .with_context(|| format!("Failed loading llms.json for '{source}'"))?;
 
-    let before = llms.source.aliases.len();
-    llms.source.aliases.retain(|a| a != alias);
-    if llms.source.aliases.len() == before {
+    let before = llms.metadata.aliases.len();
+    llms.metadata.aliases.retain(|a| a != alias);
+    if llms.metadata.aliases.len() == before {
         println!(
             "{} Alias '{}' not found on {}",
             "No-op".bright_black(),
@@ -97,7 +97,7 @@ fn remove_alias(source: &str, alias: &str) -> Result<()> {
     }
 
     storage.save_llms_json(source, &llms)?;
-    storage.save_source_metadata(source, &llms.source)?;
+    storage.save_source_metadata(source, &llms.metadata)?;
 
     println!(
         "{} Removed alias '{}' from {}",
@@ -112,7 +112,7 @@ fn find_alias_owner(storage: &Storage, alias: &str) -> Option<String> {
     let mut owner: Option<String> = None;
     for src in storage.list_sources() {
         if let Ok(meta) = storage.load_llms_json(&src) {
-            if meta.source.aliases.iter().any(|a| a == alias) {
+            if meta.metadata.aliases.iter().any(|a| a == alias) {
                 if owner.is_some() {
                     // Ambiguous across multiple sources; treat as already taken
                     return owner;

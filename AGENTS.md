@@ -5,12 +5,22 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 ## Important
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
-- Always read the @.agents/logs/CURRENT.md file before starting work, and maintain it as you work
+- Check @.agents/logs/ for relevant work logs and session notes
+
+## Working Memory
+
+**Always check and update `SCRATCHPAD.md`** - This is your working memory file.
+
+- Read `SCRATCHPAD.md` at the start of each session to understand recent work
+- Update it as you work, especially after completing significant changes
+- Use dated H2 sections (e.g., `## 2025-10-01`) with bullet points
+- Link to detailed logs in `.agents/logs/` for comprehensive documentation
+- Keep it concise - this is a quick reference, not a detailed log
 
 ## Use blz
 
 - You're working on blz, so you should use it!
-- For docs search, use the `blz` CLI tool: @.agents/instructions/use-blz.md
+- For docs search, use the `blz` CLI tool: @docs/agents/use-blz.md
 
 ## 🚀 Quick Start for Agents
 
@@ -132,21 +142,24 @@ blz completions zsh > ~/.zsh/completions/_blz
 ### Storage Layout
 
 ```text
-# Determined via directories::ProjectDirs::from("dev", "outfitter", "blz")
-# Config (XDG, all platforms):
-#   $XDG_CONFIG_HOME/blz/ (or ~/.config/blz/)
-# Data (platform data dir):
-#   macOS:   ~/Library/Application Support/dev.outfitter.blz/
-#   Linux:   ~/.local/share/dev.outfitter.blz/
-#   Windows: %APPDATA%\dev.outfitter.blz\
+# Config directory (data.json state, config.toml):
+#   With XDG_CONFIG_HOME set: $XDG_CONFIG_HOME/blz/
+#   Without XDG_CONFIG_HOME:  ~/.blz/
+#   Override: BLZ_GLOBAL_CONFIG_DIR
 #
-# Within Data:
-<alias>/
-  llms.txt                  # Latest upstream text
-  llms.json                 # Parsed TOC + line map
-  .index/                   # Tantivy search index
-  .archive/                 # Historical snapshots
-  settings.toml             # Per-source overrides
+# Data directory (cached llms.txt, indices):
+#   With XDG_DATA_HOME set: $XDG_DATA_HOME/blz/
+#   Without XDG_DATA_HOME:  ~/.blz/
+#   Override: BLZ_DATA_DIR
+#
+# Within Data dir:
+sources/
+  <source>/
+    llms.txt                # Latest upstream text (or llms-full.txt)
+    llms.json               # Parsed TOC + line map
+    .index/                 # Tantivy search index
+    .archive/               # Historical snapshots
+    settings.toml           # Per-source overrides
 ```
 
 ### Testing Approach

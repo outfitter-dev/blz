@@ -12,74 +12,96 @@
 
 A Rust + Tantivy-based CLI tool that downloads, parses, and indexes `llms.txt` files locally to enable fast documentation search with line-accurate retrieval.
 
-## Usage For AI Agents
-
-- Quick primer in your terminal: `blz instruct`
-- Programmatic CLI docs for agents: `blz docs --format json`
-- Detailed instructions you can copy into CLAUDE.md or AGENTS.md: see `.agents/instructions/use-blz.md`
-  - You can inline it directly or @‑mention it from your agent’s rules file
-
-Typical agent flow:
+## Quick Start
 
 ```bash
-# Ensure sources exist (add non-interactively)
-blz add react https://react.dev/llms-full.txt -y
+# Install (one line)
+curl -fsSL https://blz.run/install.sh | sh
 
-# Search and get exact lines
-blz "react hooks" --format json | jq -r '.[0] | "\(.alias) --lines \(.lines)"' | \
-  xargs -n3 blz get --context 3
-```
-
-> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f` instead. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
-
-### Wait, what's `llms.txt`?
-
-[`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that typically includes all of the documentation for a given project.
-
-- Why they're great:
-  - Comprehensive project documentation that's kept up to date (usually)
-  - Single file in a standardized format makes for easy retrieval and indexing
-- What's not great:
-  - They're **huge**.
-    - Example: the [Model Context Protocol llms-full.txt](https://modelcontextprotocol.io/llms-full.txt) is nearly 12,000 lines long, and is over 200,000 tokens, which coincidentally was Claude 3.7 Sonnet's token limit.
-  - They can change often (which is a good thing), so if you want to download them as reference, keeping them up to date is a pain.
-
-### Why BLZ?
-
-`llms.txt` files are great, but they're not immediately useful for coding agents as a source for documentation. Context limits alone are enough to make them impractical. Using MCP servers to get docs is the gold-standard today, but they can often return lots of token-heavy results, which isn't ideal for context management in agents. So that's where BLZ comes in:
-
-```bash
-# Add Bun's llms.txt to blz
-# (blz will default to try to get llms-full.txt if it's available)
+# Add Bun's docs
 blz add bun https://bun.sh/llms.txt
 
-# Search for "bun:sqlite"
-blz search "bun:sqlite"
+# Search (results in 6ms)
+blz "test runner"
 
-# Get exact lines
-blz get bun --lines 1853-1862
-blz get bun --lines 34366 --context 3   # Adds 3 lines of context from either side
+# Pull exact lines (matches the search citation format)
+blz get bun:304-324 --json
 ```
 
-- Downloading and indexing is fast (often far less than 1 second)
-- Searching is faster (10ms or less typically)
-- Retrieving exact lines is fastest
+**What you'll see:**
 
-See [docs/performance.md](docs/performance.md) for detailed benchmarks and methodology.
+```
+✓ Added bun (1,926 headings, 43,150 lines) in 890ms
+
+Search results for 'test runner' (6ms):
+
+1. bun:304-324 (score: 92%)
+   📍 Bun Documentation > Guides > Test runner
+
+   ### Test runner
+   Bun includes a fast built-in test runner...
+```
+
+## What's llms.txt?
+
+[`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that includes all documentation for a project.
+
+**Why they're great:**
+- Comprehensive documentation that's kept up to date
+- Single file in a standardized format makes for easy retrieval and indexing
+
+**The challenge:**
+- They're **huge** (12K+ lines, 200K+ tokens)
+- Too context-heavy for agents to use directly
+- Keeping them up to date is manual work
+
+## Why BLZ?
+
+BLZ indexes [`llms.txt`](https://llmstxt.org/) documentation files locally:
+
+- **6ms search** across locally saved docs (vs. seconds for web requests)
+- **Exact line citations** (e.g., `bun:304-324`) for copy-paste accuracy
+- **Works offline** after initial download
+- **Smart updates** with HTTP caching (only fetches when changed)
+
+### The Problem
+
+Projects publish complete docs as `llms-full.txt` files, but:
+- They're massive (12K+ lines, 200K+ tokens)
+- Too context-heavy for agents to use directly
+
+But what about MCP servers for searching docs?
+- They're great, and we use them too! but...
+- Results can take up a lot of an agent's context window
+- May require multiple searches to find critical info
+
+### BLZ's Solution
+
+Cache & index `llms.txt` locally → search in ms → retrieve only needed lines
+
+With BLZ, agents can get the docs they need in a fraction of the time, and context.
+
+See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ## Features
 
-- **Fast Search**: 6ms typical search latency (yes, milliseconds)
-- **Line-Accurate**: Returns exact `file#L120-L142` spans with heading context
-- **Smart Sync**: Conditional fetches with ETag/If-None-Match to minimize bandwidth
-- **Dual-Flavor Sync**: Automatically indexes both `llms.txt` and `llms-full.txt` when a project publishes expanded docs.
-- **Robust Parsing**: Handles imperfect `llms.txt` gracefully, always produces useful structure
-- **Deterministic Search**: BM25 ranking with Tantivy (vectors optional, off by default)
-- **Change Tracking**: Track source changes with `blz diff` command showing moved, added, and removed sections
-- **Direct CLI Integration**: IDE agents run commands directly for instant results
-- **MCP Server** (coming soon): stdio-based integration via official Rust SDK
+- **One-line installation**: Install script with SHA-256 verification and platform detection
+- **Fast search**: 6ms typical search latency with exact line citations
+- **Offline-first**: Works offline after initial download, smart updates with HTTP caching
+- **Clipboard support**: Copy search results directly with `--copy` flag
+- **Source insights**: Commands for visibility (`blz stats`, `blz info`, `blz history`)
+- **Direct CLI integration**: IDE agents run commands directly for instant JSON results
+- **MCP server** (coming soon): stdio-based integration via official Rust SDK
 
 ## Installation
+
+### Quick Install (macOS/Linux)
+
+```bash
+curl -fsSL https://blz.run/install.sh | sh
+```
+
+This installs the latest release to `~/.local/bin`. Override the target location with `BLZ_INSTALL_DIR=/path`, or pin a version via `BLZ_VERSION=v0.4.1`. Run `sh install.sh --help` for additional options (e.g., `--dir`, `--version`, `--dry-run`).
 
 ### From Source
 
@@ -91,6 +113,10 @@ cargo install --path crates/blz-cli
 
 # Or install directly from GitHub
 cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
+
+# Optional dev build (installs `blz-dev` only)
+./install-dev.sh --root "$HOME/.local/share/blz-dev"
+# See docs/development/README.md for full local workflow guidance.
 ```
 
 ### Shell Setup
@@ -121,58 +147,29 @@ blz completions zsh > ~/.zsh/completions/_blz
 blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ```
 
-## Quick Start
+## Usage For AI Agents
+
+- **Quick primer**: `blz --prompt` in your terminal
+- **Programmatic CLI docs**: `blz docs --json`
+- **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
+
+### Typical Agent Flow
 
 ```bash
-# Add a source
-blz add bun https://bun.sh/llms.txt
+# Ensure sources exist (add non-interactively)
+blz add bun https://bun.sh/llms.txt -y
 
-# Search across docs
-blz search "test runner"
-blz search "concurrency" --source bun
+# Search Bun docs and capture the first alias:lines citation
+span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
 
-# Get exact lines
-blz get bun --lines 120-142
-blz get bun --lines 120-142 --context 3
+# Retrieve the exact lines with a small amount of context
+blz get "$span" -c5 --json
 
-# Inspect recent searches and persisted defaults
-blz history --limit 5
+# Need more than one range? Supply --lines with a comma-separated list
+blz get bun --lines "41994-42009,42010-42020" --json
 
-# Prefer llms-full.txt automatically
-blz config set add.prefer_full true
-
-# List all sources
-blz list
-
-# Update sources
-blz update bun
-blz update --all --quiet --yes
-
-# View changes (planned)
-# blz diff bun --since "2025-08-20"   # YYYY-MM-DD (RFC 3339 timestamps also supported)
-```
-
-## Architecture
-
-```
-┌────────────────────────────────────────────┐
-│ blz CLI (MCP soon)                         │
-└────────────────────────────────────────────┘
-           │
-┌──────────▼──────────────┐    ┌─────────────┐
-│ blz Core  (Rust)        │◄──►│  blz Index  │
-│ ├ Fetcher (ETag)        │    │  (Tantivy)  │
-│ ├ Parser  (tree-sitter) │    └─────────────┘
-│ ├ Search  (BM25)        │
-│ └ *Diff   (planned)     │
-└──────────┬──────────────┘
-           │
-┌──────────▼──────────────┐
-│ blz local cache         │
-│ ├ llms.txt/json         │
-│ ├ .index/               │
-│ └ .archive/             │
-└─────────────────────────┘
+# Want the full heading section? Expand with --block (and cap the output)
+blz get bun:41994-42009 --block --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -183,13 +180,19 @@ IDE agents can run `blz` commands directly for millisecond responses:
 
 ```bash
 # Search for documentation
-blz search "test runner" --source bun --format json
+blz "test runner" -s bun --json
 
 # Get exact line ranges
-blz get bun --lines 423-445
+blz get bun:423-445
+
+# Merge multiple spans for the same source (comma-separated)
+blz get bun --lines "41994-42009,42010-42020" --json
+
+# Expand to the entire heading block when the agent needs full prose
+blz get bun:41994-42009 --block --max-lines 80 --json
 
 # List all indexed sources
-blz list --format json | jq 'length'
+blz list --json | jq 'length'
 ```
 
 The JSON output is designed for easy parsing by agents:
@@ -211,72 +214,6 @@ The JSON output is designed for easy parsing by agents:
 
 For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get`, `update`, and `diff` (MCP protocol 2024-11-05) via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
 
-## Storage Layout
-
-Example showing Linux default data paths. See Configuration section for config locations.
-
-```
-~/.local/share/dev.outfitter.blz/
-  bun/
-    llms.txt                         # Latest upstream text
-    llms.json                        # Parsed TOC + line map
-    .index/                          # Tantivy search index
-    .archive/                        # Historical snapshots
-      2025-08-22T12-01-07Z-llms.txt
-      2025-08-22T12-01-07Z.diff      # unified diff vs previous snapshot
-    settings.toml                    # Per-source configuration
-```
-
-## Configuration
-
-Config file discovery order:
-
-- `$XDG_CONFIG_HOME/blz/config.toml` or `~/.config/blz/config.toml`
-- Fallback: `~/.blz/config.toml`
-- Explicit override (optional): `--config <FILE>` or env `BLZ_CONFIG`; or `--config-dir <DIR>` / env `BLZ_CONFIG_DIR` to use `<DIR>/config.toml`
-- Optional overlay: `config.local.toml` in the same directory overrides keys
-
-Environment overrides (per-key):
-
-- `BLZ_REFRESH_HOURS` (u32)
-- `BLZ_MAX_ARCHIVES` (usize)
-- `BLZ_FETCH_ENABLED` (`true`/`false`/`1`/`0`)
-- `BLZ_FOLLOW_LINKS` (`none` | `first_party` | `allowlist`)
-- `BLZ_ALLOWLIST` (comma-separated domains)
-- `BLZ_ROOT` (path)
-
-### Global Settings
-
-```toml
-[defaults]
-refresh_hours = 24
-max_archives = 10
-fetch_enabled = true
-follow_links = "first_party"  # none|first_party|allowlist
-
-[paths]
-# Platform-specific defaults (examples):
-# Linux (XDG):     ~/.local/share/dev.outfitter.blz/
-# macOS (AppData): ~/Library/Application Support/dev.outfitter.blz/
-# Windows:         %APPDATA%\dev.outfitter.blz\
-```
-
-### Per-Source Settings (`<alias>/settings.toml`)
-
-```toml
-[meta]
-name = "Bun"
-homepage = "https://bun.sh"
-
-[fetch]
-refresh_hours = 6
-follow_links = "allowlist"
-allowlist = ["bun.sh", "github.com/oven-sh"]
-
-[index]
-max_heading_block_lines = 400
-```
-
 ## Shell Completions
 
 The `blz` command includes built-in shell completion support. You can also enable dynamic alias/anchor completion helpers for richer UX.
@@ -296,15 +233,6 @@ blz completions elvish  # Elvish
 # Example: dynamic alias completion
 blz <TAB>                 # Shows your indexed aliases
 blz get <TAB>             # Completes with your indexed aliases
-
-## Configuration
-
-See the new configuration docs for details on global config, per-source settings, and environment variables:
-
-- docs/configuration/README.md
-- docs/configuration/global-config.md
-- docs/configuration/per-source.md
-- docs/configuration/env-vars.md
 ```
 
 ### Auto-updating Completions
@@ -322,27 +250,15 @@ For Fish users, completions can auto-regenerate when the binary updates:
 - **Search**: P50 6ms on typical queries
 - **Update**: Conditional fetch + no-op reindex < 30ms
 
-See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and methodology.
+See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 ## Building from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/outfitter-dev/blz
 cd blz
-
-# Build with Cargo
 cargo build --release
-
-# Run tests
-# Fast local test run (nextest)
-# If you don't have nextest installed:
-#   cargo install cargo-nextest
-cargo nextest run --workspace
-# Or use standard cargo test as fallback:
-#   cargo test --workspace
-
-# Install locally
+cargo nextest run --workspace  # or: cargo test --workspace
 cargo install --path .
 ```
 
@@ -369,11 +285,24 @@ MIT
 
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
-- [Getting Started](docs/getting-started.md) - Installation and first steps
-- [Managing Sources](docs/sources.md) - Adding and organizing documentation
-- [Search Guide](docs/search.md) - Search syntax and advanced patterns
-- [Shell Integration](docs/shell-integration/README.md) - Completions for Fish, Bash, Zsh, Elvish
-- [Architecture](docs/architecture.md) - Technical deep dive
+### Getting Started
+- [Quick Start](docs/QUICKSTART.md) - Installation and first steps
+- [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
+- [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
+
+### CLI Reference
+- [Command Reference](docs/cli/commands.md) - Complete command catalog
+- [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
+- [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
+- [Configuration](docs/cli/configuration.md) - Global, per-source, and env settings
+- [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
+
+### Configuration & Storage
+- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
+
+### Technical Details
+- [Architecture](docs/architecture/README.md) - System design and performance
+- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
 
 ## Contributing
 
@@ -385,5 +314,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 - [ ] v0.3+: Diff tracking and change journal
 - [ ] v0.3.x: MCP server with stdio transport
 - [ ] v0.4+: Optional vector search, fuzzy matching
-
-For detailed architecture and implementation details, see [docs/architecture.md](docs/architecture.md).

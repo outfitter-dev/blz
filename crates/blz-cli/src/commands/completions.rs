@@ -42,5 +42,11 @@ pub fn list_supported(format: crate::output::OutputFormat) {
                 println!("{}", json!({"shell": name, "installPath": path}));
             }
         },
+        crate::output::OutputFormat::Raw => {
+            // Raw format: just shell names, one per line
+            for (name, _) in &shells {
+                println!("{name}");
+            }
+        },
     }
 }

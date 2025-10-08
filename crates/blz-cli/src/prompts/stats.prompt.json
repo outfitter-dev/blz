@@ -1,0 +1,19 @@
+{
+  "target": "stats",
+  "summary": "Aggregate view of the cache: number of sources, storage usage, average staleness, and environment details.",
+  "usage": [
+    {
+      "command": "blz stats --format json",
+      "description": "Machine-friendly summary (ideal for dashboards or health checks)."
+    },
+    {
+      "command": "blz stats",
+      "description": "Human-readable report with totals, cache paths, and index sizes."
+    }
+  ],
+  "agent_use_cases": [
+    "Capture baseline metrics before bulk updates or cleanups.",
+    "Alert when total index size or staleness exceeds operational budgets.",
+    "Combine with `blz list --status` to drill into outlier sources."
+  ]
+}

@@ -7,8 +7,9 @@ use dialoguer::{Input, Select};
 use serde_json::json;
 use std::io::IsTerminal;
 
-use crate::commands::add_source;
+use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
+use crate::prompt::{NoteChannel, emit_registry_note};
 use crate::utils::validation::validate_alias;
 
 /// Execute the lookup command to search registries
@@ -20,8 +21,13 @@ pub async fn execute(
     format: OutputFormat,
 ) -> Result<()> {
     let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
-        .map(|value| matches!(value.as_str(), "1" | "true" | "on"))
-        .unwrap_or(false);
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "on" | "yes"
+            )
+        })
+        .unwrap_or(true);
 
     if !registry_enabled {
         let _ = metrics; // keep signature for future use
@@ -48,10 +54,14 @@ pub async fn execute(
 
             match format {
                 OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
-                OutputFormat::Jsonl => println!("{}", serde_json::to_string(&payload)?),
+                OutputFormat::Jsonl | OutputFormat::Raw => {
+                    println!("{}", serde_json::to_string(&payload)?);
+                },
                 OutputFormat::Text => unreachable!(),
             }
         }
+
+        emit_registry_note(format, quiet, NoteChannel::Auto);
 
         return Ok(());
     }
@@ -70,6 +80,7 @@ pub async fn execute(
         if matches!(format, OutputFormat::Json) {
             println!("[]");
         }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
         return Ok(());
     }
 
@@ -111,6 +122,7 @@ pub async fn execute(
                 println!("{}", serde_json::to_string(&o)?);
             }
         }
+        emit_registry_note(format, quiet, NoteChannel::ForceStderr);
         return Ok(());
     }
 
@@ -120,6 +132,7 @@ pub async fn execute(
         if matches!(format, OutputFormat::Text) && !quiet {
             display_manual_instructions(&results);
         }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
         return Ok(());
     };
 
@@ -143,7 +156,28 @@ pub async fn execute(
         );
     }
 
-    add_source(final_alias, &selected_entry.llms_url, false, quiet, metrics).await
+    let descriptor = DescriptorInput::from_cli_inputs(
+        &[],
+        Some(&selected_entry.name),
+        Some(&selected_entry.description),
+        None,
+        &[],
+    );
+
+    let request = AddRequest::new(
+        final_alias.to_string(),
+        selected_entry.llms_url.clone(),
+        descriptor,
+        false,
+        quiet,
+        metrics,
+    );
+
+    add_source(request).await?;
+
+    emit_registry_note(format, quiet, NoteChannel::Auto);
+
+    Ok(())
 }
 
 async fn display_results_with_health(

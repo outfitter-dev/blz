@@ -90,6 +90,10 @@ impl JsonFormatter {
                     .as_object()
                     .cloned()
                     .ok_or_else(|| anyhow!("expected object for SearchHit"))?;
+                if let Some(source_value) = hit_map.get("source").cloned() {
+                    hit_map.entry("alias".to_string()).or_insert(source_value);
+                }
+
                 let rounded_score = if precision == 0 {
                     f64::from(hit.score.round())
                 } else {
@@ -132,7 +136,13 @@ impl JsonFormatter {
     /// Format search results as newline-delimited JSON
     pub fn format_search_results_jsonl(hits: &[SearchHit]) -> Result<()> {
         for hit in hits {
-            println!("{}", serde_json::to_string(hit)?);
+            let mut value = serde_json::to_value(hit).context("serialize SearchHit to JSON")?;
+            if let serde_json::Value::Object(ref mut map) = value {
+                if let Some(source_value) = map.get("source").cloned() {
+                    map.entry("alias".to_string()).or_insert(source_value);
+                }
+            }
+            println!("{}", serde_json::to_string(&value)?);
         }
         Ok(())
     }

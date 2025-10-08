@@ -58,6 +58,7 @@ criterion/
 *.profraw
 *.profdata
 coverage/
+coverage.json
 
 # Logs
 *.log
@@ -65,18 +66,19 @@ coverage/
 # Claude
 !.claude/commands/log
 
-# Agent logs archive (keep directory but not contents)
-.agents/logs/.archive/*
-!.agents/logs/.archive/.gitkeep
-
-# Branchwork live symlink (not tracked)
-.agents/logs/CURRENT.md
+# Agent archives (keep directory but not contents)
+.agents/.archive/*
+!.agents/.archive/.gitkeep
 
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
 
-# Local agent scratchpad (ignore)
-.agents/scratchpad.md
+# Graphite local data
+.xdg-data/
+
+# Old hooks directory (no longer used)
+.hooks/
+
 # npm local binaries and packs (do not commit)
 /npm/bin/blz-*
 /outfitter-blz-*.tgz

@@ -3,29 +3,37 @@
 mod common;
 
 use common::blz_cmd;
+use serde_json::Value;
 
 #[test]
-fn instruct_prints_curated_text_and_cli_docs() -> anyhow::Result<()> {
+fn prompt_global_returns_json() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
-    let out = cmd
-        .arg("instruct")
+    let stdout = cmd
+        .arg("--prompt")
         .assert()
         .success()
         .get_output()
         .stdout
         .clone();
-    let s = String::from_utf8(out)?;
-    assert!(
-        s.contains("BLZ Agent Instructions"),
-        "should include curated instructions"
-    );
-    assert!(
-        s.contains("Need full command reference?"),
-        "should point to docs command for full reference"
-    );
-    assert!(
-        !s.contains("=== CLI Docs ==="),
-        "should not append verbose CLI docs by default"
-    );
+    let value: Value = serde_json::from_slice(&stdout)?;
+    assert_eq!(value["target"], "blz");
+    let summary = value["summary"].as_str().unwrap().to_ascii_lowercase();
+    assert!(summary.contains("local-first"));
+    Ok(())
+}
+
+#[test]
+fn prompt_for_specific_command() -> anyhow::Result<()> {
+    let mut cmd = blz_cmd();
+    let stdout = cmd
+        .args(["--prompt", "search"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: Value = serde_json::from_slice(&stdout)?;
+    assert_eq!(value["target"], "search");
+    assert!(value["primary_usage"].is_array());
     Ok(())
 }
