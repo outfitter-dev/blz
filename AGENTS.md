@@ -5,17 +5,17 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 ## Important
 
 - Follow the @./.agents/rules/IMPORTANT.md rules
-- Check @.agents/logs/ for relevant work logs and session notes
+- ALWAYS check with Linear (if available) when working on blz. See guidance:  @./.agents/rules/LINEAR.md
 
 ## Working Memory
 
 **Always check and update `SCRATCHPAD.md`** - This is your working memory file.
 
 - Read `SCRATCHPAD.md` at the start of each session to understand recent work
-- Update it as you work, especially after completing significant changes
-- Use dated H2 sections (e.g., `## 2025-10-01`) with bullet points
-- Link to detailed logs in `.agents/logs/` for comprehensive documentation
-- Keep it concise - this is a quick reference, not a detailed log
+  - Update it as you work, especially after completing significant changes
+  - Use dated H2 sections (e.g., `## 2025-10-01`) with bullet points
+  - Keep it concise - this is a quick reference, not a detailed log
+  - Link to detailed logs in `.agents/logs/` for comprehensive documentation
 
 ## Use blz
 
@@ -52,9 +52,9 @@ Each crate has its own AGENTS.md with specialized patterns:
 
 The codebase is organized as a Rust workspace with three main crates:
 
-- **`blz-core`**: Core functionality including fetcher, parser, indexer, and storage
-- **`blz-cli`**: Command-line interface binary
-- **`blz-mcp`**: MCP server implementation (in development)
+- `blz-core`: Core functionality including fetcher, parser, indexer, and storage
+- `blz-cli`: Command-line interface binary
+-*`blz-mcp`: MCP server implementation (in development)
 
 Key components:
 

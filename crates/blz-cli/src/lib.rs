@@ -4,7 +4,7 @@
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
 use anyhow::{Result, anyhow};
-use blz_core::PerformanceMetrics;
+use blz_core::{PerformanceMetrics, Storage};
 use clap::{CommandFactory, Parser};
 use colored::control as color_control;
 use tracing::{Level, warn};
@@ -19,10 +19,15 @@ mod output;
 mod prompt;
 mod utils;
 
-use crate::commands::{AddRequest, DescriptorInput};
+use crate::commands::{
+    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, print_full_content, print_overview,
+    sync_bundled_docs,
+};
 
 use crate::utils::preferences::{self, CliPreferences};
-use cli::{AliasCommands, AnchorCommands, Cli, Commands, RegistryCommands};
+use cli::{
+    AliasCommands, AnchorCommands, Cli, Commands, DocsCommands, DocsSearchArgs, RegistryCommands,
+};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -437,7 +442,9 @@ async fn execute_command(
                 commands::list_supported(resolved_format);
             }
         },
-        Some(Commands::Docs { format }) => handle_docs(format)?,
+        Some(Commands::Docs { command, format }) => {
+            handle_docs(command, format, cli.quiet, metrics.clone(), prefs).await?
+        },
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Add(args)) => {
             if let Some(manifest) = &args.manifest {
@@ -642,15 +649,136 @@ async fn execute_command(
     Ok(())
 }
 
-fn handle_docs(format: crate::commands::DocsFormat) -> Result<()> {
-    // If BLZ_OUTPUT_FORMAT=json and no explicit format set (markdown default), prefer JSON
-    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), format) {
+async fn handle_docs(
+    command: Option<DocsCommands>,
+    legacy_format: Option<crate::commands::DocsFormat>,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    _prefs: &mut CliPreferences,
+) -> Result<()> {
+    match command {
+        Some(DocsCommands::Search(args)) => docs_search(args, quiet, metrics.clone()).await?,
+        Some(DocsCommands::Sync {
+            force,
+            quiet: sync_quiet,
+        }) => docs_sync(force, sync_quiet, metrics.clone())?,
+        Some(DocsCommands::Overview) => {
+            docs_overview(quiet, metrics.clone())?;
+        },
+        Some(DocsCommands::Cat) => {
+            docs_cat(metrics.clone())?;
+        },
+        Some(DocsCommands::Export { format }) => {
+            docs_export(Some(format))?;
+        },
+        None => {
+            if let Some(format) = legacy_format {
+                docs_export(Some(format))?;
+            } else {
+                docs_overview(quiet, metrics.clone())?;
+            }
+        },
+    }
+
+    Ok(())
+}
+
+async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, quiet, metrics.clone())?;
+    let query = args.query.join(" ").trim().to_string();
+    if query.is_empty() {
+        anyhow::bail!("Search query cannot be empty");
+    }
+
+    let format = args.format.resolve(quiet);
+    let sources = vec![BUNDLED_ALIAS.to_string()];
+
+    commands::search(
+        &query,
+        &sources,
+        false,
+        args.limit,
+        1,
+        args.top,
+        format,
+        &args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.context,
+        args.block,
+        args.max_block_lines,
+        true,
+        args.copy,
+        None,
+        metrics,
+        None,
+    )
+    .await
+}
+
+fn docs_sync(force: bool, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(force, quiet, metrics)?;
+    if !quiet {
+        if matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
+            let storage = Storage::new()?;
+            let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+            println!("Bundled docs stored at {}", llms_path.display());
+        }
+    }
+    Ok(())
+}
+
+fn docs_overview(quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(false, quiet, metrics)?;
+    if !quiet {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs status: {:?}", status);
+        println!("Alias: {} (also @blz)", BUNDLED_ALIAS);
+        println!("Stored at: {}", llms_path.display());
+    }
+    print_overview();
+    Ok(())
+}
+
+fn docs_cat(metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, true, metrics)?;
+    print_full_content();
+    Ok(())
+}
+
+fn docs_export(format: Option<crate::commands::DocsFormat>) -> Result<()> {
+    let requested = format.unwrap_or(crate::commands::DocsFormat::Markdown);
+    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), requested) {
         (Some(v), crate::commands::DocsFormat::Markdown) if v.eq_ignore_ascii_case("json") => {
             crate::commands::DocsFormat::Json
         },
-        _ => format,
+        _ => requested,
     };
     commands::generate_docs(effective)
+}
+
+fn sync_and_report(
+    force: bool,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<DocsSyncStatus> {
+    let status = sync_bundled_docs(force, metrics)?;
+    if !quiet {
+        match status {
+            DocsSyncStatus::UpToDate => {
+                println!("Bundled docs already up to date");
+            },
+            DocsSyncStatus::Installed => {
+                println!("Installed bundled docs source: {}", BUNDLED_ALIAS);
+            },
+            DocsSyncStatus::Updated => {
+                println!("Updated bundled docs source: {}", BUNDLED_ALIAS);
+            },
+        }
+    }
+    Ok(status)
 }
 
 async fn handle_anchor(command: AnchorCommands) -> Result<()> {

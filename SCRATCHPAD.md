@@ -1,5 +1,11 @@
 # Scratchpad
 
+## 2025-10-09
+
+- Reviewed Factory remote workspace docs (via `blz`) to capture recommended custom command practices and troubleshooting references for configuring setup commands in remote agents.
+- Drafted suggested Factory setup sequence for `blz`: safe `git fetch --all --prune`, `git pull --ff-only origin main`, and workspace bootstrap via `cargo fetch`, `cargo build --release`, and `npm install` when packaging is required.
+- Added automation helpers: `scripts/fmt-docs.sh`, `just fmt-docs`, and `scripts/factory-agent-setup.sh` to standardize remote/Factory provisioning and doc formatting.
+
 ## 2025-10-08
 
 - Added MCP `linear` server configuration to `.codex/config.toml` pointing at `https://mcp.linear.app/sse` via `npx mcp-remote`.

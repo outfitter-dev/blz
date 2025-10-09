@@ -4,6 +4,10 @@ target/
 ## Track lockfile for deterministic releases
 # (Do not ignore Cargo.lock)
 
+# Temporary files
+tmp/
+temp/
+
 # Environment files
 .env
 .env.*
