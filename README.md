@@ -172,8 +172,8 @@ blz get "$span" -c5 --json
 # Need more than one range? Supply --lines with a comma-separated list
 blz get bun --lines "41994-42009,42010-42020" --json
 
-# Want the full heading section? Expand with --block (and cap the output)
-blz get bun:41994-42009 --block --max-lines 80 --json
+# Want the full heading section? Expand with --context all (and cap the output)
+blz get bun:41994-42009 --context all --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -193,7 +193,7 @@ blz get bun:423-445
 blz get bun --lines "41994-42009,42010-42020" --json
 
 # Expand to the entire heading block when the agent needs full prose
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # List all indexed sources
 blz list --json | jq 'length'

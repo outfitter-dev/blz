@@ -6,7 +6,7 @@ use colored::Colorize;
 use std::collections::BTreeSet;
 
 use crate::output::OutputFormat;
-use crate::utils::parsing::{LineRange, parse_line_ranges, parse_line_span};
+use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::toc::{
     BlockSlice, extract_block_slice, finalize_block_slice, find_heading_for_line,
     heading_level_from_line,
@@ -26,7 +26,6 @@ fn compute_block_result(
     file_lines: &[String],
     ranges: &[LineRange],
     max_block_lines: Option<usize>,
-    line_spec: &str,
 ) -> BlockResult {
     let target_line = ranges.first().map_or(1, |range| match range {
         LineRange::Single(n) => *n,
@@ -34,11 +33,16 @@ fn compute_block_result(
     });
 
     let llms = storage.load_llms_json(canonical).ok();
+    // For block mode: prefer heading-based spans. If no heading is found in the TOC,
+    // use a wide range to allow the heading inference logic (lines 67-84) to find
+    // the correct block end by scanning for the next same-level or higher heading.
+    // Do NOT fall back to parse_line_span for single lines, as that would return (n, n)
+    // and prevent block expansion.
+    let file_len = file_lines.len();
     let (start, end) = llms
         .as_ref()
         .and_then(|doc| find_heading_for_line(&doc.toc, target_line).map(|(_, span)| span))
-        .or_else(|| parse_line_span(line_spec))
-        .unwrap_or((target_line, target_line));
+        .unwrap_or((target_line, file_len));
 
     if file_lines.is_empty() {
         return BlockResult {
@@ -259,7 +263,6 @@ pub async fn execute(
             &file_lines,
             &ranges,
             max_block_lines,
-            lines,
         ))
     } else {
         None
