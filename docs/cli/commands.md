@@ -49,10 +49,9 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
 - [Management Commands](#management-commands)
   - [blz list](#blz-list--blz-sources)
   - [blz update](#blz-update)
-  - [blz upgrade](#blz-upgrade)
   - [blz remove](#blz-remove--blz-rm--blz-delete)
 - [Utility Commands](#utility-commands)
-  - [blz diff](#blz-diff-hiddenexperimental)
+  - [blz diff](#blz-diff)
   - [blz completions](#blz-completions)
   - [blz docs](#blz-docs)
   - [blz history](#blz-history)
@@ -593,6 +592,7 @@ Config discovery order:
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
+
 ### `blz --prompt`
 
 Emit JSON guidance for the CLI or a specific command. Replaces the legacy `blz instruct` command.
@@ -654,6 +654,7 @@ Scopes behave as follows:
 - `local`: stores overrides in `blz.json`, keyed by the working directory
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `docs/agents/use-blz.md`.
+
 ### Setting a Global Default
 
 Set a single environment variable to control default output across commands that support `--format` (deprecated alias: `-o`/`--output`; JSONL accepts `jsonl` or `ndjson`):
@@ -665,7 +666,8 @@ export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 blz "async"
 blz list --status
 ```
-# `blz alias`
+
+## `blz alias`
 
 Manage aliases for a source. Aliases are stored in source metadata and resolved across commands.
 
@@ -682,6 +684,7 @@ blz alias rm react @facebook/react
 ```
 
 Notes:
+
 - Canonical "source" remains the primary handle; aliases are alternate names.
 - Alias formats like `@scope/package` are allowed (not used for directories).
 - Ambiguous aliases across multiple sources will produce an error; use the canonical name instead.
@@ -715,6 +718,7 @@ blz "async rust" --jsonl
 ```
 
 Output structure (JSON):
+
 ```json
 {
   "query": "async rust",
@@ -745,6 +749,7 @@ Output structure (JSON):
 ```
 
 Notes:
+
 - `suggestions` may be included when results are sparse or low-quality to aid discovery
 - `jsonl` emits one SearchHit per line (no aggregation metadata)
 
@@ -761,6 +766,7 @@ Format: `<alias>:<lines> <heading_path>`
 ### Environment Detection
 
 The CLI automatically detects the output context:
+
 - TTY: Uses colored text output
 - Pipe: Uses plain text without colors
 - CI: Adjusts formatting for CI environments

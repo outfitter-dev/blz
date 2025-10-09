@@ -43,11 +43,13 @@ gt config
 #### Development Workflow
 
 1. **Sync with main**:
+
    ```bash
    gt sync --no-interactive
    ```
 
 2. **Create a feature branch**:
+
    ```bash
    gt create -m "feat: add new feature"
    ```
@@ -59,12 +61,14 @@ gt config
    - Run quality checks
 
 4. **Stack additional changes** (if needed):
+
    ```bash
    gt create -m "test: add comprehensive tests"
    gt create -m "docs: update documentation"
    ```
 
 5. **Submit your stack**:
+
    ```bash
    gt submit --no-interactive
    ```
@@ -103,6 +107,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -114,6 +119,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore`: Maintenance tasks
 
 **Examples:**
+
 ```bash
 git commit -m "feat(cli): add shell completion support"
 git commit -m "fix(#42): prevent panic in search pagination"
@@ -184,6 +190,7 @@ cargo install hyperfine
 ### IDE Setup
 
 We recommend VS Code with these extensions:
+
 - rust-analyzer
 - Even Better TOML
 - GitLens
@@ -215,6 +222,7 @@ cargo bench
 - Aim for >80% code coverage on new code
 
 Example:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -296,6 +304,7 @@ hyperfine --warmup 10 --min-runs 50 \
 ## Recognition
 
 Contributors are recognized in several ways:
+
 - Listed in release notes
 - Mentioned in the changelog
 - GitHub contributor badge

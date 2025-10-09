@@ -1,11 +1,13 @@
 # Compiler-in-the-Loop Development for Agents
 
 ## Purpose
+
 This guide helps AI agents integrate with Rust compiler tools for faster, more accurate development cycles using machine-readable diagnostics and automated fixes.
 
 ## Core Workflow
 
 ### 1. JSON Diagnostics Collection
+
 Use `cargo check --message-format=json` to get structured compiler output:
 
 ```bash
@@ -23,6 +25,7 @@ cargo check --message-format=json 2>/dev/null | jq '.message | select(.code.code
 ```
 
 ### 2. Automated Fixes
+
 Apply automated fixes where the compiler can help:
 
 ```bash
@@ -37,6 +40,7 @@ cargo fix --allow-dirty --allow-staged --edition-idioms
 ```
 
 ### 3. Macro Expansion for Debugging
+
 When compiler errors involve macros, use `cargo expand`:
 
 ```bash
@@ -147,6 +151,7 @@ echo "✅ Agent check complete"
 ## Parsing JSON Diagnostics
 
 ### Message Structure
+
 Rust compiler JSON messages have this structure:
 
 ```json
@@ -211,6 +216,7 @@ jq -r '.message | select(.level=="error") | group_by(.spans[0].file_name)'
 ## Common Error Patterns and Fixes
 
 ### Pattern 1: Lifetime Errors
+
 ```bash
 # Detect lifetime errors
 jq -r '.message | select(.level=="error" and (.code.code=="E0106" or .code.code=="E0621"))'
@@ -222,6 +228,7 @@ jq -r '.message | select(.level=="error" and (.code.code=="E0106" or .code.code=
 ```
 
 ### Pattern 2: Borrow Checker Errors
+
 ```bash
 # Detect borrowing issues
 jq -r '.message | select(.level=="error" and (.code.code | startswith("E05")))'
@@ -233,6 +240,7 @@ jq -r '.message | select(.level=="error" and (.code.code | startswith("E05")))'
 ```
 
 ### Pattern 3: Type Mismatches
+
 ```bash
 # Detect type errors
 jq -r '.message | select(.level=="error" and .code.code=="E0308")'
@@ -244,6 +252,7 @@ jq -r '.message | select(.level=="error" and .code.code=="E0308")'
 ```
 
 ### Pattern 4: Missing Trait Implementations
+
 ```bash
 # Detect trait errors
 jq -r '.message | select(.level=="error" and .code.code=="E0277")'
@@ -257,6 +266,7 @@ jq -r '.message | select(.level=="error" and .code.code=="E0277")'
 ## Macro Debugging Strategies
 
 ### When to Use cargo expand
+
 1. **Derive macro errors**: When `#[derive(...)]` fails
 2. **Procedural macro issues**: Complex custom macros
 3. **Compiler pointing to generated code**: Error spans in generated code
@@ -282,6 +292,7 @@ diff before.rs after.rs
 ```
 
 ### Reading Expanded Code
+
 - Look for generated `impl` blocks
 - Check trait implementations
 - Verify generic bounds
@@ -290,6 +301,7 @@ diff before.rs after.rs
 ## Integration with IDEs
 
 ### rust-analyzer Integration
+
 Configure rust-analyzer to use JSON diagnostics:
 
 ```json
@@ -300,6 +312,7 @@ Configure rust-analyzer to use JSON diagnostics:
 ```
 
 ### Custom LSP Integration
+
 For custom tools that process Rust code:
 
 ```rust
@@ -324,6 +337,7 @@ fn parse_diagnostics(json_output: &str) -> Vec<Diagnostic> {
 ## Performance Considerations
 
 ### Caching Checks
+
 ```bash
 # Use cargo's built-in caching
 export CARGO_TARGET_DIR=target-shared
@@ -336,6 +350,7 @@ cargo check -p blz-core -p blz-cli
 ```
 
 ### Incremental Compilation
+
 ```bash
 # Enable incremental compilation
 export CARGO_INCREMENTAL=1
@@ -358,6 +373,7 @@ export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 ### Common Issues
 
 **jq not available:**
+
 ```bash
 # Install jq
 # Ubuntu/Debian: apt install jq
@@ -366,11 +382,13 @@ export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 ```
 
 **cargo-expand not available:**
+
 ```bash
 cargo install cargo-expand
 ```
 
 **Large macro expansions:**
+
 ```bash
 # Expand specific items only
 cargo expand specific_function
@@ -381,6 +399,7 @@ cargo expand | head -1000
 ```
 
 **Slow check times:**
+
 ```bash
 # Use faster check mode
 cargo check --profile dev

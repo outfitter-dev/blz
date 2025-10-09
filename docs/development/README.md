@@ -14,17 +14,20 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ### Prerequisites
 
 1. **Rust**: Install via [rustup](https://rustup.rs/)
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. **Graphite CLI**: For stacked PRs
+
    ```bash
    brew install withgraphite/tap/graphite
    # or: npm install -g @withgraphite/graphite-cli
    ```
 
 3. **Development Tools**:
+
    ```bash
    # Required
    cargo install cargo-deny cargo-shear
@@ -36,27 +39,32 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ### Setup
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/outfitter-dev/blz.git
    cd blz
    ```
 
 2. Install git hooks:
+
    ```bash
    lefthook install
    ```
 
 3. Build the project:
+
    ```bash
    cargo build --release
    ```
 
 4. Run tests:
+
    ```bash
    cargo test --workspace
    ```
 
 5. Validate documentation links:
+
    ```bash
    just link-check
    ```
@@ -64,6 +72,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ## 🔧 Development Stack
 
 ### Core Technologies
+
 - **Language**: Rust 1.85+ (stable channel, 2024 edition)
 - **Search Engine**: Tantivy
 - **Async Runtime**: Tokio
@@ -71,6 +80,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 - **Testing**: Built-in Rust testing + Criterion for benchmarks
 
 ### Development Tools
+
 - **Version Control**: Git with Graphite for stacked PRs
 - **CI/CD**: GitHub Actions with Graphite optimization
 - **Code Quality**: Clippy, rustfmt, cargo-deny
@@ -159,6 +169,7 @@ The script is XDG-aware and handles both macOS and Linux paths automatically. It
 - **Source data**: All cached `llms.txt` files and search indices
 
 This is particularly useful when:
+
 - Testing migrations or upgrades against real data
 - Benchmarking performance with your actual source set
 - Developing features that depend on existing indices
@@ -198,7 +209,6 @@ Be careful to double-check paths before running the commands above.
 
 ## 🤝 Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/outfitter-dev/blz/issues)
 - **Issues**: [GitHub Issues](https://github.com/outfitter-dev/blz/issues)
 - **Documentation**: Check `.agents/rules/` for detailed development rules
 

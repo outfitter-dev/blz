@@ -6,7 +6,7 @@ The `.agents` directory contains all agent-generated documentation, logs, and ru
 
 ## Directory Structure
 
-```
+```text
 .agents/
 ├── docs/                 # Current, undated documentation
 │   ├── PRD.initial.md
@@ -33,17 +33,22 @@ The `.agents` directory contains all agent-generated documentation, logs, and ru
 ## Subdirectory Purposes
 
 ### `/docs`
+
 Contains current, undated documentation that represents the latest state of project documentation, requirements, and design decisions. These files are actively maintained and referenced.
 
 ### `/logs`
+
 Timestamped logs of agent sessions, organized by type:
+
 - **Active logs**: Recent development activity, PR reviews, debugging sessions
 - **Archive**: Historical logs older than 30 days or for completed/closed work
 
 ### `/rules`
+
 Engineering principles, architectural patterns, and development guidelines that agents should follow. These are actively used during development.
 
 ### `/scripts`
+
 Utility scripts for maintaining agent documentation consistency.
 
 ## Log Type Prefixes
@@ -63,10 +68,12 @@ All files in `.agents/logs/` follow the format: `YYYYMMDDHHmm-[type]-description
 ## Git Tracking
 
 ### Tracked Files
+
 - All files in `.agents/` except those in `.archive/`
 - The `.gitkeep` file in `.archive/` is tracked
 
 ### Ignored Files
+
 - Contents of `.agents/logs/.archive/*` (except `.gitkeep`)
 
 ## Common Workflows
@@ -81,6 +88,7 @@ All files in `.agents/logs/` follow the format: `YYYYMMDDHHmm-[type]-description
 ### Archiving Old Logs
 
 Move logs to archive when:
+
 - Older than 30 days and not referenced by current docs
 - PR review notes for merged/closed PRs
 - Debug logs for resolved issues

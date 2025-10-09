@@ -28,23 +28,28 @@ Use these labels on pull requests that target `main` to signal release automatio
 ### Available Labels
 
 **`release:patch`**
+
 - Publish a new patch version (`0.0.x`) once merged
 - Example: `v0.4.1` → `v0.4.2`
 
 **`release:minor`**
+
 - Publish a new minor version (`0.x.0`) once merged
 - Example: `v0.4.1` → `v0.5.0`
 
 **`release:major`**
+
 - Publish a new major version (`x.0.0`) once merged
 - Example: `v0.4.1` → `v1.0.0`
 
 **`release:canary`**
+
 - Publish a pre-release canary build
 - Tagged with the `canary` dist-tag
 - Example: `v0.5.0-canary.1`
 
 **`release:hold`**
+
 - Pause automation for the PR
 - Automation resumes once the label is removed
 
@@ -67,6 +72,7 @@ gh workflow run publish.yml -f tag=v1.0.0
 ```
 
 **Actions:**
+
 - ✅ Build all platform binaries
 - ✅ Upload release assets to GitHub
 - ✅ Publish to npm
@@ -84,6 +90,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=assets-only
 ```
 
 **Actions:**
+
 - ✅ Build all platform binaries
 - ✅ Upload release assets to GitHub
 - ❌ Skip npm publishing
@@ -101,6 +108,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=publish-only
 ```
 
 **Actions:**
+
 - ❌ Skip building (assets must already exist)
 - ❌ Skip asset upload
 - ✅ Publish to npm (from existing release)
@@ -119,6 +127,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f skip_homebrew=true -f skip_npm=true
 ```
 
 **Actions:**
+
 - ✅ Build all platform binaries
 - ✅ Upload release assets to GitHub
 - ❌ Skip npm publishing (explicit skip)
@@ -136,6 +145,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f dry_run=true
 ```
 
 **Actions:**
+
 - ✅ Build all platform binaries
 - ✅ Upload release assets to GitHub
 - ❌ Skip npm publishing (dry run)
@@ -153,6 +163,7 @@ gh workflow run publish.yml -f tag=v1.0.0-beta.1
 ```
 
 **Actions:**
+
 - ✅ Build all platform binaries
 - ✅ Upload release assets to GitHub
 - ✅ Publish to npm (with `beta` dist-tag)
@@ -298,6 +309,7 @@ npm install @outfitter/blz@canary
 **Problem:** Publish-only mode can't find release assets.
 
 **Solution:**
+
 ```bash
 # Run assets-only mode first
 gh workflow run publish.yml -f tag=v1.0.0 -f mode=assets-only
@@ -311,6 +323,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=publish-only
 **Problem:** Homebrew tap update fails.
 
 **Solution:**
+
 1. Check that the tag exists on GitHub
 2. Verify release assets are uploaded
 3. Ensure `HOMEBREW_TOKEN` secret is set
@@ -323,6 +336,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=publish-only
 **Cause:** The `dry_run` flag only works in full release mode.
 
 **Solution:**
+
 ```bash
 # Use dry_run=true in default mode
 gh workflow run publish.yml -f tag=v1.0.0 -f dry_run=true
@@ -333,6 +347,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f dry_run=true
 **Problem:** Act fails with authentication errors.
 
 **Solution:**
+
 ```bash
 # Ensure GITHUB_TOKEN is set
 cat ~/.config/act/secrets

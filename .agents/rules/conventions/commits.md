@@ -5,7 +5,7 @@
 - Include `(scope)` in the commit message if the change is related to a specific part of the codebase
 - Use all lowercase for commit messages
 
-  ```text
+  ```
   feat(scope): add new feature
   fix(api): resolve timeout issue
   docs: update readme

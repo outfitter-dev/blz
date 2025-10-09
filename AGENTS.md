@@ -141,7 +141,7 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 ### Storage Layout
 
-```text
+```
 # Config directory (data.json state, config.toml):
 #   With XDG_CONFIG_HOME set: $XDG_CONFIG_HOME/blz/
 #   Without XDG_CONFIG_HOME:  ~/.blz/
@@ -172,6 +172,7 @@ sources/
 ## Rust-Specific Guidelines
 
 ### Linting Configuration
+
 The project uses strict Clippy rules (see `clippy.toml` and workspace lints in `Cargo.toml`):
 
 - All pedantic and nursery lints enabled

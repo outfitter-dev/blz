@@ -14,15 +14,25 @@ echo "🚀 Setting up git hooks for Rust project..."
 # Check if lefthook is installed
 if ! command_exists lefthook; then
     log_warning "📦 Lefthook not found. Installing..."
-    
+
     # Prefer Homebrew on macOS
     if is_macos && command_exists brew; then
         echo "Installing lefthook via Homebrew..."
         brew install lefthook
-    # Use cargo as fallback
-    elif command_exists cargo; then
-        echo "Installing lefthook via Cargo..."
-        cargo install lefthook
+    # Try Go
+    elif command_exists go; then
+        echo "Installing lefthook via Go..."
+        go install github.com/evilmartians/lefthook@latest
+        GO_BIN="$(go env GOBIN 2>/dev/null)"
+        if [[ -z "$GO_BIN" ]]; then
+            GOPATH_VALUE="$(go env GOPATH 2>/dev/null)"
+            if [[ -n "$GOPATH_VALUE" ]]; then
+                GO_BIN="${GOPATH_VALUE%%:*}/bin"
+            else
+                GO_BIN="$HOME/go/bin"
+            fi
+        fi
+        export PATH="$GO_BIN:$PATH"
     # Use install script as last resort
     else
         echo "Installing lefthook via install script..."

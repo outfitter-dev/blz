@@ -17,6 +17,7 @@ The script installs the latest release to `~/.local/bin`. Override the location 
 ### Install from Source
 
 If you prefer building from source, you'll need:
+
 - Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
 - Git
 

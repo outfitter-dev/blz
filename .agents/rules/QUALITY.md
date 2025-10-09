@@ -42,6 +42,7 @@ make ci  # or: just ci
 ```
 
 This runs:
+
 1. `cargo fmt` - Code formatting
 2. `cargo clippy` - Linting
 3. `cargo test` - Unit tests
@@ -267,12 +268,14 @@ missing_docs = "warn"
 ### Regular Audits
 
 Weekly:
+
 ```bash
 cargo outdated
 cargo audit
 ```
 
 Monthly:
+
 ```bash
 cargo deny check
 cargo bloat --release

@@ -357,5 +357,5 @@ Common aliases (if configured in this repo):
 
 ## Additional Resources
 
-- Official Docs: https://graphite.dev/docs
-- Command Reference: https://graphite.dev/docs/command-reference
+- Official Docs: <https://graphite.dev/docs>
+- Command Reference: <https://graphite.dev/docs/command-reference>

@@ -128,4 +128,5 @@ pub fn migrate_config() -> Result<()> {
 - README update with new config examples
 - GitHub discussion for questions
 - Migration success/failure metrics logging
+
 ```

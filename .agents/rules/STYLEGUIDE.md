@@ -26,7 +26,9 @@ We write with clarity and honesty. We're building tools for developers who value
 ### Product References
 
 #### When to Use "BLZ" (Uppercase)
+
 Use uppercase "BLZ" when referring to the project or tool in prose:
+
 - Documentation headers and titles
 - README descriptions
 - Inline comments in code
@@ -34,13 +36,16 @@ Use uppercase "BLZ" when referring to the project or tool in prose:
 - General references in documentation text
 
 Examples:
+
 - "BLZ is a local-first search cache"
 - "Welcome to BLZ"
 - "What is BLZ?"
 - "BLZ indexes your documentation"
 
 #### When to Use "blz" (Lowercase)
+
 Keep lowercase `blz` for technical/code contexts:
+
 - CLI commands and examples: `blz add`, `blz search`
 - File paths: `/usr/local/bin/blz`
 - Package/crate names: `@outfitter/blz`, `blz-core`
@@ -49,16 +54,19 @@ Keep lowercase `blz` for technical/code contexts:
 - Inside code blocks or backticks
 
 Examples:
+
 ```bash
 blz add react https://react.dev/llms.txt
 cargo install blz-cli
 ```
 
 #### Pronunciation
+
 - Pronounced "blaze" but don't overexplain this
 - Don't overuse the blazing/fire metaphors
 
 ### Performance Claims
+
 ✅ **Good**: "6ms typical search latency"
 ❌ **Bad**: "INSANELY FAST searches that will BLOW YOUR MIND"
 
@@ -66,6 +74,7 @@ cargo install blz-cli
 ❌ **Bad**: "Lightning-fast, blazingly quick, supersonic speed!!!"
 
 ### Feature Descriptions
+
 ✅ **Good**: "Local-first search that works offline"
 ❌ **Bad**: "Revolutionary offline-first architecture"
 
@@ -73,6 +82,7 @@ cargo install blz-cli
 ❌ **Bad**: "The ULTIMATE documentation indexing solution"
 
 ### Error Messages
+
 ✅ **Good**: "Source not found. Run `blz add <alias> <url>` to add it."
 ❌ **Bad**: "Oops! 😱 We couldn't find that source! 🚨"
 
@@ -102,6 +112,7 @@ cargo install blz-cli
 ## Metaphor Usage
 
 ### Trail Blazing
+
 Use the trail blazing metaphor to explain navigation and discovery:
 
 - "Mark your path through documentation"
@@ -114,6 +125,7 @@ Don't overdo it:
 - ❌ "Become a master trail blazer!"
 
 ### Speed
+
 Reference speed with specific metrics:
 
 - ✅ "Search in 6ms"
@@ -151,6 +163,7 @@ blz add react https://react.dev/llms.txt --awesome --fire 🔥
 ## Marketing Copy
 
 ### Taglines
+
 ✅ **Good**:
 
 - "Fast local search for llms.txt documentation"
@@ -164,6 +177,7 @@ blz add react https://react.dev/llms.txt --awesome --fire 🔥
 - "Revolutionary game-changing documentation paradigm"
 
 ### Feature Highlights
+
 Focus on measurable benefits:
 
 - "6ms search latency"
@@ -197,15 +211,18 @@ Not vague superlatives:
 - Avoid excessive enthusiasm ("AMAZING PR!!!" → "Thanks for the contribution")
 
 ### Release Notes
+
 ✅ **Good**: "Fixed memory leak in search indexer, reducing memory usage by 40%"
 ❌ **Bad**: "MASSIVE performance improvements that make BLZ even MORE BLAZING FAST!"
 
 ## Examples
 
 ### Good Description
+>
 > BLZ indexes your llms.txt documentation locally for fast, offline search. Returns exact line numbers in 6ms typical latency. Built with Rust and Tantivy for consistent, deterministic results.
 
 ### Bad Description
+>
 > 🔥 BLZ is the ULTIMATE BLAZINGLY FAST documentation tool that REVOLUTIONIZES how you search! With INSANE speeds and CUTTING-EDGE technology, it's the BEST tool you'll EVER use! 🚀🔥💯
 
 ## Final Note

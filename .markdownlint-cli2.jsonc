@@ -23,7 +23,8 @@
     "MD043": false,
     "MD046": {
       "style": "fenced"
-    }
+    },
+    "MD051": true
   },
   "globs": [],
   "ignores": [

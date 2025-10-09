@@ -3,7 +3,6 @@ title: Using the `blz` CLI to search llms.txt docs
 description: Use the `blz` CLI tool to search and retrieve documentation from locally cached llms.txt files in milliseconds.
 ---
 
-# Using the `blz` CLI to search `llms.txt` docs
 
 Use the [`blz`](https://github.com/outfitter-dev/blz) CLI to keep documentation local, search it in milliseconds (P50 ≈ 6ms), and return grounded spans with exact citations. Keep payloads lean so agents spend fewer tokens per query compared to traditional page-level search.
 

@@ -83,8 +83,10 @@ Unify all storage and configuration paths to use `~/.outfitter/blz` consistently
 
 Users with existing installations will see:
 ```
+
 Found existing data at ~/.cache/outfitter
 Migrate to ~/.outfitter/blz? [Y/n]
+
 ```
 
 ## Risks

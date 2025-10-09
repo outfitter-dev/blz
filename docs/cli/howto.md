@@ -66,6 +66,7 @@ blz "your query"
 ```
 
 **Tips**:
+
 - Results show source, heading path, and lines
 - Default shows top 50 results
 - Use `-n N` to show more/fewer
@@ -285,6 +286,7 @@ blz "query" --json | jq '.results | group_by(.alias) | map({alias: .[0].alias, c
 ### I want to use BLZ with AI agents
 
 See detailed agent integration patterns in:
+
 - [Commands Reference](commands.md#blz---prompt) (`--prompt` flag)
 - `docs/agents/use-blz.md` (agent-specific patterns)
 

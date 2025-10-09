@@ -47,10 +47,12 @@ Search results for 'test runner' (6ms):
 [`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that includes all documentation for a project.
 
 **Why they're great:**
+
 - Comprehensive documentation that's kept up to date
 - Single file in a standardized format makes for easy retrieval and indexing
 
 **The challenge:**
+
 - They're **huge** (12K+ lines, 200K+ tokens)
 - Too context-heavy for agents to use directly
 - Keeping them up to date is manual work
@@ -67,10 +69,12 @@ BLZ indexes [`llms.txt`](https://llmstxt.org/) documentation files locally:
 ### The Problem
 
 Projects publish complete docs as `llms-full.txt` files, but:
+
 - They're massive (12K+ lines, 200K+ tokens)
 - Too context-heavy for agents to use directly
 
 But what about MCP servers for searching docs?
+
 - They're great, and we use them too! but...
 - Results can take up a lot of an agent's context window
 - May require multiple searches to find critical info
@@ -286,11 +290,13 @@ MIT
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ### Getting Started
+
 - [Quick Start](docs/QUICKSTART.md) - Installation and first steps
 - [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
 - [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
 
 ### CLI Reference
+
 - [Command Reference](docs/cli/commands.md) - Complete command catalog
 - [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
 - [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
@@ -298,9 +304,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
 
 ### Configuration & Storage
+
 - [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
 
 ### Technical Details
+
 - [Architecture](docs/architecture/README.md) - System design and performance
 - [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
 

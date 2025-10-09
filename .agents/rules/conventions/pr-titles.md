@@ -13,12 +13,14 @@
 ## Rules
 
 ### Required
+
 - Use imperative mood: "add" not "added" or "adds"
 - Stay under 50 characters (72 absolute max)
 - Match the primary commit if squash-merging
 - Include ticket numbers: `fix(auth): resolve token expiry (#123)`
 
 ### Good PR Titles
+
 ```
 feat(cli): add progress indicator for indexing
 fix(search): handle empty query strings gracefully
@@ -28,6 +30,7 @@ chore(deps): bump tantivy to 0.21
 ```
 
 ### Bad PR Titles
+
 ```
 bug fix                     # Too vague
 update code                 # What code? What update?
@@ -39,6 +42,7 @@ misc changes               # Be specific
 ## Stack-Specific (Graphite)
 
 When working with stacked PRs:
+
 - Each PR title describes only its changes
 - Include stack position if helpful: `feat(api): [2/3] add validation`
 - Keep titles independent - reviewers may see them out of order
@@ -46,6 +50,7 @@ When working with stacked PRs:
 ## Why It Matters
 
 Good PR titles:
+
 - Populate changelog automatically
 - Help reviewers prioritize
 - Make git history searchable

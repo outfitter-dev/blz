@@ -17,6 +17,7 @@ The script installs the latest release to `~/.local/bin`. Override the location 
 ### From Source (Optional)
 
 If you prefer building from source, you'll need:
+
 - Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
 - Git
 
@@ -65,6 +66,7 @@ blz add bun https://bun.sh/llms.txt
 ```
 
 **What happens:**
+
 - Fetches the llms.txt file from Bun's website
 - Parses it into structured heading blocks
 - Builds a search index
@@ -147,7 +149,6 @@ Inspect recent searches and persisted defaults:
 ```bash
 blz history -n5
 ```
-
 
 ## Common Use Cases
 

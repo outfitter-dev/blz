@@ -7,11 +7,13 @@ BLZ uses platform-specific directories for storing cached documentation, indexes
 The data directory contains all cached documentation and search indexes:
 
 **Platform-specific defaults:**
+
 - **Linux (XDG)**: `~/.local/share/dev.outfitter.blz/`
 - **macOS (AppData)**: `~/Library/Application Support/dev.outfitter.blz/`
 - **Windows**: `%APPDATA%\dev.outfitter.blz\`
 
 **Override with environment variable:**
+
 ```bash
 export BLZ_DATA_DIR=/custom/path/to/blz/data
 ```
@@ -56,6 +58,7 @@ Each source gets its own directory with the following structure:
 ### Index Directory (`.index/`)
 
 Contains Tantivy search index files:
+
 - **`meta.json`**: Index metadata
 - **`.managed.json`**: Tantivy managed index data
 - **`*.segment`**: Index segment files
@@ -65,6 +68,7 @@ The index is memory-mapped for fast loading and minimal RAM usage.
 ### Archive Directory (`.archive/`)
 
 Historical snapshots for change tracking:
+
 - **`YYYY-MM-DDTHH-MM-SSZ-llms.txt`**: Timestamped snapshot
 - **`YYYY-MM-DDTHH-MM-SSZ.diff`**: Unified diff vs previous snapshot
 
@@ -96,11 +100,13 @@ See [Per-Source Settings](../cli/configuration.md#per-source-settings) for all a
 ### Disk Usage
 
 Typical storage per source:
+
 - **Raw text**: 500KB - 5MB
 - **Index**: 2x - 3x raw text size
 - **Archives**: Depends on `max_archives` setting
 
 Example for a 2MB documentation file:
+
 - `llms-full.txt`: 2MB
 - `.index/`: ~5MB
 - `.archive/`: ~20MB (10 snapshots)
@@ -109,17 +115,20 @@ Example for a 2MB documentation file:
 ### Cleaning Up
 
 Remove a source and all its data:
+
 ```bash
 blz remove bun
 ```
 
 Clear archives while keeping current data:
+
 ```bash
 # Not yet implemented - planned for future version
 # blz archive clear bun
 ```
 
 Completely reset BLZ (removes all data):
+
 ```bash
 rm -rf ~/.local/share/dev.outfitter.blz/
 ```
