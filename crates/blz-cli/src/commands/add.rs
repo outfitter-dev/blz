@@ -3,12 +3,13 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
-    Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, SourceDescriptor,
+    Fetcher, LanguageFilter, MarkdownParser, PerformanceMetrics, SearchIndex, Source, SourceDescriptor,
     SourceOrigin, SourceType, SourceVariant, Storage,
 };
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs as sync_fs;
@@ -93,6 +94,7 @@ pub struct AddRequest {
     pub dry_run: bool,
     pub quiet: bool,
     pub metrics: PerformanceMetrics,
+    pub no_language_filter: bool,
 }
 
 impl AddRequest {
@@ -103,6 +105,7 @@ impl AddRequest {
         dry_run: bool,
         quiet: bool,
         metrics: PerformanceMetrics,
+        no_language_filter: bool,
     ) -> Self {
         Self {
             alias: alias.into(),
@@ -111,6 +114,7 @@ impl AddRequest {
             dry_run,
             quiet,
             metrics,
+            no_language_filter,
         }
     }
 }
@@ -168,6 +172,7 @@ pub async fn execute(request: AddRequest) -> Result<()> {
         dry_run,
         quiet,
         metrics,
+        no_language_filter,
     } = request;
 
     // Normalize the alias to kebab-case lowercase
@@ -211,6 +216,7 @@ pub async fn execute(request: AddRequest) -> Result<()> {
         quiet,
         fetcher,
         metrics,
+        no_language_filter,
     )
     .await
 }
@@ -222,6 +228,7 @@ pub async fn execute_manifest(
     dry_run: bool,
     quiet: bool,
     metrics: PerformanceMetrics,
+    no_language_filter: bool,
 ) -> Result<()> {
     let _ = auto_yes;
     let manifest_text = async_fs::read_to_string(manifest_path).await?;
@@ -270,6 +277,7 @@ pub async fn execute_manifest(
                     dry_run,
                     quiet,
                     metrics.clone(),
+                    no_language_filter,
                 );
                 execute(request).await?;
             },
@@ -323,6 +331,7 @@ async fn fetch_and_index(
     quiet: bool,
     fetcher: Fetcher,
     metrics: PerformanceMetrics,
+    no_language_filter: bool,
 ) -> Result<()> {
     // Check if source already exists (validate even in dry-run mode)
     let storage = Storage::new()?;
@@ -378,7 +387,28 @@ async fn fetch_and_index(
     // Parse the content
     spinner.set_message("Parsing markdown...");
     let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(&content)?;
+    let mut parse_result = parser.parse(&content)?;
+    
+    // Apply language filtering if enabled
+    if !no_language_filter {
+        let mut language_filter = LanguageFilter::new(true);
+        
+        // Filter heading blocks by extracting URLs from their content
+        let original_count = parse_result.heading_blocks.len();
+        parse_result.heading_blocks = parse_result.heading_blocks.into_iter().filter(|block| {
+            // Extract URLs from the heading block content using a simple regex-like approach
+            extract_urls_from_content(&block.content).iter().all(|url| {
+                language_filter.is_english_url(url)
+            })
+        }).collect();
+        
+        let filtered_count = original_count - parse_result.heading_blocks.len();
+        if filtered_count > 0 && !quiet {
+            println!("Filtered {} non-English content blocks ({:.1}% reduction)", 
+                     filtered_count, 
+                     (filtered_count as f64 / original_count as f64) * 100.0);
+        }
+    }
 
     // In dry-run mode, analyze content and output JSON instead of indexing
     if dry_run {
@@ -717,6 +747,57 @@ fn non_empty_string(value: Option<&String>) -> Option<String> {
         .map(std::string::ToString::to_string)
 }
 
+/// Extract URLs from markdown content using simple string parsing
+fn extract_urls_from_content(content: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    
+    // Look for markdown links: [text](url)
+    let mut chars = content.char_indices().peekable();
+    while let Some((i, ch)) = chars.next() {
+        if ch == '[' {
+            // Find the closing ]
+            if let Some(bracket_end) = content[i+1..].find(']') {
+                let bracket_end = i + 1 + bracket_end;
+                // Check if next character is (
+                if content.chars().nth(bracket_end + 1) == Some('(') {
+                    // Find the closing )
+                    if let Some(paren_end) = content[bracket_end + 2..].find(')') {
+                        let paren_end = bracket_end + 2 + paren_end;
+                        let url = &content[bracket_end + 2..paren_end];
+                        let url = url.trim();
+                        if url.starts_with("http://") || url.starts_with("https://") {
+                            urls.push(url.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Also look for bare URLs starting with http:// or https://
+    for (i, _) in content.match_indices("http://").chain(content.match_indices("https://")) {
+        // Find the end of the URL (whitespace or common delimiters)
+        let start = i;
+        let mut end = start;
+        for (j, ch) in content[start..].char_indices() {
+            if ch.is_whitespace() || ch == ')' || ch == ']' || ch == '>' || ch == '"' || ch == '\'' {
+                break;
+            }
+            end = start + j + ch.len_utf8();
+        }
+        
+        if end > start {
+            let url = &content[start..end];
+            urls.push(url.to_string());
+        }
+    }
+    
+    // Remove duplicates
+    urls.sort();
+    urls.dedup();
+    urls
+}
+
 fn display_name_from_alias(alias: &str) -> String {
     let mut title = String::new();
     for (idx, part) in alias
@@ -737,5 +818,52 @@ fn display_name_from_alias(alias: &str) -> String {
         alias.to_string()
     } else {
         title
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_urls_from_content() {
+        let content = r#"
+        # Documentation
+
+        Check out [React docs](https://reactjs.org/docs) for more info.
+        Also see https://developer.mozilla.org/en-US/docs/Web/JavaScript.
+        
+        Some non-English content:
+        [German docs](https://de.reactjs.org/docs/getting-started.html)
+        Visit https://fr.reactjs.org/tutorial for French tutorial.
+        "#;
+
+        let urls = extract_urls_from_content(content);
+        
+        assert!(urls.contains(&"https://reactjs.org/docs".to_string()));
+        assert!(urls.contains(&"https://developer.mozilla.org/en-US/docs/Web/JavaScript".to_string()));
+        assert!(urls.contains(&"https://de.reactjs.org/docs/getting-started.html".to_string()));
+        assert!(urls.contains(&"https://fr.reactjs.org/tutorial".to_string()));
+        
+        assert_eq!(urls.len(), 4);
+    }
+
+    #[test]
+    fn test_extract_urls_bare_urls() {
+        let content = "Visit https://example.com and http://test.org for more info.";
+        let urls = extract_urls_from_content(content);
+        
+        assert!(urls.contains(&"https://example.com".to_string()));
+        assert!(urls.contains(&"http://test.org".to_string()));
+        assert_eq!(urls.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_urls_no_duplicates() {
+        let content = "[Link](https://example.com) and https://example.com again.";
+        let urls = extract_urls_from_content(content);
+        
+        assert_eq!(urls.len(), 1);
+        assert!(urls.contains(&"https://example.com".to_string()));
     }
 }

@@ -63,6 +63,8 @@ pub mod error;
 pub mod fetcher;
 /// Search index implementation using Tantivy
 pub mod index;
+/// Language filtering for multilingual llms.txt files
+pub mod language_filter;
 /// Anchor remapping utilities between versions
 pub mod mapping;
 /// Tree-sitter based markdown parser
@@ -86,6 +88,7 @@ pub use config::{
 pub use error::{Error, Result};
 pub use fetcher::{FetchResult, Fetcher};
 pub use index::SearchIndex;
+pub use language_filter::{FilterStats, LanguageFilter};
 pub use mapping::{build_anchors_map, compute_anchor_mappings};
 pub use parser::{MarkdownParser, ParseResult};
 pub use profiling::{PerformanceMetrics, ResourceMonitor};
