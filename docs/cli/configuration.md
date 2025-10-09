@@ -50,7 +50,7 @@ Configuration is merged from lowest to highest priority:
 # CLI flag: blz update react --refresh-hours 1
 
 # Actual value used: 1 (CLI flag wins)
-```
+```text
 
 ## Configuration Locations
 
@@ -59,21 +59,25 @@ Configuration is merged from lowest to highest priority:
 Where `config.toml` lives:
 
 **Linux:**
-```
+
+```text
 ~/.config/blz/config.toml
-```
+```text
 
 **macOS:**
-```
+
+```text
 ~/Library/Application Support/dev.outfitter.blz/config.toml
-```
+```text
 
 **Windows:**
-```
+
+```text
 %APPDATA%\dev.outfitter.blz\config.toml
-```
+```text
 
 **Override:**
+
 ```bash
 # Point to specific file
 export BLZ_CONFIG=/path/to/config.toml
@@ -81,35 +85,39 @@ export BLZ_CONFIG=/path/to/config.toml
 # Or specify directory containing config.toml
 export BLZ_CONFIG_DIR=/path/to/dir
 export BLZ_GLOBAL_CONFIG_DIR=/path/to/global/config
-```
+```text
 
 ### Cache Root Directory
 
 Where indexed sources are stored:
 
 **Linux:**
-```
+
+```text
 ~/.local/share/dev.outfitter.blz/
-```
+```text
 
 **macOS:**
-```
+
+```text
 ~/Library/Application Support/dev.outfitter.blz/
-```
+```text
 
 **Windows:**
-```
+
+```text
 %APPDATA%\dev.outfitter.blz\
-```
+```text
 
 **Override:**
+
 ```bash
 export BLZ_ROOT=/path/to/cache
-```
+```text
 
 ### Per-Source Directory Structure
 
-```
+```text
 <cache_root>/
 ├── config.toml              # Global config
 ├── config.local.toml        # Optional local overrides
@@ -119,7 +127,7 @@ export BLZ_ROOT=/path/to/cache
     ├── llms.json            # Parsed structure
     ├── settings.toml        # Per-source overrides
     └── .index/              # Tantivy search index
-```
+```text
 
 ## Global Config
 
@@ -147,28 +155,32 @@ allowlist = ["developer.mozilla.org", "docs.rs"]
 [paths]
 # Override cache root (optional)
 # root = "/absolute/path/to/cache"
-```
+```text
 
 ### Configuration Keys
 
 #### `[defaults]`
 
 **`refresh_hours`** (integer)
+
 - Hours between automatic refresh checks
 - Default: `24`
 - Example: `refresh_hours = 48` (check every 2 days)
 
 **`max_archives`** (integer)
+
 - Number of archived versions to keep per source
 - Default: `10`
 - Example: `max_archives = 5`
 
 **`fetch_enabled`** (boolean)
+
 - Enable/disable network fetches
 - Default: `true`
 - Example: `fetch_enabled = false` (offline mode)
 
 **`follow_links`** (string)
+
 - Link following policy
 - Options: `"none"`, `"first_party"`, `"allowlist"`
 - Default: `"first_party"`
@@ -178,6 +190,7 @@ allowlist = ["developer.mozilla.org", "docs.rs"]
   - `"allowlist"` - Only follow links to domains in allowlist
 
 **`allowlist`** (array of strings)
+
 - Domains to follow when `follow_links = "allowlist"`
 - Default: `[]`
 - Example: `allowlist = ["react.dev", "github.com"]`
@@ -185,6 +198,7 @@ allowlist = ["developer.mozilla.org", "docs.rs"]
 #### `[paths]`
 
 **`root`** (string)
+
 - Absolute path to cache root directory
 - Optional - overrides platform default
 - Example: `root = "/custom/path/to/cache"`
@@ -198,7 +212,7 @@ Create `config.local.toml` in the same directory as `config.toml` for machine-sp
 [defaults]
 # Override just what you need
 refresh_hours = 12
-```
+```text
 
 This file is merged on top of `config.toml` and can be git-ignored for local preferences.
 
@@ -208,14 +222,15 @@ Each source can have its own `settings.toml` file that overrides global defaults
 
 ### Location
 
-```
+```text
 <cache_root>/<alias>/settings.toml
-```
+```text
 
 For example:
-```
+
+```text
 ~/.local/share/dev.outfitter.blz/react/settings.toml
-```
+```text
 
 ### Example
 
@@ -237,7 +252,7 @@ allowlist = ["react.dev", "github.com"]
 [index]
 # Allow larger heading blocks for React docs
 max_heading_block_lines = 500
-```
+```text
 
 ### Configuration Keys
 
@@ -277,63 +292,76 @@ Environment variables provide runtime configuration overrides.
 ### Configuration Variables
 
 **`BLZ_CONFIG`**
+
 - Absolute path to `config.toml` file
 - Example: `export BLZ_CONFIG=/path/to/config.toml`
 
 **`BLZ_CONFIG_DIR`**
+
 - Directory containing `config.toml`
 - Example: `export BLZ_CONFIG_DIR=/path/to/dir`
 
 **`BLZ_GLOBAL_CONFIG_DIR`**
+
 - Override global configuration directory
 - Example: `export BLZ_GLOBAL_CONFIG_DIR=~/.config/blz`
 
 **`BLZ_ROOT`**
+
 - Override cache root directory
 - Example: `export BLZ_ROOT=/custom/cache`
 
 ### Behavior Variables
 
 **`BLZ_REFRESH_HOURS`**
+
 - Integer hours between refresh checks
 - Example: `export BLZ_REFRESH_HOURS=48`
 
 **`BLZ_MAX_ARCHIVES`**
+
 - Integer count of archived versions
 - Example: `export BLZ_MAX_ARCHIVES=5`
 
 **`BLZ_FETCH_ENABLED`**
+
 - Enable/disable network fetches
 - Values: `1`, `true`, `yes`, `on` (case-insensitive)
 - Example: `export BLZ_FETCH_ENABLED=false`
 
 **`BLZ_FOLLOW_LINKS`**
+
 - Link following policy
 - Values: `none`, `first_party`, `allowlist`
 - Example: `export BLZ_FOLLOW_LINKS=allowlist`
 
 **`BLZ_ALLOWLIST`**
+
 - Comma-separated list of domains
 - Example: `export BLZ_ALLOWLIST=react.dev,github.com`
 
 ### CLI Behavior Variables
 
 **`BLZ_OUTPUT_FORMAT`**
+
 - Default CLI output format
 - Values: `json`, `text`, `jsonl`
 - Example: `export BLZ_OUTPUT_FORMAT=json`
 
 **`BLZ_SUPPRESS_DEPRECATIONS`**
+
 - Suppress deprecation warnings
 - Values: `1`, `true`, `yes`, `on`
 - Example: `export BLZ_SUPPRESS_DEPRECATIONS=true`
 
 **`BLZ_FORCE_NON_INTERACTIVE`**
+
 - Skip confirmation prompts
 - Values: `1`, `true`, `yes`, `on`
 - Example: `export BLZ_FORCE_NON_INTERACTIVE=true`
 
 **`NO_COLOR`**
+
 - Disable ANSI colors in output
 - Values: Any value disables colors
 - Example: `export NO_COLOR=1`
@@ -341,26 +369,31 @@ Environment variables provide runtime configuration overrides.
 ### Process Management Variables
 
 **`BLZ_DISABLE_GUARD`**
+
 - Disable parent process watchdog
 - Values: `1`, `true`, `yes`, `on`
 - Example: `export BLZ_DISABLE_GUARD=true`
 
 **`BLZ_PARENT_GUARD_INTERVAL_MS`**
+
 - Watchdog poll interval (100-10000ms)
 - Default: `500`
 - Example: `export BLZ_PARENT_GUARD_INTERVAL_MS=1000`
 
 **`BLZ_PARENT_GUARD_TIMEOUT_MS`**
+
 - Watchdog timeout before force exit (milliseconds)
 - Example: `export BLZ_PARENT_GUARD_TIMEOUT_MS=5000`
 
 **`BLZ_PARENT_GUARD_TIMEOUT_SECS`**
+
 - Watchdog timeout (seconds, alternative to `_MS`)
 - Example: `export BLZ_PARENT_GUARD_TIMEOUT_SECS=5`
 
 ### Deprecated Variables
 
 **`BLZ_PREFER_LLMS_FULL`**
+
 - No longer used
 - BLZ automatically prefers `llms-full.txt` when available
 
@@ -383,7 +416,7 @@ allowlist = []
 show = []
 snippet_lines = 3
 score_precision = 1
-```
+```text
 
 ### Overriding Defaults
 
@@ -407,7 +440,7 @@ export BLZ_REFRESH_HOURS=6
 
 # CLI flag (highest priority)
 blz update react --refresh-hours 1
-```
+```text
 
 ## CLI State Files
 
@@ -420,11 +453,13 @@ Stores CLI preferences and per-source overrides:
 **Location:** Same directory as `config.toml`
 
 **Contents:**
+
 - CLI presentation preferences (`show`, `snippet_lines`, `score_precision`)
 - Per-source `preferred_flavor` overrides
 - Other UI preferences
 
 **Example:**
+
 ```json
 {
   "preferences": {
@@ -437,7 +472,7 @@ Stores CLI preferences and per-source overrides:
     }
   }
 }
-```
+```text
 
 ### `history.jsonl`
 
@@ -448,10 +483,11 @@ Stores search history:
 **Format:** JSON Lines (one JSON object per line)
 
 **Example:**
+
 ```jsonl
 {"timestamp":"2024-01-01T12:00:00Z","query":"react hooks","source":"react"}
 {"timestamp":"2024-01-01T12:05:00Z","query":"async await","source":null}
-```
+```text
 
 See [`blz history`](commands.md#blz-history) for working with search history.
 
@@ -465,13 +501,14 @@ Disable network fetches globally:
 # config.toml
 [defaults]
 fetch_enabled = false
-```
+```text
 
 Or per-session:
+
 ```bash
 export BLZ_FETCH_ENABLED=false
 blz "query"
-```
+```text
 
 ### Aggressive Refresh
 
@@ -481,7 +518,7 @@ Check for updates more frequently:
 # config.toml
 [defaults]
 refresh_hours = 6
-```
+```text
 
 ### Custom Cache Location
 
@@ -491,12 +528,13 @@ Move cache to different location:
 # config.toml
 [paths]
 root = "/mnt/external/blz-cache"
-```
+```text
 
 Or:
+
 ```bash
 export BLZ_ROOT=/mnt/external/blz-cache
-```
+```text
 
 ### Per-Project Config
 
@@ -512,7 +550,7 @@ blz "query"
 cd ~/projects/project-b
 export BLZ_CONFIG_DIR=./.blz
 blz "query"
-```
+```text
 
 ### CI/CD Configuration
 
@@ -524,7 +562,7 @@ export BLZ_OUTPUT_FORMAT=json
 export BLZ_SUPPRESS_DEPRECATIONS=true
 
 blz "api" | jq '.results[0]'
-```
+```text
 
 ## See Also
 

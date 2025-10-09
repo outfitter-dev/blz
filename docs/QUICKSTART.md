@@ -10,13 +10,14 @@ This guide will walk you through installing and using `blz` for the first time.
 
 ```bash
 curl -fsSL https://blz.run/install.sh | sh
-```
+```text
 
 The script installs the latest release to `~/.local/bin`. Override the location with `BLZ_INSTALL_DIR=/path`, or pin a version using `BLZ_VERSION=v0.4.1`.
 
 ### From Source (Optional)
 
 If you prefer building from source, you'll need:
+
 - Rust 1.75+ and Cargo (install from [rustup.rs](https://rustup.rs))
 - Git
 
@@ -30,14 +31,14 @@ cargo install --path crates/blz-cli
 
 # Verify installation
 blz --help
-```
+```text
 
 ### From GitHub (Optional)
 
 ```bash
 # Direct install from GitHub
 cargo install --git https://github.com/outfitter-dev/blz blz-cli
-```
+```text
 
 ## First Steps
 
@@ -54,7 +55,7 @@ blz lookup react
 
 # Option 3: Add directly from a known URL
 blz add nextjs https://nextjs.org/llms-full.txt
-```
+```text
 
 💡 **Tip**: Start with docs you reference daily for maximum impact.
 
@@ -62,9 +63,10 @@ Let's use Bun as an example:
 
 ```bash
 blz add bun https://bun.sh/llms.txt
-```
+```text
 
 **What happens:**
+
 - Fetches the llms.txt file from Bun's website
 - Parses it into structured heading blocks
 - Builds a search index
@@ -72,9 +74,9 @@ blz add bun https://bun.sh/llms.txt
 
 **You'll see** (~1s):
 
-```
+```text
 ✓ Added bun (1,926 headings, 43,150 lines) in 890ms
-```
+```text
 
 ### 2. Search Your Indexed Docs
 
@@ -82,11 +84,11 @@ Now search for something:
 
 ```bash
 blz "test runner" -s bun
-```
+```text
 
 **You'll see** (~6ms):
 
-```
+```text
 Search results for 'test runner' (6ms):
 
 1. bun:304-324 (score: 92%)
@@ -96,7 +98,7 @@ Search results for 'test runner' (6ms):
    ### Test runner
    Bun includes a fast built-in test runner with built-in code
    coverage, snapshot testing, and mocking...
-```
+```text
 
 ### 3. Get Exact Content
 
@@ -104,11 +106,11 @@ Retrieve specific line ranges:
 
 ```bash
 blz get bun:304-324
-```
+```text
 
 **You'll see:**
 
-```
+```text
 Source: bun
 Lines: 304-324
 Path: Bun Documentation > Guides > Test runner
@@ -118,7 +120,7 @@ Path: Bun Documentation > Guides > Test runner
   306 │ Bun includes a fast built-in test runner with built-in code
   307 │ coverage, snapshot testing, and mocking...
   ...
-```
+```text
 
 ### 4. View Your Cache
 
@@ -126,19 +128,19 @@ See all indexed documentation:
 
 ```bash
 blz list
-```
+```text
 
 Get stats about your cache:
 
 ```bash
 blz stats
-```
+```text
 
 Get info about a source:
 
 ```bash
 blz info bun
-```
+```text
 
 ### 5. View Your Search History
 
@@ -146,8 +148,7 @@ Inspect recent searches and persisted defaults:
 
 ```bash
 blz history -n5
-```
-
+```text
 
 ## Common Use Cases
 
@@ -162,7 +163,7 @@ blz add deno https://deno.land/llms.txt
 
 # Search across all sources
 blz "http server"
-```
+```text
 
 ### Searching with Filters
 
@@ -175,7 +176,7 @@ blz "performance" -n20
 
 # JSON output for scripts
 blz "bundler" --json
-```
+```text
 
 ### Integration with Scripts
 
@@ -189,7 +190,7 @@ lines=$(echo "$result" | jq -r '.lines')
 
 echo "Found in $alias at lines $lines"
 blz get "$alias:$lines"
-```
+```text
 
 ## Shell Completion
 
@@ -199,19 +200,19 @@ Enable tab completion for your shell:
 
 ```fish
 blz completions fish > ~/.config/fish/completions/blz.fish
-```
+```text
 
 ### Bash
 
 ```bash
 blz completions bash > ~/.local/share/bash-completion/completions/blz
-```
+```text
 
 ### Zsh
 
 ```zsh
 blz completions zsh > ~/.zsh/completions/_blz
-```
+```text
 
 After installation, you can use TAB to complete commands and options:
 
@@ -219,7 +220,7 @@ After installation, you can use TAB to complete commands and options:
 blz sea<TAB>        # Completes to: blz search
 blz search --so<TAB> # Completes to: blz search --source
 blz get <TAB>        # Shows available aliases
-```
+```text
 
 ## Performance Tips
 
@@ -235,13 +236,13 @@ Make sure the install script completed successfully. Add the install location to
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-```
+```text
 
 Or if you installed with Cargo:
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
-```
+```text
 
 ### "No sources found"
 
@@ -250,7 +251,7 @@ Make sure you've added at least one source:
 ```bash
 blz list  # Check current sources
 blz add bun https://bun.sh/llms.txt  # Add a source
-```
+```text
 
 ### "No results found"
 
@@ -269,7 +270,7 @@ blz update bun
 
 # Use a different alias
 blz add bun-docs https://bun.sh/llms.txt
-```
+```text
 
 ### Slow first search
 

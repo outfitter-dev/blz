@@ -64,6 +64,7 @@ Found 5 matches:
 ```
 
 ### Interactive Mode (in a real terminal)
+
 When run in an interactive terminal, the command provides arrow key navigation and interactive prompts:
 
 ```text

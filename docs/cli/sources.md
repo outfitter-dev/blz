@@ -258,6 +258,7 @@ blz add webpack https://webpack.js.org/llms.txt
 ```
 
 ### 3. Regular Updates
+
 Once implemented, update regularly:
 
 ```bash
@@ -266,6 +267,7 @@ blz update --all
 ```
 
 ### 4. Monitor Storage
+
 BLZ is efficient, but check occasionally:
 
 ```bash
@@ -275,6 +277,7 @@ blz list  # Shows line counts
 ## Troubleshooting
 
 ### 404 Not Found
+
 The URL might be incorrect:
 
 ```bash
@@ -286,9 +289,11 @@ blz add bun https://bun.sh/llms.txt
 ```
 
 ### Network Errors
+
 Check your internet connection and try again.
 
 ### Parse Errors
+
 BLZ handles malformed documents gracefully, but check diagnostics in the JSON:
 
 ```bash

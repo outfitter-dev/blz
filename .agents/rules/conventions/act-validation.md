@@ -14,23 +14,29 @@ Use `act` to validate GitHub Actions workflows locally before pushing changes.
 ### Validation Levels
 
 1. **During Development** (every few commits)
+
    ```bash
    ./scripts/act-validate.sh fast
    ```
+
    Time: <30 seconds
    Validates: format, basic clippy
 
 2. **Before Push** (automatic via pre-push hook)
+
    ```bash
    ./scripts/act-validate.sh fast rust-ci-local
    ```
+
    Time: <30 seconds
    Validates: format, clippy essentials
 
 3. **Before PR Creation** (manual)
+
    ```bash
    ./scripts/act-validate.sh full
    ```
+
    Time: 2-5 minutes
    Validates: complete CI pipeline
 
@@ -39,6 +45,7 @@ Use `act` to validate GitHub Actions workflows locally before pushing changes.
 When GitHub Actions fail remotely:
 
 1. **Reproduce Locally**
+
    ```bash
    # Same as GitHub Actions
    ./scripts/act-validate.sh full
@@ -48,6 +55,7 @@ When GitHub Actions fail remotely:
    ```
 
 2. **Check Specific Jobs**
+
    ```bash
    # Run specific workflow
    act -W .github/workflows/rust-ci.yml
@@ -57,6 +65,7 @@ When GitHub Actions fail remotely:
    ```
 
 3. **Interactive Debugging**
+
    ```bash
    # Drop into container shell
    act -j rust -W .github/workflows/rust-ci.yml --container-architecture linux/amd64 -s GITHUB_TOKEN=$GITHUB_TOKEN --privileged --container-options "--entrypoint /bin/bash"
@@ -126,18 +135,21 @@ gh run view --log | grep "Run time"
 ### Speed Up Act
 
 1. **Keep containers running**
+
    ```bash
    # Don't use --rm flag
    export ACT_REUSE=1
    ```
 
 2. **Allocate more resources**
+
    ```bash
    # Edit .actrc
    --container-options "--memory=8g --cpus=4"
    ```
 
 3. **Use fast mode during development**
+
    ```bash
    # Only run full before push
    ./scripts/act-validate.sh fast  # Development
@@ -155,18 +167,22 @@ gh run view --log | grep "Run time"
 ### Common Issues
 
 **"Docker daemon not running"**
+
 - Start Docker Desktop
 - Or: `sudo systemctl start docker`
 
 **"Out of memory"**
+
 - Close other applications
 - Reduce memory in `.actrc`
 - Use fast mode instead of full
 
 **"Container not found"**
+
 - Run: `docker pull catthehacker/ubuntu:act-latest`
 
 **"Workflow not found"**
+
 - Check: `ls .github/workflows/`
 - Use: `./scripts/act-validate.sh fast rust-ci-local`
 

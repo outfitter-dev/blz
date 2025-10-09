@@ -130,6 +130,7 @@ Filtering by source is faster than searching all sources and helps reduce noise 
 ### Output Format
 
 #### Pretty (Default)
+
 Human-readable output with colors:
 
 ```bash
@@ -151,6 +152,7 @@ Bun Documentation > Guides > Test runner
 ```
 
 #### JSON
+
 Machine-readable for scripting:
 
 ```bash
@@ -277,6 +279,7 @@ blz node "file system"
 ### Performance Tips
 
 1. **Use aliases** - Searching one source is faster
+
    ```bash
    blz bun "test"         # Fastest - quick pattern
    blz "test" -s bun      # Fast - explicit flag
@@ -284,6 +287,7 @@ blz node "file system"
    ```
 
 2. **Limit results** - Get results faster
+
    ```bash
    blz "test" -n3
    ```

@@ -60,7 +60,7 @@ mod tests {
         }
     }
 }
-```
+```text
 
 **Testing Traits and Generics**
 
@@ -114,7 +114,7 @@ mod tests {
         assert_eq!(storage.get("key1").await.unwrap(), Some(new_value));
     }
 }
-```
+```text
 
 ### 2. Integration Tests
 
@@ -231,7 +231,7 @@ async fn test_concurrent_searches() {
         assert!(!result.hits.is_empty());
     }
 }
-```
+```text
 
 ### 3. Property-Based Tests
 
@@ -323,7 +323,7 @@ proptest! {
         prop_assert_eq!(uncached.total_count, cached.total_count);
     }
 }
-```
+```text
 
 ### 4. Benchmark Tests
 
@@ -419,7 +419,7 @@ fn indexing_performance_benchmarks(c: &mut Criterion) {
 
 criterion_group!(benches, search_performance_benchmarks, indexing_performance_benchmarks);
 criterion_main!(benches);
-```
+```text
 
 ### 5. Stress Tests
 
@@ -520,7 +520,7 @@ async fn test_concurrent_index_updates() {
     let final_count = index.document_count().await.unwrap();
     assert_eq!(final_count, 100); // 5 writers × 20 docs each
 }
-```
+```text
 
 ## Test Organization
 
@@ -528,7 +528,7 @@ async fn test_concurrent_index_updates() {
 
 **Directory Layout**
 
-```
+```text
 cache/
 ├── src/                    # Source code with inline unit tests
 │   └── lib.rs             # #[cfg(test)] mod tests { ... }
@@ -547,7 +547,7 @@ cache/
 │   └── indexing.rs
 └── examples/             # Example code that serves as tests
     └── basic_usage.rs
-```
+```text
 
 ### Test Utilities
 
@@ -642,7 +642,7 @@ impl TestDocumentBuilder {
 //     .body("Learn Rust programming")
 //     .tags(["rust", "programming"])
 //     .build();
-```
+```text
 
 ## Test Quality Standards
 
@@ -665,7 +665,7 @@ cargo tarpaulin --workspace --timeout 120 --out Html --output-dir coverage
 
 # View results
 open coverage/tarpaulin-report.html
-```
+```text
 
 ### Test Performance Standards
 
@@ -705,7 +705,7 @@ fn should_blz_repeated_queries() {
     assert!(second_result.execution_time < first_result.execution_time,
              "Cached result should be faster");
 }
-```
+```text
 
 ## Test Anti-Patterns
 
@@ -767,6 +767,6 @@ fn test_search_with_filters() {
     let results = index.search_with_filters("rust", &["programming"]).unwrap();
     assert_eq!(results.len(), 2);
 }
-```
+```text
 
 Remember: Good tests are fast, reliable, and clearly express the expected behavior. They should serve as living documentation of how the system works and catch regressions before they reach production.

@@ -26,11 +26,11 @@ blz "test runner"
 
 # Pull exact lines (matches the search citation format)
 blz get bun:304-324 --json
-```
+```text
 
 **What you'll see:**
 
-```
+```text
 ✓ Added bun (1,926 headings, 43,150 lines) in 890ms
 
 Search results for 'test runner' (6ms):
@@ -40,17 +40,19 @@ Search results for 'test runner' (6ms):
 
    ### Test runner
    Bun includes a fast built-in test runner...
-```
+```text
 
 ## What's llms.txt?
 
 [`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that includes all documentation for a project.
 
 **Why they're great:**
+
 - Comprehensive documentation that's kept up to date
 - Single file in a standardized format makes for easy retrieval and indexing
 
 **The challenge:**
+
 - They're **huge** (12K+ lines, 200K+ tokens)
 - Too context-heavy for agents to use directly
 - Keeping them up to date is manual work
@@ -67,10 +69,12 @@ BLZ indexes [`llms.txt`](https://llmstxt.org/) documentation files locally:
 ### The Problem
 
 Projects publish complete docs as `llms-full.txt` files, but:
+
 - They're massive (12K+ lines, 200K+ tokens)
 - Too context-heavy for agents to use directly
 
 But what about MCP servers for searching docs?
+
 - They're great, and we use them too! but...
 - Results can take up a lot of an agent's context window
 - May require multiple searches to find critical info
@@ -99,7 +103,7 @@ See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for det
 
 ```bash
 curl -fsSL https://blz.run/install.sh | sh
-```
+```text
 
 This installs the latest release to `~/.local/bin`. Override the target location with `BLZ_INSTALL_DIR=/path`, or pin a version via `BLZ_VERSION=v0.4.1`. Run `sh install.sh --help` for additional options (e.g., `--dir`, `--version`, `--dry-run`).
 
@@ -117,7 +121,7 @@ cargo install --git https://github.com/outfitter-dev/blz --branch main blz-cli
 # Optional dev build (installs `blz-dev` only)
 ./install-dev.sh --root "$HOME/.local/share/blz-dev"
 # See docs/development/README.md for full local workflow guidance.
-```
+```text
 
 ### Shell Setup
 
@@ -129,7 +133,7 @@ set -gx PATH $HOME/.cargo/bin $PATH
 
 # Install completions
 blz completions fish > ~/.config/fish/completions/blz.fish
-```
+```text
 
 #### Bash/Zsh
 
@@ -145,7 +149,7 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 # Install completions (Elvish)
 blz completions elvish > ~/.local/share/elvish/lib/blz.elv
-```
+```text
 
 ## Usage For AI Agents
 
@@ -170,7 +174,7 @@ blz get bun --lines "41994-42009,42010-42020" --json
 
 # Want the full heading section? Expand with --block (and cap the output)
 blz get bun:41994-42009 --block --max-lines 80 --json
-```
+```text
 
 ## IDE Agent Integration
 
@@ -193,7 +197,7 @@ blz get bun:41994-42009 --block --max-lines 80 --json
 
 # List all indexed sources
 blz list --json | jq 'length'
-```
+```text
 
 The JSON output is designed for easy parsing by agents:
 
@@ -208,7 +212,7 @@ The JSON output is designed for easy parsing by agents:
   "sourceUrl": "https://bun.sh/llms.txt#L311-L339",
   "checksum": "sha256:..."
 }
-```
+```text
 
 ### MCP Server (Coming Soon)
 
@@ -233,7 +237,7 @@ blz completions elvish  # Elvish
 # Example: dynamic alias completion
 blz <TAB>                 # Shows your indexed aliases
 blz get <TAB>             # Completes with your indexed aliases
-```
+```text
 
 ### Auto-updating Completions
 
@@ -242,7 +246,7 @@ For Fish users, completions can auto-regenerate when the binary updates:
 ```bash
 # Run the install script after updates
 ./scripts/install-completions.sh
-```
+```text
 
 ## Performance
 
@@ -260,7 +264,7 @@ cd blz
 cargo build --release
 cargo nextest run --workspace  # or: cargo test --workspace
 cargo install --path .
-```
+```text
 
 ## Dependencies
 
@@ -286,11 +290,13 @@ MIT
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ### Getting Started
+
 - [Quick Start](docs/QUICKSTART.md) - Installation and first steps
 - [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
 - [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
 
 ### CLI Reference
+
 - [Command Reference](docs/cli/commands.md) - Complete command catalog
 - [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
 - [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
@@ -298,9 +304,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
 
 ### Configuration & Storage
+
 - [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
 
 ### Technical Details
+
 - [Architecture](docs/architecture/README.md) - System design and performance
 - [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
 

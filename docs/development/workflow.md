@@ -80,11 +80,13 @@ gt copy <commit> --onto <branch>
 ### Morning Routine
 
 1. **Sync with upstream**:
+
    ```bash
    gt sync --no-interactive --force
    ```
 
 2. **Check CI status**:
+
    ```bash
    gh pr status
    ```
@@ -101,6 +103,7 @@ gt copy <commit> --onto <branch>
    - Each piece should be independently reviewable
 
 2. **Create your stack**:
+
    ```bash
    # First PR: Core implementation
    gt create -m "feat: implement base functionality"
@@ -116,6 +119,7 @@ gt copy <commit> --onto <branch>
    ```
 
 3. **Iterate on feedback**:
+
    ```bash
    # Check out the branch that needs changes
    gt checkout <branch-name>
@@ -133,11 +137,13 @@ gt copy <commit> --onto <branch>
 ### End of Day
 
 1. **Submit any pending work**:
+
    ```bash
    gt submit --no-interactive --draft
    ```
 
 2. **Clean up merged branches**:
+
    ```bash
    gt sync --force
    ```
@@ -195,16 +201,19 @@ chore    # Maintenance
 ### Local Debugging
 
 1. **Enable debug logging**:
+
    ```bash
    RUST_LOG=debug cargo run -- search "test"
    ```
 
 2. **Use debug assertions**:
+
    ```rust
    debug_assert!(condition, "Message");
    ```
 
 3. **Run specific test with output**:
+
    ```bash
    cargo test test_name -- --nocapture
    ```
@@ -212,16 +221,19 @@ chore    # Maintenance
 ### Performance Debugging
 
 1. **Generate flamegraph**:
+
    ```bash
    cargo flamegraph --bin blz -- search "rust"
    ```
 
 2. **Run benchmarks**:
+
    ```bash
    cargo bench
    ```
 
 3. **Check memory usage**:
+
    ```bash
    /usr/bin/time -l cargo run -- search "test"
    ```

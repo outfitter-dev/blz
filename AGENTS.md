@@ -172,6 +172,7 @@ sources/
 ## Rust-Specific Guidelines
 
 ### Linting Configuration
+
 The project uses strict Clippy rules (see `clippy.toml` and workspace lints in `Cargo.toml`):
 
 - All pedantic and nursery lints enabled

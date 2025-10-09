@@ -5,6 +5,7 @@
 ### Schema Design
 
 **Well-Structured Schema Definition**
+
 ```rust
 use tantivy::schema::{Schema, SchemaBuilder, TextOptions, TextFieldIndexing, IndexRecordOption};
 use tantivy::{Index, IndexWriter, IndexReader, ReloadPolicy};
@@ -125,6 +126,7 @@ impl SearchDocument {
 ### Index Creation and Configuration
 
 **Production-Ready Index Setup**
+
 ```rust
 use tantivy::{Index, IndexSettings, IndexSortByField, Order};
 use std::path::Path;
@@ -211,6 +213,7 @@ fn schemas_compatible(new_schema: &tantivy::schema::Schema, existing_schema: &ta
 ### Writer Management
 
 **Efficient Document Indexing**
+
 ```rust
 use tantivy::{IndexWriter, Opstamp};
 use std::sync::Arc;
@@ -341,6 +344,7 @@ impl ManagedIndexWriter {
 ### Query Builder Pattern
 
 **Type-Safe Query Construction**
+
 ```rust
 use tantivy::query::{Query, BooleanQuery, TermQuery, PhraseQuery, FuzzyTermQuery, RangeQuery, Occur};
 use tantivy::{Term, Score};
@@ -508,6 +512,7 @@ pub fn build_complex_search_query(
 ### Advanced Query Patterns
 
 **Custom Scoring and Relevance**
+
 ```rust
 use tantivy::query::{Explanation, Scorer};
 use tantivy::{DocId, Score, SegmentReader};
@@ -588,6 +593,7 @@ impl CustomRelevanceScorer {
 ### Searcher Management
 
 **Efficient Search Operations**
+
 ```rust
 use tantivy::{IndexReader, ReloadPolicy, Searcher, LeasedItem};
 use tantivy::collector::{TopDocs, Count};
@@ -755,6 +761,7 @@ pub struct QueryInfo {
 ### Faceted Search
 
 **Category and Filter Support**
+
 ```rust
 use tantivy::aggregation::agg_req::{Aggregations, BucketAggregationType, TermsAggregation};
 use tantivy::aggregation::AggregationCollector;
@@ -880,6 +887,7 @@ fn parse_facet_results(
 ### Index Optimization
 
 **Merge Policy and Segment Management**
+
 ```rust
 use tantivy::{MergePolicy, LogMergePolicy};
 
@@ -922,6 +930,7 @@ impl IndexMaintenance {
 ### Memory Management
 
 **Fast Fields and Caching**
+
 ```rust
 use tantivy::fastfield::{FastFieldReader, FastFieldReaders};
 use std::collections::HashMap;
@@ -962,6 +971,7 @@ impl FastFieldCache {
 ### Tantivy-Specific Error Patterns
 
 **Comprehensive Error Handling**
+
 ```rust
 use thiserror::Error;
 

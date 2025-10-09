@@ -129,6 +129,7 @@ curl https://example.com/llms.txt | head -50
 ```
 
 Look for:
+
 - Markdown headings (`#`, `##`, etc.)
 - Structured content (not HTML/JSON/XML)
 
@@ -325,6 +326,7 @@ blz list  # Uses new location
 ### Cache corruption
 
 **Symptoms**:
+
 - Random crashes
 - Empty search results for known sources
 - "Invalid index" errors
@@ -629,6 +631,7 @@ blz "query" --debug
 ```
 
 Shows:
+
 - Query parsing
 - Index loading time
 - Search execution time
@@ -641,6 +644,7 @@ blz "query" --profile
 ```
 
 Shows:
+
 - Memory usage
 - CPU time
 - Disk I/O
@@ -652,6 +656,7 @@ blz "query" --verbose
 ```
 
 Shows:
+
 - Detailed operation logs
 - Configuration loading
 - Cache access patterns
@@ -681,7 +686,7 @@ Include in bug report:
 5. **Debug output**: `blz <command> --debug`
 6. **Source info**: `blz list --json` (if relevant)
 
-File at: https://github.com/outfitter-dev/blz/issues
+File at: <https://github.com/outfitter-dev/blz/issues>
 
 ---
 

@@ -42,6 +42,7 @@ mod tests {
 ```
 
 Run with:
+
 ```bash
 cargo test --lib
 ```
@@ -59,6 +60,7 @@ fn test_search_command() {
 ```
 
 Run with:
+
 ```bash
 cargo test --test '*'
 ```
@@ -75,6 +77,7 @@ fn search_benchmark(c: &mut Criterion) {
 ```
 
 Run with:
+
 ```bash
 cargo bench
 ```

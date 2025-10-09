@@ -38,16 +38,18 @@ gt init
 
 # Configure your preferences
 gt config
-```
+```text
 
 #### Development Workflow
 
 1. **Sync with main**:
+
    ```bash
    gt sync --no-interactive
    ```
 
 2. **Create a feature branch**:
+
    ```bash
    gt create -m "feat: add new feature"
    ```
@@ -59,12 +61,14 @@ gt config
    - Run quality checks
 
 4. **Stack additional changes** (if needed):
+
    ```bash
    gt create -m "test: add comprehensive tests"
    gt create -m "docs: update documentation"
    ```
 
 5. **Submit your stack**:
+
    ```bash
    gt submit --no-interactive
    ```
@@ -88,21 +92,22 @@ cargo deny check
 
 # Check for unused dependencies
 cargo shear
-```
+```text
 
 #### Commit Message Format
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
 
 <footer>
-```
+```text
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -114,11 +119,12 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore`: Maintenance tasks
 
 **Examples:**
+
 ```bash
 git commit -m "feat(cli): add shell completion support"
 git commit -m "fix(#42): prevent panic in search pagination"
 git commit -m "docs: update contributing guide"
-```
+```text
 
 ### Pull Request Process
 
@@ -163,7 +169,7 @@ lefthook install
 
 # Or use the Makefile/justfile for convenience
 make install-tools   # or: just install-tools
-```
+```text
 
 ### Recommended Tools
 
@@ -179,11 +185,12 @@ cargo install flamegraph
 
 # Benchmarking
 cargo install hyperfine
-```
+```text
 
 ### IDE Setup
 
 We recommend VS Code with these extensions:
+
 - rust-analyzer
 - Even Better TOML
 - GitLens
@@ -205,7 +212,7 @@ cargo test -- --nocapture
 
 # Benchmarks
 cargo bench
-```
+```text
 
 ### Writing Tests
 
@@ -215,6 +222,7 @@ cargo bench
 - Aim for >80% code coverage on new code
 
 Example:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -234,7 +242,7 @@ mod tests {
         assert!(result.is_err());
     }
 }
-```
+```text
 
 ## Style Guide
 
@@ -276,7 +284,7 @@ All changes must maintain or improve performance:
 hyperfine --warmup 10 --min-runs 50 \
   './target/release/blz search "test" --source bun'
 # Expected: Mean < 10ms
-```
+```text
 
 ## Getting Help
 
@@ -296,6 +304,7 @@ hyperfine --warmup 10 --min-runs 50 \
 ## Recognition
 
 Contributors are recognized in several ways:
+
 - Listed in release notes
 - Mentioned in the changelog
 - GitHub contributor badge

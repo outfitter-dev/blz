@@ -6,7 +6,7 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
 
 ## Global Options
 
-```
+```text
   -h, --help      Print help
   -V, --version   Print version
       --verbose   Enable verbose output
@@ -49,10 +49,9 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
 - [Management Commands](#management-commands)
   - [blz list](#blz-list--blz-sources)
   - [blz update](#blz-update)
-  - [blz upgrade](#blz-upgrade)
   - [blz remove](#blz-remove--blz-rm--blz-delete)
 - [Utility Commands](#utility-commands)
-  - [blz diff](#blz-diff-hiddenexperimental)
+  - [blz diff](#blz-diff)
   - [blz completions](#blz-completions)
   - [blz docs](#blz-docs)
   - [blz history](#blz-history)
@@ -71,7 +70,7 @@ Add a new llms.txt source to your local cache.
 
 ```bash
 blz add <ALIAS> <URL> [OPTIONS]
-```
+```text
 
 **Arguments:**
 
@@ -113,7 +112,7 @@ blz add --manifest docs/blz.sources.toml
 
 # Dry-run analysis for a manifest (no files written)
 blz add --manifest docs/blz.sources.toml --dry-run
-```
+```text
 
 Minimal manifest example (`docs/blz.sources.toml`):
 
@@ -139,7 +138,7 @@ path = "./docs/internal-sdk.llms.txt"
 description = "Private SDK docs"
 category = "internal"
 tags = ["sdk", "internal"]
-```
+```text
 
 You can copy this template directly from `registry/templates/batch-manifest.example.toml`.
 
@@ -149,7 +148,7 @@ Search registries for available documentation sources.
 
 ```bash
 blz lookup <QUERY> [--format text|json|jsonl]
-```
+```text
 
 > **Beta** · The bundled registry is still small. After each lookup you’ll see a reminder to open a PR with any llms.txt sources we’re missing.
 
@@ -169,7 +168,7 @@ blz lookup typescript
 
 # Search for web frameworks (JSON for scripting)
 blz lookup react --json | jq '.[0]'
-```
+```text
 
 ### `blz search`
 
@@ -177,7 +176,7 @@ Search across all indexed documentation sources.
 
 ```bash
 blz search <QUERY> [OPTIONS]
-```
+```text
 
 **Arguments:**
 
@@ -227,7 +226,7 @@ blz "+\"test runner\" +\"cli output\""
 # PowerShell (single quotes work as literals)
 blz '"test runner"'
 blz '+"test runner" +"cli output"'
-```
+```text
 
 > **Query tips:** Space-separated terms are ORed by default. Prefix them with `+`
 > or use `AND` to require all words. Keep phrase searches intact by wrapping the
@@ -248,7 +247,7 @@ blz get <SOURCE:LINES> [OPTIONS]
 
 # Back-compat form if you prefer flags:
 blz get <SOURCE> --lines <RANGE> [OPTIONS]
-```
+```text
 
 **Arguments:**
 
@@ -292,7 +291,7 @@ blz get bun:25760-25780 -c3
 
 # Pipe structured output to jq
 blz get bun:41994-42009 --json | jq '.content'
-```
+```text
 
 ## Management Commands
 
@@ -302,7 +301,7 @@ List all indexed documentation sources.
 
 ```bash
 blz list [OPTIONS]
-```
+```text
 
 **Options:**
 
@@ -324,7 +323,7 @@ blz list --json
 
 # Verbose descriptor view
 blz list --details
-```
+```text
 
 ### `blz update`
 
@@ -332,7 +331,7 @@ Update indexed sources with latest content.
 
 ```bash
 blz update [ALIAS] [OPTIONS]
-```
+```text
 
 **Arguments:**
 
@@ -350,7 +349,7 @@ blz update bun
 
 # Update all sources
 blz update --all
-```
+```text
 
 ### `blz remove` / `blz rm` / `blz delete`
 
@@ -358,7 +357,7 @@ Remove an indexed source.
 
 ```bash
 blz remove <ALIAS> [--yes]
-```
+```text
 
 By default BLZ prompts before deleting a source. Supply `--yes` in headless or scripted workflows.
 
@@ -375,7 +374,7 @@ blz remove bun
 # Alternative commands (same effect)
 blz rm bun
 blz delete bun
-```
+```text
 
 ## Utility Commands
 
@@ -401,7 +400,7 @@ blz diff bun
 
 # Changes since specific date
 blz diff node --since "2025-08-20"
-```
+```text
 
 ### `blz completions`
 
@@ -409,7 +408,7 @@ Generate shell completion scripts.
 
 ```bash
 blz completions <SHELL>
-```
+```text
 
 **Arguments:**
 
@@ -426,7 +425,7 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 
 # Generate Zsh completions
 blz completions zsh > ~/.zsh/completions/_blz
-```
+```text
 
 ### `blz docs`
 
@@ -434,7 +433,7 @@ Generate CLI documentation directly from the clap definitions.
 
 ```bash
 blz docs [--format markdown|json]
-```
+```text
 
 **Options:**
 
@@ -455,7 +454,7 @@ blz docs > BLZ-CLI.md
 
 # Use global env var to default to JSON
 BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
-```
+```text
 
 ## Default Behavior
 
@@ -469,7 +468,7 @@ blz search "test runner"
 # SOURCE may be canonical or a metadata alias
 blz bun "install"
 blz "install" @scope/package
-```
+```text
 
 ## Output Formats
 
@@ -477,14 +476,14 @@ blz "install" @scope/package
 
 Human-readable output with colors and formatting:
 
-```
+```text
 Search results for 'test runner':
 
 1. bun (score: 4.09)
    Path: Bun Documentation > Guides > Test runner
    Lines: L304-324
    Snippet: ### Guides: Test runner...
-```
+```text
 
 ### JSON Format
 
@@ -514,7 +513,7 @@ Machine-readable JSON for scripting and integration. Top-level includes paginati
     }
   ]
 }
-```
+```text
 
 JSON + jq examples
 
@@ -527,7 +526,7 @@ blz "hooks" | jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"'
 
 # Top 10 results with score > 2.0
 blz "sqlite" | jq '.results | map(select(.score > 2.0)) | .[:10]'
-```
+```text
 
 ## Performance Profiling
 
@@ -542,7 +541,7 @@ blz "bundler" --profile
 
 # Generate CPU flamegraph (requires flamegraph feature)
 blz "complex query" --flamegraph
-```
+```text
 
 ## Exit Codes
 
@@ -573,7 +572,7 @@ Config discovery order:
 
 ### Storage Structure
 
-```
+```text
 <data_directory>/
 ├── <alias>/          # Per-source data
 │   ├── llms.txt     # Original documentation
@@ -582,7 +581,7 @@ Config discovery order:
 │   ├── .archive/    # Historical snapshots
 │   └── settings.toml # Source-specific config
 └── (global config is stored under XDG, not inside the data directory)
-```
+```text
 
 **Note**: If upgrading from an earlier version, BLZ will automatically migrate your data from the old cache directory location.
 
@@ -593,6 +592,7 @@ Config discovery order:
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
 5. **Regular updates** - Run `blz update --all` periodically for fresh docs
+
 ### `blz --prompt`
 
 Emit JSON guidance for the CLI or a specific command. Replaces the legacy `blz instruct` command.
@@ -601,7 +601,7 @@ Emit JSON guidance for the CLI or a specific command. Replaces the legacy `blz i
 blz --prompt            # General overview
 blz --prompt search     # Command-specific workflow
 blz --prompt alias.add  # Dot notation for nested subcommands
-```
+```text
 
 The JSON payload is designed for agent consumption (fields include summaries, workflows, recommended flags, and examples).
 
@@ -611,7 +611,7 @@ Display recent searches and CLI defaults.
 
 ```bash
 blz history [--limit <N>] [-f text|json|jsonl]
-```
+```text
 
 **Options:**
 
@@ -626,7 +626,7 @@ blz history -n10
 
 # Inspect history for agents in JSON
 blz history --json | jq '.[0]'
-```
+```text
 
 Text output includes the stored defaults (show components, snippet lines, score precision) followed by the most recent entries (newest first).
 
@@ -645,7 +645,7 @@ blz config set add.prefer_full false --scope local
 
 # Inspect all scopes
 blz config get
-```
+```text
 
 Scopes behave as follows:
 
@@ -654,6 +654,7 @@ Scopes behave as follows:
 - `local`: stores overrides in `blz.json`, keyed by the working directory
 
 Use this to quickly onboard agents without external rules files. For a longer guide, see `docs/agents/use-blz.md`.
+
 ### Setting a Global Default
 
 Set a single environment variable to control default output across commands that support `--format` (deprecated alias: `-o`/`--output`; JSONL accepts `jsonl` or `ndjson`):
@@ -664,8 +665,9 @@ export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 # Now these default to JSON unless overridden
 blz "async"
 blz list --status
-```
-# `blz alias`
+```text
+
+## `blz alias`
 
 Manage aliases for a source. Aliases are stored in source metadata and resolved across commands.
 
@@ -679,9 +681,10 @@ Examples:
 ```bash
 blz alias add react @facebook/react
 blz alias rm react @facebook/react
-```
+```text
 
 Notes:
+
 - Canonical "source" remains the primary handle; aliases are alternate names.
 - Alias formats like `@scope/package` are allowed (not used for directories).
 - Ambiguous aliases across multiple sources will produce an error; use the canonical name instead.
@@ -700,7 +703,7 @@ Human-readable colored output optimized for terminal display.
 
 ```bash
 blz "async rust"
-```
+```text
 
 #### JSON
 
@@ -712,9 +715,10 @@ blz "async rust" --json
 
 # JSONL (one hit per line)
 blz "async rust" --jsonl
-```
+```text
 
 Output structure (JSON):
+
 ```json
 {
   "query": "async rust",
@@ -742,9 +746,10 @@ Output structure (JSON):
     { "alias": "rust", "heading": "Futures", "lines": "200-210", "score": 0.5 }
   ]
 }
-```
+```text
 
 Notes:
+
 - `suggestions` may be included when results are sparse or low-quality to aid discovery
 - `jsonl` emits one SearchHit per line (no aggregation metadata)
 
@@ -754,13 +759,14 @@ Minimal output showing only essential information.
 
 ```bash
 blz "async rust" --format compact
-```
+```text
 
 Format: `<alias>:<lines> <heading_path>`
 
 ### Environment Detection
 
 The CLI automatically detects the output context:
+
 - TTY: Uses colored text output
 - Pipe: Uses plain text without colors
 - CI: Adjusts formatting for CI environments
@@ -778,7 +784,7 @@ blz "async rust" --color never
 
 # Let CLI decide (default)
 blz "async rust" --color auto
-```
+```text
 
 ### Environment Variables
 
@@ -790,4 +796,4 @@ export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 # Now these default to JSON unless overridden
 blz "async"
 blz list --status
-```
+```text

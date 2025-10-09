@@ -82,13 +82,15 @@ Implement `blz update` command to refresh cached documentation with conditional 
 
 ### Architecture
 
-```
+```text
+
 CLI Command → UpdateService → Fetcher (ETag check)
                 ↓
             Storage (archive & write)
                 ↓
             Indexer (rebuild)
-```
+
+```text
 
 ### API
 
@@ -101,11 +103,12 @@ pub struct UpdateResult {
     pub status: UpdateStatus,
     pub stats: UpdateStats,
 }
-```
+```text
 
 ### Data Model
 
 Store ETag and Last-Modified in `llms.json`:
+
 ```json
 {
   "etag": "W/\"abc123\"",
@@ -113,7 +116,7 @@ Store ETag and Last-Modified in `llms.json`:
   "sha256": "...",
   "updated_at": "2025-08-29T10:00:00Z"
 }
-```
+```text
 
 ## Implementation
 
@@ -165,4 +168,5 @@ Store ETag and Last-Modified in `llms.json`:
 - [x] Index is rebuilt after updates
 - [x] Progress shown during update
 - [x] Clear status messages
-```
+
+```text

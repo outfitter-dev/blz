@@ -4,7 +4,7 @@ Deep dive into how @outfitter/blz achieves 6ms search latency.
 
 ## System Overview
 
-```
+```text
 ┌─────────────────────┐
 │   CLI / MCP Server  │ <- User Interface Layer
 └──────────┬──────────┘
@@ -31,7 +31,7 @@ Deep dive into how @outfitter/blz achieves 6ms search latency.
 │   │   └── .index/   │
 │   └── node/...      │
 └─────────────────────┘
-```
+```text
 
 ## Core Components
 
@@ -56,7 +56,7 @@ impl Fetcher {
         last_modified: Option<&str>,
     ) -> Result<FetchResult>
 }
-```
+```text
 
 **Features:**
 
@@ -81,7 +81,7 @@ pub struct ParseResult {
     pub diagnostics: Vec<Diagnostic>,
     pub line_count: usize,
 }
-```
+```text
 
 **Process:**
 
@@ -109,11 +109,11 @@ pub struct SearchIndex {
     heading_path_field: Field,
     lines_field: Field,
 }
-```
+```text
 
 **Index Schema:**
 
-```
+```text
 Document {
     content: TEXT | STORED,       // Searchable content
     path: STRING | STORED,         // File path
@@ -121,7 +121,7 @@ Document {
     lines: STRING | STORED,        // Line range "120-142"
     alias: STRING | STORED,        // Source alias
 }
-```
+```text
 
 **Why Tantivy?**
 
@@ -139,11 +139,11 @@ Platform-aware file management:
 pub struct Storage {
     root_dir: PathBuf,  // Platform-specific
 }
-```
+```text
 
 **Directory Structure:**
 
-```
+```text
 ~/.../outfitter.cache/
 ├── bun/
 │   ├── llms.txt         # Raw content
@@ -155,7 +155,7 @@ pub struct Storage {
 │   │   └── *.segment
 │   └── .archive/        # Historical versions
 └── node/...
-```
+```text
 
 ## Data Flow
 
@@ -174,7 +174,7 @@ sequenceDiagram
     Tantivy-->>Storage: .index/
     Storage-->>CLI: Success
     CLI-->>User: ✓ Added bun
-```
+```text
 
 ### Searching
 
@@ -189,7 +189,7 @@ sequenceDiagram
     Storage-->>SearchIndex: content
     SearchIndex-->>CLI: SearchHits
     CLI-->>User: Results (6ms)
-```
+```text
 
 ## Performance Secrets
 
@@ -203,7 +203,7 @@ Instead of indexing entire files, we index heading-based chunks:
 ### Subsection A.1   <- Block 3
 ### Subsection A.2   <- Block 4
 ## Section B         <- Block 5
-```
+```text
 
 **Benefits:**
 
@@ -250,9 +250,9 @@ Multiple cache layers:
 
 ### BM25 Scoring
 
-```
+```text
 score(D,Q) = Σ IDF(qi) * (f(qi,D) * (k1 + 1)) / (f(qi,D) + k1 * (1 - b + b * |D|/avgdl))
-```
+```text
 
 Where:
 
@@ -300,7 +300,7 @@ async fn fetch(url: &str) -> Result<String> {
 fn parse<'a>(text: &'a str) -> Vec<Block<'a>> {
     // Borrows instead of cloning
 }
-```
+```text
 
 ## Platform Considerations
 
@@ -353,7 +353,7 @@ The Model Context Protocol server exposes cache functionality:
     "diff"
   ]
 }
-```
+```text
 
 Currently using JSON-RPC, will migrate to official `rmcp` SDK when available.
 
@@ -380,7 +380,7 @@ Currently using JSON-RPC, will migrate to official `rmcp` SDK when available.
 ```bash
 hyperfine --warmup 20 --min-runs 100 \
   './target/release/blz search "test" --source bun'
-```
+```text
 
 ### Performance Targets
 
@@ -397,7 +397,7 @@ hyperfine --warmup 20 --min-runs 100 \
 
 ```bash
 blz --verbose search "test"
-```
+```text
 
 Enables debug logging via `tracing`.
 
@@ -409,7 +409,7 @@ du -sh ~/.../outfitter/blz/bun/.index/
 
 # View metadata
 cat ~/.../outfitter/blz/bun/llms.json | jq .
-```
+```text
 
 ### Performance Profiling
 
@@ -419,7 +419,7 @@ cargo instruments -t "Time Profiler" --bin blz -- search "test"
 
 # Memory profiling
 cargo instruments -t "Allocations" --bin blz -- add bun URL
-```
+```text
 
 ## Contributing
 

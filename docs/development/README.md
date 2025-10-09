@@ -14,17 +14,20 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ### Prerequisites
 
 1. **Rust**: Install via [rustup](https://rustup.rs/)
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. **Graphite CLI**: For stacked PRs
+
    ```bash
    brew install withgraphite/tap/graphite
    # or: npm install -g @withgraphite/graphite-cli
    ```
 
 3. **Development Tools**:
+
    ```bash
    # Required
    cargo install cargo-deny cargo-shear
@@ -36,27 +39,32 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ### Setup
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/outfitter-dev/blz.git
    cd blz
    ```
 
 2. Install git hooks:
+
    ```bash
    lefthook install
    ```
 
 3. Build the project:
+
    ```bash
    cargo build --release
    ```
 
 4. Run tests:
+
    ```bash
    cargo test --workspace
    ```
 
 5. Validate documentation links:
+
    ```bash
    just link-check
    ```
@@ -64,6 +72,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 ## 🔧 Development Stack
 
 ### Core Technologies
+
 - **Language**: Rust 1.85+ (stable channel, 2024 edition)
 - **Search Engine**: Tantivy
 - **Async Runtime**: Tokio
@@ -71,6 +80,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 - **Testing**: Built-in Rust testing + Criterion for benchmarks
 
 ### Development Tools
+
 - **Version Control**: Git with Graphite for stacked PRs
 - **CI/CD**: GitHub Actions with Graphite optimization
 - **Code Quality**: Clippy, rustfmt, cargo-deny
@@ -80,7 +90,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 
 ## 📋 Project Structure
 
-```
+```text
 blz/
 ├── crates/              # Workspace crates
 │   ├── blz-core/       # Core functionality
@@ -91,7 +101,7 @@ blz/
 ├── .github/            # GitHub Actions workflows
 ├── .agents/            # AI agent configuration
 └── tests/              # Integration tests
-```
+```text
 
 ## 🏗️ Architecture Principles
 
@@ -120,7 +130,7 @@ The dev profile is gated behind the `dev-profile` cargo feature and never ships 
 ```bash
 # From the repository root
 ./install-dev.sh --root "$HOME/.local/share/blz-dev"
-```
+```text
 
 The script wraps `cargo install --features dev-profile --bin blz-dev --path crates/blz-cli` and passes through any extra flags you supply (`--root`, `--force`, `--locked`, etc).
 
@@ -128,7 +138,7 @@ After installation, add the target `bin` directory to your PATH *ahead* of other
 
 ```bash
 export PATH="$HOME/.local/share/blz-dev/bin:$PATH"
-```
+```text
 
 Alternatively, call the binary directly via absolute path.
 
@@ -151,7 +161,7 @@ If you already have sources configured in your production `blz` installation, yo
 
 # Overwrite existing blz-dev data
 ./hydrate-dev.sh --force
-```
+```text
 
 The script is XDG-aware and handles both macOS and Linux paths automatically. It copies:
 
@@ -159,6 +169,7 @@ The script is XDG-aware and handles both macOS and Linux paths automatically. It
 - **Source data**: All cached `llms.txt` files and search indices
 
 This is particularly useful when:
+
 - Testing migrations or upgrades against real data
 - Benchmarking performance with your actual source set
 - Developing features that depend on existing indices
@@ -192,7 +203,7 @@ Remove the dev installation by deleting the install root and the profile directo
 rm -rf "$HOME/.local/share/blz-dev"
 rm -rf "${XDG_CONFIG_HOME:-$HOME/.blz-dev}"
 rm -rf "${XDG_DATA_HOME:-$HOME/.blz-dev}"
-```
+```text
 
 Be careful to double-check paths before running the commands above.
 

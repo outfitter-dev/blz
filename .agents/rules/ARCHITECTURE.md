@@ -10,7 +10,7 @@ The blz project is a Rust-based search cache system built on Tantivy, designed f
 
 **Crate Organization**
 
-```
+```text
 cache/
 ├── Cargo.toml                 # Workspace root
 ├── crates/
@@ -36,7 +36,7 @@ cache/
 │       │   └── protocol/     # MCP protocol
 │       └── Cargo.toml
 └── docs/                     # Documentation
-```
+```text
 
 ### Module Boundaries
 
@@ -61,11 +61,11 @@ cache/
 
 **Unidirectional Dependencies**
 
-```
+```text
 blz-cli ──┐
           ├──→ blz-core
 blz-mcp ──┘
-```
+```text
 
 **Forbidden Patterns**
 
@@ -117,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 }
-```
+```text
 
 ### Configuration Management
 
@@ -152,7 +152,7 @@ impl CacheConfig {
         Ok(config)
     }
 }
-```
+```text
 
 ### Resource Management
 
@@ -183,7 +183,7 @@ impl Drop for SearchIndex {
         }
     }
 }
-```
+```text
 
 ### Concurrency Patterns
 
@@ -210,7 +210,7 @@ impl CacheManager {
         }).await?
     }
 }
-```
+```text
 
 ### Type-Driven Design
 
@@ -255,7 +255,7 @@ impl ValidatedQuery {
         })
     }
 }
-```
+```text
 
 ## Integration Patterns
 
@@ -292,7 +292,7 @@ impl CacheRegistry {
         source.fetch(request).await
     }
 }
-```
+```text
 
 ### Event-Driven Updates
 
@@ -325,7 +325,7 @@ impl EventBus {
         let _ = self.sender.send(event);
     }
 }
-```
+```text
 
 ## Data Flow Architecture
 
@@ -365,7 +365,7 @@ impl SearchPipeline {
         Ok(self.formatter.format(results, false)?)
     }
 }
-```
+```text
 
 ### State Management
 
@@ -407,7 +407,7 @@ impl StateManager {
         Ok(())
     }
 }
-```
+```text
 
 ## Quality Attributes
 
@@ -493,7 +493,7 @@ fn search_benchmark(c: &mut Criterion) {
         })
     });
 }
-```
+```text
 
 ## Deployment Architecture
 

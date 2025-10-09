@@ -61,6 +61,7 @@ buffer.get(offset..end).ok_or(Error::BufferOverflow)?
 As of this writing, the blz project uses **zero unsafe code** and should remain that way unless extraordinary circumstances require it.
 
 Any PR introducing unsafe code will require:
+
 - Detailed justification
 - Performance benchmarks (if performance-motivated)
 - Alternative approaches considered

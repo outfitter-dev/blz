@@ -10,7 +10,7 @@ curl -fsSL https://blz.run/install.sh | sh
 
 # Verify
 blz --version
-```
+```text
 
 ## Common Commands
 
@@ -29,7 +29,7 @@ blz lookup react
 
 # Batch add from manifest
 blz add --manifest sources.toml
-```
+```text
 
 ### Searching
 
@@ -48,7 +48,7 @@ blz "query" -n5
 
 # Paginate
 blz "query" --page 2
-```
+```text
 
 ### Getting Content
 
@@ -64,7 +64,7 @@ blz get bun:41994-42009 --block --max-lines 80 --json
 
 # Add context lines without blocks
 blz get bun:25760-25780 -c3
-```
+```text
 
 ### Managing Sources
 
@@ -83,7 +83,7 @@ blz update --all
 
 # Remove source
 blz remove bun
-```
+```text
 
 ### History
 
@@ -93,7 +93,7 @@ blz history -n10
 
 # JSON output
 blz history --json
-```
+```text
 
 ## Query Syntax
 
@@ -122,14 +122,14 @@ blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"'
 
 # 2. Get full context
 blz get bun:304-324 -c5
-```
+```text
 
 ### Update All Sources Daily
 
 ```bash
 # Add to cron/launchd
 blz update --all
-```
+```text
 
 ### Integration with Scripts
 
@@ -140,7 +140,7 @@ result=$(blz "$1" -n1 --json)
 alias=$(echo "$result" | jq -r '.results[0].alias')
 lines=$(echo "$result" | jq -r '.results[0].lines')
 blz get "$alias:$lines"
-```
+```text
 
 ## Troubleshooting
 
@@ -157,7 +157,7 @@ blz get "$alias:$lines"
 export BLZ_OUTPUT_FORMAT=json        # Default output format
 export BLZ_DATA_DIR=/custom/path     # Override data directory
 export BLZ_CONFIG_DIR=/custom/path   # Override config directory
-```
+```text
 
 ## Getting Help
 
@@ -176,7 +176,7 @@ blz --prompt search
 # Generate CLI docs
 blz docs
 blz docs --json
-```
+```text
 
 ## Shell Completions
 
@@ -189,7 +189,7 @@ blz completions bash > ~/.local/share/bash-completion/completions/blz
 
 # Zsh
 blz completions zsh > ~/.zsh/completions/_blz
-```
+```text
 
 ## Command Aliases
 
@@ -200,13 +200,13 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 ## Global Options
 
-```
+```text
   -h, --help      Print help
   -V, --version   Print version
       --verbose   Enable verbose output
       --debug     Show detailed performance metrics
       --profile   Show resource usage (memory, CPU)
-```
+```text
 
 ## Links
 

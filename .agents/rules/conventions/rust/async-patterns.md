@@ -1,11 +1,13 @@
 # Async Rust Patterns for Agents
 
 ## Purpose
+
 This guide helps AI agents understand and correctly implement async Rust patterns, focusing on common pitfalls and correct solutions.
 
 ## Common Async Task Spawning Patterns
 
 ### Pattern 1: Spawn with Owned Data
+
 ```rust
 // ✅ Move owned data into spawned task
 use tokio::spawn;
@@ -31,6 +33,7 @@ async fn process_files(files: Vec<String>) -> Result<()> {
 ```
 
 ### Pattern 2: Spawn with Arc-Wrapped Shared Data
+
 ```rust
 // ✅ Share reference-counted data across tasks
 use std::sync::Arc;
@@ -60,6 +63,7 @@ async fn concurrent_search(queries: Vec<String>, index: SearchIndex) -> Result<V
 ```
 
 ### Pattern 3: Spawn Tasks with Configuration
+
 ```rust
 // ✅ Pass configuration to spawned tasks
 use std::sync::Arc;
@@ -89,6 +93,7 @@ async fn process_with_config(items: Vec<Item>, config: Config) -> Vec<Result<Out
 ## Anti-Patterns to Avoid
 
 ### Anti-Pattern: Borrowing Across Await
+
 ```rust
 // ❌ This won't compile - borrowed data doesn't live long enough
 async fn bad_example(data: &[String]) -> String {
@@ -119,6 +124,7 @@ async fn good_example_2(data: Vec<String>) -> String {  // Take ownership
 ```
 
 ### Anti-Pattern: Trying to Share Non-Send Types
+
 ```rust
 // ❌ This won't compile - Rc is not Send
 use std::rc::Rc;
@@ -149,6 +155,7 @@ async fn good_sharing() {
 ## Understanding Send + Sync + 'static Bounds
 
 ### Send: Can Be Moved Between Threads
+
 ```rust
 // Types that implement Send can be moved to other threads
 fn is_send<T: Send>() {}
@@ -161,6 +168,7 @@ is_send::<Arc<String>>(); // ✅ Arc<String> is Send
 ```
 
 ### Sync: Can Be Shared Between Threads (Behind Arc)
+
 ```rust
 // Types that implement Sync can be shared between threads via Arc
 fn is_sync<T: Sync>() {}
@@ -173,6 +181,7 @@ is_sync::<Mutex<i32>>(); // ✅ Mutex<i32> is Sync
 ```
 
 ### 'static: Lives for Entire Program Duration
+
 ```rust
 // 'static means "no borrowed data" or "lives forever"
 
@@ -192,6 +201,7 @@ fn example() {
 ## Making Types Work with Async
 
 ### Converting Non-'static References to Owned Values
+
 ```rust
 // ❌ Can't spawn task with borrowed data
 async fn bad_example(name: &str, data: &[i32]) {
@@ -213,6 +223,7 @@ async fn good_example(name: &str, data: &[i32]) {
 ```
 
 ### Working with Complex Borrowed Types
+
 ```rust
 use std::borrow::Cow;
 
@@ -233,6 +244,7 @@ async fn flexible_example(name: Cow<'_, str>) {
 ## Async Error Handling Patterns
 
 ### Pattern: Propagate Errors from Spawned Tasks
+
 ```rust
 async fn process_all(items: Vec<Item>) -> Result<Vec<Output>, ProcessError> {
     let handles: Vec<_> = items.into_iter().map(|item| {
@@ -252,6 +264,7 @@ async fn process_all(items: Vec<Item>) -> Result<Vec<Output>, ProcessError> {
 ```
 
 ### Pattern: Collect Errors Instead of Failing Fast
+
 ```rust
 async fn process_all_collect_errors(items: Vec<Item>) -> (Vec<Output>, Vec<ProcessError>) {
     let handles: Vec<_> = items.into_iter().map(|item| {
@@ -278,6 +291,7 @@ async fn process_all_collect_errors(items: Vec<Item>) -> (Vec<Output>, Vec<Proce
 ## Common Async Utilities
 
 ### Timeout Pattern
+
 ```rust
 use tokio::time::{timeout, Duration};
 
@@ -298,6 +312,7 @@ let result = with_timeout(
 ```
 
 ### Retry Pattern
+
 ```rust
 async fn with_retry<T, E, F, Fut>(
     mut operation: F,
@@ -329,6 +344,7 @@ where
 ## Memory Management in Async Code
 
 ### Avoid Large Objects in Async Blocks
+
 ```rust
 // ❌ Large objects held across await points consume stack space
 async fn bad_memory_usage() {
@@ -351,6 +367,7 @@ async fn good_memory_usage() {
 ```
 
 ### Use Arc for Shared Large Objects
+
 ```rust
 // ✅ Share large objects via Arc instead of cloning
 async fn share_large_object(large_data: Vec<u8>) {
@@ -371,6 +388,7 @@ async fn share_large_object(large_data: Vec<u8>) {
 ## Testing Async Code
 
 ### Pattern: Test Async Functions
+
 ```rust
 #[tokio::test]
 async fn test_async_function() {
