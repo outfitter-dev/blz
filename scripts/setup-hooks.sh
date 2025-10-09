@@ -23,7 +23,11 @@ if ! command_exists lefthook; then
     elif command_exists go; then
         echo "Installing lefthook via Go..."
         go install github.com/evilmartians/lefthook@latest
-        export PATH="$HOME/go/bin:$PATH"
+        GO_BIN="$(go env GOBIN 2>/dev/null)"
+        if [[ -z "$GO_BIN" ]]; then
+            GO_BIN="$(go env GOPATH 2>/dev/null)/bin"
+        fi
+        export PATH="$GO_BIN:$PATH"
     # Use install script as last resort
     else
         echo "Installing lefthook via install script..."
