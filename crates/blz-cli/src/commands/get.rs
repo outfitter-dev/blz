@@ -168,12 +168,18 @@ fn gather_requested_lines(
 pub async fn execute(
     alias: &str,
     lines: &str,
-    context: Option<usize>,
+    context_mode: Option<&crate::cli::ContextMode>,
     block: bool,
     max_block_lines: Option<usize>,
     format: OutputFormat,
     copy: bool,
 ) -> Result<()> {
+    // Convert ContextMode to context/block flags
+    let (context, block) = match context_mode {
+        Some(crate::cli::ContextMode::All) => (None, true),
+        Some(crate::cli::ContextMode::Lines(n)) => (Some(*n), false),
+        None => (None, block),
+    };
     let storage = Storage::new()?;
 
     // Resolve metadata alias to canonical if needed

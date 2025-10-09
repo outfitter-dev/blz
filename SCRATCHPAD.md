@@ -2,6 +2,21 @@
 
 ## 2025-10-09
 
+- Implemented `--context all` as the new primary way to request full section expansion in search/get commands.
+  - Created `ContextMode` enum in `cli.rs` with `Lines(usize)` and `All` variants
+  - Implemented `FromStr` trait for parsing both numeric values and "all"
+  - Updated `--context` flag help text to document `all` option
+  - Marked `--block` as legacy alias in help text
+  - Updated `search.rs` and `get.rs` execute functions to use `Option<&ContextMode>`
+  - Updated `lib.rs` to pass context mode correctly throughout the call chain
+  - Fixed `anchors.rs` to convert context to ContextMode
+  - Fixed test assertion to expect `ContextMode::Lines(5)` instead of `5`
+  - All integration tests (28) pass
+  - Unit test for CLI subcommand flags passes
+  - Pre-existing test race condition in `cli_args` tests (11 failures when run in parallel, all pass with `--test-threads=1`)
+
+## 2025-10-09 (earlier)
+
 - Reviewed Factory remote workspace docs (via `blz`) to capture recommended custom command practices and troubleshooting references for configuring setup commands in remote agents.
 - Drafted suggested Factory setup sequence for `blz`: safe `git fetch --all --prune`, `git pull --ff-only origin main`, and workspace bootstrap via `cargo fetch`, `cargo build --release`, and `npm install` when packaging is required.
 - Added automation helpers: `scripts/fmt-docs.sh`, `just fmt-docs`, and `scripts/factory-agent-setup.sh` to standardize remote/Factory provisioning and doc formatting.

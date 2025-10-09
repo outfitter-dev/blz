@@ -50,6 +50,13 @@ pub struct SearchOptions {
     pub max_block_lines: Option<usize>,
 }
 
+impl SearchOptions {
+    /// Returns true if block expansion mode is enabled (either via --block or --context all)
+    pub fn is_block_mode(&self) -> bool {
+        self.block
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)]
 struct ShowToggles {
@@ -90,7 +97,7 @@ pub async fn execute(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
-    context: Option<usize>,
+    context_mode: Option<&crate::cli::ContextMode>,
     block: bool,
     max_block_lines: Option<usize>,
     no_history: bool,
@@ -99,6 +106,12 @@ pub async fn execute(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
+    // Convert ContextMode to context/block flags
+    let (context, block) = match context_mode {
+        Some(crate::cli::ContextMode::All) => (None, true),
+        Some(crate::cli::ContextMode::Lines(n)) => (Some(*n), false),
+        None => (None, block),
+    };
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
