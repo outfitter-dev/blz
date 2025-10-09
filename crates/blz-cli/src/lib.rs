@@ -633,14 +633,14 @@ async fn execute_command(
             commands::show_diff(&alias, since.as_deref()).await?;
         },
         Some(Commands::Anchor { command }) => {
-            handle_anchor(command).await?;
+            handle_anchor(command, cli.quiet).await?;
         },
         Some(Commands::Anchors {
             alias,
-            output,
+            format,
             mappings,
         }) => {
-            commands::show_anchors(&alias, output, mappings).await?;
+            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings).await?;
         },
         None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
     }
@@ -781,19 +781,19 @@ fn sync_and_report(
     Ok(status)
 }
 
-async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
     match command {
         AnchorCommands::List {
             alias,
-            output,
+            format,
             mappings,
-        } => commands::show_anchors(&alias, output, mappings).await,
+        } => commands::show_anchors(&alias, format.resolve(quiet), mappings).await,
         AnchorCommands::Get {
             alias,
             anchor,
             context,
-            output,
-        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+            format,
+        } => commands::get_by_anchor(&alias, &anchor, context, format.resolve(quiet)).await,
     }
 }
 
