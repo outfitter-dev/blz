@@ -660,6 +660,10 @@ pub struct AddArgs {
     /// Analyze source without adding it (outputs JSON analysis)
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Disable language filtering (keep all languages)
+    #[arg(long)]
+    pub no_language_filter: bool,
 }
 
 /// Context mode for result expansion
