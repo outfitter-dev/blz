@@ -171,6 +171,7 @@ pub async fn execute(
         false,
         quiet,
         metrics,
+        false,
     );
 
     add_source(request).await?;
