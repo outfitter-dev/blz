@@ -13,7 +13,7 @@ Use the [`blz`](https://github.com/outfitter-dev/blz) CLI to keep documentation 
 3. Inspect indexed sources: `blz list --json`
 4. Prefer `--json` / `--jsonl` outputs so tooling can parse them cleanly
 5. Feed `alias:lines` citations straight into `blz get`
-6. Use `--block` (plus `--max-lines <N>` if needed) for whole sections, or `-c<N>` to add a small context window
+6. Use `--context all` (plus `--max-lines <N>` if needed) for whole sections, or `-c<N>` to add a small context window
 7. Expect tight payloads: the standard `search` → `get` flow typically returns 20–80 lines instead of multi-kilobyte pages, keeping token usage low
 8. Set a default format when you want every command in JSON: `export BLZ_OUTPUT_FORMAT=json`
 9. Check source health with `blz info <alias> --json` (or `blz list --status --json`) before a heavy retrieval session
@@ -55,8 +55,10 @@ blz get bun:41994-42009 -c5 --json
 # Combine multiple spans into one payload
 blz get bun --lines "41994-42009,42010-42020" --json
 
-# Expand to the whole heading (and cap the output to 80 lines)
-blz get bun:41994-42009 --block --max-lines 80 --json
+# Expand to the whole section (and cap the output to 80 lines)
+blz get bun:41994-42009 --context all --max-lines 80 --json
+
+# Note: --block is a legacy alias for --context all
 ```
 
 ## Keep Sources Fresh
