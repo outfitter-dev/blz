@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "./scripts/conductor-setup.sh",
+    "run": "cargo watch -x 'run -- --help' -w crates"
+  },
+  "runScriptMode": "nonconcurrent"
+}
