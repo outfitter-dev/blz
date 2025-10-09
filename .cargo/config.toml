@@ -3,7 +3,6 @@
 [build]
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
-rustc-wrapper = "sccache"
 
 [target.'cfg(all())']
 # Optimize for local CPU architecture in release builds
