@@ -12,7 +12,7 @@ blz lookup <query>
 
 ### Basic Search
 
-```text
+```
 $ blz lookup "claude"
 Searching registries...
 Found 3 matches:
@@ -37,7 +37,7 @@ To add any of these sources, use:
 
 ### JavaScript Ecosystem Search
 
-```text
+```
 $ blz lookup "javascript"
 Searching registries...
 Found 5 matches:
@@ -67,7 +67,7 @@ Found 5 matches:
 
 When run in an interactive terminal, the command provides arrow key navigation and interactive prompts:
 
-```text
+```
 $ blz lookup "claude"
 Searching registries...
 Found 2 matches:

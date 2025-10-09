@@ -50,7 +50,7 @@ Configuration is merged from lowest to highest priority:
 # CLI flag: blz update react --refresh-hours 1
 
 # Actual value used: 1 (CLI flag wins)
-```text
+```
 
 ## Configuration Locations
 
@@ -60,21 +60,21 @@ Where `config.toml` lives:
 
 **Linux:**
 
-```text
+```
 ~/.config/blz/config.toml
-```text
+```
 
 **macOS:**
 
-```text
+```
 ~/Library/Application Support/dev.outfitter.blz/config.toml
-```text
+```
 
 **Windows:**
 
-```text
+```
 %APPDATA%\dev.outfitter.blz\config.toml
-```text
+```
 
 **Override:**
 
@@ -85,7 +85,7 @@ export BLZ_CONFIG=/path/to/config.toml
 # Or specify directory containing config.toml
 export BLZ_CONFIG_DIR=/path/to/dir
 export BLZ_GLOBAL_CONFIG_DIR=/path/to/global/config
-```text
+```
 
 ### Cache Root Directory
 
@@ -93,31 +93,31 @@ Where indexed sources are stored:
 
 **Linux:**
 
-```text
+```
 ~/.local/share/dev.outfitter.blz/
-```text
+```
 
 **macOS:**
 
-```text
+```
 ~/Library/Application Support/dev.outfitter.blz/
-```text
+```
 
 **Windows:**
 
-```text
+```
 %APPDATA%\dev.outfitter.blz\
-```text
+```
 
 **Override:**
 
 ```bash
 export BLZ_ROOT=/path/to/cache
-```text
+```
 
 ### Per-Source Directory Structure
 
-```text
+```
 <cache_root>/
 ├── config.toml              # Global config
 ├── config.local.toml        # Optional local overrides
@@ -127,7 +127,7 @@ export BLZ_ROOT=/path/to/cache
     ├── llms.json            # Parsed structure
     ├── settings.toml        # Per-source overrides
     └── .index/              # Tantivy search index
-```text
+```
 
 ## Global Config
 
@@ -155,7 +155,7 @@ allowlist = ["developer.mozilla.org", "docs.rs"]
 [paths]
 # Override cache root (optional)
 # root = "/absolute/path/to/cache"
-```text
+```
 
 ### Configuration Keys
 
@@ -212,7 +212,7 @@ Create `config.local.toml` in the same directory as `config.toml` for machine-sp
 [defaults]
 # Override just what you need
 refresh_hours = 12
-```text
+```
 
 This file is merged on top of `config.toml` and can be git-ignored for local preferences.
 
@@ -222,15 +222,15 @@ Each source can have its own `settings.toml` file that overrides global defaults
 
 ### Location
 
-```text
+```
 <cache_root>/<alias>/settings.toml
-```text
+```
 
 For example:
 
-```text
+```
 ~/.local/share/dev.outfitter.blz/react/settings.toml
-```text
+```
 
 ### Example
 
@@ -252,7 +252,7 @@ allowlist = ["react.dev", "github.com"]
 [index]
 # Allow larger heading blocks for React docs
 max_heading_block_lines = 500
-```text
+```
 
 ### Configuration Keys
 
@@ -416,7 +416,7 @@ allowlist = []
 show = []
 snippet_lines = 3
 score_precision = 1
-```text
+```
 
 ### Overriding Defaults
 
@@ -440,7 +440,7 @@ export BLZ_REFRESH_HOURS=6
 
 # CLI flag (highest priority)
 blz update react --refresh-hours 1
-```text
+```
 
 ## CLI State Files
 
@@ -472,7 +472,7 @@ Stores CLI preferences and per-source overrides:
     }
   }
 }
-```text
+```
 
 ### `history.jsonl`
 
@@ -487,7 +487,7 @@ Stores search history:
 ```jsonl
 {"timestamp":"2024-01-01T12:00:00Z","query":"react hooks","source":"react"}
 {"timestamp":"2024-01-01T12:05:00Z","query":"async await","source":null}
-```text
+```
 
 See [`blz history`](commands.md#blz-history) for working with search history.
 
@@ -501,14 +501,14 @@ Disable network fetches globally:
 # config.toml
 [defaults]
 fetch_enabled = false
-```text
+```
 
 Or per-session:
 
 ```bash
 export BLZ_FETCH_ENABLED=false
 blz "query"
-```text
+```
 
 ### Aggressive Refresh
 
@@ -518,7 +518,7 @@ Check for updates more frequently:
 # config.toml
 [defaults]
 refresh_hours = 6
-```text
+```
 
 ### Custom Cache Location
 
@@ -528,13 +528,13 @@ Move cache to different location:
 # config.toml
 [paths]
 root = "/mnt/external/blz-cache"
-```text
+```
 
 Or:
 
 ```bash
 export BLZ_ROOT=/mnt/external/blz-cache
-```text
+```
 
 ### Per-Project Config
 
@@ -550,7 +550,7 @@ blz "query"
 cd ~/projects/project-b
 export BLZ_CONFIG_DIR=./.blz
 blz "query"
-```text
+```
 
 ### CI/CD Configuration
 
@@ -562,7 +562,7 @@ export BLZ_OUTPUT_FORMAT=json
 export BLZ_SUPPRESS_DEPRECATIONS=true
 
 blz "api" | jq '.results[0]'
-```text
+```
 
 ## See Also
 

@@ -90,7 +90,7 @@ Welcome to the BLZ development documentation. This guide covers our development 
 
 ## 📋 Project Structure
 
-```text
+```
 blz/
 ├── crates/              # Workspace crates
 │   ├── blz-core/       # Core functionality
@@ -101,7 +101,7 @@ blz/
 ├── .github/            # GitHub Actions workflows
 ├── .agents/            # AI agent configuration
 └── tests/              # Integration tests
-```text
+```
 
 ## 🏗️ Architecture Principles
 
@@ -130,7 +130,7 @@ The dev profile is gated behind the `dev-profile` cargo feature and never ships 
 ```bash
 # From the repository root
 ./install-dev.sh --root "$HOME/.local/share/blz-dev"
-```text
+```
 
 The script wraps `cargo install --features dev-profile --bin blz-dev --path crates/blz-cli` and passes through any extra flags you supply (`--root`, `--force`, `--locked`, etc).
 
@@ -138,7 +138,7 @@ After installation, add the target `bin` directory to your PATH *ahead* of other
 
 ```bash
 export PATH="$HOME/.local/share/blz-dev/bin:$PATH"
-```text
+```
 
 Alternatively, call the binary directly via absolute path.
 
@@ -161,7 +161,7 @@ If you already have sources configured in your production `blz` installation, yo
 
 # Overwrite existing blz-dev data
 ./hydrate-dev.sh --force
-```text
+```
 
 The script is XDG-aware and handles both macOS and Linux paths automatically. It copies:
 
@@ -203,13 +203,12 @@ Remove the dev installation by deleting the install root and the profile directo
 rm -rf "$HOME/.local/share/blz-dev"
 rm -rf "${XDG_CONFIG_HOME:-$HOME/.blz-dev}"
 rm -rf "${XDG_DATA_HOME:-$HOME/.blz-dev}"
-```text
+```
 
 Be careful to double-check paths before running the commands above.
 
 ## 🤝 Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/outfitter-dev/blz/issues)
 - **Issues**: [GitHub Issues](https://github.com/outfitter-dev/blz/issues)
 - **Documentation**: Check `.agents/rules/` for detailed development rules
 

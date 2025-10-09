@@ -4,7 +4,7 @@
 
 ### Library Crate Layout
 
-```text
+```
 blz-core/src/
 ├── lib.rs              # Public API exports
 ├── config.rs           # Configuration management
@@ -16,18 +16,18 @@ blz-core/src/
 ├── registry.rs         # Source management
 ├── profiling.rs        # Performance profiling
 └── types.rs            # Shared type definitions
-```text
+```
 
 ### Binary Crate Structure
 
-```text
+```
 blz-cli/src/
 ├── main.rs             # CLI entry point and command dispatch
 └── build.rs            # Build script for completions
 
 blz-mcp/src/
 └── main.rs             # MCP server implementation
-```text
+```
 
 ## Import Organization
 
@@ -60,7 +60,7 @@ use super::query::ParsedQuery;
 
 // 6. Sub-module imports
 use self::internal::Helper;
-```text
+```
 
 ## Module Guidelines
 
@@ -92,7 +92,7 @@ Every module must have documentation:
 //! use blz_core::module_name;
 //! // example usage
 //! ```
-```text
+```
 
 ## File Organization
 
@@ -118,16 +118,16 @@ mod tests {
     #[test]
     fn test_functionality() { }
 }
-```text
+```
 
 For larger modules, use separate test files:
 
-```text
+```
 src/
 ├── large_module.rs
 └── large_module/
     └── tests.rs
-```text
+```
 
 ## Visibility Rules
 
@@ -154,7 +154,7 @@ pub struct PublicApi {
     // Selectively expose fields
     pub name: String,
 }
-```text
+```
 
 ## Type Organization
 
@@ -166,7 +166,7 @@ Use type aliases for clarity:
 type Result<T> = std::result::Result<T, Error>;
 type LineNumber = u32;
 type Score = f32;
-```text
+```
 
 ### Newtype Pattern
 
@@ -181,7 +181,7 @@ pub struct LineRange {
     pub start: LineNumber,
     pub end: LineNumber,
 }
-```text
+```
 
 ## Error Handling
 
@@ -205,7 +205,7 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-```text
+```
 
 ### Error Context
 
@@ -221,7 +221,7 @@ pub fn load_config(path: &Path) -> Result<Config> {
     toml::from_str(&content)
         .context("Failed to parse config file")
 }
-```text
+```
 
 ## Documentation Standards
 
@@ -253,7 +253,7 @@ pub fn load_config(path: &Path) -> Result<Config> {
 pub fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
     // implementation
 }
-```text
+```
 
 ### Struct Documentation
 
@@ -276,7 +276,7 @@ pub struct SearchResult {
     /// Snippet of matching content
     pub snippet: String,
 }
-```text
+```
 
 ## Common Patterns
 
@@ -309,7 +309,7 @@ impl IndexBuilder {
         // construct index
     }
 }
-```text
+```
 
 ### Resource Management
 
@@ -332,4 +332,4 @@ impl TempIndex {
         })
     }
 }
-```text
+```

@@ -58,7 +58,7 @@ blz list
 
 Output:
 
-```text
+```
 Cached sources:
 
   bun https://bun.sh/llms.txt
@@ -121,7 +121,7 @@ Sources are stored in platform-specific directories:
 
 ### macOS
 
-```text
+```
 ~/Library/Application Support/dev.outfitter.blz/
   bun/
     llms.txt        # Latest upstream text
@@ -133,7 +133,7 @@ Sources are stored in platform-specific directories:
 
 ### Linux
 
-```text
+```
 ~/.local/share/dev.outfitter.blz/
   bun/
     llms.txt
@@ -145,7 +145,7 @@ Sources are stored in platform-specific directories:
 
 ### Windows
 
-```text
+```
 %APPDATA%\dev.outfitter.blz\
   bun\
     llms.txt

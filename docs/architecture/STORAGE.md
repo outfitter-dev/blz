@@ -16,13 +16,13 @@ The data directory contains all cached documentation and search indexes:
 
 ```bash
 export BLZ_DATA_DIR=/custom/path/to/blz/data
-```text
+```
 
 ## Directory Structure
 
 Each source gets its own directory with the following structure:
 
-```text
+```
 ~/.local/share/dev.outfitter.blz/
   bun/
     llms.txt                         # Latest upstream text
@@ -38,7 +38,7 @@ Each source gets its own directory with the following structure:
     .index/
     .archive/
     settings.toml
-```text
+```
 
 ## File Descriptions
 
@@ -91,7 +91,7 @@ allowlist = ["bun.sh", "github.com/oven-sh"]
 
 [index]
 max_heading_block_lines = 400
-```text
+```
 
 See [Per-Source Settings](../cli/configuration.md#per-source-settings) for all available options.
 
@@ -118,20 +118,20 @@ Remove a source and all its data:
 
 ```bash
 blz remove bun
-```text
+```
 
 Clear archives while keeping current data:
 
 ```bash
 # Not yet implemented - planned for future version
 # blz archive clear bun
-```text
+```
 
 Completely reset BLZ (removes all data):
 
 ```bash
 rm -rf ~/.local/share/dev.outfitter.blz/
-```text
+```
 
 ## Platform Differences
 

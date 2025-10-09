@@ -10,7 +10,7 @@ Command-line interface for searching and managing local `llms.txt` documentation
 
 ```bash
 curl -fsSL https://blz.run/install.sh | sh
-```text
+```
 
 The script installs the latest release to `~/.local/bin`. Override the location with `BLZ_INSTALL_DIR=/path`, or pin a version using `BLZ_VERSION=v0.4.1`.
 
@@ -31,14 +31,14 @@ cargo install --path crates/blz-cli
 
 # Verify installation
 blz --help
-```text
+```
 
 ### Install from GitHub
 
 ```bash
 # Direct install from GitHub
 cargo install --git https://github.com/outfitter-dev/blz blz-cli
-```text
+```
 
 ## Quick Start
 
@@ -54,7 +54,7 @@ blz get bun:304-324
 
 # List all sources
 blz list
-```text
+```
 
 ## CLI Documentation
 
@@ -83,7 +83,7 @@ blz lookup typescript
 
 # Add from manifest file
 blz add --manifest sources.toml
-```text
+```
 
 ### Search documentation
 
@@ -99,7 +99,7 @@ blz "testing" -n10
 
 # JSON output
 blz "api" --json
-```text
+```
 
 ### Manage sources
 
@@ -116,7 +116,7 @@ blz remove react
 
 # Upgrade to llms-full.txt
 blz upgrade --all
-```text
+```
 
 ### Get exact content
 
@@ -129,11 +129,11 @@ blz get react:120-145 -c5
 
 # Copy to clipboard
 blz get react:120-145 --copy
-```text
+```
 
 ## Global Options
 
-```text
+```
   -h, --help      Print help
   -V, --version   Print version
       --verbose   Enable verbose output
@@ -141,7 +141,7 @@ blz get react:120-145 --copy
       --profile   Show resource usage (memory, CPU)
       --config <FILE>      Path to configuration file
       --config-dir <DIR>   Directory containing config.toml
-```text
+```
 
 ## Output Formats
 
@@ -157,7 +157,7 @@ blz "query" --json
 
 # JSON Lines for streaming
 blz "query" --jsonl
-```text
+```
 
 ## Environment Variables
 

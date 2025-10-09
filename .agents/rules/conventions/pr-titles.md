@@ -2,9 +2,9 @@
 
 ## Format
 
-```text
+```
 <type>(<scope>): <subject>
-```text
+```
 
 - **type**: feat, fix, docs, style, refactor, test, chore
 - **scope**: Optional, the area affected (e.g., cli, core, mcp)
@@ -21,23 +21,23 @@
 
 ### Good PR Titles
 
-```text
+```
 feat(cli): add progress indicator for indexing
 fix(search): handle empty query strings gracefully
 refactor(core): extract common parsing logic
 docs: update API examples for v2.0
 chore(deps): bump tantivy to 0.21
-```text
+```
 
 ### Bad PR Titles
 
-```text
+```
 bug fix                     # Too vague
 update code                 # What code? What update?
 Fixed the thing that broke  # Not imperative, too casual
 EMERGENCY FIX!!!           # Don't shout
 misc changes               # Be specific
-```text
+```
 
 ## Stack-Specific (Graphite)
 

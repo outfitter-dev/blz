@@ -85,7 +85,7 @@ pub fn migrate_config() -> Result<()> {
     }
     Ok(())
 }
-```text
+```
 
 ### Manual Steps Required
 
@@ -129,4 +129,4 @@ pub fn migrate_config() -> Result<()> {
 - GitHub discussion for questions
 - Migration success/failure metrics logging
 
-```text
+```

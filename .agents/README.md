@@ -28,7 +28,7 @@ The `.agents` directory contains all agent-generated documentation, logs, and ru
 │   └── conventions/     # Language and tool-specific conventions
 └── scripts/             # Helper scripts for maintenance
     └── sync-agents-md.sh
-```text
+```
 
 ## Subdirectory Purposes
 
@@ -96,7 +96,7 @@ Move logs to archive when:
 
 ```bash
 git mv .agents/logs/old-file.md .agents/logs/.archive/
-```text
+```
 
 ### Finding Recent Activity
 
@@ -106,7 +106,7 @@ find .agents/logs -name "*.md" -mtime -7 | grep -v archive
 
 # Find specific type
 ls .agents/logs/*-review-*.md
-```text
+```
 
 ### Updating Rules
 

@@ -38,7 +38,7 @@ gt init
 
 # Configure your preferences
 gt config
-```text
+```
 
 #### Development Workflow
 
@@ -92,19 +92,19 @@ cargo deny check
 
 # Check for unused dependencies
 cargo shear
-```text
+```
 
 #### Commit Message Format
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```text
+```
 <type>(<scope>): <subject>
 
 <body>
 
 <footer>
-```text
+```
 
 **Types:**
 
@@ -124,7 +124,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 git commit -m "feat(cli): add shell completion support"
 git commit -m "fix(#42): prevent panic in search pagination"
 git commit -m "docs: update contributing guide"
-```text
+```
 
 ### Pull Request Process
 
@@ -169,7 +169,7 @@ lefthook install
 
 # Or use the Makefile/justfile for convenience
 make install-tools   # or: just install-tools
-```text
+```
 
 ### Recommended Tools
 
@@ -185,7 +185,7 @@ cargo install flamegraph
 
 # Benchmarking
 cargo install hyperfine
-```text
+```
 
 ### IDE Setup
 
@@ -212,7 +212,7 @@ cargo test -- --nocapture
 
 # Benchmarks
 cargo bench
-```text
+```
 
 ### Writing Tests
 
@@ -242,7 +242,7 @@ mod tests {
         assert!(result.is_err());
     }
 }
-```text
+```
 
 ## Style Guide
 
@@ -284,7 +284,7 @@ All changes must maintain or improve performance:
 hyperfine --warmup 10 --min-runs 50 \
   './target/release/blz search "test" --source bun'
 # Expected: Mean < 10ms
-```text
+```
 
 ## Getting Help
 

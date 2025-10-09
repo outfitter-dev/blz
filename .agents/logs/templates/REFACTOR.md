@@ -82,12 +82,12 @@ Unify all storage and configuration paths to use `~/.outfitter/blz` consistently
 ## Migration Required
 
 Users with existing installations will see:
-```text
+```
 
 Found existing data at ~/.cache/outfitter
 Migrate to ~/.outfitter/blz? [Y/n]
 
-```text
+```
 
 ## Risks
 
@@ -108,4 +108,4 @@ Migrate to ~/.outfitter/blz? [Y/n]
 2. Add prominent migration notes to release
 3. Keep legacy path support for 2 versions
 4. Remove legacy code in v0.4.0
-```text
+```

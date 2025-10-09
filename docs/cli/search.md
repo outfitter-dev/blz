@@ -139,7 +139,7 @@ blz "test"
 
 Output:
 
-```text
+```
 bun:304-324 (score: 4), from bun.sh
 Bun Documentation > Guides > Test runner
 ... Test runner integrates with Bun's toolchain ...
@@ -212,7 +212,7 @@ Results are ranked by BM25 score:
 
 Shows the document structure:
 
-```text
+```
 bun:123-145 (score: 9), from bun.sh
 Bun Documentation  >  Guides  >  Test runner
 └ Top level           └ Section  └ Subsection

@@ -136,7 +136,7 @@ cargo_bootstrap() {
 
   if [ "$AGENT_SKIP_CARGO_BUILD" != "1" ] && [ "$AGENT_TYPE" = "conductor" ]; then
     log "Building workspace"
-    if cargo build --workspace --all-targets --quiet 2>&1 | head -20; then
+    if cargo build --workspace --all-targets --quiet; then
       log_success "Build successful"
     else
       warn "Build failed (workspace still usable, but may need fixes)"

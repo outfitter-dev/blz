@@ -219,7 +219,7 @@ Containers are reused by default for faster subsequent runs:
 
 Configured in `.actrc`:
 
-```text
+```
 --container-options "--memory=4g --cpus=2"
 ```
 
