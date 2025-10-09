@@ -448,6 +448,7 @@ async fn execute_command(
                     args.dry_run,
                     cli.quiet,
                     metrics,
+                    args.no_language_filter,
                 )
                 .await?;
             } else {
@@ -475,6 +476,7 @@ async fn execute_command(
                     args.dry_run,
                     cli.quiet,
                     metrics,
+                    args.no_language_filter,
                 );
 
                 commands::add_source(request).await?;

@@ -581,6 +581,10 @@ pub struct AddArgs {
     /// Analyze source without adding it (outputs JSON analysis)
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Disable language filtering (keep all languages)
+    #[arg(long)]
+    pub no_language_filter: bool,
 }
 
 /// Additional columns that can be displayed in text search results
