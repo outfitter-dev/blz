@@ -26,7 +26,8 @@ mod update;
 mod validate;
 
 pub use add::{
-    AddRequest, DescriptorInput, execute as add_source, execute_manifest as add_manifest,
+    AddFlowOptions, AddRequest, DescriptorInput, execute as add_source,
+    execute_manifest as add_manifest,
 };
 pub use alias::{AliasCommand, execute as manage_alias};
 pub use anchors::{execute as show_anchors, get_by_anchor};

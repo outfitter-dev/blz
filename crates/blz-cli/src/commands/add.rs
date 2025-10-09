@@ -3,8 +3,8 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
-    Fetcher, LanguageFilter, MarkdownParser, PerformanceMetrics, SearchIndex, Source, SourceDescriptor,
-    SourceOrigin, SourceType, SourceVariant, Storage,
+    Fetcher, LanguageFilter, MarkdownParser, PerformanceMetrics, SearchIndex, Source,
+    SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -97,6 +97,23 @@ pub struct AddRequest {
     pub no_language_filter: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AddFlowOptions {
+    pub dry_run: bool,
+    pub quiet: bool,
+    pub no_language_filter: bool,
+}
+
+impl AddFlowOptions {
+    pub const fn new(dry_run: bool, quiet: bool, no_language_filter: bool) -> Self {
+        Self {
+            dry_run,
+            quiet,
+            no_language_filter,
+        }
+    }
+}
+
 impl AddRequest {
     pub fn new(
         alias: impl Into<String>,
@@ -174,6 +191,7 @@ pub async fn execute(request: AddRequest) -> Result<()> {
         metrics,
         no_language_filter,
     } = request;
+    let options = AddFlowOptions::new(dry_run, quiet, no_language_filter);
 
     // Normalize the alias to kebab-case lowercase
     let normalized_alias = normalize_alias(&alias);
@@ -212,11 +230,9 @@ pub async fn execute(request: AddRequest) -> Result<()> {
         &normalized_alias,
         &url,
         descriptor,
-        dry_run,
-        quiet,
         fetcher,
         metrics,
-        no_language_filter,
+        options,
     )
     .await
 }
@@ -224,13 +240,14 @@ pub async fn execute(request: AddRequest) -> Result<()> {
 pub async fn execute_manifest(
     manifest_path: &Path,
     only: &[String],
-    auto_yes: bool,
-    dry_run: bool,
-    quiet: bool,
     metrics: PerformanceMetrics,
-    no_language_filter: bool,
+    options: AddFlowOptions,
 ) -> Result<()> {
-    let _ = auto_yes;
+    let AddFlowOptions {
+        dry_run,
+        quiet,
+        no_language_filter,
+    } = options;
     let manifest_text = async_fs::read_to_string(manifest_path).await?;
     let manifest: ManifestFile = toml::from_str(&manifest_text)?;
 
@@ -327,12 +344,15 @@ async fn fetch_and_index(
     alias: &str,
     url: &str,
     descriptor_input: DescriptorInput,
-    dry_run: bool,
-    quiet: bool,
     fetcher: Fetcher,
     metrics: PerformanceMetrics,
-    no_language_filter: bool,
+    options: AddFlowOptions,
 ) -> Result<()> {
+    let AddFlowOptions {
+        dry_run,
+        quiet,
+        no_language_filter,
+    } = options;
     // Check if source already exists (validate even in dry-run mode)
     let storage = Storage::new()?;
     if storage.exists(alias) {
@@ -388,25 +408,26 @@ async fn fetch_and_index(
     spinner.set_message("Parsing markdown...");
     let mut parser = MarkdownParser::new()?;
     let mut parse_result = parser.parse(&content)?;
-    
+
     // Apply language filtering if enabled
     if !no_language_filter {
         let mut language_filter = LanguageFilter::new(true);
-        
+
         // Filter heading blocks by extracting URLs from their content
         let original_count = parse_result.heading_blocks.len();
-        parse_result.heading_blocks = parse_result.heading_blocks.into_iter().filter(|block| {
-            // Extract URLs from the heading block content using a simple regex-like approach
-            extract_urls_from_content(&block.content).iter().all(|url| {
-                language_filter.is_english_url(url)
-            })
-        }).collect();
-        
+        parse_result.heading_blocks.retain(|block| {
+            extract_urls_from_content(&block.content)
+                .iter()
+                .all(|url| language_filter.is_english_url(url))
+        });
+
         let filtered_count = original_count - parse_result.heading_blocks.len();
         if filtered_count > 0 && !quiet {
-            println!("Filtered {} non-English content blocks ({:.1}% reduction)", 
-                     filtered_count, 
-                     (filtered_count as f64 / original_count as f64) * 100.0);
+            println!(
+                "Filtered {} non-English content blocks ({:.1}% reduction)",
+                filtered_count,
+                percentage(filtered_count, original_count)
+            );
         }
     }
 
@@ -740,6 +761,15 @@ fn dedupe_sorted(values: Vec<String>) -> Vec<String> {
     cleaned
 }
 
+#[allow(clippy::cast_precision_loss)]
+fn percentage(part: usize, total: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        (part as f64 / total as f64) * 100.0
+    }
+}
+
 fn non_empty_string(value: Option<&String>) -> Option<String> {
     value
         .map(|s| s.trim())
@@ -747,52 +777,83 @@ fn non_empty_string(value: Option<&String>) -> Option<String> {
         .map(std::string::ToString::to_string)
 }
 
+const fn is_url_delimiter(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, ')' | ']' | '>' | '"' | '\'' | '`')
+}
+
+const fn trailing_punctuation(ch: char) -> bool {
+    matches!(
+        ch,
+        '.' | ',' | ';' | ':' | ')' | ']' | '>' | '"' | '\'' | '`'
+    )
+}
+
+fn find_url_end(content: &str, start: usize) -> usize {
+    for (offset, ch) in content[start..].char_indices() {
+        if is_url_delimiter(ch) {
+            return start + offset;
+        }
+    }
+    content.len()
+}
+
+fn clean_url_slice(slice: &str) -> Option<&str> {
+    let trimmed = slice.trim();
+    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+        return None;
+    }
+
+    let mut end = trimmed.len();
+    for (idx, ch) in trimmed.char_indices().rev() {
+        if trailing_punctuation(ch) {
+            end = idx;
+        } else {
+            break;
+        }
+    }
+
+    if end == 0 {
+        None
+    } else {
+        Some(&trimmed[..end])
+    }
+}
+
 /// Extract URLs from markdown content using simple string parsing
 fn extract_urls_from_content(content: &str) -> Vec<String> {
     let mut urls = Vec::new();
-    
-    // Look for markdown links: [text](url)
-    let mut chars = content.char_indices().peekable();
-    while let Some((i, ch)) = chars.next() {
-        if ch == '[' {
-            // Find the closing ]
-            if let Some(bracket_end) = content[i+1..].find(']') {
-                let bracket_end = i + 1 + bracket_end;
-                // Check if next character is (
-                if content.chars().nth(bracket_end + 1) == Some('(') {
-                    // Find the closing )
-                    if let Some(paren_end) = content[bracket_end + 2..].find(')') {
-                        let paren_end = bracket_end + 2 + paren_end;
-                        let url = &content[bracket_end + 2..paren_end];
-                        let url = url.trim();
-                        if url.starts_with("http://") || url.starts_with("https://") {
-                            urls.push(url.to_string());
-                        }
+
+    let mut search_start = 0;
+    while let Some(rel) = content[search_start..].find('[') {
+        let open_idx = search_start + rel;
+        if let Some(close_rel) = content[open_idx + 1..].find(']') {
+            let close_idx = open_idx + 1 + close_rel;
+            let after_bracket = content.get(close_idx + 1..).unwrap_or("");
+            if let Some(rest) = after_bracket.strip_prefix('(') {
+                if let Some(paren_rel) = rest.find(')') {
+                    if let Some(cleaned) = clean_url_slice(&rest[..paren_rel]) {
+                        urls.push(cleaned.to_string());
                     }
                 }
             }
         }
+        search_start = open_idx + 1;
     }
-    
-    // Also look for bare URLs starting with http:// or https://
-    for (i, _) in content.match_indices("http://").chain(content.match_indices("https://")) {
-        // Find the end of the URL (whitespace or common delimiters)
-        let start = i;
-        let mut end = start;
-        for (j, ch) in content[start..].char_indices() {
-            if ch.is_whitespace() || ch == ')' || ch == ']' || ch == '>' || ch == '"' || ch == '\'' {
-                break;
+
+    for prefix in ["http://", "https://"] {
+        let mut look_from = 0;
+        while let Some(rel) = content[look_from..].find(prefix) {
+            let start = look_from + rel;
+            let end = find_url_end(content, start);
+            if end > start {
+                if let Some(cleaned) = clean_url_slice(&content[start..end]) {
+                    urls.push(cleaned.to_string());
+                }
             }
-            end = start + j + ch.len_utf8();
-        }
-        
-        if end > start {
-            let url = &content[start..end];
-            urls.push(url.to_string());
+            look_from = end;
         }
     }
-    
-    // Remove duplicates
+
     urls.sort();
     urls.dedup();
     urls
@@ -827,7 +888,7 @@ mod tests {
 
     #[test]
     fn test_extract_urls_from_content() {
-        let content = r#"
+        let content = r"
         # Documentation
 
         Check out [React docs](https://reactjs.org/docs) for more info.
@@ -836,15 +897,17 @@ mod tests {
         Some non-English content:
         [German docs](https://de.reactjs.org/docs/getting-started.html)
         Visit https://fr.reactjs.org/tutorial for French tutorial.
-        "#;
+        ";
 
         let urls = extract_urls_from_content(content);
-        
+
         assert!(urls.contains(&"https://reactjs.org/docs".to_string()));
-        assert!(urls.contains(&"https://developer.mozilla.org/en-US/docs/Web/JavaScript".to_string()));
+        assert!(
+            urls.contains(&"https://developer.mozilla.org/en-US/docs/Web/JavaScript".to_string())
+        );
         assert!(urls.contains(&"https://de.reactjs.org/docs/getting-started.html".to_string()));
         assert!(urls.contains(&"https://fr.reactjs.org/tutorial".to_string()));
-        
+
         assert_eq!(urls.len(), 4);
     }
 
@@ -852,7 +915,7 @@ mod tests {
     fn test_extract_urls_bare_urls() {
         let content = "Visit https://example.com and http://test.org for more info.";
         let urls = extract_urls_from_content(content);
-        
+
         assert!(urls.contains(&"https://example.com".to_string()));
         assert!(urls.contains(&"http://test.org".to_string()));
         assert_eq!(urls.len(), 2);
@@ -862,7 +925,7 @@ mod tests {
     fn test_extract_urls_no_duplicates() {
         let content = "[Link](https://example.com) and https://example.com again.";
         let urls = extract_urls_from_content(content);
-        
+
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://example.com".to_string()));
     }

@@ -451,11 +451,8 @@ async fn execute_command(
                 commands::add_manifest(
                     manifest,
                     &args.only,
-                    args.yes,
-                    args.dry_run,
-                    cli.quiet,
                     metrics,
-                    args.no_language_filter,
+                    commands::AddFlowOptions::new(args.dry_run, cli.quiet, args.no_language_filter),
                 )
                 .await?;
             } else {
