@@ -13,6 +13,8 @@ jobs:
     env:
       # Ensure cargo/nextest use a stable target dir to avoid nested target paths
       CARGO_TARGET_DIR: target
+      # Force a conservative CPU baseline to avoid SIGILL on older GitHub runners
+      RUSTFLAGS: "-C target-cpu=x86-64"
     steps:
       - uses: actions/checkout@v4
 
