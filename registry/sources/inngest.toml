@@ -1,0 +1,12 @@
+id = "inngest"
+name = "Inngest"
+description = "The reliability layer for modern applications"
+url = "https://www.inngest.com/llms-full.txt"
+category = "workflow"
+tags = ["typescript", "background-jobs", "event-driven", "reliability"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["inngest"]
+github = ["inngest/inngest"]

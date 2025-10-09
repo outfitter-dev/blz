@@ -1,0 +1,12 @@
+id = "hono"
+name = "Hono"
+description = "Fast, lightweight web framework built on Web Standards"
+url = "https://hono.dev/llms-full.txt"
+category = "framework"
+tags = ["typescript", "edge", "web", "cloudflare", "performance"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["hono"]
+github = ["honojs/hono"]

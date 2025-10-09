@@ -1,0 +1,11 @@
+id = "ast-grep"
+name = "Ast Grep"
+description = "A fast and polyglot tool for code searching, linting, rewriting"
+url = "https://ast-grep.github.io/llms-full.txt"
+category = "tooling"
+tags = ["ast", "code-search", "rust", "refactoring"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+github = ["ast-grep/ast-grep"]

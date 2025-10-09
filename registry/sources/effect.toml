@@ -1,0 +1,12 @@
+id = "effect"
+name = "Effect"
+description = "A powerful TypeScript library for building robust applications"
+url = "https://effect.website/llms-full.txt"
+category = "library"
+tags = ["typescript", "functional", "runtime", "concurrent"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["effect"]
+github = ["Effect-TS/effect"]

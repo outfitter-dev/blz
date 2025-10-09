@@ -1,0 +1,12 @@
+id = "turborepo"
+name = "Turborepo"
+description = "High-performance build system for JavaScript and TypeScript codebases"
+url = "https://turbo.build/repo/docs/llms-full.txt"
+category = "tooling"
+tags = ["monorepo", "build", "javascript", "typescript", "performance"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["turbo"]
+github = ["vercel/turbo"]

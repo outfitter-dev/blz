@@ -1,0 +1,119 @@
+version = "1"
+
+[[source]]
+alias = "ast-grep"
+name = "Ast Grep"
+description = "A fast and polyglot tool for code searching, linting, rewriting"
+url = "https://ast-grep.github.io/llms-full.txt"
+category = "tooling"
+tags = ["ast", "code-search", "rust", "refactoring"]
+
+  [source.aliases]
+  github = ["ast-grep/ast-grep"]
+
+[[source]]
+alias = "better-auth"
+name = "Better Auth"
+description = "The most comprehensive authentication library for TypeScript"
+url = "https://www.better-auth.com/llms.txt"
+category = "auth"
+tags = ["typescript", "auth", "sdk", "authentication"]
+
+  [source.aliases]
+  npm = ["better-auth"]
+  github = ["better-auth/better-auth"]
+
+[[source]]
+alias = "convex"
+name = "Convex"
+description = "The fullstack TypeScript development platform"
+url = "https://docs.convex.dev/llms-full.txt"
+category = "backend"
+tags = ["typescript", "database", "functions", "realtime"]
+
+  [source.aliases]
+  npm = ["convex"]
+  github = ["convex-dev/convex"]
+
+[[source]]
+alias = "effect"
+name = "Effect"
+description = "A powerful TypeScript library for building robust applications"
+url = "https://effect.website/llms-full.txt"
+category = "library"
+tags = ["typescript", "functional", "runtime", "concurrent"]
+
+  [source.aliases]
+  npm = ["effect"]
+  github = ["Effect-TS/effect"]
+
+[[source]]
+alias = "hono"
+name = "Hono"
+description = "Fast, lightweight web framework built on Web Standards"
+url = "https://hono.dev/llms-full.txt"
+category = "framework"
+tags = ["typescript", "edge", "web", "cloudflare", "performance"]
+
+  [source.aliases]
+  npm = ["hono"]
+  github = ["honojs/hono"]
+
+[[source]]
+alias = "inngest"
+name = "Inngest"
+description = "The reliability layer for modern applications"
+url = "https://www.inngest.com/llms-full.txt"
+category = "workflow"
+tags = ["typescript", "background-jobs", "event-driven", "reliability"]
+
+  [source.aliases]
+  npm = ["inngest"]
+  github = ["inngest/inngest"]
+
+[[source]]
+alias = "model-context-protocol"
+name = "Model Context Protocol"
+description = "A standard for connecting LLMs to external data sources and tools"
+url = "https://modelcontextprotocol.io/llms-full.txt"
+category = "spec"
+tags = ["agents", "mcp", "protocol", "llm", "ai"]
+
+  [source.aliases]
+  github = ["modelcontextprotocol/docs"]
+
+[[source]]
+alias = "resend"
+name = "Resend"
+description = "Email API for developers"
+url = "https://resend.com/llms-full.txt"
+category = "infrastructure"
+tags = ["email", "api", "notifications", "communication"]
+
+  [source.aliases]
+  npm = ["resend"]
+  github = ["resend/resend"]
+
+[[source]]
+alias = "trigger-dev"
+name = "Trigger.dev"
+description = "The open source background jobs platform"
+url = "https://trigger.dev/docs/llms-full.txt"
+category = "workflow"
+tags = ["typescript", "automation", "jobs", "background", "webhook"]
+
+  [source.aliases]
+  npm = ["@trigger.dev/sdk"]
+  github = ["triggerdotdev/trigger.dev"]
+
+[[source]]
+alias = "turborepo"
+name = "Turborepo"
+description = "High-performance build system for JavaScript and TypeScript codebases"
+url = "https://turbo.build/repo/docs/llms-full.txt"
+category = "tooling"
+tags = ["monorepo", "build", "javascript", "typescript", "performance"]
+
+  [source.aliases]
+  npm = ["turbo"]
+  github = ["vercel/turbo"]

@@ -1,0 +1,12 @@
+id = "better-auth"
+name = "Better Auth"
+description = "The most comprehensive authentication library for TypeScript"
+url = "https://www.better-auth.com/llms.txt"
+category = "auth"
+tags = ["typescript", "auth", "sdk", "authentication"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["better-auth"]
+github = ["better-auth/better-auth"]
