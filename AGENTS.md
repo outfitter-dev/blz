@@ -11,16 +11,16 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 
 **Primary activity log: Linear**
 
-- Always locate (or create) the Linear issue that matches the branch/feature before coding.
-- Post succinct progress comments as you work, especially when you pause, hand off, or finish a slice. Mention tests, blockers, and next steps.
-- Update the issue state to reflect reality (e.g., move to *In Progress*, *In Review* when appropriate).
-- If a git branch is dedicated to an issue, leave a summary comment in that Linear issue before switching branches so the next agent has context.
+- Always locate or create the matching Linear issue before you start work on a branch.
+- Capture progress via concise Linear comments whenever you pause, hand off, or finish a slice.
+- Keep the issue state current (In Progress, In Review, Done, etc.).
+- If a branch is dedicated to an issue, add a summary comment in Linear before switching contexts.
 
-**Optional scratch notes**
+**Optional scratch notes (archived)**
 
-- `SCRATCHPAD.md` is archived; prefer Linear comments for durable history.
-- If you temporarily jot in the scratchpad, use dated headings and prune or migrate the note into Linear before finishing your session.
-- Historical scratch snapshots live under `.agents/.archive/logs/` for reference.
+- `SCRATCHPAD.md` is archived; prefer Linear for durable history.
+- Temporary jot notes are fine, but add a dated bullet and migrate/delete them before ending your session.
+- Historical scratch snapshots live under `.agents/.archive/logs/`.
 
 ## Use blz
 

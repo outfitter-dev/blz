@@ -1,3 +1,3 @@
 # Scratchpad (Archived)
 
-This scratchpad is intentionally kept lightweight. Log ongoing work directly in the relevant Linear issue comments for your task. Use this file only for temporary jot notes you plan to delete or migrate immediately.
+Log progress in Linear issue comments. Remove any temporary notes here before finishing a session. Historical snapshots live under `.agents/.archive/logs/`.
