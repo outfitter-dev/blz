@@ -170,7 +170,7 @@ pub async fn execute(
             false,
             quiet,
             metrics,
-            false,
+            false, // no_language_filter
         );
 
         add_source(request).await?;
