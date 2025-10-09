@@ -118,7 +118,7 @@ blz get bun:41994-42009 -c5
 blz get bun --lines "41994-42009,42010-42020" --json
 
 # Pull the entire heading block (great for sections with tables or prose)
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 ```
 
 ### I want to limit search results
