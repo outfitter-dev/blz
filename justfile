@@ -87,6 +87,10 @@ fmt:
 fmt-check:
     cargo fmt --all -- --check
 
+# Format documentation (Markdown + MDX + JSON/YAML snippets)
+fmt-docs:
+    ./scripts/fmt-docs.sh
+
 # Run full CI validation locally
 ci: check-deps lint fmt-check test link-check
     @echo "📖 Building documentation..."
