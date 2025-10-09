@@ -255,6 +255,8 @@ pub enum Commands {
         #[arg(
             short = 'o',
             long,
+            short_alias = 'f',
+            visible_alias = "format",
             value_enum,
             default_value = "text",
             env = "BLZ_OUTPUT_FORMAT"

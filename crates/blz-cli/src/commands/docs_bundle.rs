@@ -11,8 +11,8 @@ use blz_core::{
     SourceType, SourceVariant, Storage,
 };
 use chrono::Utc;
-use once_cell::sync::Lazy;
 use sha2::{Digest, Sha256};
+use std::sync::LazyLock;
 
 use crate::utils::json_builder::build_llms_json;
 
@@ -45,7 +45,7 @@ const OVERVIEW_TEXT: &str = "blz built-in docs alias: blz-docs (@blz)\n\
 static BUNDLED_CONTENT: &str = include_str!("../../../../docs/llms/blz/llms-full.txt");
 
 /// Pre-computed SHA-256 hash (base64) of the bundled content.
-static BUNDLED_SHA256: Lazy<String> = Lazy::new(|| {
+static BUNDLED_SHA256: LazyLock<String> = LazyLock::new(|| {
     let mut hasher = Sha256::new();
     hasher.update(BUNDLED_CONTENT.as_bytes());
     B64.encode(hasher.finalize())
@@ -66,6 +66,9 @@ pub enum SyncStatus {
 pub fn sync(force: bool, metrics: PerformanceMetrics) -> Result<SyncStatus> {
     let storage = Storage::new()?;
     let needs_install = if force {
+        true
+    } else if !storage.exists(BUNDLED_ALIAS) {
+        // Missing cache files require reinstall even if metadata exists
         true
     } else if let Some(metadata) = storage.load_source_metadata(BUNDLED_ALIAS)? {
         metadata.sha256 != *BUNDLED_SHA256
@@ -113,8 +116,14 @@ fn install(storage: &Storage, metrics: PerformanceMetrics) -> Result<bool> {
     );
 
     llms_json.metadata.variant = SourceVariant::LlmsFull;
-    llms_json.metadata.aliases = BUNDLED_ALIASES.iter().map(|a| a.to_string()).collect();
-    llms_json.metadata.tags = BUNDLED_TAGS.iter().map(|t| t.to_string()).collect();
+    llms_json.metadata.aliases = BUNDLED_ALIASES
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    llms_json.metadata.tags = BUNDLED_TAGS
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     llms_json.metadata.description = Some(BUNDLED_DESCRIPTION.to_string());
     llms_json.metadata.category = Some(BUNDLED_CATEGORY.to_string());
     llms_json.metadata.origin = SourceOrigin {
@@ -159,7 +168,7 @@ fn install(storage: &Storage, metrics: PerformanceMetrics) -> Result<bool> {
         aliases: llms_json.metadata.aliases.clone(),
         npm_aliases: Vec::new(),
         github_aliases: Vec::new(),
-        origin: llms_json.metadata.origin.clone(),
+        origin: llms_json.metadata.origin,
     };
 
     storage
@@ -191,27 +200,12 @@ fn has_all_aliases(existing: &[String]) -> bool {
     })
 }
 
-/// Read-only accessor for the embedded documentation text.
-pub fn bundled_content() -> &'static str {
-    BUNDLED_CONTENT
-}
-
-/// Accessor for the embedded base64 SHA-256 checksum.
-pub fn bundled_sha256() -> &'static str {
-    &BUNDLED_SHA256
-}
-
-/// Human-readable overview surfaced by the docs hub.
-pub fn overview_text() -> &'static str {
-    OVERVIEW_TEXT
-}
-
 /// Print the overview banner.
 pub fn print_overview() {
-    println!("{}", OVERVIEW_TEXT);
+    println!("{OVERVIEW_TEXT}");
 }
 
 /// Print the bundled llms-full content to stdout.
 pub fn print_full_content() {
-    println!("{}", BUNDLED_CONTENT);
+    println!("{BUNDLED_CONTENT}");
 }

@@ -443,7 +443,7 @@ async fn execute_command(
             }
         },
         Some(Commands::Docs { command, format }) => {
-            handle_docs(command, format, cli.quiet, metrics.clone(), prefs).await?
+            handle_docs(command, format, cli.quiet, metrics.clone(), prefs).await?;
         },
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Add(args)) => {
@@ -719,12 +719,10 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
 
 fn docs_sync(force: bool, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
     let status = sync_and_report(force, quiet, metrics)?;
-    if !quiet {
-        if matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
-            let storage = Storage::new()?;
-            let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
-            println!("Bundled docs stored at {}", llms_path.display());
-        }
+    if !quiet && matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs stored at {}", llms_path.display());
     }
     Ok(())
 }
@@ -734,8 +732,8 @@ fn docs_overview(quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
     if !quiet {
         let storage = Storage::new()?;
         let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
-        println!("Bundled docs status: {:?}", status);
-        println!("Alias: {} (also @blz)", BUNDLED_ALIAS);
+        println!("Bundled docs status: {status:?}");
+        println!("Alias: {BUNDLED_ALIAS} (also @blz)");
         println!("Stored at: {}", llms_path.display());
     }
     print_overview();
@@ -771,10 +769,10 @@ fn sync_and_report(
                 println!("Bundled docs already up to date");
             },
             DocsSyncStatus::Installed => {
-                println!("Installed bundled docs source: {}", BUNDLED_ALIAS);
+                println!("Installed bundled docs source: {BUNDLED_ALIAS}");
             },
             DocsSyncStatus::Updated => {
-                println!("Updated bundled docs source: {}", BUNDLED_ALIAS);
+                println!("Updated bundled docs source: {BUNDLED_ALIAS}");
             },
         }
     }
