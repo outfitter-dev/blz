@@ -1,0 +1,11 @@
+id = "model-context-protocol"
+name = "Model Context Protocol"
+description = "A standard for connecting LLMs to external data sources and tools"
+url = "https://modelcontextprotocol.io/llms-full.txt"
+category = "spec"
+tags = ["agents", "mcp", "protocol", "llm", "ai"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+github = ["modelcontextprotocol/docs"]

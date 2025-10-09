@@ -1,0 +1,12 @@
+id = "resend"
+name = "Resend"
+description = "Email API for developers"
+url = "https://resend.com/llms-full.txt"
+category = "infrastructure"
+tags = ["email", "api", "notifications", "communication"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["resend"]
+github = ["resend/resend"]

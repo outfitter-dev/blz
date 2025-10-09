@@ -1,0 +1,12 @@
+id = "trigger-dev"
+name = "Trigger.dev"
+description = "The open source background jobs platform"
+url = "https://trigger.dev/docs/llms-full.txt"
+category = "workflow"
+tags = ["typescript", "automation", "jobs", "background", "webhook"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["@trigger.dev/sdk"]
+github = ["triggerdotdev/trigger.dev"]

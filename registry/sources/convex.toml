@@ -1,0 +1,12 @@
+id = "convex"
+name = "Convex"
+description = "The fullstack TypeScript development platform"
+url = "https://docs.convex.dev/llms-full.txt"
+category = "backend"
+tags = ["typescript", "database", "functions", "realtime"]
+registeredAt = "2025-10-09T20:00:00Z"
+verifiedAt = "2025-10-09T20:00:00Z"
+
+[aliases]
+npm = ["convex"]
+github = ["convex-dev/convex"]

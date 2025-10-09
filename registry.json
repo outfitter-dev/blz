@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated": "2025-09-30T20:51:03Z",
+  "updated": "2025-10-09T03:22:46Z",
   "sources": [
     {
       "id": "ai-sdk",
@@ -18,13 +18,13 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "vercel/ai"
-        ],
         "npm": [
           "ai",
           "@ai-sdk/openai",
           "@ai-sdk/anthropic"
+        ],
+        "github": [
+          "vercel/ai"
         ]
       }
     },
@@ -44,11 +44,31 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "ant-design/ant-design"
-        ],
         "npm": [
           "antd"
+        ],
+        "github": [
+          "ant-design/ant-design"
+        ]
+      }
+    },
+    {
+      "id": "ast-grep",
+      "name": "Ast Grep",
+      "description": "A fast and polyglot tool for code searching, linting, rewriting",
+      "url": "https://ast-grep.github.io/llms-full.txt",
+      "category": "tooling",
+      "tags": [
+        "ast",
+        "code-search",
+        "rust",
+        "refactoring"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "github": [
+          "ast-grep/ast-grep"
         ]
       }
     },
@@ -68,11 +88,34 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "withastro/astro"
-        ],
         "npm": [
           "astro"
+        ],
+        "github": [
+          "withastro/astro"
+        ]
+      }
+    },
+    {
+      "id": "better-auth",
+      "name": "Better Auth",
+      "description": "The most comprehensive authentication library for TypeScript",
+      "url": "https://www.better-auth.com/llms.txt",
+      "category": "auth",
+      "tags": [
+        "typescript",
+        "auth",
+        "sdk",
+        "authentication"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "better-auth"
+        ],
+        "github": [
+          "better-auth/better-auth"
         ]
       }
     },
@@ -116,11 +159,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "chakra-ui/chakra-ui"
-        ],
         "npm": [
           "@chakra-ui/react"
+        ],
+        "github": [
+          "chakra-ui/chakra-ui"
         ]
       }
     },
@@ -146,6 +189,29 @@
         ],
         "github": [
           "cloudflare/workers-sdk"
+        ]
+      }
+    },
+    {
+      "id": "convex",
+      "name": "Convex",
+      "description": "The fullstack TypeScript development platform",
+      "url": "https://docs.convex.dev/llms-full.txt",
+      "category": "backend",
+      "tags": [
+        "typescript",
+        "database",
+        "functions",
+        "realtime"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "convex"
+        ],
+        "github": [
+          "convex-dev/convex"
         ]
       }
     },
@@ -217,6 +283,29 @@
       }
     },
     {
+      "id": "effect",
+      "name": "Effect",
+      "description": "A powerful TypeScript library for building robust applications",
+      "url": "https://effect.website/llms-full.txt",
+      "category": "library",
+      "tags": [
+        "typescript",
+        "functional",
+        "runtime",
+        "concurrent"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "effect"
+        ],
+        "github": [
+          "Effect-TS/effect"
+        ]
+      }
+    },
+    {
       "id": "expo",
       "name": "Expo",
       "description": "Framework and platform for universal React applications",
@@ -237,6 +326,53 @@
         ],
         "github": [
           "expo/expo"
+        ]
+      }
+    },
+    {
+      "id": "hono",
+      "name": "Hono",
+      "description": "Fast, lightweight web framework built on Web Standards",
+      "url": "https://hono.dev/llms-full.txt",
+      "category": "framework",
+      "tags": [
+        "typescript",
+        "edge",
+        "web",
+        "cloudflare",
+        "performance"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "hono"
+        ],
+        "github": [
+          "honojs/hono"
+        ]
+      }
+    },
+    {
+      "id": "inngest",
+      "name": "Inngest",
+      "description": "The reliability layer for modern applications",
+      "url": "https://www.inngest.com/llms-full.txt",
+      "category": "workflow",
+      "tags": [
+        "typescript",
+        "background-jobs",
+        "event-driven",
+        "reliability"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "inngest"
+        ],
+        "github": [
+          "inngest/inngest"
         ]
       }
     },
@@ -282,11 +418,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "pypi": [
-          "langchain"
-        ],
         "github": [
           "langchain-ai/langchain"
+        ],
+        "pypi": [
+          "langchain"
         ]
       }
     },
@@ -365,6 +501,27 @@
       }
     },
     {
+      "id": "model-context-protocol",
+      "name": "Model Context Protocol",
+      "description": "A standard for connecting LLMs to external data sources and tools",
+      "url": "https://modelcontextprotocol.io/llms-full.txt",
+      "category": "spec",
+      "tags": [
+        "agents",
+        "mcp",
+        "protocol",
+        "llm",
+        "ai"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "github": [
+          "modelcontextprotocol/docs"
+        ]
+      }
+    },
+    {
       "id": "mui",
       "name": "Material-UI",
       "description": "React components that implement Google's Material Design",
@@ -407,11 +564,11 @@
         "npm": [
           "@pinecone-database/pinecone"
         ],
-        "pypi": [
-          "pinecone-client"
-        ],
         "github": [
           "pinecone-io/pinecone-ts-client"
+        ],
+        "pypi": [
+          "pinecone-client"
         ]
       }
     },
@@ -431,11 +588,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "preactjs/preact"
-        ],
         "npm": [
           "preact"
+        ],
+        "github": [
+          "preactjs/preact"
         ]
       }
     },
@@ -486,6 +643,29 @@
         ],
         "github": [
           "redis/redis"
+        ]
+      }
+    },
+    {
+      "id": "resend",
+      "name": "Resend",
+      "description": "Email API for developers",
+      "url": "https://resend.com/llms-full.txt",
+      "category": "infrastructure",
+      "tags": [
+        "email",
+        "api",
+        "notifications",
+        "communication"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "resend"
+        ],
+        "github": [
+          "resend/resend"
         ]
       }
     },
@@ -589,11 +769,11 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "supabase/supabase-js"
-        ],
         "npm": [
           "@supabase/supabase-js"
+        ],
+        "github": [
+          "supabase/supabase-js"
         ]
       }
     },
@@ -678,11 +858,59 @@
       "registeredAt": "2025-09-30T20:00:00Z",
       "verifiedAt": "2025-09-30T20:00:00Z",
       "aliases": {
-        "github": [
-          "sveltejs/svelte"
-        ],
         "npm": [
           "svelte"
+        ],
+        "github": [
+          "sveltejs/svelte"
+        ]
+      }
+    },
+    {
+      "id": "trigger-dev",
+      "name": "Trigger.dev",
+      "description": "The open source background jobs platform",
+      "url": "https://trigger.dev/docs/llms-full.txt",
+      "category": "workflow",
+      "tags": [
+        "typescript",
+        "automation",
+        "jobs",
+        "background",
+        "webhook"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "@trigger.dev/sdk"
+        ],
+        "github": [
+          "triggerdotdev/trigger.dev"
+        ]
+      }
+    },
+    {
+      "id": "turborepo",
+      "name": "Turborepo",
+      "description": "High-performance build system for JavaScript and TypeScript codebases",
+      "url": "https://turbo.build/repo/docs/llms-full.txt",
+      "category": "tooling",
+      "tags": [
+        "monorepo",
+        "build",
+        "javascript",
+        "typescript",
+        "performance"
+      ],
+      "registeredAt": "2025-10-09T20:00:00Z",
+      "verifiedAt": "2025-10-09T20:00:00Z",
+      "aliases": {
+        "npm": [
+          "turbo"
+        ],
+        "github": [
+          "vercel/turbo"
         ]
       }
     },
