@@ -9,13 +9,18 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 
 ## Working Memory
 
-**Always check and update `SCRATCHPAD.md`** - This is your working memory file.
+**Primary activity log: Linear**
 
-- Read `SCRATCHPAD.md` at the start of each session to understand recent work
-- Update it as you work, especially after completing significant changes
-- Use dated H2 sections (e.g., `## 2025-10-01`) with bullet points
-- Link to detailed logs in `.agents/logs/` for comprehensive documentation
-- Keep it concise - this is a quick reference, not a detailed log
+- Always locate (or create) the Linear issue that matches the branch/feature before coding.
+- Post succinct progress comments as you work, especially when you pause, hand off, or finish a slice. Mention tests, blockers, and next steps.
+- Update the issue state to reflect reality (e.g., move to *In Progress*, *In Review* when appropriate).
+- If a git branch is dedicated to an issue, leave a summary comment in that Linear issue before switching branches so the next agent has context.
+
+**Optional scratch notes**
+
+- `SCRATCHPAD.md` is archived; prefer Linear comments for durable history.
+- If you temporarily jot in the scratchpad, use dated headings and prune or migrate the note into Linear before finishing your session.
+- Historical scratch snapshots live under `.agents/.archive/logs/` for reference.
 
 ## Use blz
 
