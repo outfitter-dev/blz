@@ -680,7 +680,7 @@ impl std::str::FromStr for ContextMode {
         } else {
             s.parse::<usize>()
                 .map(Self::Lines)
-                .map_err(|_| format!("Invalid context value: '{}'. Expected a number or 'all'", s))
+                .map_err(|_| format!("Invalid context value: '{s}'. Expected a number or 'all'"))
         }
     }
 }

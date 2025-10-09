@@ -2,6 +2,7 @@
 
 ## 2025-10-09
 
+- Analyzed Linear BLZ "Todo" queue for dependency grouping and drafted snippet/context-focused Graphite stack plan (BLZ-117 → BLZ-133 → BLZ-131 → BLZ-125).
 - Implemented `--context all` as the new primary way to request full section expansion in search/get commands.
   - Created `ContextMode` enum in `cli.rs` with `Lines(usize)` and `All` variants
   - Implemented `FromStr` trait for parsing both numeric values and "all"
