@@ -25,7 +25,12 @@ if ! command_exists lefthook; then
         go install github.com/evilmartians/lefthook@latest
         GO_BIN="$(go env GOBIN 2>/dev/null)"
         if [[ -z "$GO_BIN" ]]; then
-            GO_BIN="$(go env GOPATH 2>/dev/null)/bin"
+            GOPATH_VALUE="$(go env GOPATH 2>/dev/null)"
+            if [[ -n "$GOPATH_VALUE" ]]; then
+                GO_BIN="${GOPATH_VALUE%%:*}/bin"
+            else
+                GO_BIN="$HOME/go/bin"
+            fi
         fi
         export PATH="$GO_BIN:$PATH"
     # Use install script as last resort
