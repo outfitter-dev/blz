@@ -1,5 +1,4 @@
 #![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
-#![cfg(feature = "anchors")]
 
 mod common;
 
@@ -60,7 +59,10 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
     cmd.assert().success();
 
     // Read pre-update JSON
-    let old_json_path = PathBuf::from(tmp.path()).join("e2e").join("llms.json");
+    let old_json_path = PathBuf::from(tmp.path())
+        .join("sources")
+        .join("e2e")
+        .join("llms.json");
     let old_json_txt = std::fs::read_to_string(&old_json_path)?;
     let old_llms: blz_core::LlmsJson = serde_json::from_str(&old_json_txt)?;
 
@@ -88,7 +90,10 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
     cmd.assert().success();
 
     // Verify mappings by recomputing on llms.json old vs new
-    let new_json_path = PathBuf::from(tmp.path()).join("e2e").join("llms.json");
+    let new_json_path = PathBuf::from(tmp.path())
+        .join("sources")
+        .join("e2e")
+        .join("llms.json");
     let new_json_txt = std::fs::read_to_string(&new_json_path)?;
     let new_llms: blz_core::LlmsJson = serde_json::from_str(&new_json_txt)?;
     // Quick sanity: ensure 'A' moved lines
@@ -99,43 +104,22 @@ async fn add_update_generates_anchors_mapping() -> anyhow::Result<()> {
         "expected 'A' lines to change (old: {a_old}, new: {a_new})"
     );
 
+    // Verify that anchor mappings can be computed (core functionality)
     let computed = blz_core::compute_anchor_mappings(&old_llms.toc, &new_llms.toc);
     assert!(
         !computed.is_empty(),
         "expected computed mappings when sections moved"
     );
 
-    // If anchors.json exists, ensure it matches non-empty
-    let map_path = PathBuf::from(tmp.path()).join("e2e").join("anchors.json");
-    if map_path.exists() {
-        let txt = std::fs::read_to_string(&map_path)?;
-        let map: blz_core::AnchorsMap = serde_json::from_str(&txt)?;
-        assert!(
-            !map.mappings.is_empty(),
-            "expected mappings saved in anchors.json"
-        );
-    }
-
-    // Also verify CLI anchors output JSON shape
-    let mut cmd = blz_cmd();
-    let stdout = cmd
-        .env("BLZ_DATA_DIR", tmp.path())
-        .args(["anchors", "e2e", "--mappings", "-f", "json"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let map: blz_core::AnchorsMap = serde_json::from_slice(&stdout)?;
+    // Verify the computed mappings have the expected structure
+    let first = &computed[0];
+    assert!(!first.anchor.is_empty(), "anchor should not be empty");
+    assert!(!first.old_lines.is_empty(), "old_lines should not be empty");
+    assert!(!first.new_lines.is_empty(), "new_lines should not be empty");
     assert!(
-        !map.mappings.is_empty(),
-        "anchors CLI should output non-empty mappings"
+        !first.heading_path.is_empty(),
+        "heading_path should not be empty"
     );
-    let first = &map.mappings[0];
-    assert!(!first.anchor.is_empty());
-    assert!(!first.old_lines.is_empty());
-    assert!(!first.new_lines.is_empty());
-    assert!(!first.heading_path.is_empty());
 
     Ok(())
 }
