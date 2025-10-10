@@ -7,6 +7,8 @@ use blz_core::{
     Storage,
 };
 use futures::stream::{self, StreamExt};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -52,6 +54,7 @@ pub struct SearchOptions {
     pub block: bool,
     pub max_block_lines: Option<usize>,
     pub max_chars: usize,
+    pub quiet: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -104,6 +107,7 @@ pub async fn execute(
     max_block_lines: Option<usize>,
     no_history: bool,
     copy: bool,
+    quiet: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -139,6 +143,7 @@ pub async fn execute(
         block,
         max_block_lines,
         max_chars: clamp_max_chars(max_chars),
+        quiet,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -206,6 +211,7 @@ pub async fn handle_default(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
     prefs: &mut CliPreferences,
+    quiet: bool,
 ) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
@@ -288,6 +294,7 @@ pub async fn handle_default(
         None,
         false, // no_history: false for default search
         false, // copy: false for default search
+        quiet,
         Some(prefs),
         metrics,
         resource_monitor,
@@ -344,12 +351,39 @@ async fn perform_search(
             match crate::utils::resolver::resolve_source(&storage, requested) {
                 Ok(Some(canonical)) => resolved.push(canonical),
                 Ok(None) => {
-                    // Fallback: show hint and continue with the requested name
+                    // Source not found - use fuzzy matching to suggest similar sources
                     let known = storage.list_sources();
-                    if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
-                        eprintln!(
-                            "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
-                        );
+                    if !known.contains(requested) {
+                        let matcher = SkimMatcherV2::default();
+                        let mut suggestions: Vec<(i64, String)> = known
+                            .iter()
+                            .filter_map(|source| {
+                                matcher
+                                    .fuzzy_match(source, requested)
+                                    .filter(|&score| score > 0)
+                                    .map(|score| (score, source.clone()))
+                            })
+                            .collect();
+
+                        // Sort by score descending and take top 3
+                        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                        suggestions.truncate(3);
+
+                        if !options.quiet {
+                            if suggestions.is_empty() {
+                                eprintln!("Warning: Source '{requested}' not found.");
+                            } else {
+                                let suggestion_list = suggestions
+                                    .iter()
+                                    .map(|(_, name)| name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                eprintln!(
+                                    "Warning: Source '{requested}' not found. Did you mean: {suggestion_list}?"
+                                );
+                            }
+                            eprintln!("Run 'blz list' to see all sources.");
+                        }
                     }
                     resolved.push(requested.clone());
                 },
@@ -1080,6 +1114,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         // Should not panic even with empty results
@@ -1121,6 +1156,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1155,6 +1191,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         // This should NOT panic even with empty results
@@ -1186,6 +1223,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -1222,6 +1260,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1257,6 +1296,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1286,6 +1326,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let test_results = create_test_results(10);
@@ -1322,6 +1363,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let results1 = create_test_results(8);
@@ -1356,6 +1398,7 @@ mod tests {
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let results2 = create_test_results(0);
@@ -1395,5 +1438,259 @@ mod tests {
                 assert!(pages >= 1);
             }
         }
+    }
+
+    // Tests for fuzzy matching warning feature (BLZ-154)
+
+    #[test]
+    fn test_fuzzy_matcher_finds_close_matches() {
+        // Test that fuzzy matching correctly identifies similar sources
+        // NOTE: SkimMatcherV2 is case-sensitive and uses subsequence matching
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["react".to_string(), "vue".to_string(), "node".to_string()];
+        let typo = "reac"; // Close match for "react" (substring)
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Should find "react" as the best match
+        assert!(
+            !suggestions.is_empty(),
+            "Should find at least one suggestion"
+        );
+        assert_eq!(suggestions[0].1, "react", "Best match should be 'react'");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_no_matches_for_unrelated_term() {
+        // Test that completely unrelated terms don't match
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["react".to_string(), "vue".to_string()];
+        let unrelated = "xyz123";
+
+        let suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, unrelated)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        // Should not find any good matches
+        assert!(
+            suggestions.is_empty(),
+            "Should not find suggestions for completely unrelated term"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_limits_to_top_three() {
+        // Test that we only show top 3 suggestions even with many matches
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "react-dom".to_string(),
+            "react-native".to_string(),
+            "react-router".to_string(),
+            "react-query".to_string(),
+            "react-hook-form".to_string(),
+            "preact".to_string(),
+        ];
+        let query = "react";
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+        suggestions.truncate(3);
+
+        // Should limit to 3 suggestions
+        assert_eq!(
+            suggestions.len(),
+            3,
+            "Should limit to top 3 suggestions even when more match"
+        );
+
+        // Should be sorted by score (all should have scores)
+        assert!(
+            suggestions[0].0 > 0,
+            "First suggestion should have positive score"
+        );
+        assert!(
+            suggestions[1].0 > 0,
+            "Second suggestion should have positive score"
+        );
+        assert!(
+            suggestions[2].0 > 0,
+            "Third suggestion should have positive score"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_suggestions_are_sorted() {
+        // Test that suggestions are sorted by match quality
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "javascript".to_string(),
+            "java".to_string(),
+            "typescript".to_string(),
+        ];
+        let query = "java";
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Should find matches (both "java" and "javascript" contain "java")
+        assert!(!suggestions.is_empty(), "Should find at least one match");
+        // Note: The fuzzy matcher may rank "javascript" higher than "java" because it's a longer match
+        // What matters is that matches are found and sorted by score
+
+        // Scores should be in descending order
+        for i in 0..suggestions.len().saturating_sub(1) {
+            assert!(
+                suggestions[i].0 >= suggestions[i + 1].0,
+                "Suggestions should be sorted by score descending"
+            );
+        }
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_case_sensitivity() {
+        // Test fuzzy matching behavior with different cases
+        // SkimMatcherV2 performs case-insensitive matching by default
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["React".to_string(), "Vue".to_string()];
+
+        let lowercase_query = "reac"; // Substring match
+        let suggestions_lower: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, lowercase_query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        // Should match "React" even with lowercase query
+        assert!(
+            !suggestions_lower.is_empty(),
+            "Should match with lowercase query"
+        );
+        assert_eq!(suggestions_lower[0].1, "React");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_handles_typos() {
+        // Test common typo patterns
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "typescript".to_string(),
+            "javascript".to_string(),
+            "python".to_string(),
+        ];
+
+        // Transposition typo: "typscript" -> "typescript"
+        let typo1 = "typscript";
+        let suggestions1: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo1)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(
+            !suggestions1.is_empty(),
+            "Should handle transposition typos"
+        );
+        assert_eq!(suggestions1[0].1, "typescript");
+
+        // Missing letter: "pythn" -> "python"
+        let typo2 = "pythn";
+        let suggestions2: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo2)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(
+            !suggestions2.is_empty(),
+            "Should handle missing letter typos"
+        );
+        assert_eq!(suggestions2[0].1, "python");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_partial_matches() {
+        // Test that partial matches work (prefix, suffix, infix)
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "react-native".to_string(),
+            "vue-router".to_string(),
+            "angular".to_string(),
+        ];
+
+        // Prefix match
+        let prefix = "react";
+        let suggestions_prefix: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, prefix)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(!suggestions_prefix.is_empty(), "Should match prefix");
+        assert_eq!(suggestions_prefix[0].1, "react-native");
+
+        // Suffix match
+        let suffix = "router";
+        let suggestions_suffix: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, suffix)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(!suggestions_suffix.is_empty(), "Should match suffix");
+        assert_eq!(suggestions_suffix[0].1, "vue-router");
     }
 }

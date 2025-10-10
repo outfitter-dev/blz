@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2025-10-09
 
 ### Added
+- **Fuzzy-matched source warnings**: When searching with a non-existent source filter, `blz` now suggests similar source names
+  - Shows top 3 closest matches sorted by similarity score
+  - Warnings print to stderr only (preserves JSON output on stdout)
+  - Respects quiet mode (`-q` flag) to suppress warnings
+  - Exit code remains 0 for backward compatibility
 - **Bundled documentation hub**: New `blz docs` command with subcommands for embedded documentation
   - `blz docs search`: Search the bundled blz-docs source without touching other aliases
   - `blz docs sync`: Sync or resync embedded documentation files and index
