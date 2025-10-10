@@ -191,7 +191,8 @@ fn compute_block_result(
 
 fn gather_requested_lines(
     ranges: &[LineRange],
-    context: Option<usize>,
+    before_context: usize,
+    after_context: usize,
     file_len: usize,
 ) -> Vec<usize> {
     let mut requested_lines = BTreeSet::new();
@@ -200,13 +201,11 @@ fn gather_requested_lines(
         match range {
             LineRange::Single(n) => {
                 requested_lines.insert(*n);
-                if let Some(ctx) = context {
-                    let start = n.saturating_sub(ctx);
-                    let end = n + ctx;
-                    for i in start..=end {
-                        if i > 0 && i <= file_len {
-                            requested_lines.insert(i);
-                        }
+                let start = n.saturating_sub(before_context);
+                let end = n + after_context;
+                for i in start..=end {
+                    if i > 0 && i <= file_len {
+                        requested_lines.insert(i);
                     }
                 }
             },
@@ -214,13 +213,11 @@ fn gather_requested_lines(
                 for i in *start..=*end {
                     requested_lines.insert(i);
                 }
-                if let Some(ctx) = context {
-                    let ctx_start = start.saturating_sub(ctx);
-                    let ctx_end = end + ctx;
-                    for i in ctx_start..=ctx_end {
-                        if i > 0 && i <= file_len {
-                            requested_lines.insert(i);
-                        }
+                let ctx_start = start.saturating_sub(before_context);
+                let ctx_end = end + after_context;
+                for i in ctx_start..=ctx_end {
+                    if i > 0 && i <= file_len {
+                        requested_lines.insert(i);
                     }
                 }
             },
@@ -229,13 +226,11 @@ fn gather_requested_lines(
                 for i in *start..=end {
                     requested_lines.insert(i);
                 }
-                if let Some(ctx) = context {
-                    let ctx_start = start.saturating_sub(ctx);
-                    let ctx_end = end + ctx;
-                    for i in ctx_start..=ctx_end {
-                        if i > 0 && i <= file_len {
-                            requested_lines.insert(i);
-                        }
+                let ctx_start = start.saturating_sub(before_context);
+                let ctx_end = end + after_context;
+                for i in ctx_start..=ctx_end {
+                    if i > 0 && i <= file_len {
+                        requested_lines.insert(i);
                     }
                 }
             },
@@ -259,11 +254,12 @@ pub async fn execute(
     format: OutputFormat,
     copy: bool,
 ) -> Result<()> {
-    // Convert ContextMode to context/block flags
-    let (context, block) = match context_mode {
-        Some(crate::cli::ContextMode::All) => (None, true),
-        Some(crate::cli::ContextMode::Lines(n)) => (Some(*n), false),
-        None => (None, block),
+    // Convert ContextMode to before/after context and block flag
+    let (before_context, after_context, block) = match context_mode {
+        Some(crate::cli::ContextMode::All) => (0, 0, true),
+        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
+        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
+        None => (0, 0, block),
     };
     let storage = Storage::new()?;
 
@@ -359,7 +355,8 @@ pub async fn execute(
                 result.content_lines,
             )
         } else {
-            let line_numbers = gather_requested_lines(&ranges, context, file_lines.len());
+            let line_numbers =
+                gather_requested_lines(&ranges, before_context, after_context, file_lines.len());
             (0, line_numbers, lines.to_string(), false, Vec::new())
         };
 

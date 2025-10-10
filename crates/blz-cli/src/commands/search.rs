@@ -47,7 +47,8 @@ pub struct SearchOptions {
     pub(crate) all: bool,
     pub no_history: bool,
     pub copy: bool,
-    pub context: Option<usize>,
+    pub before_context: usize,
+    pub after_context: usize,
     pub block: bool,
     pub max_block_lines: Option<usize>,
     pub max_chars: usize,
@@ -107,11 +108,12 @@ pub async fn execute(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
-    // Convert ContextMode to context/block flags
-    let (context, block) = match context_mode {
-        Some(crate::cli::ContextMode::All) => (None, true),
-        Some(crate::cli::ContextMode::Lines(n)) => (Some(*n), false),
-        None => (None, block),
+    // Convert ContextMode to before/after context and block flag
+    let (before_context, after_context, block) = match context_mode {
+        Some(crate::cli::ContextMode::All) => (0, 0, true),
+        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
+        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
+        None => (0, 0, block),
     };
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
@@ -132,7 +134,8 @@ pub async fn execute(
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
         no_history,
         copy,
-        context,
+        before_context,
+        after_context,
         block,
         max_block_lines,
         max_chars: clamp_max_chars(max_chars),
@@ -511,8 +514,14 @@ async fn perform_search(
             &mut llms_cache,
             &mut line_cache,
         );
-    } else if let Some(context_lines) = options.context {
-        enrich_hits_with_context(&mut all_hits, context_lines, &storage, &mut line_cache);
+    } else if options.before_context > 0 || options.after_context > 0 {
+        enrich_hits_with_context(
+            &mut all_hits,
+            options.before_context,
+            options.after_context,
+            &storage,
+            &mut line_cache,
+        );
     }
 
     sources_searched.sort();
@@ -576,7 +585,8 @@ fn apply_percentile_filter(
 
 fn enrich_hits_with_context(
     hits: &mut [SearchHit],
-    context_lines: usize,
+    before_lines: usize,
+    after_lines: usize,
     storage: &Arc<Storage>,
     line_cache: &mut HashMap<String, Vec<String>>,
 ) {
@@ -590,8 +600,8 @@ fn enrich_hits_with_context(
                 continue;
             }
             let total = lines.len();
-            let start = base_start.saturating_sub(context_lines).max(1);
-            let end = (base_end + context_lines).min(total);
+            let start = base_start.saturating_sub(before_lines).max(1);
+            let end = (base_end + after_lines).min(total);
             if start > end {
                 continue;
             }
@@ -1065,7 +1075,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1105,7 +1116,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1138,7 +1150,8 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1168,7 +1181,8 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1203,7 +1217,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1237,7 +1252,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1265,7 +1281,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1300,7 +1317,8 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
@@ -1333,7 +1351,8 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
