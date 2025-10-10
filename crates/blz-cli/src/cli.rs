@@ -266,6 +266,9 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Maximum number of results to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Manage the registry (create sources, validate, etc.)
@@ -477,6 +480,9 @@ pub enum Commands {
         /// Show descriptor metadata (description, category, tags, origin)
         #[arg(long)]
         details: bool,
+        /// Maximum number of sources to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Show cache statistics and overview
@@ -484,6 +490,9 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Maximum number of sources to display in statistics
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Validate source integrity and availability
@@ -722,6 +731,9 @@ pub enum AnchorCommands {
         /// Show anchors remap mappings if available
         #[arg(long)]
         mappings: bool,
+        /// Maximum number of anchors to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
     /// Get content by anchor
     Get {

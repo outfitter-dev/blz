@@ -36,7 +36,7 @@ struct OldestSource {
 }
 
 /// Execute the stats command
-pub fn execute(format: OutputFormat) -> Result<()> {
+pub fn execute(format: OutputFormat, limit: Option<usize>) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
@@ -89,6 +89,11 @@ pub fn execute(format: OutputFormat) -> Result<()> {
 
     // Sort by size (largest first)
     source_stats.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+
+    // Apply limit after sorting
+    if let Some(limit_count) = limit {
+        source_stats.truncate(limit_count);
+    }
 
     let oldest_source = oldest.map(|(alias, time)| {
         let age_days = Utc::now().signed_duration_since(time).num_days();

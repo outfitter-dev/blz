@@ -19,6 +19,7 @@ pub async fn execute(
     metrics: PerformanceMetrics,
     quiet: bool,
     format: OutputFormat,
+    limit: Option<usize>,
 ) -> Result<()> {
     let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
         .map(|value| {
@@ -71,7 +72,7 @@ pub async fn execute(
     if matches!(format, OutputFormat::Text) && !quiet {
         println!("Searching registries...");
     }
-    let results = registry.search(query);
+    let mut results = registry.search(query);
 
     if results.is_empty() {
         if matches!(format, OutputFormat::Text) && !quiet {
@@ -82,6 +83,11 @@ pub async fn execute(
         }
         emit_registry_note(format, quiet, NoteChannel::Auto);
         return Ok(());
+    }
+
+    // Apply limit to results
+    if let Some(limit_count) = limit {
+        results.truncate(limit_count);
     }
 
     if matches!(format, OutputFormat::Text) && !quiet {
