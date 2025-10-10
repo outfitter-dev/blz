@@ -200,7 +200,7 @@ pub struct Cli {
 ///
 /// # Content access
 /// blz search "useEffect" --limit 5
-/// blz get react --lines 120-142 --context 3
+/// blz get react --lines 120-142 -C 3
 /// blz diff react --since "2024-01-01"
 ///
 /// # Utility
@@ -381,9 +381,9 @@ pub enum Commands {
         /// Print LINES lines of context (both before and after match). Same as -C.
         ///
         /// Examples:
-        ///   --context 10       # 10 lines before and after
-        ///   --context all      # Full section expansion
-        ///   -C5                # 5 lines before and after (short form)
+        ///   -C 10              # 10 lines before and after
+        ///   -C all             # Full section expansion
+        ///   --context 5        # Long form (also valid)
         #[arg(
             short = 'C',
             long = "context",
@@ -493,9 +493,9 @@ pub enum Commands {
         /// Print LINES lines of context (both before and after). Same as -C.
         ///
         /// Examples:
-        ///   --context 10       # 10 lines before and after
-        ///   --context all      # Full section expansion
-        ///   -C5                # 5 lines before and after (short form)
+        ///   -C 10              # 10 lines before and after
+        ///   -C all             # Full section expansion
+        ///   --context 5        # Long form (also valid)
         #[arg(
             short = 'C',
             long = "context",
