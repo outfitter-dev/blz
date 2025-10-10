@@ -8,9 +8,9 @@ The data directory contains all cached documentation and search indexes:
 
 **Platform-specific defaults:**
 
-- **Linux (XDG)**: `~/.local/share/dev.outfitter.blz/`
+- **Linux (XDG)**: `~/.local/share/blz/`
 - **macOS (AppData)**: `~/Library/Application Support/dev.outfitter.blz/`
-- **Windows**: `%APPDATA%\dev.outfitter.blz\`
+- **Windows**: `%APPDATA%\outfitter\blz\`
 
 **Override with environment variable:**
 
@@ -23,7 +23,7 @@ export BLZ_DATA_DIR=/custom/path/to/blz/data
 Each source gets its own directory with the following structure:
 
 ```
-~/.local/share/dev.outfitter.blz/
+~/.local/share/blz/
   bun/
     llms.txt                         # Latest upstream text
     llms.json                        # Parsed TOC + line map
@@ -130,7 +130,7 @@ Clear archives while keeping current data:
 Completely reset BLZ (removes all data):
 
 ```bash
-rm -rf ~/.local/share/dev.outfitter.blz/
+rm -rf ~/.local/share/blz/
 ```
 
 ## Platform Differences
