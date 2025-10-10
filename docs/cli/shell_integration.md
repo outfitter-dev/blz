@@ -399,7 +399,7 @@ Add to `~/.config/fish/functions/`:
 ```fish
 # ~/.config/fish/functions/blz-quick.fish
 function blz-quick -d "Quick search and get first result"
-    set -l result (blz search $argv --limit 1 -f json | jq -r '.[] | "\(.alias) \(.lines)"')
+    set -l result (blz search $argv --limit 1 -f json | jq -r '.results[0] | "\(.alias) \(.lines)"')
     if test -n "$result"
         blz get $result
     else
@@ -476,12 +476,12 @@ bind \cb blzi
 function blz-code
     set -l result (blz search $argv --limit 1 -f json)
     if test -n "$result"
-        set -l alias (echo $result | jq -r '.[0].alias')
-        set -l lines (echo $result | jq -r '.[0].lines')
+        set -l alias (echo $result | jq -r '.results[0].alias')
+        set -l lines (echo $result | jq -r '.results[0].lines')
         set -l start (echo $lines | cut -d'-' -f1)
 
         # Open file at line
-        code ~/.local/share/dev.outfitter.blz/$alias/llms.txt:$start
+        code ~/.local/share/blz/$alias/llms.txt:$start
     end
 end
 ```
@@ -564,7 +564,7 @@ function Blz-Quick {
     param([string]$Query)
     $result = blz search $Query --limit 1 -f json | ConvertFrom-Json
     if ($result) {
-        blz get $result[0].alias --lines $result[0].lines
+        blz get $result.results[0].alias --lines $result.results[0].lines
     } else {
         Write-Host "No results for: $Query"
     }
@@ -730,7 +730,7 @@ fn bl { blz list }
 fn blz-quick [query]{
     var result = (blz search $query --limit 1 -f json | from-json)
     if (not-eq $result []) {
-        var hit = $result[0]
+        var hit = $result[results][0]
         blz get $hit[alias] --lines $hit[lines]
     } else {
         echo "No results for: "$query

@@ -13,7 +13,7 @@ Use the [`blz`](https://github.com/outfitter-dev/blz) CLI to keep documentation 
 3. Inspect indexed sources: `blz list --json`
 4. Prefer `--json` / `--jsonl` outputs so tooling can parse them cleanly
 5. Feed `alias:lines` citations straight into `blz get`
-6. Use `--context all` (plus `--max-lines <N>` if needed) for whole sections, or `-c<N>` to add a small context window
+6. Use `--context all` (plus `--max-lines <N>` if needed) for whole sections, or `-C <N>` to add a small context window
 7. Expect tight payloads: the standard `search` → `get` flow typically returns 20–80 lines instead of multi-kilobyte pages, keeping token usage low
 8. Set a default format when you want every command in JSON: `export BLZ_OUTPUT_FORMAT=json`
 9. Check source health with `blz info <alias> --json` (or `blz list --status --json`) before a heavy retrieval session
@@ -67,17 +67,17 @@ Example workflow:
 
 ```bash
 # Quick scan with short snippets
-blz "error handling" --max-chars 100 --json | jq -r '.[0:3] | .[] | .alias + ":" + .lines'
+blz "error handling" --max-chars 100 --json | jq -r '.results[0:3] | .[] | .alias + ":" + .lines'
 
 # Detailed assessment with longer snippets
-blz "authentication flow" --max-chars 400 --json | jq '.[0] | {heading: .headingPath, snippet}'
+blz "authentication flow" --max-chars 400 --json | jq '.results[0] | {heading: .headingPath, snippet}'
 ```
 
 ## Retrieve Content
 
 ```bash
 # Copy alias:lines from search output and fetch the span with context
-blz get bun:41994-42009 -c5 --json
+blz get bun:41994-42009 -C 5 --json
 
 # Combine multiple spans into one payload
 blz get bun --lines "41994-42009,42010-42020" --json
@@ -86,6 +86,7 @@ blz get bun --lines "41994-42009,42010-42020" --json
 blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # Note: --block is a legacy alias for --context all
+# Note: -c<N> is legacy syntax; prefer -C <N> (grep-style)
 ```
 
 ## Keep Sources Fresh
@@ -99,13 +100,13 @@ blz update --all --json      # Refresh everything
 
 ```bash
 # Pull the first alias:lines citation
-span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
 # Fetch the content straight into your pipeline
 blz get "$span" --json | jq '.content'
 
 # Filter to high-confidence matches
-blz "test reporters" --json | jq '[.[] | select(.score >= 60)]'
+blz "test reporters" --json | jq '[.results[] | select(.score >= 60)]'
 ```
 
 ## Exit Codes

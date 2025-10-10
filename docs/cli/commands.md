@@ -472,32 +472,44 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 ### `blz docs`
 
-Generate CLI documentation directly from the clap definitions.
+Bundled documentation hub with subcommands for embedded documentation.
 
 ```bash
-blz docs [--format markdown|json]
+blz docs <subcommand>
 ```
 
-**Options:**
+**Subcommands:**
 
-- `--format` - Output format. Defaults to `markdown`. Use `json` for agent/scripting scenarios.
-  - Respects global `BLZ_OUTPUT_FORMAT=json` to default to JSON without passing `--format`.
+- `search <query>` – Search the bundled blz-docs source
+- `sync` – Sync or resync embedded documentation files and index
+- `overview` – Display quick-start guide
+- `cat` – Print entire bundled llms-full.txt to stdout
+- `export` – Export CLI docs in markdown or JSON
 
 **Examples:**
 
 ```bash
-# Human-readable CLI docs
-blz docs
+# Search bundled docs (stays scoped to internal docs)
+blz docs search "context flags"
 
-# Structured docs for agents / tooling
-blz docs --json | jq '.subcommands[] | {name, usage}'
+# Sync embedded docs after upgrade
+blz docs sync
 
-# Pipe docs into a file for offline reference
-blz docs > BLZ-CLI.md
+# Export CLI reference as JSON (for agents/tooling)
+blz docs export --format json | jq '.subcommands[] | {name, usage}'
 
-# Use global env var to default to JSON
-BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
+# Export as markdown (default)
+blz docs export > BLZ-CLI.md
+
+# Legacy syntax (still works)
+blz docs --format json  # Equivalent to: blz docs export --format json
 ```
+
+**Notes:**
+
+- The `blz-docs` alias (also `@blz`) is internal and hidden from default search
+- Use `blz docs search` to query this source specifically
+- Legacy `blz docs --format <FORMAT>` is mapped to `blz docs export --format <FORMAT>`
 
 ## Default Behavior
 
