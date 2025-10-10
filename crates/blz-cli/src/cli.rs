@@ -291,8 +291,8 @@ pub enum Commands {
     ///   blz '"exact phrase"'           # Exact phrase match
     ///   blz search "async" -s bun      # Search specific source
     Search {
-        /// Search query (required unless --next or --last)
-        #[arg(required_unless_present_any = ["next", "last"])]
+        /// Search query (required unless --next, --previous, or --last)
+        #[arg(required_unless_present_any = ["next", "previous", "last"])]
         query: Option<String>,
         /// Filter by source(s) - comma-separated for multiple
         #[arg(
@@ -306,10 +306,28 @@ pub enum Commands {
         )]
         sources: Vec<String>,
         /// Continue from previous search (next page)
-        #[arg(long, conflicts_with = "page", conflicts_with = "last")]
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "previous"
+        )]
         next: bool,
+        /// Go back to previous page
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "next"
+        )]
+        previous: bool,
         /// Jump to last page of results
-        #[arg(long, conflicts_with = "next", conflicts_with = "page")]
+        #[arg(
+            long,
+            conflicts_with = "next",
+            conflicts_with = "page",
+            conflicts_with = "previous"
+        )]
         last: bool,
         /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
         #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
