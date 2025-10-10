@@ -305,6 +305,7 @@ dependencies = [
  "directories",
  "fs2",
  "futures",
+ "fuzzy-matcher",
  "indicatif",
  "is-terminal",
  "once_cell",
