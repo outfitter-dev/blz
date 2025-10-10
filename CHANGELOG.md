@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2025-10-09
+## [1.0.1] - 2025-10-10
 
 ### Added
 - **Fuzzy-matched source warnings**: When searching with a non-existent source filter, `blz` now suggests similar source names
@@ -24,16 +24,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-syncs on first use or when version changes
   - Full CLI reference and user guide embedded in the binary
 - **Linear integration rules**: Added `.agents/rules/LINEAR.md` for Linear project management workflow
+- **Configurable snippet length** ([BLZ-117](https://linear.app/outfitter/issue/BLZ-117)): New `--max-chars` flag controls snippet length
+  - Default: 200 characters (increased from ~100)
+  - Range: 50-1000 characters with automatic clamping
+  - Environment variable: `BLZ_MAX_CHARS`
+  - Counts total characters including newlines, not per-line column width
+- **Backward pagination** ([BLZ-137](https://linear.app/outfitter/issue/BLZ-137)): New `--previous` flag complements `--next` for pagination
+  - Navigate backward through search results without repeating queries
+  - Stateful pagination: `--next` (forward), `--previous` (backward), `--last` (jump to end)
+  - Error handling: "Already on first page" when at page 1
+  - Maintains query and source context automatically
+- **Grep-style context flags** ([BLZ-132](https://linear.app/outfitter/issue/BLZ-132)): Industry-standard short options for context
+  - `-C <N>`: Print N lines of context (both before and after)
+  - `-A <N>`: Print N lines after each match
+  - `-B <N>`: Print N lines before each match
+  - Flags can be combined (e.g., `-C5 -A2` merges to max values)
+  - Legacy `-c` flag maintained for backward compatibility
+- **Format shortcuts** ([BLZ-123](https://linear.app/outfitter/issue/BLZ-123)): Convenient aliases for output formats
+  - `--json`: Shortcut for `--format json`
+  - `--jsonl`: Shortcut for `--format jsonl`
+  - `--text`: Shortcut for `--format text`
+  - `--raw`: Shortcut for `--format raw`
+  - Available across all read-only commands (`list`, `stats`, `lookup`, `anchor list`)
+- **Read-only command enhancements** ([BLZ-123](https://linear.app/outfitter/issue/BLZ-123)): Consistent flags across commands
+  - `--limit` flag added to `list`, `stats`, `lookup`, and `anchor list`
+  - All read-only commands now support format shortcuts
+  - JSON output is pure (no mixed stderr/stdout) for clean piping
+- **Language filtering** ([BLZ-111](https://linear.app/outfitter/issue/BLZ-111)): Automatic filtering of non-English documentation
+  - URL-based locale detection (path markers: `/de/`, `/ja/`, subdomain patterns)
+  - 60-90% bandwidth and storage reduction for multilingual sources
+  - Opt-out with `--no-language-filter` flag
+  - Zero dependencies, <1μs per URL performance
+- **Section expansion improvements** ([BLZ-115](https://linear.app/outfitter/issue/BLZ-115)): `--context all` now consistent
+  - Single line queries now expand to full heading blocks (previously only ranges worked)
+  - Behavior matches search command expectations
+  - Legacy `--block` flag maintained as alias
+- **Prompt enhancements** ([BLZ-116](https://linear.app/outfitter/issue/BLZ-116)): New "Try this" section in search prompt
+  - 5 practical examples with explanations
+  - Emphasizes one-shot retrieval workflow with `--context all`
+  - Shows optimal snippet sizing, pagination navigation, and noise reduction techniques
 
 ### Changed
 - `blz docs` command now uses subcommands instead of single `--format` flag
   - Old `blz docs --format json` still works for backward compatibility
   - New preferred syntax: `blz docs export --format json`
+- **Short flag consistency** ([BLZ-113](https://linear.app/outfitter/issue/BLZ-113)): Audited and fixed across all commands
+  - `-s` for `--source` works universally where defined
+  - `-f` for `--format` available on all commands
+  - `-C/-c` for `--context` (uppercase is new standard, lowercase maintained for compatibility)
+  - `-l` for `--lines` on get command
+  - `-n` for `--limit` on commands with pagination
+  - Help text consistently shows all available short flags
+
+### Deprecated
+- **`--snippet-lines` flag** ([BLZ-133](https://linear.app/outfitter/issue/BLZ-133)): Use `--max-chars` instead
+  - Hidden from help output
+  - Still functional for backward compatibility
+  - Will be removed in future major version
+  - `BLZ_SNIPPET_LINES` environment variable also deprecated
+
+### Fixed
+- **Context flag parsing**: `-C`, `-A`, and `-B` now parse correctly with concatenated values (e.g., `-C5`)
+- **Single-line block expansion**: `blz get <source>:<line> --context all` now expands to full section
 
 ### Internal
 - Added `DocsCommands` enum for `blz docs` subcommands
 - Added `DocsSearchArgs` for bundled docs search functionality
 - New `docs_bundle.rs` module for managing embedded documentation
+- Added `ContextMode` enum with `All`, `Symmetric`, and `Asymmetric` variants
+- Added `merge_context_flags` function for grep-style flag merging
+- Comprehensive test suites for pagination (`--next`, `--previous`), context flags, and format shortcuts
 
 ## [1.0.0-beta.1] - 2025-10-03
 
