@@ -50,13 +50,6 @@ pub struct SearchOptions {
     pub max_block_lines: Option<usize>,
 }
 
-impl SearchOptions {
-    /// Returns true if block expansion mode is enabled (either via --block or --context all)
-    pub fn is_block_mode(&self) -> bool {
-        self.block
-    }
-}
-
 #[derive(Default, Debug, Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)]
 struct ShowToggles {
