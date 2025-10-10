@@ -214,6 +214,7 @@ impl LanguageFilter {
     /// ```rust
     /// use blz_core::LanguageFilter;
     ///
+    /// #[derive(Clone)]
     /// struct Entry { url: String, title: String }
     ///
     /// let entries = vec![
