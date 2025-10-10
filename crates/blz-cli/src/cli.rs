@@ -234,9 +234,6 @@ pub enum Commands {
     Docs {
         #[command(subcommand)]
         command: Option<DocsCommands>,
-        /// Back-compat: `blz docs --format json` still exports CLI docs
-        #[arg(long = "format", value_enum)]
-        format: Option<crate::commands::DocsFormat>,
     },
 
     /// Anchor utilities
