@@ -886,8 +886,19 @@ async fn handle_search(
 ) -> Result<()> {
     const DEFAULT_LIMIT: usize = 50;
     const ALL_RESULTS_LIMIT: usize = 10_000;
+    const DEFAULT_SNIPPET_LINES: u8 = 3;
+
     let provided_query = query.is_some();
     let limit_was_explicit = all || limit.is_some();
+
+    // Emit deprecation warning if --snippet-lines was explicitly set
+    if snippet_lines != DEFAULT_SNIPPET_LINES {
+        let args: Vec<String> = std::env::args().collect();
+        if flag_present(&args, "--snippet-lines") || std::env::var("BLZ_SNIPPET_LINES").is_ok() {
+            // Pass false for quiet - the deprecation function handles quiet mode internally
+            utils::cli_args::emit_snippet_lines_deprecation(false);
+        }
+    }
 
     if next {
         if provided_query {
