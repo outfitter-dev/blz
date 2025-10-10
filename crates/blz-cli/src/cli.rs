@@ -380,12 +380,11 @@ pub enum Commands {
         /// Return the full heading block containing each hit (legacy alias for --context all)
         #[arg(long, conflicts_with = "context")]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize),
-            requires = "block"
+            value_parser = clap::value_parser!(usize)
         )]
         max_lines: Option<usize>,
         /// Don't save this search to history
@@ -440,12 +439,11 @@ pub enum Commands {
         /// Return the full heading block containing the range (legacy alias for --context all)
         #[arg(long, conflicts_with = "context")]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize),
-            requires = "block"
+            value_parser = clap::value_parser!(usize)
         )]
         max_lines: Option<usize>,
         /// Output format
@@ -682,7 +680,7 @@ impl std::str::FromStr for ContextMode {
         } else {
             s.parse::<usize>()
                 .map(Self::Lines)
-                .map_err(|_| format!("Invalid context value: '{}'. Expected a number or 'all'", s))
+                .map_err(|_| format!("Invalid context value: '{s}'. Expected a number or 'all'"))
         }
     }
 }
