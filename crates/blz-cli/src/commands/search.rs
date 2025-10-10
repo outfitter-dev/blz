@@ -1,6 +1,7 @@
 //! Search command implementation
 
 use anyhow::{Context, Result};
+use blz_core::index::{DEFAULT_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT, MIN_SNIPPET_CHAR_LIMIT};
 use blz_core::{
     HitContext, LlmsJson, PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Source,
     Storage,
@@ -23,6 +24,7 @@ use crate::utils::toc::{
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 const DEFAULT_SCORE_PRECISION: u8 = 1;
+pub const DEFAULT_MAX_CHARS: usize = DEFAULT_SNIPPET_CHAR_LIMIT;
 
 /// Search options
 #[derive(Debug, Clone)]
@@ -48,6 +50,7 @@ pub struct SearchOptions {
     pub context: Option<usize>,
     pub block: bool,
     pub max_block_lines: Option<usize>,
+    pub max_chars: usize,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -75,6 +78,10 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
     toggles
 }
 
+pub fn clamp_max_chars(value: usize) -> usize {
+    value.clamp(MIN_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT)
+}
+
 /// Execute a search across cached documentation
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::fn_params_excessive_bools)]
@@ -90,6 +97,7 @@ pub async fn execute(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    max_chars: usize,
     context_mode: Option<&crate::cli::ContextMode>,
     block: bool,
     max_block_lines: Option<usize>,
@@ -127,6 +135,7 @@ pub async fn execute(
         context,
         block,
         max_block_lines,
+        max_chars: clamp_max_chars(max_chars),
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -251,6 +260,11 @@ pub async fn handle_default(
         .filter(|value| (1..=10).contains(value));
     let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
 
+    let max_chars_env = std::env::var("BLZ_MAX_CHARS")
+        .ok()
+        .and_then(|raw| raw.parse::<usize>().ok());
+    let max_chars = max_chars_env.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
+
     let sources = alias.map_or_else(Vec::new, |alias_str| vec![alias_str]);
 
     execute(
@@ -265,6 +279,7 @@ pub async fn handle_default(
         false,
         Some(score_precision),
         snippet_lines,
+        max_chars,
         None,
         false,
         None,
@@ -383,10 +398,13 @@ async fn perform_search(
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
-    let search_tasks = sources.into_iter().map(|source| {
-        let storage = Arc::clone(&storage);
+    let snippet_limit = options.max_chars;
+    let storage_for_tasks = Arc::clone(&storage);
+    let search_tasks = sources.into_iter().map(move |source| {
+        let storage = Arc::clone(&storage_for_tasks);
         let metrics = metrics.clone();
         let query = options.query.clone();
+        let snippet_limit = snippet_limit;
 
         async move {
             tokio::task::spawn_blocking(
@@ -407,7 +425,12 @@ async fn perform_search(
                         .with_metrics(metrics);
 
                     let hits = index
-                        .search(&query, Some(&source), effective_limit)
+                        .search_with_snippet_limit(
+                            &query,
+                            Some(&source),
+                            effective_limit,
+                            snippet_limit,
+                        )
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -1045,11 +1068,19 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         // Should not panic even with empty results
         let result = format_and_display(&results, &options);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_clamp_max_chars_bounds() {
+        assert_eq!(clamp_max_chars(10), MIN_SNIPPET_CHAR_LIMIT);
+        assert_eq!(clamp_max_chars(DEFAULT_MAX_CHARS), DEFAULT_MAX_CHARS);
+        assert_eq!(clamp_max_chars(10_000), MAX_SNIPPET_CHAR_LIMIT);
     }
 
     #[test]
@@ -1077,6 +1108,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let result = format_and_display(&results, &options);
@@ -1109,6 +1141,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         // This should NOT panic even with empty results
@@ -1138,6 +1171,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -1172,6 +1206,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let result = format_and_display(&results, &options);
@@ -1205,6 +1240,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let result = format_and_display(&results, &options);
@@ -1232,6 +1268,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let test_results = create_test_results(10);
@@ -1266,6 +1303,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let results1 = create_test_results(8);
@@ -1298,6 +1336,7 @@ mod tests {
             context: None,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
         };
 
         let results2 = create_test_results(0);

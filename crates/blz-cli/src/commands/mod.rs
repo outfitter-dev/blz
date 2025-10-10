@@ -49,6 +49,7 @@ pub use info::execute_info;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;
 pub use remove::execute as remove_source;
+pub use search::{DEFAULT_MAX_CHARS, clamp_max_chars};
 pub use search::{execute as search, handle_default as handle_default_search};
 pub use stats::execute as show_stats;
 pub use update::{execute as update_source, execute_all as update_all};

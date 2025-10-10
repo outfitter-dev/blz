@@ -507,6 +507,7 @@ async fn execute_command(
             no_summary,
             score_precision,
             snippet_lines,
+            max_chars,
             context,
             block,
             max_lines,
@@ -528,6 +529,7 @@ async fn execute_command(
                 no_summary,
                 score_precision,
                 snippet_lines,
+                max_chars,
                 context,
                 block,
                 max_lines,
@@ -710,6 +712,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         args.no_summary,
         args.score_precision,
         args.snippet_lines,
+        args.max_chars.unwrap_or(commands::DEFAULT_MAX_CHARS),
         context_mode.as_ref(),
         args.block,
         args.max_block_lines,
@@ -865,6 +868,7 @@ async fn handle_search(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
+    max_chars: Option<usize>,
     context: Option<crate::cli::ContextMode>,
     block: bool,
     max_lines: Option<usize>,
@@ -936,6 +940,7 @@ async fn handle_search(
     } else {
         limit.unwrap_or(DEFAULT_LIMIT)
     };
+    let actual_max_chars = max_chars.map_or(commands::DEFAULT_MAX_CHARS, commands::clamp_max_chars);
     let mut actual_page = page;
 
     if let Some(entry) = history_entry.as_ref() {
@@ -996,6 +1001,7 @@ async fn handle_search(
         no_summary,
         score_precision,
         snippet_lines,
+        actual_max_chars,
         context.as_ref(),
         block,
         max_lines,
