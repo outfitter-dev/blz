@@ -215,6 +215,7 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     match arg {
         "--last" => return SearchFlagMatch::NoValue("--last"),
         "--next" => return SearchFlagMatch::NoValue("--next"),
+        "--previous" => return SearchFlagMatch::NoValue("--previous"),
         "--all" => return SearchFlagMatch::NoValue("--all"),
         "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
         "--json" => return SearchFlagMatch::FormatAlias("json"),
@@ -501,6 +502,7 @@ async fn execute_command(
             query,
             sources,
             next,
+            previous,
             last,
             limit,
             all,
@@ -533,6 +535,7 @@ async fn execute_command(
                 query,
                 sources,
                 next,
+                previous,
                 last,
                 limit,
                 all,
@@ -885,6 +888,7 @@ async fn handle_search(
     mut query: Option<String>,
     sources: Vec<String>,
     next: bool,
+    previous: bool,
     last: bool,
     limit: Option<usize>,
     all: bool,
@@ -941,7 +945,30 @@ async fn handle_search(
         }
     }
 
-    let history_entry = if next || !provided_query {
+    if previous {
+        if provided_query {
+            anyhow::bail!(
+                "Cannot combine --previous with an explicit query. Remove the query to continue from the previous search."
+            );
+        }
+        if !sources.is_empty() {
+            anyhow::bail!(
+                "Cannot combine --previous with --source. Omit --source to reuse the last search context."
+            );
+        }
+        if page != 1 {
+            anyhow::bail!(
+                "Cannot combine --previous with --page. Use one pagination option at a time."
+            );
+        }
+        if last {
+            anyhow::bail!(
+                "Cannot combine --previous with --last. Choose a single continuation flag."
+            );
+        }
+    }
+
+    let history_entry = if next || previous || !provided_query {
         let mut records = utils::history_log::recent_for_active_scope(1);
         if records.is_empty() {
             anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
@@ -1017,6 +1044,42 @@ async fn handle_search(
                 actual_page = prev_page + 1;
             } else {
                 actual_page = entry.page.unwrap_or(1) + 1;
+            }
+
+            if !limit_was_explicit {
+                actual_limit = entry.limit.unwrap_or(actual_limit);
+            }
+        } else if previous {
+            if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
+                anyhow::bail!(
+                    "Previous search returned 0 results. Rerun with a different query or source."
+                );
+            }
+
+            let history_limit = entry.limit;
+            let history_all = history_limit.is_some_and(|value| value >= ALL_RESULTS_LIMIT);
+            if all != history_all {
+                anyhow::bail!(
+                    "Cannot use --previous when changing page size or --all; rerun without --previous or reuse the previous pagination flags."
+                );
+            }
+            if limit_was_explicit {
+                if let Some(requested_limit) = limit {
+                    if history_limit != Some(requested_limit) {
+                        anyhow::bail!(
+                            "Cannot use --previous when changing page size; rerun without --previous or reuse the previous limit."
+                        );
+                    }
+                }
+            }
+
+            if let Some(prev_page) = entry.page {
+                if prev_page <= 1 {
+                    anyhow::bail!("Already on first page");
+                }
+                actual_page = prev_page - 1;
+            } else {
+                anyhow::bail!("No previous page found in search history");
             }
 
             if !limit_was_explicit {
