@@ -777,11 +777,15 @@ fn non_empty_string(value: Option<&String>) -> Option<String> {
         .map(std::string::ToString::to_string)
 }
 
-const fn is_url_delimiter(ch: char) -> bool {
+#[inline]
+#[allow(clippy::missing_const_for_fn)]
+fn is_url_delimiter(ch: char) -> bool {
     ch.is_whitespace() || matches!(ch, ')' | ']' | '>' | '"' | '\'' | '`')
 }
 
-const fn trailing_punctuation(ch: char) -> bool {
+#[inline]
+#[allow(clippy::missing_const_for_fn)]
+fn trailing_punctuation(ch: char) -> bool {
     matches!(
         ch,
         '.' | ',' | ';' | ':' | ')' | ']' | '>' | '"' | '\'' | '`'
