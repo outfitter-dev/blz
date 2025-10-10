@@ -351,7 +351,8 @@ pub enum Commands {
             value_name = "LINES",
             value_parser = clap::value_parser!(u8).range(1..=10),
             env = "BLZ_SNIPPET_LINES",
-            default_value_t = 3
+            default_value_t = 3,
+            hide = true
         )]
         snippet_lines: u8,
         /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
@@ -606,7 +607,7 @@ pub struct DocsSearchArgs {
     #[arg(long)]
     pub no_summary: bool,
     /// Number of snippet lines to include per hit.
-    #[arg(long, default_value_t = 4, value_name = "LINES")]
+    #[arg(long, default_value_t = 4, value_name = "LINES", hide = true)]
     pub snippet_lines: u8,
     /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
     #[arg(long = "max-chars", value_name = "CHARS", value_parser = clap::value_parser!(usize))]
