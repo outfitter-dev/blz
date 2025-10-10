@@ -23,6 +23,7 @@
     { "flag": "--next / --last", "impact": "Traverse pagination without manually tracking page numbers." },
     { "flag": "--top <percent>", "impact": "Keep only top percentile of hits (post-pagination) to reduce noise." },
     { "flag": "--show <components>", "impact": "Augment text output (when not using JSON) with rank/url/anchor metadata." },
+    { "flag": "--max-chars <N>", "impact": "Control snippet length in total characters (default: 200, range: 50-1000). Higher values provide more context for relevance assessment without fetching full content." },
     { "flag": "--context all / --block (legacy)", "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size." },
     { "flag": "--context <N>", "impact": "Adds ±N lines of context around each hit for lighter-weight expansion." }
   ],
