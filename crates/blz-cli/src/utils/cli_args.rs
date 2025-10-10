@@ -9,6 +9,7 @@ static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
 /// Shared clap argument for commands that accept an output format.
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct FormatArg {
     /// Canonical output format flag (`--format` / `-f`)
     #[arg(
@@ -16,13 +17,25 @@ pub struct FormatArg {
         long = "format",
         value_enum,
         env = "BLZ_OUTPUT_FORMAT",
-        conflicts_with = "json"
+        conflicts_with_all = ["json", "jsonl", "text", "raw"]
     )]
     pub format: Option<OutputFormat>,
 
     /// Convenience flag for JSON output (equivalent to --format json)
-    #[arg(long, conflicts_with = "format")]
+    #[arg(long, conflicts_with_all = ["format", "jsonl", "text", "raw"])]
     pub json: bool,
+
+    /// Convenience flag for JSONL output (equivalent to --format jsonl)
+    #[arg(long, conflicts_with_all = ["format", "json", "text", "raw"])]
+    pub jsonl: bool,
+
+    /// Convenience flag for text output (equivalent to --format text)
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "raw"])]
+    pub text: bool,
+
+    /// Convenience flag for raw output (equivalent to --format raw)
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "text"])]
+    pub raw: bool,
 
     /// Hidden deprecated alias that maps to `--format`
     #[arg(long = "output", short = 'o', hide = true, value_enum)]
@@ -43,9 +56,18 @@ impl FormatArg {
     /// explicit override with `--format text` when needed.
     #[must_use]
     pub fn resolve(&self, quiet: bool) -> OutputFormat {
-        // If --json flag is set, return JSON immediately
+        // If shortcut flags are set, use them
         if self.json {
             return OutputFormat::Json;
+        }
+        if self.jsonl {
+            return OutputFormat::Jsonl;
+        }
+        if self.text {
+            return OutputFormat::Text;
+        }
+        if self.raw {
+            return OutputFormat::Raw;
         }
 
         if let Some(deprecated) = self.deprecated_output {
@@ -156,6 +178,9 @@ mod tests {
         let args = FormatArg {
             format: Some(OutputFormat::Jsonl),
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
@@ -176,6 +201,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -200,6 +228,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -223,6 +254,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
@@ -240,9 +274,107 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
         assert_eq!(args.resolve(false), OutputFormat::Json);
+    }
+
+    #[test]
+    fn jsonl_flag_returns_jsonl_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: true,
+            text: false,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn text_flag_returns_text_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: false,
+            text: true,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Text);
+    }
+
+    #[test]
+    fn raw_flag_returns_raw_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: false,
+            text: false,
+            raw: true,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Raw);
+    }
+
+    #[test]
+    fn explicit_format_takes_precedence_over_shortcuts() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        // When --format is set, it should take precedence over shortcut flags
+        let args = FormatArg {
+            format: Some(OutputFormat::Jsonl),
+            json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn shortcuts_take_precedence_over_deprecated_output() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_warning_flag();
+
+        let args = FormatArg {
+            format: None,
+            json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
+            deprecated_output: Some(OutputFormat::Text),
+        };
+
+        // Shortcut should win, no deprecation warning should be emitted
+        assert_eq!(args.resolve(false), OutputFormat::Json);
+        assert!(!OUTPUT_DEPRECATED_WARNED.load(Ordering::SeqCst));
     }
 }

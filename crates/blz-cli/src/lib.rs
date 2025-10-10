@@ -351,7 +351,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
             Some(
                 Commands::Search { format, .. }
                 | Commands::List { format, .. }
-                | Commands::Stats { format }
+                | Commands::Stats { format, .. }
                 | Commands::History { format, .. }
                 | Commands::Lookup { format, .. }
                 | Commands::Get { format, .. }
@@ -486,8 +486,12 @@ async fn execute_command(
                 commands::add_source(request).await?;
             }
         },
-        Some(Commands::Lookup { query, format }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))
+        Some(Commands::Lookup {
+            query,
+            format,
+            limit,
+        }) => {
+            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet), limit)
                 .await?;
         },
         Some(Commands::Registry { command }) => {
@@ -609,11 +613,12 @@ async fn execute_command(
             format,
             status,
             details,
+            limit,
         }) => {
-            commands::list_sources(format.resolve(cli.quiet), status, details).await?;
+            commands::list_sources(format.resolve(cli.quiet), status, details, limit).await?;
         },
-        Some(Commands::Stats { format }) => {
-            commands::show_stats(format.resolve(cli.quiet))?;
+        Some(Commands::Stats { format, limit }) => {
+            commands::show_stats(format.resolve(cli.quiet), limit)?;
         },
         Some(Commands::Validate { alias, all, format }) => {
             commands::validate_source(alias.clone(), all, format.resolve(cli.quiet)).await?;
@@ -645,7 +650,8 @@ async fn execute_command(
             format,
             mappings,
         }) => {
-            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings).await?;
+            // Anchors command doesn't have a limit flag directly (only via subcommand)
+            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings, None).await?;
         },
         None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
     }
@@ -793,7 +799,8 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             alias,
             format,
             mappings,
-        } => commands::show_anchors(&alias, format.resolve(quiet), mappings).await,
+            limit,
+        } => commands::show_anchors(&alias, format.resolve(quiet), mappings, limit).await,
         AnchorCommands::Get {
             alias,
             anchor,
