@@ -147,8 +147,14 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
                 idx += 1;
             },
             SearchFlagMatch::FormatAlias(format) => {
-                result.push("--format".to_string());
-                result.push(format.to_string());
+                // Only convert format aliases to --format when injecting search.
+                // For explicit subcommands, preserve the original flag so Clap can parse it.
+                if should_inject_search {
+                    result.push("--format".to_string());
+                    result.push(format.to_string());
+                } else {
+                    result.push(raw[idx].clone());
+                }
                 idx += 1;
             },
             SearchFlagMatch::RequiresValue { flag, attached } => {
@@ -443,8 +449,8 @@ async fn execute_command(
                 commands::list_supported(resolved_format);
             }
         },
-        Some(Commands::Docs { command, format }) => {
-            handle_docs(command, format, cli.quiet, metrics.clone(), prefs).await?;
+        Some(Commands::Docs { command }) => {
+            handle_docs(command, cli.quiet, metrics.clone(), prefs).await?;
         },
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Add(args)) => {
@@ -684,7 +690,6 @@ async fn execute_command(
 
 async fn handle_docs(
     command: Option<DocsCommands>,
-    legacy_format: Option<crate::commands::DocsFormat>,
     quiet: bool,
     metrics: PerformanceMetrics,
     _prefs: &mut CliPreferences,
@@ -705,11 +710,8 @@ async fn handle_docs(
             docs_export(Some(format))?;
         },
         None => {
-            if let Some(format) = legacy_format {
-                docs_export(Some(format))?;
-            } else {
-                docs_overview(quiet, metrics.clone())?;
-            }
+            // When no subcommand is provided, show overview
+            docs_overview(quiet, metrics.clone())?;
         },
     }
 
@@ -723,7 +725,43 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         anyhow::bail!("Search query cannot be empty");
     }
 
+    // Resolve format once before checking placeholder content
     let format = args.format.resolve(quiet);
+
+    // Check if the bundled docs contain placeholder content
+    let storage = Storage::new()?;
+    if let Ok(content_path) = storage.llms_txt_path(BUNDLED_ALIAS) {
+        if let Ok(content) = std::fs::read_to_string(&content_path) {
+            if content.contains("# BLZ bundled docs (placeholder)") {
+                let error_msg = if matches!(format, crate::output::OutputFormat::Json) {
+                    // JSON output: structured error message
+                    let error_json = serde_json::json!({
+                        "error": "Bundled documentation content not yet available",
+                        "reason": "The blz-docs source currently contains placeholder content",
+                        "suggestions": [
+                            "Use 'blz docs overview' for quick-start information",
+                            "Use 'blz docs export' to view CLI documentation",
+                            "Full bundled documentation will be included in a future release"
+                        ]
+                    });
+                    return Err(anyhow!(serde_json::to_string_pretty(&error_json)?));
+                } else {
+                    // Text output: user-friendly message
+                    "Bundled documentation content not yet available.\n\
+                     \n\
+                     The blz-docs source currently contains placeholder content.\n\
+                     Full documentation will be included in a future release.\n\
+                     \n\
+                     Available alternatives:\n\
+                     • Run 'blz docs overview' for quick-start information\n\
+                     • Run 'blz docs export' to view CLI documentation\n\
+                     • Run 'blz docs cat' to view the current placeholder content"
+                };
+                anyhow::bail!("{}", error_msg);
+            }
+        }
+    }
+
     let sources = vec![BUNDLED_ALIAS.to_string()];
 
     // Convert docs search args context to ContextMode
@@ -1622,10 +1660,9 @@ mod tests {
 
         let raw = to_string_vec(&["blz", "list", "--jsonl"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "list", "--format", "jsonl"]);
-        assert_eq!(processed, expected);
+        assert_eq!(processed, raw);
 
-        let cli = Cli::try_parse_from(processed).unwrap();
+        let cli = Cli::try_parse_from(raw).unwrap();
         match cli.command {
             Some(Commands::List { format, .. }) => {
                 assert_eq!(format.resolve(false), crate::output::OutputFormat::Jsonl);
@@ -1652,10 +1689,8 @@ mod tests {
     fn preprocess_retains_hidden_subcommand_with_search_flags() {
         let raw = to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--json"]);
         let processed = preprocess_args_from(&raw);
-        let expected =
-            to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--format", "json"]);
         assert_eq!(
-            processed, expected,
+            processed, raw,
             "hidden subcommands must not trigger shorthand injection"
         );
     }
