@@ -13,9 +13,9 @@
     {
       "name": "Retrieval loop",
       "steps": [
-        "Default: `blz search \"<query>\" --context all --json` to gather ranked spans with full sections ready for prompts.",
+        "Default: `blz search \"<query>\" --context all --json` (or `-C all`) to gather ranked spans with full sections ready for prompts.",
         "Fallback for tight payloads: call `blz search \"<query>\" --format json`, capture the alias and lines (e.g. `bun:1853-1858`), then fetch more context as needed.",
-        "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" --context 2 --format json` and merge spans client-side."
+        "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" -C 2 --json` and merge spans client-side."
       ]
     },
     {
@@ -29,8 +29,8 @@
   ],
   "key_commands": [
     { "command": "blz search \"query\" --source <alias> --format json", "purpose": "Structured retrieval entry point for agents." },
-    { "command": "blz get <alias>:<start-end> --context 3 --format text", "purpose": "Deterministic span extraction for prompts." },
-    { "command": "blz get <alias> --lines \"start-end,other\" --context 2 --format json", "purpose": "Multi-range extraction when a single hit is insufficient." },
+    { "command": "blz get <alias>:<start-end> -C 3 --format text", "purpose": "Deterministic span extraction for prompts." },
+    { "command": "blz get <alias> --lines \"start-end,other\" -C 2 --format json", "purpose": "Multi-range extraction when a single hit is insufficient." },
     { "command": "blz add <alias> <https://domain/llms-full.txt> -y", "purpose": "Source onboarding with non-interactive confirmation." },
     { "command": "blz update --all", "purpose": "Refresh caches while honoring HTTP caching headers." },
     { "command": "blz --prompt <target>", "purpose": "Obtain JSON guidance for any command when constructing tool schemas." }
@@ -45,10 +45,10 @@
   "integration_points": {
     "environment_variables": [
       "BLZ_OUTPUT_FORMAT (text/json/jsonl)",
-      "BLZ_CONFIG / BLZ_CONFIG_DIR / BLZ_DATA_DIR for custom storage locations",
+      "BLZ_CONFIG / BLZ_CONFIG_DIR (config files) / BLZ_DATA_DIR (cached docs and indices) for custom storage locations",
       "BLZ_SUPPRESS_DEPRECATIONS=1 to silence compatibility warnings"
     ],
-    "dev_binary": "Use `./install-dev.sh` to install the `blz-dev` variant. It scopes data to ~/.blz-dev/ so you can test without touching production caches.",
+    "dev_binary": "Use `./install-dev.sh` to install the `blz-dev` variant. It scopes data to platform-specific dev paths (e.g., ~/.local/share/blz-dev on Linux, ~/Library/Application Support/dev.outfitter.blz-dev on macOS, %APPDATA%\\outfitter\\blz-dev\\ on Windows) so you can test without touching production caches.",
     "hydration": "Run `./hydrate-dev.sh` to copy production sources into the dev profile when you need realistic fixtures."
   }
 }

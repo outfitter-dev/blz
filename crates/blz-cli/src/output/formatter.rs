@@ -168,7 +168,7 @@ impl<'a> FormatParams<'a> {
 /// blz search "useEffect"
 ///
 /// # Pipe automatically uses JSON
-/// blz search "useEffect" | jq '.[0].content'
+/// blz search "useEffect" | jq '.results[0].content'
 ///
 /// # Force text when piping
 /// blz search "useEffect" --format text | less
