@@ -87,6 +87,65 @@ Other content
     Ok(())
 }
 
+/// Test that a range with --context all respects the requested span when no headings exist
+#[tokio::test]
+async fn range_with_context_all_without_headings_respects_range() -> anyhow::Result<()> {
+    let tmp = tempdir()?;
+    let server = MockServer::start().await;
+    let url = format!("{}/plain.txt", server.uri());
+
+    let doc = "Prelude\nLine 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
+
+    Mock::given(method("HEAD"))
+        .and(path("/plain.txt"))
+        .respond_with(
+            ResponseTemplate::new(200).insert_header("content-length", doc.len().to_string()),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/plain.txt"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(doc))
+        .mount(&server)
+        .await;
+
+    blz_cmd()
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args(["add", "plain", &url, "-y"])
+        .assert()
+        .success();
+
+    let output = blz_cmd()
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args(["get", "plain:3-4", "--context", "all", "-f", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&output)?;
+    let line_numbers = json["lineNumbers"].as_array().unwrap();
+    let collected: Vec<_> = line_numbers
+        .iter()
+        .map(|value| usize::try_from(value.as_u64().unwrap()).expect("line numbers fit usize"))
+        .collect();
+    assert_eq!(
+        collected,
+        vec![3, 4],
+        "Expected context all to respect range end"
+    );
+
+    let content = json["content"].as_str().unwrap();
+    assert!(content.contains("Line 3"), "Missing requested content");
+    assert!(
+        !content.contains("Line 5"),
+        "Should not include lines beyond requested span"
+    );
+
+    Ok(())
+}
+
 /// Test that legacy --block flag works identically to --context all for single lines
 #[tokio::test]
 async fn legacy_block_flag_works_like_context_all() -> anyhow::Result<()> {
