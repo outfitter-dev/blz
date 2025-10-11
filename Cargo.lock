@@ -307,6 +307,7 @@ dependencies = [
  "futures",
  "indicatif",
  "is-terminal",
+ "once_cell",
  "pprof",
  "predicates",
  "regex",

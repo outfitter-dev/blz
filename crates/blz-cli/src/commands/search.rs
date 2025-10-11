@@ -312,9 +312,9 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
     // Resolve requested sources (supports metadata aliases)
-    let sources = if options.sources.is_empty() {
-        storage.list_sources()
-    } else {
+    let explicit_sources_requested = !options.sources.is_empty();
+
+    let sources = if explicit_sources_requested {
         let mut resolved = Vec::new();
         for requested in &options.sources {
             match crate::utils::resolver::resolve_source(&storage, requested) {
@@ -333,6 +333,8 @@ async fn perform_search(
             }
         }
         resolved
+    } else {
+        storage.list_sources()
     };
 
     // Filter out index-only sources (navigation-only, no searchable content)
@@ -341,7 +343,15 @@ async fn perform_search(
         .filter(|alias| {
             // Load source metadata and check if it's index-only
             match storage.load_source_metadata(alias) {
-                Ok(Some(metadata)) => !metadata.is_index_only(),
+                Ok(Some(metadata)) => {
+                    if metadata.is_index_only() {
+                        return false;
+                    }
+                    if !explicit_sources_requested && metadata.is_internal() {
+                        return false;
+                    }
+                    true
+                },
                 Ok(None) | Err(_) => true, // Allow search when metadata missing or failed
             }
         })

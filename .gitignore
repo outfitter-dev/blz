@@ -4,6 +4,10 @@ target/
 ## Track lockfile for deterministic releases
 # (Do not ignore Cargo.lock)
 
+# Temporary files
+tmp/
+temp/
+
 # Environment files
 .env
 .env.*
@@ -50,6 +54,8 @@ cache_profile.pb
 llms.txt
 llms-full.txt
 llms.json
+# Allow the bundled guide checked into source control
+!docs/llms/blz/llms-full.txt
 
 # Benchmark results
 criterion/
