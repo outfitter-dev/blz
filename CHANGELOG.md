@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-10-09
+
+### Added
+- **Bundled documentation hub**: New `blz docs` command with subcommands for embedded documentation
+  - `blz docs search`: Search the bundled blz-docs source without touching other aliases
+  - `blz docs sync`: Sync or resync embedded documentation files and index
+  - `blz docs overview`: Quick-start guide for humans and agents
+  - `blz docs cat`: Print entire bundled llms-full.txt to stdout
+  - `blz docs export`: Export CLI docs in markdown or JSON (replaces old `blz docs --format`)
+- **Internal documentation source**: `blz-docs` alias (also `@blz`) ships with the binary
+  - Hidden from default search with `internal` tag
+  - Auto-syncs on first use or when version changes
+  - Full CLI reference and user guide embedded in the binary
+- **Linear integration rules**: Added `.agents/rules/LINEAR.md` for Linear project management workflow
+
+### Changed
+- `blz docs` command now uses subcommands instead of single `--format` flag
+  - Old `blz docs --format json` still works for backward compatibility
+  - New preferred syntax: `blz docs export --format json`
+
+### Internal
+- Added `DocsCommands` enum for `blz docs` subcommands
+- Added `DocsSearchArgs` for bundled docs search functionality
+- New `docs_bundle.rs` module for managing embedded documentation
+
 ## [1.0.0-beta.1] - 2025-10-03
 
 ### Breaking Changes
@@ -274,6 +299,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
+[1.0.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.1
 [1.0.0-beta.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.0-beta.1
 [0.5.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.5.0
 [0.4.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.4.1
