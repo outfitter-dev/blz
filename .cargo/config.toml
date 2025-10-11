@@ -4,10 +4,9 @@
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
 
-#[target.'cfg(all())']
-# For CI portability, avoid forcing -C target-cpu=native globally.
-# Developers who want per-machine tuning can set this locally (e.g. ~/.cargo/config).
-# rustflags = ["-C", "target-cpu=native"]
+[target.'cfg(all())']
+# Optimize for local CPU architecture in release builds
+rustflags = ["-C", "target-cpu=native"]
 
 [profile.release]
 # Enable link-time optimization for smaller, faster binaries
