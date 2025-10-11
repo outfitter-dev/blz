@@ -40,15 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `-B <N>`: Print N lines before each match
   - Flags can be combined (e.g., `-C5 -A2` merges to max values)
   - Legacy `-c` flag maintained for backward compatibility
-- **Format shortcuts** ([BLZ-123](https://linear.app/outfitter/issue/BLZ-123)): Convenient aliases for output formats
-  - `--json`: Shortcut for `--format json`
-  - `--jsonl`: Shortcut for `--format jsonl`
-  - `--text`: Shortcut for `--format text`
-  - `--raw`: Shortcut for `--format raw`
-  - Available across all read-only commands (`list`, `stats`, `lookup`, `anchor list`)
-- **Read-only command enhancements** ([BLZ-123](https://linear.app/outfitter/issue/BLZ-123)): Consistent flags across commands
+- **Read-only command enhancements and format shortcuts** ([BLZ-123](https://linear.app/outfitter/issue/BLZ-123)): Consistent, ergonomic output controls across commands
+  - Format aliases: `--json`, `--jsonl`, `--text`, and `--raw` map to their respective `--format` values
   - `--limit` flag added to `list`, `stats`, `lookup`, and `anchor list`
-  - All read-only commands now support format shortcuts
+  - All read-only commands now support the new format shortcuts
   - JSON output is pure (no mixed stderr/stdout) for clean piping
 - **Language filtering** ([BLZ-111](https://linear.app/outfitter/issue/BLZ-111)): Automatic filtering of non-English documentation
   - URL-based locale detection (path markers: `/de/`, `/ja/`, subdomain patterns)
