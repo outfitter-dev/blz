@@ -558,6 +558,7 @@ async fn execute_command(
                 max_lines,
                 no_history,
                 copy,
+                cli.quiet,
                 metrics,
                 prefs,
             )
@@ -682,7 +683,9 @@ async fn execute_command(
             // Anchors command doesn't have a limit flag directly (only via subcommand)
             commands::show_anchors(&alias, format.resolve(cli.quiet), mappings, None).await?;
         },
-        None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
+        None => {
+            commands::handle_default_search(&cli.query, metrics, None, prefs, cli.quiet).await?;
+        },
     }
 
     Ok(())
@@ -785,6 +788,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         args.max_block_lines,
         true,
         args.copy,
+        quiet,
         None,
         metrics,
         None,
@@ -943,6 +947,7 @@ async fn handle_search(
     max_lines: Option<usize>,
     no_history: bool,
     copy: bool,
+    quiet: bool,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
@@ -1146,6 +1151,7 @@ async fn handle_search(
         max_lines,
         no_history,
         copy,
+        quiet,
         Some(prefs),
         metrics,
         None,
@@ -1689,9 +1695,10 @@ mod tests {
     fn preprocess_retains_hidden_subcommand_with_search_flags() {
         let raw = to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--json"]);
         let processed = preprocess_args_from(&raw);
+        // Should preserve --json for explicit subcommands (even hidden ones)
         assert_eq!(
             processed, raw,
-            "hidden subcommands must not trigger shorthand injection"
+            "hidden subcommands must not trigger shorthand injection or format conversion"
         );
     }
 
