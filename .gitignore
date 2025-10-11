@@ -79,6 +79,9 @@ coverage.json
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
 
+# Conductor directory (agent coordination)
+.conductor/
+
 # Graphite local data
 .xdg-data/
 

@@ -14,8 +14,8 @@
   ],
   "workflow_for_agents": [
     "Ensure output is JSON (set `BLZ_OUTPUT_FORMAT=json`).",
-    "Select the top hit’s alias and lines string (example: `react:220-228`).",
-    "Fetch context with `blz get react:220-228 --context 3 --format text`.",
+    "One-shot retrieval (recommended): Use `blz search \"<query>\" --context all --format json` to get full sections immediately.",
+    "Two-step approach (precise control): Select the top hit's alias and lines string (example: `react:220-228`), then fetch with `blz get react:220-228 --context 3 --format text`.",
     "When multiple ranges from the same alias are needed, use one call: `blz get react --lines \"220-228,260-264\" --context 2 --format json`.",
     "Record the checksum to guarantee later steps detect stale spans."
   ],
@@ -23,7 +23,8 @@
     { "flag": "--next / --last", "impact": "Traverse pagination without manually tracking page numbers." },
     { "flag": "--top <percent>", "impact": "Keep only top percentile of hits (post-pagination) to reduce noise." },
     { "flag": "--show <components>", "impact": "Augment text output (when not using JSON) with rank/url/anchor metadata." },
-    { "flag": "--block / --context", "impact": "Augments hits with pre-expanded context, useful when piping text output." }
+    { "flag": "--context all / --block (legacy)", "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size." },
+    { "flag": "--context <N>", "impact": "Adds ±N lines of context around each hit for lighter-weight expansion." }
   ],
   "post_processing_examples": [
     "Filter by minimum score: `blz search \"sdk\" --format json | jq '[.[] | select(.score > 60)]'`.",

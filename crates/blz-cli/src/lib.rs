@@ -590,7 +590,7 @@ async fn execute_command(
             commands::get_lines(
                 &parsed_alias,
                 &parsed_lines,
-                context,
+                context.as_ref(),
                 block,
                 max_lines,
                 format.resolve(cli.quiet),
@@ -693,6 +693,9 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
     let format = args.format.resolve(quiet);
     let sources = vec![BUNDLED_ALIAS.to_string()];
 
+    // Convert docs search args context to ContextMode
+    let context_mode = args.context.map(crate::cli::ContextMode::Lines);
+
     commands::search(
         &query,
         &sources,
@@ -705,7 +708,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         args.no_summary,
         args.score_precision,
         args.snippet_lines,
-        args.context,
+        context_mode.as_ref(),
         args.block,
         args.max_block_lines,
         true,
@@ -860,7 +863,7 @@ async fn handle_search(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
-    context: Option<usize>,
+    context: Option<crate::cli::ContextMode>,
     block: bool,
     max_lines: Option<usize>,
     no_history: bool,
@@ -991,7 +994,7 @@ async fn handle_search(
         no_summary,
         score_precision,
         snippet_lines,
-        context,
+        context.as_ref(),
         block,
         max_lines,
         no_history,
@@ -1703,7 +1706,7 @@ mod tests {
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, Some("1-10".to_string()));
-            assert_eq!(context, Some(5));
+            assert_eq!(context, Some(crate::cli::ContextMode::Lines(5)));
             assert!(!block);
             assert_eq!(max_lines, None);
             let _ = format; // ignore

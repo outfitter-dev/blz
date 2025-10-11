@@ -13,9 +13,8 @@
     {
       "name": "Retrieval loop",
       "steps": [
-        "Call `blz search \"<query>\" --format json` to gather ranked snippets.",
-        "Take the top result’s alias and lines (e.g. `bun:1853-1858`).",
-        "Fetch context with `blz get bun:1853-1858 --context 3 --format text`.",
+        "Default: `blz search \"<query>\" --context all --json` to gather ranked spans with full sections ready for prompts.",
+        "Fallback for tight payloads: call `blz search \"<query>\" --format json`, capture the alias and lines (e.g. `bun:1853-1858`), then fetch more context as needed.",
         "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" --context 2 --format json` and merge spans client-side."
       ]
     },
@@ -38,6 +37,7 @@
   ],
   "agent_tips": [
     "Set `BLZ_OUTPUT_FORMAT=json` to avoid sprinkling `--format json` across every call.",
+    "Default to one-shot search via `blz search \"<query>\" --context all --json`; fall back to manual span stitching only when payload limits demand it.",
     "Treat aliases as canonical ids (directory names and resolver lookups rely on them).",
     "Surface `checksum` fields in tool outputs so downstream steps can verify span freshness.",
     "Keep spans short (2-5 snippets) and derive broader context by chaining `get` calls instead of dumping whole documents."
