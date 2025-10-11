@@ -170,7 +170,7 @@ pub struct Cli {
 ///
 /// ## Source Management
 /// - [`Add`]: Add a new documentation source
-/// - [`Lookup`]: Search registries for documentation to add  
+/// - [`Lookup`]: Search registries for documentation to add
 /// - [`List`]: List all cached sources
 /// - [`Update`]: Update cached content from sources
 /// - [`Remove`]: Remove a source and its cached content
@@ -363,25 +363,65 @@ pub enum Commands {
             value_parser = clap::value_parser!(usize)
         )]
         max_chars: Option<usize>,
-        /// Return surrounding context lines or full section (defaults to 5 lines when no value supplied)
-        ///
-        /// Use 'all' to return the full heading block containing each hit.
-        /// Use a number to return that many context lines around the hit.
+        /// Print LINES lines of context (both before and after match). Same as -C.
         ///
         /// Examples:
-        ///   -c 10           # 10 lines of context
-        ///   --context all   # Full section expansion
+        ///   --context 10       # 10 lines before and after
+        ///   --context all      # Full section expansion
+        ///   -C5                # 5 lines before and after (short form)
         #[arg(
-            short = 'c',
+            short = 'C',
             long = "context",
-            value_name = "LINES|all",
+            value_name = "LINES",
             num_args = 0..=1,
             default_missing_value = "5",
-            conflicts_with = "block"
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"]
         )]
         context: Option<ContextMode>,
+        /// Deprecated: use -C or --context instead (hidden for backward compatibility)
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true
+        )]
+        context_deprecated: Option<ContextMode>,
+        /// Print LINES lines of context after each match
+        ///
+        /// Examples:
+        ///   -A3                # 3 lines after match
+        ///   --after-context 5  # 5 lines after match
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block"
+        )]
+        after_context: Option<usize>,
+        /// Print LINES lines of context before each match
+        ///
+        /// Examples:
+        ///   -B3                # 3 lines before match
+        ///   --before-context 5 # 5 lines before match
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block"
+        )]
+        before_context: Option<usize>,
         /// Return the full heading block containing each hit (legacy alias for --context all)
-        #[arg(long, conflicts_with = "context")]
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"])]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
@@ -435,15 +475,65 @@ pub enum Commands {
         /// Can be omitted if using colon syntax (e.g., "bun:1-3")
         #[arg(short = 'l', long, value_name = "RANGE")]
         lines: Option<String>,
-        /// Context lines around each line/range, or 'all' for full section
+        /// Print LINES lines of context (both before and after). Same as -C.
         ///
         /// Examples:
-        ///   -c 10       # 10 lines of context
-        ///   --context all  # Full section expansion
-        #[arg(short = 'c', long, conflicts_with = "block")]
+        ///   --context 10       # 10 lines before and after
+        ///   --context all      # Full section expansion
+        ///   -C5                # 5 lines before and after (short form)
+        #[arg(
+            short = 'C',
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"]
+        )]
         context: Option<ContextMode>,
+        /// Deprecated: use -C or --context instead (hidden for backward compatibility)
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true
+        )]
+        context_deprecated: Option<ContextMode>,
+        /// Print LINES lines of context after each line/range
+        ///
+        /// Examples:
+        ///   -A3                # 3 lines after
+        ///   --after-context 5  # 5 lines after
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block"
+        )]
+        after_context: Option<usize>,
+        /// Print LINES lines of context before each line/range
+        ///
+        /// Examples:
+        ///   -B3                # 3 lines before
+        ///   --before-context 5 # 5 lines before
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block"
+        )]
+        before_context: Option<usize>,
         /// Return the full heading block containing the range (legacy alias for --context all)
-        #[arg(long, conflicts_with = "context")]
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"])]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
@@ -684,10 +774,47 @@ pub struct AddArgs {
 /// Context mode for result expansion
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContextMode {
-    /// Fixed number of context lines
-    Lines(usize),
+    /// Symmetric context (same before and after)
+    Symmetric(usize),
+    /// Asymmetric context (different before and after)
+    Asymmetric { before: usize, after: usize },
     /// Full section/block expansion
     All,
+}
+
+impl ContextMode {
+    /// Get the before and after context line counts
+    ///
+    /// Returns (before, after) tuple. For All mode, returns None.
+    #[must_use]
+    pub const fn lines(&self) -> Option<(usize, usize)> {
+        match self {
+            Self::Symmetric(n) => Some((*n, *n)),
+            Self::Asymmetric { before, after } => Some((*before, *after)),
+            Self::All => None,
+        }
+    }
+
+    /// Merge two context modes, taking the maximum value for each direction
+    #[must_use]
+    pub fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            // All takes precedence over everything
+            (Self::All, _) | (_, Self::All) => Self::All,
+            // Extract line counts and compute maximum for each direction
+            (a, b) => {
+                let (a_before, a_after) = a.lines().unwrap_or((0, 0));
+                let (b_before, b_after) = b.lines().unwrap_or((0, 0));
+                let before = a_before.max(b_before);
+                let after = a_after.max(b_after);
+                if before == after {
+                    Self::Symmetric(before)
+                } else {
+                    Self::Asymmetric { before, after }
+                }
+            },
+        }
+    }
 }
 
 impl std::str::FromStr for ContextMode {
@@ -698,10 +825,55 @@ impl std::str::FromStr for ContextMode {
             Ok(Self::All)
         } else {
             s.parse::<usize>()
-                .map(Self::Lines)
+                .map(Self::Symmetric)
                 .map_err(|_| format!("Invalid context value: '{s}'. Expected a number or 'all'"))
         }
     }
+}
+
+/// Merge context flags from CLI arguments into a single `ContextMode`
+///
+/// Implements grep-style merging logic:
+/// - `-C` takes precedence as symmetric context
+/// - `-A` and `-B` can be combined for asymmetric context
+/// - If multiple flags are provided, takes maximum value for each direction
+/// - Supports deprecated `-c` flag for backward compatibility
+#[must_use]
+pub fn merge_context_flags(
+    context: Option<ContextMode>,
+    context_deprecated: Option<ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+) -> Option<ContextMode> {
+    // Start with the primary context flag (or deprecated -c flag)
+    let mut result = context.or(context_deprecated);
+
+    // Merge in -A and -B flags if present
+    if let Some(after) = after_context {
+        let new_mode = before_context
+            .map_or(ContextMode::Asymmetric { before: 0, after }, |before| {
+                ContextMode::Asymmetric { before, after }
+            });
+
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    } else if let Some(before) = before_context {
+        // Only -B specified, create asymmetric mode with 0 after
+        let new_mode = ContextMode::Asymmetric { before, after: 0 };
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    }
+
+    result.map(|mode| match mode {
+        ContextMode::Asymmetric { before, after } if before == after => {
+            ContextMode::Symmetric(before)
+        },
+        other => other,
+    })
 }
 
 /// Additional columns that can be displayed in text search results
@@ -800,4 +972,213 @@ pub enum RegistryCommands {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_context_mode_lines() {
+        assert_eq!(ContextMode::Symmetric(5).lines(), Some((5, 5)));
+        assert_eq!(
+            ContextMode::Asymmetric {
+                before: 3,
+                after: 7
+            }
+            .lines(),
+            Some((3, 7))
+        );
+        assert_eq!(ContextMode::All.lines(), None);
+    }
+
+    #[test]
+    fn test_context_mode_merge_symmetric() {
+        let mode1 = ContextMode::Symmetric(3);
+        let mode2 = ContextMode::Symmetric(5);
+        assert_eq!(mode1.merge(mode2), ContextMode::Symmetric(5));
+    }
+
+    #[test]
+    fn test_context_mode_merge_asymmetric() {
+        let mode1 = ContextMode::Asymmetric {
+            before: 3,
+            after: 5,
+        };
+        let mode2 = ContextMode::Asymmetric {
+            before: 7,
+            after: 2,
+        };
+        assert_eq!(
+            mode1.merge(mode2),
+            ContextMode::Asymmetric {
+                before: 7,
+                after: 5
+            }
+        );
+    }
+
+    #[test]
+    fn test_context_mode_merge_with_all() {
+        let mode1 = ContextMode::Symmetric(5);
+        let mode2 = ContextMode::All;
+        assert_eq!(mode1.clone().merge(mode2.clone()), ContextMode::All);
+        assert_eq!(mode2.merge(mode1), ContextMode::All);
+    }
+
+    #[test]
+    fn test_context_mode_merge_becomes_asymmetric() {
+        let mode1 = ContextMode::Symmetric(3);
+        let mode2 = ContextMode::Asymmetric {
+            before: 5,
+            after: 2,
+        };
+        assert_eq!(
+            mode1.merge(mode2),
+            ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            }
+        );
+    }
+
+    #[test]
+    fn test_context_mode_merge_becomes_symmetric() {
+        let mode1 = ContextMode::Asymmetric {
+            before: 5,
+            after: 3,
+        };
+        let mode2 = ContextMode::Asymmetric {
+            before: 3,
+            after: 5,
+        };
+        assert_eq!(mode1.merge(mode2), ContextMode::Symmetric(5));
+    }
+
+    #[test]
+    fn test_merge_context_flags_none() {
+        assert_eq!(merge_context_flags(None, None, None, None), None);
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_context() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(5)), None, None, None);
+        assert_eq!(result, Some(ContextMode::Symmetric(5)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_deprecated() {
+        let result = merge_context_flags(None, Some(ContextMode::Symmetric(3)), None, None);
+        assert_eq!(result, Some(ContextMode::Symmetric(3)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_wins_over_deprecated() {
+        let result = merge_context_flags(
+            Some(ContextMode::Symmetric(5)),
+            Some(ContextMode::Symmetric(3)),
+            None,
+            None,
+        );
+        assert_eq!(result, Some(ContextMode::Symmetric(5)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_after() {
+        let result = merge_context_flags(None, None, Some(3), None);
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 0,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_before() {
+        let result = merge_context_flags(None, None, None, Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_both_after_and_before() {
+        let result = merge_context_flags(None, None, Some(3), Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_after() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(5), None);
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 2,
+                after: 5
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_before() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, None, Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_both() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(3), Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_all_with_after_before() {
+        // All should take precedence even when -A/-B are present
+        let result = merge_context_flags(Some(ContextMode::All), None, Some(3), Some(5));
+        assert_eq!(result, Some(ContextMode::All));
+    }
+
+    #[test]
+    fn test_merge_context_flags_asymmetric_plus_after_before() {
+        let result = merge_context_flags(
+            Some(ContextMode::Asymmetric {
+                before: 2,
+                after: 4,
+            }),
+            None,
+            Some(6),
+            Some(3),
+        );
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 3,
+                after: 6
+            })
+        );
+    }
 }

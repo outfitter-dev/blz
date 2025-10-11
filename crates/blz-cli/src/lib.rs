@@ -513,12 +513,22 @@ async fn execute_command(
             snippet_lines,
             max_chars,
             context,
+            context_deprecated,
+            after_context,
+            before_context,
             block,
             max_lines,
             no_history,
             copy,
         }) => {
             let resolved_format = format.resolve(cli.quiet);
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                context,
+                context_deprecated,
+                after_context,
+                before_context,
+            );
             handle_search(
                 query,
                 sources,
@@ -534,7 +544,7 @@ async fn execute_command(
                 score_precision,
                 snippet_lines,
                 max_chars,
-                context,
+                merged_context,
                 block,
                 max_lines,
                 no_history,
@@ -564,6 +574,9 @@ async fn execute_command(
             lines,
             source,
             context,
+            context_deprecated,
+            after_context,
+            before_context,
             block,
             max_lines,
             format,
@@ -592,13 +605,20 @@ async fn execute_command(
                     },
                 }
             };
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                context,
+                context_deprecated,
+                after_context,
+                before_context,
+            );
 
             let final_alias = source.unwrap_or(default_alias);
 
             commands::get_lines(
                 &final_alias,
                 &parsed_lines,
-                context.as_ref(),
+                merged_context.as_ref(),
                 block,
                 max_lines,
                 format.resolve(cli.quiet),
@@ -704,7 +724,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
     let sources = vec![BUNDLED_ALIAS.to_string()];
 
     // Convert docs search args context to ContextMode
-    let context_mode = args.context.map(crate::cli::ContextMode::Lines);
+    let context_mode = args.context.map(crate::cli::ContextMode::Symmetric);
 
     commands::search(
         &query,
@@ -1729,12 +1749,13 @@ mod tests {
             max_lines,
             format,
             copy: _,
+            ..
         }) = cli.command
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, Some("1-10".to_string()));
             assert!(source.is_none());
-            assert_eq!(context, Some(crate::cli::ContextMode::Lines(5)));
+            assert_eq!(context, Some(crate::cli::ContextMode::Symmetric(5)));
             assert!(!block);
             assert_eq!(max_lines, None);
             let _ = format; // ignore
