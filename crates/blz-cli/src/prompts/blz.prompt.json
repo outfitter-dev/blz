@@ -16,7 +16,6 @@
         "Call `blz search \"<query>\" --format json` to gather ranked snippets.",
         "Take the top result's alias and lines (e.g. `bun:1853-1858`).",
         "One-shot approach: `blz search \"<query>\" --context all --format json` returns full sections immediately.",
-        "Two-step approach: Fetch context with `blz get bun:1853-1858 --context 3 --format text` for precise control.",
         "For multiple ranges on the same source use `blz get bun --lines \"1853-1858,1900-1905\" --context 2 --format json` and merge spans client-side."
       ]
     },
