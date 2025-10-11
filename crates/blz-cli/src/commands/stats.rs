@@ -90,6 +90,8 @@ pub fn execute(format: OutputFormat, limit: Option<usize>) -> Result<()> {
     // Sort by size (largest first)
     source_stats.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
 
+    let total_sources = source_stats.len();
+
     // Apply limit after sorting
     if let Some(limit_count) = limit {
         source_stats.truncate(limit_count);
@@ -103,7 +105,7 @@ pub fn execute(format: OutputFormat, limit: Option<usize>) -> Result<()> {
     let cache_location = storage.root_dir().to_string_lossy().to_string();
 
     let stats = CacheStats {
-        total_sources: source_stats.len(),
+        total_sources,
         total_size_bytes: total_size,
         total_lines,
         cache_location,
