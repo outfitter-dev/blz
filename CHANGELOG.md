@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2025-10-10
+## [1.1.0] - 2025-10-11
 
 ### Added
 - **Fuzzy-matched source warnings**: When searching with a non-existent source filter, `blz` now suggests similar source names
@@ -359,7 +359,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
-[1.0.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.1
+[1.1.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.0
 [1.0.0-beta.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.0-beta.1
 [0.5.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.5.0
 [0.4.1]: https://github.com/outfitter-dev/blz/releases/tag/v0.4.1

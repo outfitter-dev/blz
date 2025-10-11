@@ -44,11 +44,11 @@ cat > "$TMP_FORMULA" <<EOF
 class Blz < Formula
   desc "Fast local search for llms.txt"
   homepage "https://blz.run"
-  license "Apache-2.0"
   version "${VERSION}"
+  license "Apache-2.0"
 
   livecheck do
-    url "https://github.com/${REPO}/releases/latest"
+    url :stable
     strategy :github_latest
   end
 
