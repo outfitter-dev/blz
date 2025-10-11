@@ -15,9 +15,10 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
 2. **Comprehensive Testing**: For every command and flag combination:
    - Test with `--format json` (or `--json` shorthand) to verify machine-readable output
    - Test with `--format text` (default) to verify human-readable output
+   - Test format shortcuts: `--json`, `--jsonl`, `--text`, `--raw`
    - Test with `--quiet` mode where applicable
    - Test edge cases: empty inputs, invalid arguments, boundary conditions
-   - Test deprecated flags (like `--output`) to ensure compatibility warnings work
+   - Test deprecated flags (like `--snippet-lines`) to ensure compatibility warnings work
 
 3. **Output Format Validation**: For each command:
    - JSON output: Verify valid JSON structure, check for required fields, validate data types
@@ -25,15 +26,25 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - Error messages: Ensure they're clear, actionable, and properly formatted
 
 4. **Functional Testing Scenarios**:
-   - `blz instruct`: Test agent instructions, verify validity of instructions, run through suggestions
+   - `blz --prompt`: Test agent instructions (with and without command target), verify JSON output
+   - `blz docs`: Test all subcommands (search, sync, overview, cat, export)
    - `blz add`: Test adding sources with various URLs, test `-y` flag, test duplicate handling
-   - `blz list`: Test empty state, populated state, JSON vs text output
-   - `blz search`: Test basic queries, phrase searches, pagination, source filtering, scoring
-   - `blz get`: Test line ranges, context flags, invalid ranges
+   - `blz list`: Test empty state, populated state, JSON vs text output, `--status`, `--details`, `--limit`
+   - `blz search`: Test basic queries, phrase searches, pagination (`--next`, `--previous`, `--last`), source filtering, scoring, `--max-chars`
+   - `blz get`: Test line ranges (colon syntax `source:lines`), context flags (`-C`, `-A`, `-B`, `--context all`), invalid ranges
    - `blz update`: Test single source and `--all` flag
    - `blz remove`: Test removal and confirmation flows
-   - `blz config`: Test configuration viewing and modification
-   - `blz history`: Test search history retrieval
+   - `blz history`: Test search history retrieval, filtering, pagination
+   - `blz info`: Test detailed source information display
+   - `blz stats`: Test cache statistics, format shortcuts, `--limit`
+   - `blz validate`: Test source integrity checking
+   - `blz doctor`: Test health checks and auto-fix capability
+   - `blz clear`: Test cache clearing with `--force` flag
+   - `blz lookup`: Test registry search, format shortcuts, `--limit`
+   - `blz registry`: Test registry management commands
+   - `blz alias`: Test alias management (add, rm subcommands)
+   - `blz anchor` / `blz anchors`: Test anchor utilities and remap mappings
+   - `blz completions`: Test shell completion generation for different shells
    - Any other commands discovered via `--help`
    - Other `--flags` that are typical in CLI tools that an agent might expect to be available
 
@@ -41,16 +52,36 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - Add source → search → get lines → verify content
    - Add multiple sources → search across all → filter by source
    - Update sources → verify changes reflected in search
-   - Test pagination: first page → next page → last page
+   - Test pagination: first page → `--next` → `--previous` → `--last`
+   - Test bundled docs: `blz docs sync` → `blz docs search "test"` → `blz docs overview`
+   - Test context expansion: `blz search "api"` → `blz get result:123 -C5` → `--context all`
+   - Test format shortcuts: `blz list --json` → `blz stats --jsonl` → `blz search "test" --raw`
+   - Test snippet sizing: `blz search "test" --max-chars 100` → `--max-chars 500` → compare results
+   - Test grep-style context: `blz get source:100 -A5` → `-B5` → `-C10` → verify context lines
+   - Test health checks: `blz validate` → `blz doctor` → verify issue detection and fixes
 
 6. **Error Handling Validation**:
    - Test with non-existent sources
    - Test with invalid URLs
    - Test with malformed queries
    - Test with out-of-range line numbers
+   - Test with invalid `--max-chars` values (< 50 or > 1000, verify clamping)
+   - Test deprecated flags (`--snippet-lines`, verify warning message)
+   - Test backward pagination at page 1 (`--previous` should error gracefully)
+   - Test context flag combinations (`-C5 -A2` should merge correctly)
    - Verify appropriate exit codes (0 for success, 1 for user error, 2 for system error)
 
 7. **Performance Observations**: Note any commands that seem unusually slow or fast, though detailed performance testing is not the primary goal.
+
+8. **v1.0.1 Feature Focus**: Pay special attention to these newly added features:
+   - **Bundled docs**: `blz docs` subcommands (search, sync, overview, cat, export)
+   - **Snippet sizing**: `--max-chars` flag (50-1000 range, default 200)
+   - **Backward pagination**: `--previous` flag and `--last` flag
+   - **Grep-style context**: `-C`, `-A`, `-B` flags and their combinations
+   - **Format shortcuts**: `--json`, `--jsonl`, `--text`, `--raw` across all read-only commands
+   - **Read-only enhancements**: `--limit` flag on `list`, `stats`, `lookup`, `anchor list`
+   - **Context expansion**: `--context all` for single-line queries (replaces `--block`)
+   - **Deprecated flag handling**: `--snippet-lines` should show deprecation warning
 
 ## Testing Methodology
 
@@ -101,6 +132,24 @@ For each issue:
 - List of edge cases explored
 - Results for each
 
+#### Key Edge Cases to Test:
+- **Snippet sizing boundaries**: `--max-chars 49` (should clamp to 50), `--max-chars 1001` (should clamp to 1000)
+- **Context flag edge cases**:
+  - `-C5 -A10` (asymmetric merge - should use max values)
+  - `-C` with no value (should have default)
+  - `-A0` and `-B0` (should work without errors)
+- **Pagination boundaries**:
+  - `--previous` on page 1 (should error with helpful message)
+  - `--next` on last page (should indicate no more results)
+  - `--last` on already-last page (should handle gracefully)
+- **Colon syntax edge cases**:
+  - `blz get source:` (missing line numbers)
+  - `blz get source:abc` (invalid line format)
+  - `blz get source:999999-999999` (out of range)
+- **Format shortcut conflicts**: Multiple format flags (`--json --text` should handle priority)
+- **Bundled docs isolation**: `blz docs search` shouldn't affect regular search history
+- **Deprecated flag usage**: `--snippet-lines 5` should work but warn
+
 ### Integration Test Results
 - Workflow scenarios tested
 - Results for each workflow
@@ -130,8 +179,9 @@ For each issue:
 ## Context Awareness
 
 You have access to the `blz` tool as your primary interface and documentation source:
-- Use `blz ?<command> --help` for more information
-- Use `blz instruct` to get the agent instructions
+- Use `blz --help` (top-level) or `blz <command> --help` (command-specific) for information
+- Use `blz --prompt` (general) or `blz --prompt <command>` (command-specific) for agent instructions
+- Use `blz docs overview` for a concise quick-start guide
 
 You can access the project's documentation:
 - The blz codebase structure (Rust workspace with blz-core, blz-cli, blz-mcp)

@@ -154,7 +154,7 @@ blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ## Usage For AI Agents
 
 - **Quick primer**: `blz --prompt` in your terminal
-- **Programmatic CLI docs**: `blz docs --json`
+- **Programmatic CLI docs**: `blz docs export --format json` (legacy: `blz docs --format json`)
 - **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
 
 ### Typical Agent Flow
@@ -164,10 +164,10 @@ blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 blz add bun https://bun.sh/llms.txt -y
 
 # Search Bun docs and capture the first alias:lines citation
-span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
 # Retrieve the exact lines with a small amount of context
-blz get "$span" -c5 --json
+blz get "$span" -C 5 --json
 
 # Need more than one range? Supply --lines with a comma-separated list
 blz get bun --lines "41994-42009,42010-42020" --json
@@ -195,7 +195,7 @@ blz get bun --lines "41994-42009,42010-42020" --json
 # Expand to the entire heading block when the agent needs full prose
 blz get bun:41994-42009 --context all --max-lines 80 --json
 
-# List all indexed sources
+# List all indexed sources (note: list returns array; search returns object with .results)
 blz list --json | jq 'length'
 ```
 
@@ -255,6 +255,11 @@ For Fish users, completions can auto-regenerate when the binary updates:
 - **Update**: Conditional fetch + no-op reindex < 30ms
 
 See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
+
+**Reproducing**: Performance claims based on warm cache, hyperfine benchmarks with 100+ runs. See PERFORMANCE.md for:
+- Exact benchmark commands (`hyperfine --warmup 20 --min-runs 100 './target/release/blz search "test" -s bun -f json'`)
+- Test environment details (CPU, OS, cache state)
+- Representative query set and data sizes
 
 ## Building from Source
 

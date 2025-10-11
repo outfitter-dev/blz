@@ -134,7 +134,7 @@ Sources are stored in platform-specific directories:
 ### Linux
 
 ```
-~/.local/share/dev.outfitter.blz/
+~/.local/share/blz/
   bun/
     llms.txt
     llms.json
@@ -146,7 +146,7 @@ Sources are stored in platform-specific directories:
 ### Windows
 
 ```
-%APPDATA%\dev.outfitter.blz\
+%APPDATA%\outfitter\blz\
   bun\
     llms.txt
     llms.json
@@ -201,7 +201,7 @@ Currently manual - delete the directory:
 rm -rf ~/Library/Application\ Support/dev.outfitter.blz/bun
 
 # Linux
-rm -rf ~/.local/share/dev.outfitter.blz/bun
+rm -rf ~/.local/share/blz/bun
 ```
 
 ## Source Types
