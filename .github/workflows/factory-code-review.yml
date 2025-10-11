@@ -1,0 +1,179 @@
+name: Factory Code Review
+
+on:
+  pull_request:
+    types:
+      - "opened"
+      - "synchronize"
+      - "reopened"
+      - "ready_for_review"
+  issue_comment:
+    types:
+      - "created"
+
+jobs:
+  optimize_ci:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check_skip.outputs.skip }}
+    steps:
+      - name: Optimize CI
+        id: check_skip
+        uses: withgraphite/graphite-ci-action@main
+        continue-on-error: true
+        with:
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
+  factory-review:
+    # Run on PR events (open, synchronize, reopened, ready_for_review) OR when someone comments "@factory review"
+    # Only run if not a draft PR, and for comments only if they contain "@factory review"
+    needs: optimize_ci
+    if: |
+      needs.optimize_ci.outputs.skip == 'false' &&
+      ((github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment &&
+       contains(github.event.comment.body, '@factory review')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: factory-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Droid CLI
+        run: |
+          curl -fsSL https://downloads.factory.ai/droid/install.sh | sh
+          echo "$HOME/.droid/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "Droid Agent"
+          git config --global user.email "droidagent@factory.ai"
+
+      - name: Prepare review context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get PR diff
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number || github.event.issue.number }}/files > files.json
+          git diff origin/${{ github.event.pull_request.base.ref }}..HEAD > diff.txt
+
+          # Get existing comments
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number || github.event.issue.number }}/comments > existing_comments.json
+
+      - name: Perform automated code review
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > prompt.txt << 'EOF'
+          You are performing an automated code review for a Rust project called 'blz', a local-first search cache for llms.txt documentation ecosystems.
+
+          ## Input Files:
+          - `diff.txt`: The git diff showing all changes in this PR
+          - `files.json`: Changed files with patch information for precise comment positioning
+          - `existing_comments.json`: Any existing review comments to avoid duplication
+
+          ## Your Task:
+          Review the code changes and identify genuine issues. Focus on:
+
+          ### Priority Issues (Always flag these):
+          - **Memory safety**: Use of `unwrap()`, `expect()`, `panic!()`, or unsafe code without justification
+          - **Error handling**: Missing error propagation, incorrect error types
+          - **Async/await mistakes**: Missing `.await`, blocking calls in async contexts
+          - **Performance problems**: Unnecessary allocations, inefficient algorithms in hot paths
+          - **Security vulnerabilities**: Input validation, path traversal, injection risks
+          - **Dead code**: Unused variables, functions, or imports
+          - **Logic errors**: Incorrect conditionals, off-by-one errors, race conditions
+          - **Resource leaks**: Unclosed files, connections, or other resources
+
+          ### Rust-Specific Concerns:
+          - Incorrect ownership/borrowing patterns
+          - Improper trait implementations
+          - Inefficient string handling or vector operations
+          - Missing documentation for public APIs
+          - Clippy warnings that indicate real problems
+
+          ### Skip These (Don't comment on):
+          - Code style/formatting (handled by rustfmt)
+          - Minor performance optimizations
+          - Architectural decisions or design patterns
+          - Dependency choices
+          - Test organization (unless missing critical test coverage)
+
+          ## Output Format:
+          Create a file called `comments.json` with your review comments in this exact format:
+          ```json
+          [
+            {
+              "path": "path/to/file.rs",
+              "position": 42,
+              "body": "Your detailed comment here explaining the issue and suggesting a fix."
+            }
+          ]
+          ```
+
+          ### Position Calculation:
+          The `position` field must be the line number in the diff (not the file). Count lines in `diff.txt` starting from 1, including headers, to find the exact position of the line you want to comment on.
+
+          ### Important Rules:
+          - Maximum 10 comments per review
+          - Empty array `[]` if no issues found
+          - Each comment must be actionable and specific
+          - Explain WHY something is problematic and HOW to fix it
+          - Focus on the changes in this PR, not existing code unless it affects the changes
+
+          ## Context:
+          This project follows strict Clippy rules and has zero tolerance for `unwrap()`/`panic!()` in production code. Performance is critical for search operations with target latency P50 < 10ms.
+          EOF
+
+          # Run droid exec
+          droid exec --auto high -f prompt.txt
+
+          # Ensure comments.json exists
+          if [ ! -f comments.json ]; then
+            echo "[]" > comments.json
+          fi
+
+      - name: Submit inline review comments
+        uses: actions/github-script@v7
+        with:
+          script: "const fs = require('fs');\n  #magic___^_^___line\n// Read the generated comments\nlet comments = [];\ntry {\n  const commentsData = fs.readFileSync('comments.json', 'utf8');\n  comments = JSON.parse(commentsData);\n} catch (error) {\n  console.log('Error reading comments.json:', error);\n  comments = [];\n}\n  #magic___^_^___line\nconsole.log(`Generated ${comments.length} review comments`);\n  #magic___^_^___line\nif (comments.length === 0) {\n  // Check if we already have a \"no issues\" comment to avoid spam\n  const existingComments = await github.rest.issues.listComments({\n    owner: context.repo.owner,\n    repo: context.repo.repo,\n    issue_number: context.payload.pull_request?.number || context.payload.issue.number\n  });\n    #magic___^_^___line\n  const hasNoIssuesComment = existingComments.data.some(comment => \n    comment.user.login === 'github-actions[bot]' && \n    comment.body.includes('✅ No issues found in the current changes')\n  );\n    #magic___^_^___line\n  if (!hasNoIssuesComment) {\n    await github.rest.issues.createComment({\n      owner: context.repo.owner,\n      repo: context.repo.repo,\n      issue_number: context.payload.pull_request?.number || context.payload.issue.number,\n      body: '✅ **Factory Code Review**: No issues found in the current changes.'\n    });\n  }\n} else {\n  // Create a review with inline comments\n  const review = await github.rest.pulls.createReview({\n    owner: context.repo.owner,\n    repo: context.repo.repo,\n    pull_number: context.payload.pull_request?.number || context.payload.issue.number,\n    body: `🤖 **Factory Code Review** found ${comments.length} issue(s) that need attention:`,\n    event: 'COMMENT',\n    comments: comments\n  });\n      #magic___^_^___line\n  console.log('Review created:', review.data.html_url);\n}\n      #magic___^_^___line\n"
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-review-debug-${{ github.run_id }}
+          path: |
+            diff.txt
+            files.json
+            existing_comments.json
+            comments.json
+            prompt.txt
+          retention-days: 7
+
+# This workflow runs automatically when:
+# 1. A PR is opened, synchronized (new commits), reopened, or marked ready for review (if not draft)
+# 2. Someone comments "@factory review" on a PR (manual trigger)
+#
+# It will NOT run on:
+# - Draft PRs (automatic triggers disabled)
+# - Comments that don't contain "@factory review"
+#
+# The workflow:
+# - Analyzes code changes using Factory's Droid CLI
+# - Focuses on Rust-specific issues, performance, and memory safety
+# - Provides inline comments on problematic code
+# - Uploads debug artifacts if the review fails
