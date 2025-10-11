@@ -12,6 +12,7 @@ mod completions;
 mod create_source;
 mod diff;
 pub mod docs;
+pub mod docs_bundle;
 mod doctor;
 mod get;
 mod history;
@@ -36,6 +37,10 @@ pub use completions::list_supported;
 pub use create_source::execute as create_registry_source;
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};
+pub use docs_bundle::{
+    BUNDLED_ALIAS, SyncStatus as DocsSyncStatus, print_full_content, print_overview,
+    sync as sync_bundled_docs,
+};
 pub use doctor::execute as run_doctor;
 pub use get::execute as get_lines;
 pub use history::show as show_history;
