@@ -63,7 +63,7 @@ blz get bun --lines "41994-42009,42010-42020" --json
 blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # Add context lines without blocks
-blz get bun:25760-25780 -c3
+blz get bun:25760-25780 -C 3
 ```
 
 ### Managing Sources
@@ -121,7 +121,7 @@ blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"'
 # Output: bun:304-324
 
 # 2. Get full context
-blz get bun:304-324 -c5
+blz get bun:304-324 -C 5
 ```
 
 ### Update All Sources Daily
