@@ -48,7 +48,7 @@
       "BLZ_CONFIG / BLZ_CONFIG_DIR (config files) / BLZ_DATA_DIR (cached docs and indices) for custom storage locations",
       "BLZ_SUPPRESS_DEPRECATIONS=1 to silence compatibility warnings"
     ],
-    "dev_binary": "Use `./install-dev.sh` to install the `blz-dev` variant. It scopes data to platform-specific dev paths (e.g., ~/.local/share/blz-dev on Linux, ~/Library/Application Support/dev.outfitter.blz-dev on macOS) so you can test without touching production caches.",
+    "dev_binary": "Use `./install-dev.sh` to install the `blz-dev` variant. It scopes data to platform-specific dev paths (e.g., ~/.local/share/blz-dev on Linux, ~/Library/Application Support/dev.outfitter.blz-dev on macOS, %APPDATA%\\outfitter\\blz-dev\\ on Windows) so you can test without touching production caches.",
     "hydration": "Run `./hydrate-dev.sh` to copy production sources into the dev profile when you need realistic fixtures."
   }
 }
