@@ -868,7 +868,12 @@ pub fn merge_context_flags(
         });
     }
 
-    result
+    result.map(|mode| match mode {
+        ContextMode::Asymmetric { before, after } if before == after => {
+            ContextMode::Symmetric(before)
+        },
+        other => other,
+    })
 }
 
 /// Additional columns that can be displayed in text search results
