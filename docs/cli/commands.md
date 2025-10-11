@@ -191,11 +191,24 @@ blz search <QUERY> [OPTIONS]
 - `--top <N>` - Show only top N percentile of results (1-100)
 - `--max-chars <CHARS>` - Limit snippet length (default 200; clamps between 50 and 1000).
   - Environment: `BLZ_MAX_CHARS` adjusts the default for implicit searches.
+- `-C, --context <N>` - Print N lines of context (both before and after) for each result
+- `-A, --after-context <N>` - Print N lines of context after each result
+- `-B, --before-context <N>` - Print N lines of context before each result
 - `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
 - `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl` to avoid passing `--format` each time (alias `ndjson` still accepted)
 
 > ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
+
+**Context Flags (grep-style):**
+
+The context flags follow grep/ripgrep conventions and can be combined:
+
+- `-C5` - 5 lines before and after each match (symmetric context)
+- `-A3` - 3 lines after each match only
+- `-B5` - 5 lines before each match only
+- `-A3 -B5` - 5 lines before, 3 lines after (asymmetric context)
+- When multiple flags are specified, the maximum value for each direction is used
 
 **Examples:**
 
@@ -214,6 +227,12 @@ blz "async" --json
 
 # Top 10% of results only
 blz "database" --top 10
+
+# Search with context (grep-style)
+blz "error handling" -C3        # 3 lines before and after
+blz "async await" -A5           # 5 lines after only
+blz "config options" -B3        # 3 lines before only
+blz "api docs" -B5 -A3          # Asymmetric: 5 before, 3 after
 
 # Exact phrase (Unix shells - single quotes around double quotes)
 blz '"test runner"'
@@ -259,7 +278,9 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 **Options:**
 
 - `-l, --lines <RANGE>` – Line range(s) to retrieve (optional when using `source:lines`)
-- `-c, --context <N>` – Include N context lines around each range, or use `all` to expand to the entire heading block
+- `-C, --context <N>` – Print N lines of context (both before and after). Use `all` to expand to the entire heading block
+- `-A, --after-context <N>` – Print N lines of context after each line/range
+- `-B, --before-context <N>` – Print N lines of context before each line/range
 - `--context all` – Expand to the entire heading block that contains the first requested range
 - `--block` – Legacy alias for `--context all`
 - `--max-lines <N>` – Optional hard cap when using `--context all` (prevents oversized spans)
@@ -267,6 +288,16 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 - `--json`, `--jsonl` – Convenience shorthands for their respective formats
 - `--copy` – Copy results to the clipboard via OSC 52 (useful in interactive shells)
 - `--prompt` – Emit agent guidance JSON (e.g. `blz get --prompt`)
+
+**Context Flags (grep-style):**
+
+The context flags follow grep/ripgrep conventions and can be combined:
+
+- `-C5` – 5 lines before and after (symmetric context)
+- `-A3` – 3 lines after only
+- `-B5` – 5 lines before only
+- `-A3 -B5` – 5 lines before, 3 lines after (asymmetric context)
+- When multiple flags are specified, the maximum value for each direction is used
 
 **Line Range Formats:**
 
@@ -289,8 +320,17 @@ blz get bun --lines "41994-42009,42010-42020" --json
 # Expand to the entire heading section (capped at 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json
 
-# Include 3 lines of context around the range (text output)
-blz get bun:25760-25780 -c3
+# Include 3 lines of context around the range (symmetric)
+blz get bun:25760-25780 -C3
+
+# Include context after only (grep-style)
+blz get bun:25760-25780 -A5
+
+# Include context before only (grep-style)
+blz get bun:25760-25780 -B3
+
+# Asymmetric context: 5 before, 3 after
+blz get bun:25760-25780 -B5 -A3
 
 # Pipe structured output to jq
 blz get bun:41994-42009 --json | jq '.content'
