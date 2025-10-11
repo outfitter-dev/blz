@@ -6,6 +6,7 @@ use is_terminal::IsTerminal;
 use crate::output::OutputFormat;
 
 static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
+static SNIPPET_LINES_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
 /// Shared clap argument for commands that accept an output format.
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
@@ -106,6 +107,25 @@ fn emit_deprecated_warning(quiet: bool) {
     }
 }
 
+/// Emits a deprecation warning for --snippet-lines flag (once per session).
+///
+/// Suggests using --max-chars instead and indicates the flag will be removed in v2.0.
+/// Respects quiet mode and `BLZ_SUPPRESS_DEPRECATIONS` environment variable.
+pub fn emit_snippet_lines_deprecation(quiet: bool) {
+    if quiet || std::env::var_os("BLZ_SUPPRESS_DEPRECATIONS").is_some() {
+        return;
+    }
+
+    if SNIPPET_LINES_DEPRECATED_WARNED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        eprintln!(
+            "warning: --snippet-lines is deprecated; use --max-chars instead. This flag will be removed in v2.0."
+        );
+    }
+}
+
 #[cfg(test)]
 #[allow(
     unsafe_code,
@@ -165,6 +185,10 @@ mod tests {
 
     fn reset_warning_flag() {
         OUTPUT_DEPRECATED_WARNED.store(false, Ordering::SeqCst);
+    }
+
+    fn reset_snippet_lines_warning_flag() {
+        SNIPPET_LINES_DEPRECATED_WARNED.store(false, Ordering::SeqCst);
     }
 
     #[test]
@@ -376,5 +400,83 @@ mod tests {
         // Shortcut should win, no deprecation warning should be emitted
         assert_eq!(args.resolve(false), OutputFormat::Json);
         assert!(!OUTPUT_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_sets_warning_flag_once() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // First call should set the flag
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Reset the flag to test it gets set again
+        reset_snippet_lines_warning_flag();
+
+        // Second call should also set the flag (proving it works)
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Third call should not toggle it back to false
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_suppressed_when_quiet() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // Quiet mode should suppress the warning
+        emit_snippet_lines_deprecation(true);
+        assert!(!SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_suppressed_with_env_var() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.set("1");
+
+        // Environment variable should suppress the warning
+        emit_snippet_lines_deprecation(false);
+        assert!(!SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_only_warns_once_per_session() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // First call sets the flag
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Subsequent calls should not change the flag state
+        // (In real usage, this means the warning is only printed once)
+        for _ in 0..5 {
+            emit_snippet_lines_deprecation(false);
+            assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+        }
     }
 }
