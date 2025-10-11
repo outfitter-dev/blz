@@ -106,7 +106,8 @@ impl LanguageFilter {
     /// # Arguments
     /// * `locale` - Locale code to exclude (e.g., "zh-hk", "custom-lang")
     pub fn add_custom_exclude(&mut self, locale: impl Into<String>) {
-        self.custom_excludes.insert(locale.into());
+        self.custom_excludes
+            .insert(locale.into().to_ascii_lowercase());
     }
 
     /// Check if URL points to English content
@@ -148,8 +149,13 @@ impl LanguageFilter {
             return true;
         }
 
+        let lower_url = url.to_ascii_lowercase();
+
         // Explicit English locale (accept)
-        if url.contains("/en/") || url.contains("/en-us/") || url.contains("/en-gb/") {
+        if lower_url.contains("/en/")
+            || lower_url.contains("/en-us/")
+            || lower_url.contains("/en-gb/")
+        {
             self.stats.accepted += 1;
             return true;
         }
@@ -161,7 +167,7 @@ impl LanguageFilter {
         }
 
         // Check path-based locale (reject non-English)
-        if self.has_non_english_path_locale(url) {
+        if self.has_non_english_path_locale(&lower_url) {
             self.stats.rejected += 1;
             return false;
         }
@@ -175,26 +181,26 @@ impl LanguageFilter {
     fn has_non_english_subdomain(&self, url: &str) -> bool {
         if let Ok(parsed) = url::Url::parse(url) {
             if let Some(host) = parsed.host_str() {
-                let subdomain = host.split('.').next().unwrap_or("");
-                return NON_ENGLISH_LOCALES.contains(&subdomain)
-                    || self.custom_excludes.contains(subdomain);
+                let subdomain = host.split('.').next().unwrap_or("").to_ascii_lowercase();
+                return NON_ENGLISH_LOCALES.contains(&subdomain.as_str())
+                    || self.custom_excludes.contains(&subdomain);
             }
         }
         false
     }
 
     /// Check if URL has a non-English path locale
-    fn has_non_english_path_locale(&self, url: &str) -> bool {
+    fn has_non_english_path_locale(&self, url_lower: &str) -> bool {
         // Check for standard locale patterns in path
         for locale in NON_ENGLISH_LOCALES {
-            if url.contains(&format!("/{locale}/")) {
+            if url_lower.contains(&format!("/{locale}/")) {
                 return true;
             }
         }
 
         // Check custom excludes
         for locale in &self.custom_excludes {
-            if url.contains(&format!("/{locale}/")) {
+            if url_lower.contains(&format!("/{locale}/")) {
                 return true;
             }
         }
@@ -301,6 +307,13 @@ mod tests {
     }
 
     #[test]
+    fn test_uppercase_locale_detection() {
+        let mut filter = LanguageFilter::new(true);
+        assert!(!filter.is_english_url("https://docs.example.com/DE/guide"));
+        assert!(!filter.is_english_url("https://PT-BR.docs.example.com/guide"));
+    }
+
+    #[test]
     fn test_disabled_filter_accepts_all() {
         let mut filter = LanguageFilter::new(false);
 
@@ -315,9 +328,12 @@ mod tests {
     fn test_custom_excludes() {
         let mut filter = LanguageFilter::new(true);
         filter.add_custom_exclude("custom-lang");
+        filter.add_custom_exclude("Fi");
 
         assert!(!filter.is_english_url("https://docs.example.com/custom-lang/guide"));
         assert!(!filter.is_english_url("https://custom-lang.docs.example.com/api"));
+        assert!(!filter.is_english_url("https://docs.example.com/FI/guide"));
+        assert!(!filter.is_english_url("https://FI.docs.example.com/api"));
     }
 
     #[test]
