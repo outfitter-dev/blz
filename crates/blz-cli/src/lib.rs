@@ -556,6 +556,7 @@ async fn execute_command(
         Some(Commands::Get {
             alias,
             lines,
+            source,
             context,
             block,
             max_lines,
@@ -563,7 +564,7 @@ async fn execute_command(
             copy,
         }) => {
             // Parse flexible syntax: "alias:lines" or "alias" with separate lines arg
-            let (parsed_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
+            let (default_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
                 // Colon syntax: "bun:1-3"
                 let (a, l) = alias.split_at(colon_pos);
                 let lines_part = &l[1..]; // Skip the colon
@@ -586,8 +587,10 @@ async fn execute_command(
                 }
             };
 
+            let final_alias = source.unwrap_or(default_alias);
+
             commands::get_lines(
-                &parsed_alias,
+                &final_alias,
                 &parsed_lines,
                 context.as_ref(),
                 block,
@@ -633,14 +636,14 @@ async fn execute_command(
             commands::show_diff(&alias, since.as_deref()).await?;
         },
         Some(Commands::Anchor { command }) => {
-            handle_anchor(command).await?;
+            handle_anchor(command, cli.quiet).await?;
         },
         Some(Commands::Anchors {
             alias,
-            output,
+            format,
             mappings,
         }) => {
-            commands::show_anchors(&alias, output, mappings).await?;
+            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings).await?;
         },
         None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
     }
@@ -781,19 +784,19 @@ fn sync_and_report(
     Ok(status)
 }
 
-async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
     match command {
         AnchorCommands::List {
             alias,
-            output,
+            format,
             mappings,
-        } => commands::show_anchors(&alias, output, mappings).await,
+        } => commands::show_anchors(&alias, format.resolve(quiet), mappings).await,
         AnchorCommands::Get {
             alias,
             anchor,
             context,
-            output,
-        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+            format,
+        } => commands::get_by_anchor(&alias, &anchor, context, format.resolve(quiet)).await,
     }
 }
 
@@ -1696,6 +1699,7 @@ mod tests {
         if let Some(Commands::Get {
             alias,
             lines,
+            source,
             context,
             block,
             max_lines,
@@ -1705,6 +1709,7 @@ mod tests {
         {
             assert_eq!(alias, "test");
             assert_eq!(lines, Some("1-10".to_string()));
+            assert!(source.is_none());
             assert_eq!(context, Some(crate::cli::ContextMode::Lines(5)));
             assert!(!block);
             assert_eq!(max_lines, None);
@@ -2241,6 +2246,36 @@ mod tests {
             assert_eq!(sources, vec!["bun", "node", "deno"]);
         } else {
             panic!("Expected search command");
+        }
+    }
+
+    #[test]
+    fn test_get_command_with_source_flag() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec![
+            "blz", "get", "meta", "--lines", "1-3", "--source", "bun",
+        ])
+        .unwrap();
+
+        if let Some(Commands::Get { source, lines, .. }) = cli.command {
+            assert_eq!(source.as_deref(), Some("bun"));
+            assert_eq!(lines.as_deref(), Some("1-3"));
+        } else {
+            panic!("Expected get command");
+        }
+    }
+
+    #[test]
+    fn test_get_command_with_source_shorthand() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec!["blz", "get", "meta:4-6", "-s", "canonical"]).unwrap();
+
+        if let Some(Commands::Get { source, .. }) = cli.command {
+            assert_eq!(source.as_deref(), Some("canonical"));
+        } else {
+            panic!("Expected get command");
         }
     }
 }
