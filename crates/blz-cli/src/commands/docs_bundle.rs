@@ -41,18 +41,8 @@ const OVERVIEW_TEXT: &str = "blz built-in docs alias: blz-docs (@blz)\n\
 - add normal sources with `blz add <alias> <llms-full>`; default search ignores internal docs\n\
 - inspect full text with `blz docs cat` or export CLI usage via `blz docs export --format markdown`";
 
-/// Fallback content embedded into the binary when an llms-full bundle is unavailable.
-///
-/// The full `llms-full.txt` asset is intentionally omitted from version control for now.
-/// When a curated manual is ready, replace this placeholder (or switch back to an
-/// `include_str!`) so the bundled docs ship with real content.
-static BUNDLED_CONTENT: &str = "\
-# BLZ bundled docs (placeholder)\n\
-\n\
-The curated blz llms-full.txt bundle is not yet available in this build.\n\
-- Run `blz docs sync` after the official guide ships to hydrate local docs.\n\
-- Until then, rely on `blz add <alias> <llms-full-url>` to manage upstream sources.\n\
-";
+/// Embedded llms-full content compiled into the binary.
+static BUNDLED_CONTENT: &str = include_str!("../../../../docs/llms/blz/llms-full.txt");
 
 /// Pre-computed SHA-256 hash (base64) of the bundled content.
 static BUNDLED_SHA256: LazyLock<String> = LazyLock::new(|| {
