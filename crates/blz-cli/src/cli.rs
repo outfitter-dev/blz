@@ -57,8 +57,6 @@
 
 use clap::{Args, Parser, Subcommand};
 
-// ConfigCommand removed in v1.0.0-beta.1
-use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
@@ -252,16 +250,8 @@ pub enum Commands {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            short_alias = 'f',
-            visible_alias = "format",
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
         /// Show anchors remap mappings if available
         #[arg(long)]
         mappings: bool,
@@ -367,9 +357,10 @@ pub enum Commands {
         /// Use a number to return that many context lines around the hit.
         ///
         /// Examples:
-        ///   --context 10    # 10 lines of context
+        ///   -c 10           # 10 lines of context
         ///   --context all   # Full section expansion
         #[arg(
+            short = 'c',
             long = "context",
             value_name = "LINES|all",
             num_args = 0..=1,
@@ -422,6 +413,9 @@ pub enum Commands {
         /// When using colon syntax, the --lines flag is optional
         #[arg(value_name = "ALIAS")]
         alias: String,
+        /// Explicit source alias (use when positional alias is ambiguous)
+        #[arg(long = "source", short = 's', value_name = "SOURCE")]
+        source: Option<String>,
         /// Line range(s) to retrieve
         ///
         /// Format: "120-142", "36:43,320:350", "36+20", "1,5,10-15"
@@ -712,14 +706,8 @@ pub enum AnchorCommands {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
         /// Show anchors remap mappings if available
         #[arg(long)]
         mappings: bool,
@@ -734,14 +722,8 @@ pub enum AnchorCommands {
         #[arg(short = 'c', long)]
         context: Option<usize>,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
     },
 }
 
