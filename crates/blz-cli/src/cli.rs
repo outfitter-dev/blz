@@ -351,6 +351,14 @@ pub enum Commands {
             default_value_t = 3
         )]
         snippet_lines: u8,
+        /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
+        #[arg(
+            long = "max-chars",
+            value_name = "CHARS",
+            env = "BLZ_MAX_CHARS",
+            value_parser = clap::value_parser!(usize)
+        )]
+        max_chars: Option<usize>,
         /// Return surrounding context lines or full section (defaults to 5 lines when no value supplied)
         ///
         /// Use 'all' to return the full heading block containing each hit.
@@ -591,6 +599,9 @@ pub struct DocsSearchArgs {
     /// Number of snippet lines to include per hit.
     #[arg(long, default_value_t = 4, value_name = "LINES")]
     pub snippet_lines: u8,
+    /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
+    #[arg(long = "max-chars", value_name = "CHARS", value_parser = clap::value_parser!(usize))]
+    pub max_chars: Option<usize>,
     /// Add surrounding context lines.
     #[arg(long, value_name = "LINES")]
     pub context: Option<usize>,

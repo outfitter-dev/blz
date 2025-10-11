@@ -44,6 +44,33 @@ blz "test runner" --json
 
 # Narrow the scope
 blz "test reporters" --json
+
+# Control snippet length (default: 200 chars, range: 50-1000)
+blz "api documentation" --max-chars 300 --json  # Longer snippets for better context
+blz "quick reference" --max-chars 100 --json     # Shorter snippets to save tokens
+```
+
+### Tuning Snippet Length
+
+The `--max-chars` flag controls the total character count of snippets returned in search results, including newlines and all text:
+
+- **Default**: 200 characters provides good balance between context and token efficiency
+- **Range**: 50-1000 characters (values outside this range are automatically clamped)
+- **Environment**: Set `BLZ_MAX_CHARS` to change the default for all searches
+- **Use cases**:
+  - **50-100 chars**: Minimal snippets when you just need to identify relevant sections
+  - **200 chars** (default): Good balance for assessing relevance without fetching full content
+  - **300-500 chars**: More context for complex topics or when you need better relevance signals
+  - **500-1000 chars**: Maximum context before fetching full sections with `blz get`
+
+Example workflow:
+
+```bash
+# Quick scan with short snippets
+blz "error handling" --max-chars 100 --json | jq -r '.[0:3] | .[] | .alias + ":" + .lines'
+
+# Detailed assessment with longer snippets
+blz "authentication flow" --max-chars 400 --json | jq '.[0] | {heading: .headingPath, snippet}'
 ```
 
 ## Retrieve Content
