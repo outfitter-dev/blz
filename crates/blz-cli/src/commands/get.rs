@@ -6,7 +6,7 @@ use colored::Colorize;
 use std::collections::BTreeSet;
 
 use crate::output::OutputFormat;
-use crate::utils::parsing::{LineRange, parse_line_ranges, parse_line_span};
+use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::toc::{
     BlockSlice, extract_block_slice, finalize_block_slice, find_heading_for_line,
     heading_level_from_line,
@@ -20,13 +20,67 @@ struct BlockResult {
     content_lines: Vec<String>,
 }
 
+fn determine_fallback_bounds(
+    ranges: &[LineRange],
+    target_line: usize,
+    file_len: usize,
+) -> (usize, usize) {
+    ranges
+        .first()
+        .map_or((target_line, file_len), |range| match range {
+            LineRange::Single(n) => (*n, *n),
+            LineRange::Range(start, end) => (*start, *end),
+            LineRange::PlusCount(start, count) => {
+                let end = start.saturating_add(count.saturating_sub(1));
+                (*start, end)
+            },
+        })
+}
+
+fn adjust_span_for_heading(file_lines: &[String], span: &mut (usize, usize)) {
+    if span.0 <= 1 {
+        return;
+    }
+
+    let start_idx = span.0.saturating_sub(1);
+    if start_idx < file_lines.len() && heading_level_from_line(&file_lines[start_idx]).is_some() {
+        return;
+    }
+
+    let mut idx = start_idx;
+    while idx > 0 {
+        idx -= 1;
+        let line = &file_lines[idx];
+        if heading_level_from_line(line).is_some() {
+            span.0 = idx + 1;
+            break;
+        }
+        if !line.trim().is_empty() {
+            break;
+        }
+    }
+}
+
+fn strip_heading_if_present(
+    line_numbers: &mut Vec<usize>,
+    content_lines: &[String],
+) -> Option<usize> {
+    if let (Some(&first_line), Some(first_content)) = (line_numbers.first(), content_lines.first())
+    {
+        if heading_level_from_line(first_content).is_some() {
+            line_numbers.remove(0);
+            return Some(first_line);
+        }
+    }
+    None
+}
+
 fn compute_block_result(
     storage: &Storage,
     canonical: &str,
     file_lines: &[String],
     ranges: &[LineRange],
     max_block_lines: Option<usize>,
-    line_spec: &str,
 ) -> BlockResult {
     let target_line = ranges.first().map_or(1, |range| match range {
         LineRange::Single(n) => *n,
@@ -34,11 +88,17 @@ fn compute_block_result(
     });
 
     let llms = storage.load_llms_json(canonical).ok();
-    let (start, end) = llms
+    let file_len = file_lines.len();
+    let (fallback_start, user_end) = determine_fallback_bounds(ranges, target_line, file_len);
+    let fallback_span = (fallback_start, file_len);
+
+    let toc_span = llms
         .as_ref()
-        .and_then(|doc| find_heading_for_line(&doc.toc, target_line).map(|(_, span)| span))
-        .or_else(|| parse_line_span(line_spec))
-        .unwrap_or((target_line, target_line));
+        .and_then(|doc| find_heading_for_line(&doc.toc, target_line).map(|(_, span)| span));
+    let using_toc_span = toc_span.is_some();
+    let mut span = toc_span.unwrap_or(fallback_span);
+    adjust_span_for_heading(file_lines, &mut span);
+    let (start, end) = span;
 
     if file_lines.is_empty() {
         return BlockResult {
@@ -50,9 +110,9 @@ fn compute_block_result(
         };
     }
 
-    let safe_start = start.max(1).min(file_lines.len());
-    let safe_end = end.max(safe_start);
-    let fallback_end = safe_start;
+    let safe_start = start.max(1).min(file_len);
+    let safe_end = end.max(safe_start).min(file_len);
+    let fallback_end = user_end.max(safe_start).min(file_len);
 
     let adjusted_max = max_block_lines.map(|limit| limit.saturating_add(1));
     let mut block = extract_block_slice(file_lines, safe_start, safe_end, adjusted_max)
@@ -84,23 +144,48 @@ fn compute_block_result(
         }
     }
 
+    let block_line_numbers = block.line_numbers.clone();
     let finalized = finalize_block_slice(block);
-    let render_end = finalized
-        .content_line_numbers
-        .last()
-        .copied()
-        .unwrap_or(finalized.heading_line);
+    let heading_candidate = finalized.heading_line;
+    let truncated = finalized.truncated;
+    let mut line_numbers = if using_toc_span {
+        finalized.content_line_numbers
+    } else {
+        block_line_numbers
+    };
+    let mut content_lines = finalized.content_lines;
+
+    if !using_toc_span && line_numbers.len() > content_lines.len() {
+        line_numbers.truncate(content_lines.len());
+    }
+
+    let mut heading_line = if using_toc_span { heading_candidate } else { 0 };
+
+    if !using_toc_span {
+        if let Some(heading) = strip_heading_if_present(&mut line_numbers, &content_lines) {
+            heading_line = heading;
+        }
+        if heading_line == 0 {
+            line_numbers.retain(|line| *line <= user_end);
+            if line_numbers.len() < content_lines.len() {
+                content_lines.truncate(line_numbers.len());
+            }
+        }
+    }
+
+    let render_start = if using_toc_span {
+        heading_line
+    } else {
+        safe_start
+    };
+    let render_end = line_numbers.last().copied().unwrap_or(render_start);
 
     BlockResult {
-        heading_line: finalized.heading_line,
-        line_numbers: finalized.content_line_numbers,
-        render_lines: format!(
-            "{start}-{end}",
-            start = finalized.heading_line,
-            end = render_end
-        ),
-        truncated: finalized.truncated,
-        content_lines: finalized.content_lines,
+        heading_line,
+        line_numbers,
+        render_lines: format!("{render_start}-{render_end}"),
+        truncated,
+        content_lines,
     }
 }
 
@@ -259,7 +344,6 @@ pub async fn execute(
             &file_lines,
             &ranges,
             max_block_lines,
-            lines,
         ))
     } else {
         None

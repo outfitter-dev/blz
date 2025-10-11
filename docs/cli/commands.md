@@ -284,7 +284,7 @@ blz get bun:41994-42009
 # Retrieve multiple spans for the same source
 blz get bun --lines "41994-42009,42010-42020" --json
 
-# Heading-aware retrieval (grabs the whole section, capped at 80 lines)
+# Expand to the entire heading section (capped at 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # Include 3 lines of context around the range (text output)
