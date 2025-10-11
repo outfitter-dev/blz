@@ -361,25 +361,30 @@ pub enum Commands {
             default_value_t = 3
         )]
         snippet_lines: u8,
-        /// Return surrounding context lines for each hit (defaults to 5 when no value supplied)
+        /// Return surrounding context lines or full section (defaults to 5 lines when no value supplied)
+        ///
+        /// Use 'all' to return the full heading block containing each hit.
+        /// Use a number to return that many context lines around the hit.
+        ///
+        /// Examples:
+        ///   --context 10    # 10 lines of context
+        ///   --context all   # Full section expansion
         #[arg(
             long = "context",
-            value_name = "LINES",
+            value_name = "LINES|all",
             num_args = 0..=1,
             default_missing_value = "5",
-            value_parser = clap::value_parser!(usize),
             conflicts_with = "block"
         )]
-        context: Option<usize>,
-        /// Return the full heading block containing each hit
+        context: Option<ContextMode>,
+        /// Return the full heading block containing each hit (legacy alias for --context all)
         #[arg(long, conflicts_with = "context")]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize),
-            requires = "block"
+            value_parser = clap::value_parser!(usize)
         )]
         max_lines: Option<usize>,
         /// Don't save this search to history
@@ -424,18 +429,21 @@ pub enum Commands {
         /// Can be omitted if using colon syntax (e.g., "bun:1-3")
         #[arg(short = 'l', long, value_name = "RANGE")]
         lines: Option<String>,
-        /// Context lines around each line/range
+        /// Context lines around each line/range, or 'all' for full section
+        ///
+        /// Examples:
+        ///   -c 10       # 10 lines of context
+        ///   --context all  # Full section expansion
         #[arg(short = 'c', long, conflicts_with = "block")]
-        context: Option<usize>,
-        /// Return the full heading block containing the range
+        context: Option<ContextMode>,
+        /// Return the full heading block containing the range (legacy alias for --context all)
         #[arg(long, conflicts_with = "context")]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize),
-            requires = "block"
+            value_parser = clap::value_parser!(usize)
         )]
         max_lines: Option<usize>,
         /// Output format
@@ -652,6 +660,29 @@ pub struct AddArgs {
     /// Analyze source without adding it (outputs JSON analysis)
     #[arg(long)]
     pub dry_run: bool,
+}
+
+/// Context mode for result expansion
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ContextMode {
+    /// Fixed number of context lines
+    Lines(usize),
+    /// Full section/block expansion
+    All,
+}
+
+impl std::str::FromStr for ContextMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("all") {
+            Ok(Self::All)
+        } else {
+            s.parse::<usize>()
+                .map(Self::Lines)
+                .map_err(|_| format!("Invalid context value: '{s}'. Expected a number or 'all'"))
+        }
+    }
 }
 
 /// Additional columns that can be displayed in text search results

@@ -257,9 +257,10 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 **Options:**
 
 - `-l, --lines <RANGE>` – Line range(s) to retrieve (optional when using `source:lines`)
-- `-c, --context <N>` – Include N context lines around each range
-- `--block` – Expand to the entire heading block that contains the first requested range
-- `--max-lines <N>` – Optional hard cap when using `--block` (prevents oversized spans)
+- `-c, --context <N>` – Include N context lines around each range, or use `all` to expand to the entire heading block
+- `--context all` – Expand to the entire heading block that contains the first requested range
+- `--block` – Legacy alias for `--context all`
+- `--max-lines <N>` – Optional hard cap when using `--context all` (prevents oversized spans)
 - `-f, --format <FORMAT>` – Output format: `text` (default), `json`, `jsonl`, or `raw`
 - `--json`, `--jsonl` – Convenience shorthands for their respective formats
 - `--copy` – Copy results to the clipboard via OSC 52 (useful in interactive shells)
@@ -272,7 +273,7 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 - Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
 
-> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges the distinct spans, removes duplicates, and keeps line numbers sorted. Combining this with `--block` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
+> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges the distinct spans, removes duplicates, and keeps line numbers sorted. Combining this with `--context all` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
 
 **Examples:**
 
@@ -284,7 +285,7 @@ blz get bun:41994-42009
 blz get bun --lines "41994-42009,42010-42020" --json
 
 # Heading-aware retrieval (grabs the whole section, capped at 80 lines)
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # Include 3 lines of context around the range (text output)
 blz get bun:25760-25780 -c3

@@ -175,10 +175,12 @@ pub async fn get_by_anchor(
 
     match output {
         OutputFormat::Text => {
+            // Convert context to ContextMode
+            let context_mode = context.map(crate::cli::ContextMode::Lines);
             crate::commands::get::execute(
                 alias,
                 &entry.lines,
-                context,
+                context_mode.as_ref(),
                 false,
                 None,
                 OutputFormat::Text,

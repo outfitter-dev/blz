@@ -60,7 +60,7 @@ blz get bun:41994-42009
 blz get bun --lines "41994-42009,42010-42020" --json
 
 # Heading-aware retrieval (entire section, capped at 80 lines)
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 
 # Add context lines without blocks
 blz get bun:25760-25780 -c3
