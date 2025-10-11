@@ -189,6 +189,8 @@ blz search <QUERY> [OPTIONS]
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
+- `--max-chars <CHARS>` - Limit snippet length (default 200; clamps between 50 and 1000).
+  - Environment: `BLZ_MAX_CHARS` adjusts the default for implicit searches.
 - `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
 - `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl` to avoid passing `--format` each time (alias `ndjson` still accepted)
