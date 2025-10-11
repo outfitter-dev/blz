@@ -37,6 +37,7 @@
   ],
   "agent_tips": [
     "Set `BLZ_OUTPUT_FORMAT=json` to avoid sprinkling `--format json` across every call.",
+    "Default to one-shot search via `blz search \"<query>\" --context all --json`; fall back to manual span stitching only when payload limits demand it.",
     "Treat aliases as canonical ids (directory names and resolver lookups rely on them).",
     "Surface `checksum` fields in tool outputs so downstream steps can verify span freshness.",
     "Keep spans short (2-5 snippets) and derive broader context by chaining `get` calls instead of dumping whole documents."
