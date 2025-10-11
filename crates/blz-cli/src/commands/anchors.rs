@@ -5,8 +5,13 @@ use colored::Colorize;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
-#[allow(dead_code, clippy::unused_async)]
-pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Result<()> {
+#[allow(dead_code, clippy::unused_async, clippy::too_many_lines)]
+pub async fn execute(
+    alias: &str,
+    output: OutputFormat,
+    mappings: bool,
+    limit: Option<usize>,
+) -> Result<()> {
     let storage = Storage::new()?;
     // Resolve metadata alias to canonical if needed
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
@@ -59,6 +64,12 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
     let mut entries = Vec::new();
     collect_entries(&mut entries, &llms.toc);
+
+    // Apply limit to entries
+    if let Some(limit_count) = limit {
+        entries.truncate(limit_count);
+    }
+
     // Replace placeholder with actual alias/source for each entry in JSON/JSONL output
     for e in &mut entries {
         if let Some(obj) = e.as_object_mut() {
@@ -95,8 +106,16 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         },
         OutputFormat::Text => {
             println!("Anchors for {}\n", canonical.green());
+            let mut count = 0;
             for e in &llms.toc {
-                print_text(e, 0);
+                if let Some(limit_count) = limit {
+                    if count >= limit_count {
+                        break;
+                    }
+                    count += print_text_with_limit(e, 0, limit_count - count);
+                } else {
+                    print_text(e, 0);
+                }
             }
         },
         OutputFormat::Raw => {
@@ -104,6 +123,33 @@ pub async fn execute(alias: &str, output: OutputFormat, mappings: bool) -> Resul
         },
     }
     Ok(())
+}
+
+#[allow(dead_code)]
+fn print_text_with_limit(e: &blz_core::TocEntry, depth: usize, remaining: usize) -> usize {
+    if remaining == 0 {
+        return 0;
+    }
+
+    let indent = "  ".repeat(depth);
+    let name = e.heading_path.last().cloned().unwrap_or_default();
+    let anchor = e.anchor.clone().unwrap_or_default();
+    println!(
+        "{}- {}  {}  {}",
+        indent,
+        name,
+        e.lines,
+        anchor.bright_black()
+    );
+
+    let mut printed = 1;
+    for c in &e.children {
+        if printed >= remaining {
+            break;
+        }
+        printed += print_text_with_limit(c, depth + 1, remaining - printed);
+    }
+    printed
 }
 
 #[allow(dead_code, clippy::items_after_statements)]
