@@ -413,6 +413,9 @@ pub enum Commands {
         /// When using colon syntax, the --lines flag is optional
         #[arg(value_name = "ALIAS")]
         alias: String,
+        /// Explicit source alias (use when positional alias is ambiguous)
+        #[arg(long = "source", short = 's', value_name = "SOURCE")]
+        source: Option<String>,
         /// Line range(s) to retrieve
         ///
         /// Format: "120-142", "36:43,320:350", "36+20", "1,5,10-15"
