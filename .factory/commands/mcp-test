@@ -70,20 +70,24 @@ if [ -n "$SERVER_NAME" ]; then
     echo "Testing specific server: $SERVER_NAME"
     
     case "$SERVER_NAME" in
-        "linear")
+        "linear-server")
             echo "🔍 Testing Linear MCP server..."
             if [ -z "${LINEAR_API_KEY:-}" ]; then
-                echo "❌ LINEAR_API_KEY required for Linear server"
-                exit 1
+                echo "⚠️  LINEAR_API_KEY not set (may be required for authentication)"
+                echo "   Note: SSE endpoint may work without API key for some operations"
             fi
             
-            # Test npx package availability
-            echo "📦 Checking Linear MCP package availability..."
-            npx -y @modelcontextprotocol/server-linear@latest --help &>/dev/null && {
-                echo "✅ Linear MCP server package is accessible"
-            } || {
-                echo "⚠️  Could not verify Linear MCP server package"
-            }
+            # Test SSE endpoint availability
+            echo "📦 Checking Linear MCP SSE endpoint availability..."
+            if command -v curl &> /dev/null; then
+                curl -s --max-time 5 https://mcp.linear.app/sse &>/dev/null && {
+                    echo "✅ Linear MCP SSE endpoint is accessible"
+                } || {
+                    echo "⚠️  Could not verify Linear MCP SSE endpoint (may require authentication)"
+                }
+            else
+                echo "⚠️  curl not available to test SSE endpoint"
+            fi
             ;;
             
         "blz-docs")

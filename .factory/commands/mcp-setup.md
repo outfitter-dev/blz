@@ -41,11 +41,14 @@ Please help set up MCP (Model Context Protocol) servers to enhance the blz devel
 Based on the current `.mcp.json` configuration, here are the Factory commands to add the servers:
 
 ```bash
-# Add Linear MCP server
-/mcp add linear "npx -y @modelcontextprotocol/server-linear@latest" -e LINEAR_API_KEY=your_api_key_here
+# Add Linear MCP server (using remote SSE endpoint)
+/mcp add --type http linear-server https://mcp.linear.app/sse -H "Authorization: Bearer your_linear_api_key_here"
 
-# Add blz documentation MCP server (when available)
-/mcp add blz-docs "blz mcp-server" -e BLZ_MCP_SOURCES=rust,typescript,react,node,python -e BLZ_MCP_MAX_RESULTS=50
+# Verify server is added
+/mcp list
+
+# Test server functionality  
+/mcp get linear-server
 ```
 
 ## Usage Examples

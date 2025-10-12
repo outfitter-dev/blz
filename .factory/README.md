@@ -133,20 +133,9 @@ The blz project includes enhanced MCP support for Factory integration:
 ```json
 {
   "mcpServers": {
-    "linear": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-linear@latest"],
-      "env": {
-        "LINEAR_API_KEY": ""
-      }
-    },
-    "blz-docs": {
-      "command": "blz",
-      "args": ["mcp-server"],
-      "env": {
-        "BLZ_MCP_SOURCES": "rust,typescript,react,node,python",
-        "BLZ_MCP_MAX_RESULTS": "50"
-      }
+    "linear-server": {
+      "type": "sse",
+      "url": "https://mcp.linear.app/sse"
     }
   }
 }
@@ -156,8 +145,8 @@ The blz project includes enhanced MCP support for Factory integration:
 
 1. **Get Linear API Key**: Visit [Linear Settings](https://linear.app/settings/api)
 2. **Set Environment**: `export LINEAR_API_KEY="lin_api_..."`
-3. **Add to Factory**: `/mcp add linear "npx -y @modelcontextprotocol/server-linear@latest" -e LINEAR_API_KEY=your_key`
-4. **Test Setup**: `/mcp-test linear`
+3. **Add to Factory**: `/mcp add --type http linear-server https://mcp.linear.app/sse -H "Authorization: Bearer your_key"`
+4. **Test Setup**: `/mcp-test linear-server`
 
 See [MCP_SETUP.md](./MCP_SETUP.md) for detailed configuration instructions.
 
