@@ -224,6 +224,9 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
         "--previous" => return SearchFlagMatch::NoValue("--previous"),
         "--all" => return SearchFlagMatch::NoValue("--all"),
         "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
+        "--block" => return SearchFlagMatch::NoValue("--block"),
+        "--no-history" => return SearchFlagMatch::NoValue("--no-history"),
+        "--copy" => return SearchFlagMatch::NoValue("--copy"),
         "--json" => return SearchFlagMatch::FormatAlias("json"),
         "--jsonl" => return SearchFlagMatch::FormatAlias("jsonl"),
         "--text" => return SearchFlagMatch::FormatAlias("text"),
@@ -243,6 +246,28 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     if let Some(value) = arg.strip_prefix("--text=") {
         if !value.is_empty() {
             return SearchFlagMatch::FormatAlias("text");
+        }
+    }
+
+    // Handle context flags with optional values
+    for (flag, canonical) in [
+        ("--context", "--context"),
+        ("--after-context", "--after-context"),
+        ("--before-context", "--before-context"),
+        ("--max-lines", "--max-lines"),
+        ("--max-chars", "--max-chars"),
+    ] {
+        if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: Some(value.to_string()),
+            };
+        }
+        if arg == flag {
+            return SearchFlagMatch::RequiresValue {
+                flag: canonical,
+                attached: None,
+            };
         }
     }
 
@@ -272,7 +297,17 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
         }
     }
 
-    for (prefix, canonical) in [("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")] {
+    // Handle short flags with optional attached values (-C5, -A3, -B2, etc.)
+    for (prefix, canonical) in [
+        ("-C", "-C"),
+        ("-c", "-c"),
+        ("-A", "-A"),
+        ("-B", "-B"),
+        ("-s", "-s"),
+        ("-n", "-n"),
+        ("-f", "-f"),
+        ("-o", "-o"),
+    ] {
         if arg == prefix {
             return SearchFlagMatch::RequiresValue {
                 flag: canonical,
@@ -1700,6 +1735,215 @@ mod tests {
             processed, raw,
             "hidden subcommands must not trigger shorthand injection or format conversion"
         );
+    }
+
+    #[test]
+    fn preprocess_handles_context_flags() {
+        use clap::Parser;
+
+        // Test --context flag
+        let raw = to_string_vec(&["blz", "query", "--context", "all"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--context", "all"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { context, .. }) => {
+                assert!(context.is_some());
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_short_context_flags() {
+        use clap::Parser;
+
+        // Test -C flag with attached value
+        let raw = to_string_vec(&["blz", "hooks", "-C5"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "hooks", "-C", "5"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { context, .. }) => {
+                assert!(context.is_some());
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_after_context_flag() {
+        use clap::Parser;
+
+        // Test -A flag
+        let raw = to_string_vec(&["blz", "api", "-A3"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "api", "-A", "3"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { after_context, .. }) => {
+                assert_eq!(after_context, Some(3));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_before_context_flag() {
+        // Test -B flag
+        let raw = to_string_vec(&["blz", "documentation", "-B2"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "documentation", "-B", "2"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_deprecated_context_flag() {
+        // Test deprecated -c flag
+        let raw = to_string_vec(&["blz", "example", "-c5"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "-c", "5"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_block_flag() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "guide", "--block"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "guide", "--block"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { block, .. }) => {
+                assert!(block);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_max_lines_flag() {
+        let raw = to_string_vec(&["blz", "example", "--max-lines", "50"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "--max-lines", "50"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_max_chars_flag() {
+        let raw = to_string_vec(&["blz", "example", "--max-chars", "300"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "--max-chars", "300"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_no_history_flag() {
+        let raw = to_string_vec(&["blz", "query", "--no-history"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--no-history"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_copy_flag() {
+        let raw = to_string_vec(&["blz", "query", "--copy"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--copy"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_multiple_context_flags() {
+        use clap::Parser;
+
+        // Test combination with other flags
+        let raw = to_string_vec(&[
+            "blz",
+            "test",
+            "--context",
+            "all",
+            "-s",
+            "react",
+            "--limit",
+            "10",
+        ]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&[
+            "blz",
+            "search",
+            "test",
+            "--context",
+            "all",
+            "-s",
+            "react",
+            "--limit",
+            "10",
+        ]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context,
+                sources,
+                limit,
+                ..
+            }) => {
+                assert!(context.is_some());
+                assert_eq!(sources, vec!["react"]);
+                assert_eq!(limit, Some(10));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_context_with_json_flag() {
+        use clap::Parser;
+
+        // Regression test for the original bug report
+        let raw = to_string_vec(&["blz", "test runner", "--context", "all", "--json"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&[
+            "blz",
+            "search",
+            "test runner",
+            "--context",
+            "all",
+            "--format",
+            "json",
+        ]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context, format, ..
+            }) => {
+                assert!(context.is_some());
+                assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_combined_context_flags() {
+        // Test -A and -B together
+        let raw = to_string_vec(&["blz", "documentation", "-A3", "-B2"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "documentation", "-A", "3", "-B", "2"]);
+        assert_eq!(processed, expected);
     }
 
     #[test]
