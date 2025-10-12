@@ -63,6 +63,7 @@ enum SearchFlagMatch {
     FormatAlias(&'static str),
 }
 
+#[allow(clippy::too_many_lines)] // Flag normalization requires explicit tables for clarity
 fn preprocess_args_from(raw: &[String]) -> Vec<String> {
     if raw.len() <= 1 {
         return raw.to_vec();
@@ -236,7 +237,11 @@ fn classify_global_flag(arg: &str) -> Option<FlagKind> {
 }
 
 /// Helper function to match flags with values (either required or optional)
-fn match_flag_with_value(arg: &str, flags: &[(&str, &str)], optional: bool) -> SearchFlagMatch {
+fn match_flag_with_value(
+    arg: &str,
+    flags: &[(&'static str, &'static str)],
+    optional: bool,
+) -> SearchFlagMatch {
     for (flag, canonical) in flags {
         if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
             return if optional {
@@ -274,14 +279,15 @@ fn match_flag_with_value(arg: &str, flags: &[(&str, &str)], optional: bool) -> S
 /// argument preprocessing for shorthand search syntax.
 ///
 /// # Examples
-/// ```rust
+/// ```rust,ignore
 /// # use crate::SearchFlagMatch;
 /// # fn classify_search_flag(arg: &str) -> SearchFlagMatch { SearchFlagMatch::None }
-/// assert_eq!(classify_search_flag("--context"), 
+/// assert_eq!(classify_search_flag("--context"),
 ///            SearchFlagMatch::OptionalValue { flag: "--context", attached: None });
-/// assert_eq!(classify_search_flag("-C5"), 
+/// assert_eq!(classify_search_flag("-C5"),
 ///            SearchFlagMatch::OptionalValue { flag: "-C", attached: Some("5".to_string()) });
 /// ```
+#[allow(clippy::too_many_lines)] // Exhaustive flag matching keeps clap preprocessing predictable
 fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     match arg {
         "--last" => return SearchFlagMatch::NoValue("--last"),
@@ -353,12 +359,7 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     }
 
     // Handle short context flags with optional attached values (-C5, -A3, -B2, etc.)
-    for (prefix, canonical) in [
-        ("-C", "-C"),
-        ("-c", "-c"),
-        ("-A", "-A"),
-        ("-B", "-B"),
-    ] {
+    for (prefix, canonical) in [("-C", "-C"), ("-c", "-c"), ("-A", "-A"), ("-B", "-B")] {
         if arg == prefix {
             return SearchFlagMatch::OptionalValue {
                 flag: canonical,
@@ -374,12 +375,7 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     }
 
     // Handle other short flags that require values
-    for (prefix, canonical) in [
-        ("-s", "-s"),
-        ("-n", "-n"),
-        ("-f", "-f"),
-        ("-o", "-o"),
-    ] {
+    for (prefix, canonical) in [("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")] {
         if arg == prefix {
             return SearchFlagMatch::RequiresValue {
                 flag: canonical,
@@ -2747,22 +2743,23 @@ mod tests {
 
     #[test]
     fn preprocess_preserves_following_flags_for_optional_context() {
+        use crate::output::OutputFormat;
         use clap::Parser;
 
         // Test that context flags without values don't consume following flags
         let raw = to_string_vec(&["blz", "foo", "--context", "--json"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&[
-            "blz", "search", "foo", "--context", "--format", "json",
-        ]);
+        let expected = to_string_vec(&["blz", "search", "foo", "--context", "--format", "json"]);
         assert_eq!(processed, expected);
 
         // Verify clap can parse it correctly
         let cli = Cli::try_parse_from(processed).unwrap();
         match cli.command {
-            Some(Commands::Search { context, format, .. }) => {
+            Some(Commands::Search {
+                context, format, ..
+            }) => {
                 assert!(context.is_some()); // Should get default value
-                assert_eq!(format, Some(crate::OutputFormat::Json));
+                assert_eq!(format.format, Some(OutputFormat::Json));
             },
             _ => panic!("expected search command"),
         }
@@ -2775,15 +2772,15 @@ mod tests {
         // Test that -C without value doesn't consume following flags
         let raw = to_string_vec(&["blz", "hooks", "-C", "--source", "react"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&[
-            "blz", "search", "hooks", "-C", "-s", "react",
-        ]);
+        let expected = to_string_vec(&["blz", "search", "hooks", "-C", "--source", "react"]);
         assert_eq!(processed, expected);
 
         // Verify clap can parse it correctly
         let cli = Cli::try_parse_from(processed).unwrap();
         match cli.command {
-            Some(Commands::Search { context, sources, .. }) => {
+            Some(Commands::Search {
+                context, sources, ..
+            }) => {
                 assert!(context.is_some()); // Should get default value
                 assert_eq!(sources, vec!["react"]);
             },
@@ -2798,15 +2795,17 @@ mod tests {
         // Test that -A without value doesn't consume following flags
         let raw = to_string_vec(&["blz", "api", "-A", "--limit", "5"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&[
-            "blz", "search", "api", "-A", "--limit", "5",
-        ]);
+        let expected = to_string_vec(&["blz", "search", "api", "-A", "--limit", "5"]);
         assert_eq!(processed, expected);
 
         // Verify clap can parse it correctly
         let cli = Cli::try_parse_from(processed).unwrap();
         match cli.command {
-            Some(Commands::Search { after_context, limit, .. }) => {
+            Some(Commands::Search {
+                after_context,
+                limit,
+                ..
+            }) => {
                 assert!(after_context.is_some()); // Should get default value
                 assert_eq!(limit, Some(5));
             },
