@@ -257,7 +257,6 @@ For Fish users, completions can auto-regenerate when the binary updates:
 See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 **Reproducing**: Performance claims based on warm cache, hyperfine benchmarks with 100+ runs. See PERFORMANCE.md for:
-
 - Exact benchmark commands (`hyperfine --warmup 20 --min-runs 100 './target/release/blz search "test" -s bun -f json'`)
 - Test environment details (CPU, OS, cache state)
 - Representative query set and data sizes
