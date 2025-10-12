@@ -42,6 +42,13 @@ Search results for 'test runner' (6ms):
    Bun includes a fast built-in test runner...
 ```
 
+## Docs
+
+- [Documentation index](docs/README.md) – Overview of every guide, reference, and technical deep dive.
+- [Quickstart guide](docs/QUICKSTART.md) – Install BLZ and run your first searches in minutes.
+- [Agent playbook](docs/agents/README.md) – Best practices for using BLZ inside AI workflows.
+- [Architecture overview](docs/architecture/README.md) – Core components, storage layout, and performance notes.
+
 ## What's llms.txt?
 
 [`llms.txt`](https://llmstxt.org/) is a simple Markdown standard for making documentation accessible to AI agents. `llms-full.txt` is an expanded version that includes all documentation for a project.
@@ -257,6 +264,7 @@ For Fish users, completions can auto-regenerate when the binary updates:
 See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
 **Reproducing**: Performance claims based on warm cache, hyperfine benchmarks with 100+ runs. See PERFORMANCE.md for:
+
 - Exact benchmark commands (`hyperfine --warmup 20 --min-runs 100 './target/release/blz search "test" -s bun -f json'`)
 - Test environment details (CPU, OS, cache state)
 - Representative query set and data sizes
