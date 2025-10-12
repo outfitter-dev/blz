@@ -1,8 +1,19 @@
 {
   "mcpServers": {
-    "linear-server": {
-      "type": "sse",
-      "url": "https://mcp.linear.app/sse"
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-linear@latest"],
+      "env": {
+        "LINEAR_API_KEY": ""
+      }
+    },
+    "blz-docs": {
+      "command": "blz",
+      "args": ["mcp-server"],
+      "env": {
+        "BLZ_MCP_SOURCES": "rust,typescript,react,node,python",
+        "BLZ_MCP_MAX_RESULTS": "50"
+      }
     }
   }
 }

@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# MCP Server Testing and Validation Script
+# Usage: /mcp-test [server-name]
+
+echo "🔧 Testing MCP server configuration..."
+
+SERVER_NAME="${1:-}"
+
+# Check if Factory CLI has MCP support
+if ! command -v factory &> /dev/null; then
+    echo "⚠️  Factory CLI not found. Running basic validation only."
+    echo "   (Full MCP testing requires Factory CLI with MCP support)"
+    FACTORY_AVAILABLE=false
+else
+    FACTORY_AVAILABLE=true
+fi
+
+# Test MCP configuration
+echo "📋 Current MCP server configuration:"
+if [ -f ".mcp.json" ]; then
+    echo "✅ .mcp.json found"
+    jq '.' .mcp.json 2>/dev/null || {
+        echo "❌ .mcp.json is invalid JSON"
+        exit 1
+    }
+else
+    echo "❌ .mcp.json not found"
+    exit 1
+fi
+
+# Check environment variables
+echo ""
+echo "🔐 Environment variable check:"
+
+# Check for Linear API key
+if [ -n "${LINEAR_API_KEY:-}" ]; then
+    echo "✅ LINEAR_API_KEY is set"
+else
+    echo "⚠️  LINEAR_API_KEY not set (required for Linear MCP server)"
+fi
+
+# Check for Node.js/npx (required for Linear MCP server)
+if command -v npx &> /dev/null; then
+    echo "✅ npx is available"
+    NPX_VERSION=$(npx --version)
+    echo "   Version: $NPX_VERSION"
+else
+    echo "❌ npx not found (required for Linear MCP server)"
+fi
+
+# Check for blz CLI (required for blz-docs MCP server)
+if command -v blz &> /dev/null; then
+    echo "✅ blz CLI is available"
+    BLZ_VERSION=$(blz --version)
+    echo "   Version: $BLZ_VERSION"
+    
+    # Check if blz has any sources configured
+    SOURCE_COUNT=$(blz list --json 2>/dev/null | jq '. | length' || echo "0")
+    echo "   Configured sources: $SOURCE_COUNT"
+else
+    echo "⚠️  blz CLI not found (required for blz-docs MCP server)"
+fi
+
+echo ""
+echo "🧪 MCP Server-specific tests:"
+
+if [ -n "$SERVER_NAME" ]; then
+    echo "Testing specific server: $SERVER_NAME"
+    
+    case "$SERVER_NAME" in
+        "linear")
+            echo "🔍 Testing Linear MCP server..."
+            if [ -z "${LINEAR_API_KEY:-}" ]; then
+                echo "❌ LINEAR_API_KEY required for Linear server"
+                exit 1
+            fi
+            
+            # Test npx package availability
+            echo "📦 Checking Linear MCP package availability..."
+            npx -y @modelcontextprotocol/server-linear@latest --help &>/dev/null && {
+                echo "✅ Linear MCP server package is accessible"
+            } || {
+                echo "⚠️  Could not verify Linear MCP server package"
+            }
+            ;;
+            
+        "blz-docs")
+            echo "🔍 Testing blz-docs MCP server..."
+            if ! command -v blz &> /dev/null; then
+                echo "❌ blz CLI required for blz-docs server"
+                exit 1
+            fi
+            
+            # Check if blz mcp-server command exists (placeholder)
+            echo "📚 Note: blz mcp-server command not yet implemented"
+            echo "   This is planned functionality for future releases"
+            ;;
+            
+        *)
+            echo "⚠️  Unknown server: $SERVER_NAME"
+            echo "   Available servers: linear, blz-docs"
+            ;;
+    esac
+else
+    echo "Testing all configured servers..."
+    
+    # Test Linear server requirements
+    echo "📍 Linear MCP server requirements:"
+    if [ -n "${LINEAR_API_KEY:-}" ] && command -v npx &> /dev/null; then
+        echo "   ✅ Ready for Linear MCP server"
+    else
+        echo "   ⚠️  Missing requirements for Linear MCP server"
+    fi
+    
+    # Test blz-docs server requirements  
+    echo "📍 blz-docs MCP server requirements:"
+    if command -v blz &> /dev/null; then
+        echo "   ✅ blz CLI available"
+        echo "   📚 Note: mcp-server command not yet implemented"
+    else
+        echo "   ⚠️  Missing blz CLI for blz-docs MCP server"
+    fi
+fi
+
+echo ""
+echo "📊 Summary:"
+echo "- Configuration file: $([ -f ".mcp.json" ] && echo "✅ Valid" || echo "❌ Missing/Invalid")"
+echo "- Linear requirements: $([ -n "${LINEAR_API_KEY:-}" ] && command -v npx &> /dev/null && echo "✅ Met" || echo "⚠️  Incomplete")"
+echo "- blz requirements: $(command -v blz &> /dev/null && echo "✅ Met" || echo "⚠️  Missing")"
+
+echo ""
+echo "🚀 MCP server testing completed!"
+
+if [ -f ".mcp.json" ] && [ -n "${LINEAR_API_KEY:-}" ] && command -v npx &> /dev/null; then
+    echo "🎯 Ready to use Linear MCP server in Factory!"
+else
+    echo "⚡ Some setup steps may be needed before full MCP functionality is available."
+fi
