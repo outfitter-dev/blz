@@ -10,6 +10,7 @@ set -euo pipefail
 # - SHA_ARM64: sha256 for blz-${VERSION}-darwin-arm64.tar.gz
 # - SHA_X64: sha256 for blz-${VERSION}-darwin-x64.tar.gz
 # - SHA_LINUX: sha256 for blz-${VERSION}-linux-x64.tar.gz
+# - SHA_LINUX_ARM64: sha256 for blz-${VERSION}-linux-arm64.tar.gz (optional)
 
 TAP_DIR=${TAP_DIR:-homebrew-tap}
 REPO=${REPO:?REPO is required (e.g., outfitter-dev/blz)}
@@ -40,6 +41,45 @@ FORMULA_PATH="$TAP_DIR/Formula/blz.rb"
 TMP_FORMULA="$(mktemp)"
 trap 'rm -f "$TMP_FORMULA"' EXIT
 
+linux_block=""
+linux_guard=""
+if [[ -n "${SHA_LINUX_ARM64:-}" ]]; then
+  if [[ ! "$SHA_LINUX_ARM64" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "Invalid SHA_LINUX_ARM64: must be 64 hex characters" >&2
+    exit 1
+  fi
+  read -r -d '' linux_block <<EOF || true
+on_linux do
+  on_arm do
+    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-arm64.tar.gz"
+    sha256 "${SHA_LINUX_ARM64}"
+  end
+  on_intel do
+    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    sha256 "${SHA_LINUX}"
+  end
+end
+EOF
+else
+  read -r -d '' linux_block <<EOF || true
+on_linux do
+  on_arm do
+    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    sha256 "${SHA_LINUX}"
+  end
+  on_intel do
+    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    sha256 "${SHA_LINUX}"
+  end
+end
+EOF
+  read -r -d '' linux_guard <<'EOF' || true
+if OS.linux? && Hardware::CPU.arm?
+  odie "The blz Linux arm64 binary is not available yet. Please use the x86_64 build."
+end
+EOF
+fi
+
 cat > "$TMP_FORMULA" <<EOF
 class Blz < Formula
   desc "Fast local search for llms.txt"
@@ -63,14 +103,14 @@ class Blz < Formula
     end
   end
 
-  on_linux do
-    on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
-      sha256 "${SHA_LINUX}"
-    end
-  end
+$(if [[ -n "$linux_block" ]]; then
+  printf '%s\n' "$linux_block" | sed 's/^/  /'
+fi)
 
   def install
+$(if [[ -n "$linux_guard" ]]; then
+  printf '%s\n' "$linux_guard" | sed 's/^/    /'
+fi)
     bin.install "blz"
   end
 
