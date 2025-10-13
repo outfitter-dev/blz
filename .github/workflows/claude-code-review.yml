@@ -24,7 +24,7 @@ jobs:
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
   claude-review:
     # Run on PR events (open, ready_for_review, review_requested) OR when someone comments "@claude review"
-    # Manual triggers only allowed for user 'galligan' or code owners (users with write permission)
+    # Manual triggers only allowed for user 'galligan', approved bots, or repository owners/collaborators (users with write permission)
     needs: optimize_ci
     if: |
       needs.optimize_ci.outputs.skip == 'false' &&
@@ -33,8 +33,9 @@ jobs:
        github.event.issue.pull_request &&
        github.event.comment &&
        contains(github.event.comment.body, '@claude review') &&
-       (github.event.comment.user.login == 'galligan' || 
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))))
+       (github.event.comment.user.login == 'galligan' ||
+        contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login) ||
+        contains(fromJSON('["OWNER", "COLLABORATOR"]'), github.event.comment.author_association))))
     runs-on: ubuntu-latest
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
@@ -122,7 +123,8 @@ jobs:
 # - "@claude review latest" or "@claude review recent": Incremental review of newest changes only
 #
 # Allowed comment sources:
-# - All human users
+# - @galligan (manual override)
+# - Repository owners/collaborators (users with write access)
 # - Specific bots: @copilot[bot], @devin[bot], @coderabbitai[bot]
 #
 # It will NOT run on:

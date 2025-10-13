@@ -4,6 +4,10 @@
 
 - Added MCP `linear` server configuration to `.codex/config.toml` pointing at `https://mcp.linear.app/sse` via `npx mcp-remote`.
 
+## 2025-10-13
+
+- Updated `.github/workflows/claude-code-review.yml` to allow manual triggers from approved bots while keeping access scoped to @galligan and repository owners/collaborators; refreshed inline docs and ran `yamlfmt` after installing the tool with `go install`.
+
 ## 2025-10-07
 
 - Added `blz-dev` secondary binary with isolated profile routing to keep config/data under `blz-dev` directories while sharing core CLI logic.
