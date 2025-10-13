@@ -166,8 +166,51 @@ fn format_bytes(bytes: u64) -> String {
 }
 
 #[cfg(test)]
+#[allow(unsafe_code)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use crate::output::OutputFormat;
+    use crate::utils::test_support;
+
+    struct EnvGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvGuard {
+        fn new(key: &'static str) -> Self {
+            Self {
+                key,
+                original: std::env::var_os(key),
+            }
+        }
+
+        fn set<S: AsRef<std::ffi::OsStr>>(&self, value: S) {
+            // SAFETY: Environment mutations are synchronised via env_mutex() to avoid
+            // concurrent access across tests.
+            unsafe {
+                std::env::set_var(self.key, value);
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: Protected by env_mutex(); see set().
+            unsafe {
+                if let Some(value) = self.original.clone() {
+                    std::env::set_var(self.key, value);
+                } else {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_format_number() {
@@ -187,5 +230,57 @@ mod tests {
         assert_eq!(format_bytes(1536), "1.5 KB");
         assert_eq!(format_bytes(1_048_576), "1.0 MB");
         assert_eq!(format_bytes(1_258_291), "1.2 MB");
+    }
+
+    #[tokio::test]
+    async fn test_execute_info_returns_context_for_invalid_metadata() {
+        let temp = TempDir::new().expect("create temp dir");
+        let data_dir = temp.path().join("data");
+        let config_dir = temp.path().join("config");
+        fs::create_dir_all(&data_dir).expect("create data dir");
+        fs::create_dir_all(&config_dir).expect("create config dir");
+
+        let data_dir_str = data_dir.to_string_lossy().to_string();
+        let config_dir_str = config_dir.to_string_lossy().to_string();
+        let env_lock = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+        let data_guard = EnvGuard::new("BLZ_DATA_DIR");
+        data_guard.set(&data_dir_str);
+        let config_guard = EnvGuard::new("BLZ_GLOBAL_CONFIG_DIR");
+        config_guard.set(&config_dir_str);
+        drop(env_lock);
+
+        let storage = Storage::new().expect("initialize storage");
+        storage
+            .ensure_tool_dir("demo")
+            .expect("create alias directory");
+        let llms_path = storage
+            .llms_json_path("demo")
+            .expect("resolve llms.json path");
+        fs::write(&llms_path, "{ invalid json").expect("write malformed llms.json");
+
+        let error = execute_info("demo", OutputFormat::Json)
+            .await
+            .expect_err("expected invalid metadata to error");
+        let message = error.to_string();
+
+        assert!(
+            message.contains("Failed to load metadata for 'demo'"),
+            "missing context in error: {message}"
+        );
+        let chain_messages: Vec<String> = error
+            .chain()
+            .map(std::string::ToString::to_string)
+            .collect();
+        assert!(
+            chain_messages
+                .iter()
+                .any(|m| m.contains("Failed to parse llms.json")),
+            "missing parse failure detail: {chain_messages:?}"
+        );
+
+        drop(config_guard);
+        drop(data_guard);
     }
 }
