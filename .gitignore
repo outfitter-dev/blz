@@ -68,6 +68,8 @@ coverage.json
 
 # Logs
 *.log
+test_output.txt
+test_output-*.txt
 
 # Claude
 !.claude/commands/log
@@ -91,3 +93,4 @@ coverage.json
 # npm local binaries and packs (do not commit)
 /npm/bin/blz-*
 /outfitter-blz-*.tgz
+test_parser
