@@ -158,6 +158,30 @@ blz completions zsh > ~/.zsh/completions/_blz
 blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ```
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+### Getting Started
+
+- [Quick Start](docs/QUICKSTART.md) - Installation and first steps
+- [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
+- [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
+
+### CLI Reference
+
+- [Command Reference](docs/cli/commands.md) - Complete command catalog
+- [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
+- [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
+- [Configuration](docs/cli/configuration.md) - Global, per-source, and env settings
+- [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
+
+### Technical Details
+
+- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
+- [Architecture](docs/architecture/README.md) - System design and performance
+- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
+
 ## Usage For AI Agents
 
 - **Quick primer**: `blz --prompt` in your terminal
@@ -167,20 +191,26 @@ blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ### Typical Agent Flow
 
 ```bash
-# Ensure sources exist (add non-interactively)
+# Get caught up with blz's features and capabilities
+blz --prompt
+
+# List available sources
+blz list --status --json
+
+# Add sources non-interactively
 blz add bun https://bun.sh/llms.txt -y
 
 # Search Bun docs and capture the first alias:lines citation
 span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
-# Retrieve the exact lines with a small amount of context
+# Retrieve the exact line with a 5 lines of context on either side
 blz get "$span" -C 5 --json
 
 # Need more than one range? Supply --lines with a comma-separated list
 blz get bun --lines "41994-42009,42010-42020" --json
 
 # Want the full heading section? Expand with --context all (and cap the output)
-blz get bun:41994-42009 --context all --max-lines 80 --json
+blz get bun:41994-42009 --context all --limit 10 --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -223,7 +253,7 @@ The JSON output is designed for easy parsing by agents:
 
 ### MCP Server (Coming Soon)
 
-For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get`, `update`, and `diff` (MCP protocol 2024-11-05) via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+For deeper integration, BLZ will expose an MCP server with resources, prompts, and tools for `search`, looking up a `snippet`, and finally `command` to expose the full set of capabilities.
 
 ## Shell Completions
 
@@ -298,40 +328,14 @@ cargo install --path .
 
 MIT
 
-## Documentation
-
-Comprehensive documentation is available in the [`docs/`](docs/) directory:
-
-### Getting Started
-
-- [Quick Start](docs/QUICKSTART.md) - Installation and first steps
-- [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
-- [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
-
-### CLI Reference
-
-- [Command Reference](docs/cli/commands.md) - Complete command catalog
-- [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
-- [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
-- [Configuration](docs/cli/configuration.md) - Global, per-source, and env settings
-- [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
-
-### Configuration & Storage
-
-- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
-
-### Technical Details
-
-- [Architecture](docs/architecture/README.md) - System design and performance
-- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Roadmap
 
-- [x] v0.1: Core CLI with search and retrieval (MVP)
-- [ ] v0.3+: Diff tracking and change journal
-- [ ] v0.3.x: MCP server with stdio transport
-- [ ] v0.4+: Optional vector search, fuzzy matching
+- [x] Core CLI with search and retrieval (MVP)
+- [-] Diff tracking and change journal
+- [ ] `llms.txt` registry for faster onboarding
+- [ ] MCP server
+- [ ] Optional vector search, fuzzy matching
