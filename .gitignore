@@ -94,3 +94,4 @@ test_output-*.txt
 /npm/bin/blz-*
 /outfitter-blz-*.tgz
 test_parser
+/npm/bin/test_parser
