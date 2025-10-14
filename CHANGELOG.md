@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-10-13
+
+### Fixed
+- **Search shorthand context flags**: Inline `blz "<query>"` invocations now honor context-related flags like `--context`, `-C`, `-A`, and `-B`, including attached short-flag values (e.g., `-C5`), ensuring the preprocessor no longer misparses them.
+
+### Documentation
+- **README entry points**: Added a dedicated Docs section near the top of the README to surface the bundled documentation hub, quickstart, agent playbook, and architecture overview.
+
+### Tests
+- **Info metadata failures**: New regression test covers the error path when `blz info` encounters invalid `llms.json` metadata, verifying the user-facing diagnostics remain descriptive.
+
 ## [1.1.0] - 2025-10-11
 
 ### Added
@@ -359,6 +370,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
+[1.1.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.1
 [1.1.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.0
 [1.0.0-beta.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.0-beta.1
 [0.5.0]: https://github.com/outfitter-dev/blz/releases/tag/v0.5.0
