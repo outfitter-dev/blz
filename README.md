@@ -335,7 +335,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## Roadmap
 
 - [x] Core CLI with search and retrieval (MVP)
-- [-] Diff tracking and change journal
+- [ ] Diff tracking and change journal
 - [ ] `llms.txt` registry for faster onboarding
 - [ ] MCP server
 - [ ] Optional vector search, fuzzy matching
