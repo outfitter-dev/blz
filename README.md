@@ -203,7 +203,7 @@ blz add bun https://bun.sh/llms.txt -y
 # Search Bun docs and capture the first alias:lines citation
 span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
-# Retrieve the exact line with a 5 lines of context on either side
+# Retrieve the exact line with 5 lines of context on either side
 blz get "$span" -C 5 --json
 
 # Need more than one range? Supply --lines with a comma-separated list
