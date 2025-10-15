@@ -453,7 +453,9 @@ pub enum Commands {
         copy: bool,
     },
 
-    /// Show recent search history and defaults
+    /// Show recent search history and defaults (last 20 entries by default)
+    ///
+    /// Displays the last 20 searches unless `--limit` is provided to override the count.
     History {
         /// Maximum number of entries to display
         #[arg(long, default_value_t = 20)]
