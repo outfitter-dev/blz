@@ -3,7 +3,8 @@
   "summary": "Retrieve exact line ranges or whole heading blocks from a cached source. Use colon syntax for single spans, `--lines` for multi-range pulls, and `-C all` (or `--context all`, legacy `--block`) when you need the entire section.",
   "usage": [
     { "command": "blz get <alias>:<start-end> -C 3 --format text", "description": "Primary pattern for single spans. Context expands ±3 lines." },
-    { "command": "blz get <alias> --lines \"start-end,other-start-end\" -C 2 --format json", "description": "Opinionated multi-range variant (returns JSON with combined content and lineNumbers)." },
+    { "command": "blz get <alias> --lines \"start-end,other-start-end\" -C 2 --format json", "description": "Multi-range variant. JSON returns a single requests[] entry with ranges[]." },
+    { "command": "blz get <alias1>:<start-end> <alias2>:<start-end> -C 2 --format json", "description": "Batch different sources. JSON surfaces one requests[] object per alias with snippet/lineStart/lineEnd." },
     { "command": "blz get <alias>:<start-end> -C all --max-lines 80 --format json", "description": "Heading-aware retrieval. Expands to the enclosing section and caps the payload to 80 lines." }
   ],
   "options": [
@@ -11,13 +12,14 @@
     { "flag": "-C all (or --context all)", "impact": "Return the entire heading that contains the requested lines (great for API intros, tables, or multi-step guides). Primary method for full section retrieval." },
     { "flag": "--block", "impact": "Legacy alias for -C all. Still supported but -C all is preferred." },
     { "flag": "--max-lines <N>", "impact": "Hard limit when using --context all so agents avoid oversized payloads." },
-    { "flag": "--format json", "impact": "Structured payload containing alias, content, lineNumbers, and checksum." },
+    { "flag": "--format json", "impact": "Structured payload with top-level requests[]. Each entry exposes alias, source, snippet+lineStart/lineEnd (or ranges[] for multi-range calls), checksum, and contextApplied." },
     { "flag": "--copy", "impact": "Emit OSC 52 sequence so compatible terminals copy the result." }
   ],
   "agent_playbook": [
     "Feed the `alias:lines` string from `blz search --format json` directly into `blz get <alias>:<lines> -C 3 --format text` for the primary span.",
-    "When the same alias requires multiple segments, invoke `blz get <alias> --lines \"range1,range2\" -C 2 --format json` and merge the JSON result into your tool output.",
-    "When you need a complete explanation, prefer `blz get <alias>:<lines> -C all --max-lines 80 --format json` so the heading, subheadings, and prose arrive in one payload.",
+    "When the same alias requires multiple segments, invoke `blz get <alias> --lines \"range1,range2\" -C 2 --format json` and inspect `requests[0].ranges[]` to iterate the snippets.",
+    "When you need a complete explanation, prefer `blz get <alias>:<lines> -C all --max-lines 80 --format json` so `requests[0].snippet` contains the entire section.",
+    "Cross-source comparisons? Call `blz get bun:7105-7164 turbo:2656-2729 --context 2 --format json` and consume the array at `requests[]`.",
     "Store the checksum returned by the JSON mode alongside your prompt payload to catch stale caches."
   ],
   "error_handling": [
