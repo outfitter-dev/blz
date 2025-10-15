@@ -8,18 +8,14 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-fn main() {
+fn main() -> io::Result<()> {
     // Tell Cargo to rerun this script if the CLI structure changes
     println!("cargo:rerun-if-changed=src/main.rs");
     if let Err(err) = watch_command_help_files() {
         println!("cargo:warning=Failed to watch command help files: {err}");
     }
 
-    if let Err(err) = prepare_bundled_docs() {
-        println!(
-            "cargo:warning=Failed to stage bundled docs for embedding: {err}. Ensure docs/llms/blz/llms-full.txt or crates/blz-cli/bundled-docs/llms-full.txt exists."
-        );
-    }
+    prepare_bundled_docs()?;
 
     // Set up post-install hook notification
     if let Ok(profile) = env::var("PROFILE") {
@@ -35,6 +31,8 @@ fn main() {
         let version = env!("CARGO_PKG_VERSION");
         fs::write(Path::new(&out_dir).join("version.txt"), version).ok();
     }
+
+    Ok(())
 }
 
 fn watch_command_help_files() -> std::io::Result<()> {
@@ -78,6 +76,8 @@ fn prepare_bundled_docs() -> io::Result<()> {
 
     let source = if workspace_doc.exists() {
         println!("cargo:rerun-if-changed={}", workspace_doc.display());
+        // Also watch the fallback so changes are noticed during development
+        println!("cargo:rerun-if-changed={}", fallback_doc.display());
 
         if fallback_doc.exists() {
             if fs::read(&workspace_doc)? != fs::read(&fallback_doc)? {
