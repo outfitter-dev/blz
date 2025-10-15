@@ -46,9 +46,20 @@ async fn get_block_returns_heading_section_with_optional_truncation() -> anyhow:
         .clone();
 
     let json: Value = serde_json::from_slice(&output)?;
-    assert_eq!(json["lines"].as_str().unwrap(), "3-7");
-    assert_eq!(json["lineNumbers"].as_array().unwrap().len(), 4);
-    assert!(json["content"].as_str().unwrap().contains("line 4"));
+    let requests = json["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert_eq!(request["lineStart"].as_u64().unwrap(), 3);
+    assert_eq!(request["lineEnd"].as_u64().unwrap(), 7);
+    let snippet = request["snippet"].as_str().unwrap();
+    assert!(
+        snippet.contains("line 4"),
+        "Block snippet should include surrounding lines"
+    );
+    assert!(
+        request.get("truncated").is_none(),
+        "Non-truncated block should omit truncated flag"
+    );
 
     // Truncated block should respect max-lines and flag truncation
     let truncated = blz_cmd()
@@ -69,15 +80,21 @@ async fn get_block_returns_heading_section_with_optional_truncation() -> anyhow:
         .clone();
 
     let truncated_json: Value = serde_json::from_slice(&truncated)?;
-    assert_eq!(truncated_json["lines"].as_str().unwrap(), "3-5");
-    assert_eq!(truncated_json["lineNumbers"].as_array().unwrap().len(), 2);
+    let truncated_requests = truncated_json["requests"]
+        .as_array()
+        .expect("requests array");
+    assert_eq!(truncated_requests.len(), 1);
+    let truncated_request = &truncated_requests[0];
+    assert_eq!(truncated_request["lineStart"].as_u64().unwrap(), 3);
+    assert_eq!(truncated_request["lineEnd"].as_u64().unwrap(), 5);
     assert!(
-        truncated_json["content"]
+        truncated_request["snippet"]
             .as_str()
             .unwrap()
-            .contains("line 2 target")
+            .contains("line 2 target"),
+        "Snippet should still include target line"
     );
-    assert_eq!(truncated_json["truncated"].as_bool(), Some(true));
+    assert_eq!(truncated_request["truncated"].as_bool(), Some(true));
 
     Ok(())
 }
