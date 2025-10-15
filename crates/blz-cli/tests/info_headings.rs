@@ -47,12 +47,25 @@ async fn info_json_includes_headings_count() -> anyhow::Result<()> {
     let info: Value = serde_json::from_slice(&out)?;
 
     // Verify headings field is present and not null
-    assert!(info.get("headings").is_some(), "headings field should be present");
-    assert!(!info.get("headings").unwrap().is_null(), "headings field should not be null");
-    
+    assert!(
+        info.get("headings").is_some(),
+        "headings field should be present"
+    );
+    assert!(
+        !info.get("headings").unwrap().is_null(),
+        "headings field should not be null"
+    );
+
     // Verify it's a number (should be 4 headings: Title, Section A, Subsection A1, Section B)
-    let headings_count = info.get("headings").unwrap().as_u64().expect("headings should be a number");
-    assert_eq!(headings_count, 4, "should count 4 headings in the test document");
+    let headings_count = info
+        .get("headings")
+        .unwrap()
+        .as_u64()
+        .expect("headings should be a number");
+    assert_eq!(
+        headings_count, 4,
+        "should count 4 headings in the test document"
+    );
 
     // Also verify other essential fields are present
     for key in ["alias", "url", "lines", "headings"] {
@@ -99,7 +112,11 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
         .stdout
         .clone();
     let info: Value = serde_json::from_slice(&info_out)?;
-    let info_headings = info.get("headings").unwrap().as_u64().expect("info headings should be a number");
+    let info_headings = info
+        .get("headings")
+        .unwrap()
+        .as_u64()
+        .expect("info headings should be a number");
 
     // Get list headings count
     let mut cmd = blz_cmd();
@@ -114,10 +131,17 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
     let list: Value = serde_json::from_slice(&list_out)?;
     let list_arr = list.as_array().expect("list should be an array");
     let first_source = &list_arr[0];
-    let list_headings = first_source.get("headings").unwrap().as_u64().expect("list headings should be a number");
+    let list_headings = first_source
+        .get("headings")
+        .unwrap()
+        .as_u64()
+        .expect("list headings should be a number");
 
     // They should match
-    assert_eq!(info_headings, list_headings, "info and list commands should return the same headings count");
+    assert_eq!(
+        info_headings, list_headings,
+        "info and list commands should return the same headings count"
+    );
 
     Ok(())
 }
