@@ -5,6 +5,8 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 
+pub mod json_contract;
+
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::toc::{
