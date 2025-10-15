@@ -181,7 +181,7 @@ pub async fn execute(
             return Err(anyhow!("--anchors can only be used with a single source"));
         }
         let canonical = crate::utils::resolver::resolve_source(&storage, &source_list[0])?
-            .map_or_else(|| source_list[0].clone(), |c| c);
+            .unwrap_or_else(|| source_list[0].clone());
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
             println!("No heading remap metadata found for '{canonical}'");
@@ -231,7 +231,7 @@ pub async fn execute(
 
     for source_alias in &source_list {
         let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-            .map_or_else(|| source_alias.clone(), |c| c);
+            .unwrap_or_else(|| source_alias.clone());
 
         let llms: LlmsJson = storage
             .load_llms_json(&canonical)
@@ -356,7 +356,7 @@ pub async fn execute(
                     println!("Table of contents (showing {} sources)", source_list.len());
                 } else if let Some(first) = source_list.first() {
                     let canonical = crate::utils::resolver::resolve_source(&storage, first)?
-                        .map_or_else(|| first.clone(), |c| c);
+                        .unwrap_or_else(|| first.clone());
                     println!("Table of contents for {}\n", canonical.green());
                 }
 
@@ -397,7 +397,7 @@ pub async fn execute(
                 // Use original tree/hierarchical rendering for non-paginated or tree mode
                 for source_alias in &source_list {
                     let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-                        .map_or_else(|| source_alias.clone(), |c| c);
+                        .unwrap_or_else(|| source_alias.clone());
 
                     let llms: LlmsJson = storage
                         .load_llms_json(&canonical)
@@ -924,7 +924,7 @@ pub async fn get_by_anchor(
 ) -> Result<()> {
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
-        .map_or_else(|| alias.to_string(), |c| c);
+        .unwrap_or_else(|| alias.to_string());
     // Load JSON metadata (Phase 3: always llms.txt)
     let llms: LlmsJson = storage
         .load_llms_json(&canonical)

@@ -9,6 +9,15 @@ use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+fn toc_entries(value: &Value) -> Vec<Value> {
+    value
+        .get("entries")
+        .and_then(Value::as_array)
+        .or_else(|| value.as_array())
+        .cloned()
+        .unwrap_or_default()
+}
+
 #[tokio::test]
 async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
     let tmp = tempdir()?;
@@ -48,7 +57,7 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
         .stdout
         .clone();
     let entries: Value = serde_json::from_slice(&anchors_out)?;
-    let arr = entries.as_array().cloned().unwrap_or_default();
+    let arr = toc_entries(&entries);
     assert!(!arr.is_empty(), "expected toc list");
     // Find anchor for heading A
     let anchor = arr
@@ -130,7 +139,7 @@ async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
         .stdout
         .clone();
     let entries: Value = serde_json::from_slice(&toc_json)?;
-    let arr = entries.as_array().cloned().unwrap_or_default();
+    let arr = toc_entries(&entries);
     assert_eq!(arr.len(), 1, "expected only top-level heading with limit 1");
     assert!(
         arr.iter()
@@ -169,7 +178,7 @@ async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
         .stdout
         .clone();
     let filtered: Value = serde_json::from_slice(&filter_json)?;
-    let filtered_arr = filtered.as_array().cloned().unwrap_or_default();
+    let filtered_arr = toc_entries(&filtered);
     assert_eq!(
         filtered_arr.len(),
         1,
@@ -187,7 +196,7 @@ async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let filter_text = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["toc", "e2e", "--filter", "-B"])
+        .args(["toc", "e2e", "--filter", "NOT B"])
         .assert()
         .success()
         .get_output()

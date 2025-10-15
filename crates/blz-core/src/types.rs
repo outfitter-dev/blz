@@ -436,7 +436,7 @@ pub struct TocEntry {
     ///
     /// Each child entry represents a subsection with its own potential
     /// children, forming a tree structure that matches the document hierarchy.
-    pub children: Vec<TocEntry>,
+    pub children: Vec<Self>,
 }
 
 /// Information about a file in the cache.
