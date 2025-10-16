@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` (or `ranges[]` for multi-range calls) and execution metadata, enabling multi-source retrieval in a single command. See `docs/releases/blz-get-json-migration.md` for downstream coordination details.
+
 ## [1.1.1] - 2025-10-13
 
 ### Fixed
