@@ -161,6 +161,27 @@ impl ServerHandler for McpServer {
             "required": ["alias"]
         });
 
+        let run_command_schema = json!({
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "enum": ["list", "stats", "history", "validate", "inspect", "schema"],
+                    "description": "Diagnostic command to execute"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Optional source for commands that operate on a specific source"
+                }
+            },
+            "required": ["command"]
+        });
+
+        let learn_blz_schema = json!({
+            "type": "object",
+            "properties": {}
+        });
+
         let find_schema_obj = find_schema
             .as_object()
             .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
@@ -172,6 +193,16 @@ impl ServerHandler for McpServer {
             .clone();
 
         let source_add_schema_obj = source_add_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let run_command_schema_obj = run_command_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let learn_blz_schema_obj = learn_blz_schema
             .as_object()
             .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
             .clone();
@@ -188,6 +219,16 @@ impl ServerHandler for McpServer {
                 Arc::new(list_sources_schema_obj),
             ),
             Tool::new("source-add", "Add docs", Arc::new(source_add_schema_obj)),
+            Tool::new(
+                "run-command",
+                "Run safe diagnostic commands",
+                Arc::new(run_command_schema_obj),
+            ),
+            Tool::new(
+                "learn-blz",
+                "Learn BLZ usage",
+                Arc::new(learn_blz_schema_obj),
+            ),
         ];
 
         Ok(ListToolsResult {
@@ -323,6 +364,102 @@ impl ServerHandler for McpServer {
                         };
                         ErrorData::new(error_code, e.to_string(), None)
                     })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "run-command" => {
+                let params: tools::RunCommandParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid run-command parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_run_command(params, &self.storage)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("run-command tool error: {}", e);
+                        let error_code = match e {
+                            crate::error::McpError::UnsupportedCommand(_) => {
+                                ErrorCode::INVALID_PARAMS
+                            },
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "learn-blz" => {
+                let params: tools::LearnBlzParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid learn-blz parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_learn_blz(params).await.map_err(|e| {
+                    tracing::error!("learn-blz tool error: {}", e);
+                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                })?;
 
                 let result_json = serde_json::to_value(&output).map_err(|e| {
                     ErrorData::new(

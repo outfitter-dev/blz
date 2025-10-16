@@ -18,6 +18,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = "2"
 chrono = { workspace = true }
+directories = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
