@@ -1,1 +1,78 @@
-{}
+{
+  "description": "BLZ is a local-first search cache for llms.txt documentation. It provides millisecond-latency search with exact line citations.",
+  "core_concepts": {
+    "sources": "Documentation sources are cached locally and indexed for fast search",
+    "search": "Full-text search using BM25 ranking returns relevant snippets with line numbers",
+    "retrieval": "Use citations (e.g., 'bun:100-200') to retrieve exact content spans",
+    "context_modes": {
+      "none": "Return only the requested line range",
+      "symmetric": "Add N lines of padding before and after the range",
+      "all": "Return the entire containing section or document"
+    }
+  },
+  "common_workflows": [
+    {
+      "name": "Search and retrieve",
+      "steps": [
+        "Use find tool with query to search documentation",
+        "Review search results to identify relevant citations",
+        "Use find tool with snippets parameter to retrieve full content"
+      ]
+    },
+    {
+      "name": "Add new source",
+      "steps": [
+        "Use list-sources to check if source is in registry",
+        "Use source-add with alias to install from registry",
+        "Or use source-add with alias and url for custom sources"
+      ]
+    }
+  ],
+  "best_practices": [
+    "Always specify a source filter when searching for best performance",
+    "Use context_mode='symmetric' with line_padding=5 for code examples",
+    "Use context_mode='all' to retrieve entire documentation sections",
+    "Check list-sources before adding to avoid duplicates",
+    "Citations format: 'source:start-end' or 'source:range1,range2' for multiple ranges"
+  ],
+  "examples": [
+    {
+      "description": "Search for async patterns in Bun docs",
+      "tool": "find",
+      "params": {
+        "query": "async await",
+        "source": "bun",
+        "maxResults": 5
+      }
+    },
+    {
+      "description": "Retrieve code example with context",
+      "tool": "find",
+      "params": {
+        "snippets": ["bun:1234-1250"],
+        "contextMode": "symmetric",
+        "linePadding": 5
+      }
+    },
+    {
+      "description": "List all installed sources",
+      "tool": "list-sources",
+      "params": {
+        "kind": "installed"
+      }
+    },
+    {
+      "description": "Add React documentation",
+      "tool": "source-add",
+      "params": {
+        "alias": "react"
+      }
+    }
+  ],
+  "cli_equivalents": {
+    "find_search": "blz search 'query' --source bun --json",
+    "find_retrieve": "blz get bun:100-200 -C 5 --json",
+    "list_sources": "blz list --json",
+    "source_add": "blz add react https://react.dev/llms.txt"
+  }
+}
