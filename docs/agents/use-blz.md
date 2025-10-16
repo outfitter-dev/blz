@@ -81,6 +81,7 @@ blz get bun:41994-42009 -C 5 --json
 
 # Combine multiple spans into one payload
 blz get bun --lines "41994-42009,42010-42020" --json
+#   └─ In JSON mode this returns `requests[0].ranges[]`; aggregate snippets manually
 
 # Expand to the whole section (and cap the output to 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json
@@ -103,7 +104,11 @@ blz update --all --json      # Refresh everything
 span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
 # Fetch the content straight into your pipeline
-blz get "$span" --json | jq '.content'
+blz get "$span" --json | jq -r '.requests[0].snippet'
+
+# Multi-range helper: join snippets when `ranges[]` is present
+blz get bun --lines "41994-42009,42010-42020" --json \
+  | jq -r '.requests[0] | .snippet // ((.ranges // []) | map(.snippet) | join("\n\n"))'
 
 # Filter to high-confidence matches
 blz "test reporters" --json | jq '[.results[] | select(.score >= 60)]'
