@@ -696,7 +696,7 @@ async fn execute_command(
             copy,
         }) => {
             if targets.is_empty() {
-                anyhow::bail!("At least one alias is required.");
+                anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
             }
 
             if lines.is_some() && targets.len() > 1 {
@@ -714,14 +714,21 @@ async fn execute_command(
                 }
 
                 if let Some((alias_part, range_part)) = trimmed.split_once(':') {
+                    let trimmed_alias = alias_part.trim();
+                    if trimmed_alias.is_empty() {
+                        anyhow::bail!(
+                            "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
+                            idx + 1
+                        );
+                    }
                     if range_part.is_empty() {
                         anyhow::bail!(
-                            "Alias '{alias_part}' is missing a range. \
-                             Use syntax like '{alias_part}:120-142'."
+                            "Alias '{trimmed_alias}' is missing a range. \
+                             Use syntax like '{trimmed_alias}:120-142'."
                         );
                     }
                     request_specs.push(RequestSpec {
-                        alias: alias_part.trim().to_string(),
+                        alias: trimmed_alias.to_string(),
                         line_expression: range_part.trim().to_string(),
                     });
                 } else {

@@ -5,10 +5,14 @@ use blz_core::Storage;
 use colored::Colorize;
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 pub mod json_contract;
-use self::json_contract::{ExecutionMetadata, GetResponse, SnippetRange, SnippetRequest};
+use self::json_contract::{
+    ExecutionMetadata, GetResponse, SingleSnippet, SnippetPayload, SnippetRange, SnippetRanges,
+    SnippetRequest,
+};
 
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
@@ -256,6 +260,24 @@ struct ProcessedRequest {
     truncated: bool,
 }
 
+#[allow(clippy::missing_const_for_fn)]
+fn should_skip_line(
+    line_num: usize,
+    heading: Option<&(usize, String)>,
+    file_len: usize,
+    block_mode: bool,
+) -> bool {
+    if block_mode {
+        if let Some((heading_line, _)) = heading {
+            if line_num == *heading_line {
+                return true;
+            }
+        }
+    }
+
+    line_num == 0 || line_num > file_len
+}
+
 fn range_bounds(range: &LineRange, file_len: usize) -> (usize, usize) {
     let capped_len = file_len.max(1);
     match range {
@@ -277,6 +299,11 @@ fn range_bounds(range: &LineRange, file_len: usize) -> (usize, usize) {
     }
 }
 
+#[allow(clippy::missing_const_for_fn)]
+fn nz(value: usize) -> Result<NonZeroUsize> {
+    NonZeroUsize::new(value).context("line numbers must be at least 1")
+}
+
 #[allow(clippy::too_many_lines)]
 fn process_single_request(
     storage: &Storage,
@@ -286,16 +313,14 @@ fn process_single_request(
     block_mode: bool,
     max_block_lines: Option<usize>,
 ) -> Result<ProcessedRequest> {
-    let alias_trimmed = spec.alias.trim();
-    let alias = if alias_trimmed.is_empty() {
-        spec.alias.as_str()
-    } else {
-        alias_trimmed
-    };
+    let alias = spec.alias.trim();
+    if alias.is_empty() {
+        anyhow::bail!("Alias cannot be empty. Use format: alias[:ranges]");
+    }
     let alias_string = alias.to_string();
 
     let canonical = crate::utils::resolver::resolve_source(storage, alias)?
-        .map_or_else(|| alias_string.clone(), |c| c);
+        .unwrap_or_else(|| alias_string.clone());
 
     if !storage.exists(&canonical) {
         let available = storage.list_sources();
@@ -431,30 +456,27 @@ fn process_single_request(
                 .join("\n")
         };
 
-        vec![SnippetRange {
-            line_start,
-            line_end,
-            snippet,
-        }]
+        let line_start = nz(line_start)?;
+        let line_end = nz(line_end)?;
+        vec![SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)?]
     } else {
+        let safe_len = file_lines.len().max(1);
         ranges
             .iter()
             .map(|range| {
-                let (base_start, base_end) = range_bounds(range, file_lines.len());
+                let (base_start, base_end) = range_bounds(range, safe_len);
                 let context_start = base_start.saturating_sub(before_context).max(1);
-                let context_end = (base_end + after_context).min(file_lines.len());
+                let context_end = (base_end + after_context).min(safe_len);
                 let snippet = if context_start <= context_end {
-                    file_lines[context_start - 1..context_end].join("\n")
+                    file_lines[context_start - 1..context_end.min(file_lines.len())].join("\n")
                 } else {
                     String::new()
                 };
-                SnippetRange {
-                    line_start: context_start,
-                    line_end: context_end,
-                    snippet,
-                }
+                let line_start = nz(context_start)?;
+                let line_end = nz(context_end)?;
+                SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)
             })
-            .collect()
+            .collect::<Result<Vec<_>>>()?
     };
 
     let checksum = match storage.load_source_metadata(&canonical) {
@@ -538,25 +560,22 @@ pub async fn execute(
         let requests = processed
             .iter()
             .map(|result| {
-                let has_single_range = result.snippet_ranges.len() == 1;
-                let (snippet, line_start, line_end, ranges) = if has_single_range {
-                    let range = &result.snippet_ranges[0];
-                    (
-                        Some(range.snippet.clone()),
-                        Some(range.line_start),
-                        Some(range.line_end),
-                        None,
-                    )
-                } else {
-                    (None, None, None, Some(result.snippet_ranges.clone()))
+                let payload = match result.snippet_ranges.as_slice() {
+                    [] => None,
+                    [range] => Some(SnippetPayload::Single(SingleSnippet {
+                        snippet: range.snippet.clone(),
+                        line_start: range.line_start,
+                        line_end: range.line_end,
+                    })),
+                    ranges => Some(SnippetPayload::Multi(SnippetRanges {
+                        ranges: ranges.to_vec(),
+                    })),
                 };
+
                 SnippetRequest {
                     alias: result.alias.clone(),
                     source: result.canonical.clone(),
-                    snippet,
-                    line_start,
-                    line_end,
-                    ranges,
+                    payload,
                     checksum: result.checksum.clone(),
                     context_applied,
                     truncated: result.truncated.then_some(true),
@@ -589,14 +608,12 @@ pub async fn execute(
                     }
                 }
                 for (line_num, content) in &result.lines_with_content {
-                    if block_mode {
-                        if let Some((heading_line, _)) = &result.heading {
-                            if *line_num == *heading_line {
-                                continue;
-                            }
-                        }
-                    }
-                    if *line_num == 0 || *line_num > result.file_len {
+                    if should_skip_line(
+                        *line_num,
+                        result.heading.as_ref(),
+                        result.file_len,
+                        block_mode,
+                    ) {
                         continue;
                     }
                     println!("{:>5} | {}", line_num.to_string().blue(), content);
@@ -614,14 +631,12 @@ pub async fn execute(
                     }
                 }
                 for (line_num, content) in &result.lines_with_content {
-                    if block_mode {
-                        if let Some((heading_line, _)) = &result.heading {
-                            if *line_num == *heading_line {
-                                continue;
-                            }
-                        }
-                    }
-                    if *line_num == 0 || *line_num > result.file_len {
+                    if should_skip_line(
+                        *line_num,
+                        result.heading.as_ref(),
+                        result.file_len,
+                        block_mode,
+                    ) {
                         continue;
                     }
                     println!("{content}");
