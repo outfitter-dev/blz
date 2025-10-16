@@ -38,8 +38,11 @@ Get Exact Lines
 
 JSON output shape (get)
 - Top-level: { requests[], executionTimeMs?, totalSources? }
-- Each entry in requests[]: { alias, source, snippet?, lineStart?, lineEnd?, ranges?[], checksum?, contextApplied?, truncated? }
+- Each entry in requests[]:
+  - Single range ⇒ `snippet`, `lineStart`, `lineEnd`, plus optional metadata (`checksum`, `contextApplied`, `truncated`).
+  - Multi-range ⇒ `snippet`/`lineStart`/`lineEnd` omitted; inspect `ranges[]`, where every span carries its own `lineStart`, `lineEnd`, and `snippet`.
 - Each ranges[] item: { lineStart, lineEnd, snippet }
+- Clipboard helpers: use `.snippet` when present; otherwise aggregate `ranges[].snippet` (e.g. `jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd)\n\(.snippet)'"`).
 
 Agent Flow (recommended)
 1) Ensure source exists (blz list --format json); if missing, blz add <alias> <url> -y

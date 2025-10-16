@@ -306,7 +306,7 @@ The context flags follow grep/ripgrep conventions and can be combined:
 - Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
 
-> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges the distinct spans, removes duplicates, and keeps line numbers sorted. Combining this with `--context all` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
+> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges distinct spans, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry contains its own `lineStart`, `lineEnd`, and `snippet`. Combining multirange with `--context all` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
 
 **Examples:**
 
@@ -333,7 +333,63 @@ blz get bun:25760-25780 -B3
 blz get bun:25760-25780 -B5 -A3
 
 # Pipe structured output to jq
-blz get bun:41994-42009 --json | jq '.content'
+blz get bun:41994-42009 --json | jq -r '.requests[0].snippet'
+
+# Iterate ranges for a multi-span request
+blz get bun --lines "41994-42009,42010-42020" --json \
+  | jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd):\n\(.snippet)"'
+
+# Inspect each source when querying multiple aliases
+blz get bun:7105-7164 turbo:2656-2729 --context 2 --json \
+  | jq -r '.requests[] | "\(.alias):\n" + (.snippet // (.ranges | map(.snippet) | join("\n\n")))'
+
+**Example response (single range; produced with `-C3`):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "snippet": "# Cache Storage\n...",
+      "lineStart": 41994,
+      "lineEnd": 42009,
+      "checksum": "checksum123",
+      "contextApplied": 3
+    }
+  ],
+  "executionTimeMs": 12,
+  "totalSources": 1
+}
+```
+
+**Example response (multi-range; two spans, no extra context):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "ranges": [
+        {
+          "lineStart": 41994,
+          "lineEnd": 42009,
+          "snippet": "# Cache Storage\n..."
+        },
+        {
+          "lineStart": 42010,
+          "lineEnd": 42020,
+          "snippet": "### Cache API\n..."
+        }
+      ],
+      "checksum": "checksum123"
+    }
+  ],
+  "executionTimeMs": 9,
+  "totalSources": 1
+}
+```
 ```
 
 ## Management Commands
