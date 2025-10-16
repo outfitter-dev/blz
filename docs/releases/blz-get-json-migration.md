@@ -21,7 +21,7 @@ Last updated: 2025-10-16
 ## Migration Guidance
 
 1. Replace references to `.content`/`.lineNumbers` with the appropriate `requests[]` shapes.
-2. For multi-range scenarios, iterate `requests[0].ranges[]` to gather individual snippets.
+2. For multi-range scenarios, iterate each `requests[i].ranges[]` entry to gather the individual snippets for every source.
 3. When batching multiple sources, check each `requests[]` entry separately before merging into a prompt or report.
 4. Capture `checksum` alongside the snippet to detect stale caches.
 
