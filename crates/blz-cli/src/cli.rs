@@ -703,6 +703,15 @@ pub enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+
+    /// Launch MCP server for AI agent integration
+    ///
+    /// Starts the BLZ MCP (Model Context Protocol) server over stdio transport.
+    /// This enables AI agents like Claude Desktop to use BLZ for documentation search
+    /// via the standardized MCP protocol.
+    ///
+    /// The server runs until interrupted with SIGINT (Ctrl+C) or SIGTERM.
+    Mcp,
 }
 
 /// Subcommands for `blz docs`.
