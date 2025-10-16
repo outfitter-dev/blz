@@ -193,6 +193,86 @@ async fn execute_search(
     Ok(results)
 }
 
+/// Find the smallest TOC entry containing the given line range.
+///
+/// Recursively searches the TOC tree to find the block that contains
+/// the requested lines. Returns the block boundaries if found.
+///
+/// ## Arguments
+///
+/// - `toc`: TOC entries to search (may be nested)
+/// - `start_line`: Starting line (1-based)
+/// - `end_line`: Ending line (1-based, inclusive)
+///
+/// ## Returns
+///
+/// `Some((block_start, block_end))` with 0-based indices if a containing
+/// block is found, `None` otherwise.
+#[tracing::instrument]
+fn find_containing_block(
+    toc: &[blz_core::TocEntry],
+    start_line: usize,
+    end_line: usize,
+) -> Option<(usize, usize)> {
+    let mut best_match: Option<(usize, usize)> = None;
+    let mut best_size = usize::MAX;
+
+    for entry in toc {
+        // Parse the "start-end" format from TOC entry
+        let parts: Vec<&str> = entry.lines.split('-').collect();
+        if parts.len() != 2 {
+            tracing::warn!(
+                lines = %entry.lines,
+                "Invalid TOC line range format, skipping entry"
+            );
+            continue;
+        }
+
+        let Ok(block_start) = parts[0].parse::<usize>() else {
+            tracing::warn!(
+                value = %parts[0],
+                "Failed to parse TOC start line, skipping entry"
+            );
+            continue;
+        };
+
+        let Ok(block_end) = parts[1].parse::<usize>() else {
+            tracing::warn!(
+                value = %parts[1],
+                "Failed to parse TOC end line, skipping entry"
+            );
+            continue;
+        };
+
+        // Check if this block contains our requested range
+        if block_start <= start_line && end_line <= block_end {
+            let block_size = block_end - block_start;
+
+            // Track smallest containing block
+            if block_size < best_size {
+                // Convert to 0-based indexing for return value
+                best_match = Some((block_start.saturating_sub(1), block_end.saturating_sub(1)));
+                best_size = block_size;
+            }
+
+            // Recursively check children for a tighter match
+            if !entry.children.is_empty() {
+                if let Some(child_match) =
+                    find_containing_block(&entry.children, start_line, end_line)
+                {
+                    let child_size = child_match.1 - child_match.0;
+                    if child_size < best_size {
+                        best_match = Some(child_match);
+                        best_size = child_size;
+                    }
+                }
+            }
+        }
+    }
+
+    best_match
+}
+
 /// Retrieve snippet with context
 #[tracing::instrument(skip(storage))]
 fn retrieve_snippet(
@@ -227,9 +307,43 @@ fn retrieve_snippet(
 
     let (actual_start, actual_end) = match context_mode {
         "all" => {
-            // Find the block boundaries - this is simplified, could be improved
-            // For now, just return entire document for "all" mode
-            (0, lines.len().saturating_sub(1))
+            // Try to load TOC and find containing block
+            match storage.load_llms_json(source) {
+                Ok(llms_json) => {
+                    // Search for containing block using 1-based line numbers
+                    if let Some((block_start, block_end)) =
+                        find_containing_block(&llms_json.toc, start, end)
+                    {
+                        tracing::debug!(
+                            requested = %format!("{start}-{end}"),
+                            block = %format!("{}-{}", block_start + 1, block_end + 1),
+                            "Found containing block from TOC"
+                        );
+                        (block_start, block_end)
+                    } else {
+                        // No containing block found, fall back to symmetric padding
+                        tracing::warn!(
+                            source,
+                            "No TOC entry contains requested range, using symmetric fallback"
+                        );
+                        let padding = 20_usize;
+                        let range_start = start_idx.saturating_sub(padding);
+                        let range_end = (end_idx + padding).min(lines.len().saturating_sub(1));
+                        (range_start, range_end)
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        source,
+                        error = %e,
+                        "Failed to load llms.json, using symmetric fallback"
+                    );
+                    let padding = 20_usize;
+                    let range_start = start_idx.saturating_sub(padding);
+                    let range_end = (end_idx + padding).min(lines.len().saturating_sub(1));
+                    (range_start, range_end)
+                },
+            }
         },
         "symmetric" => {
             let padding = line_padding as usize;
@@ -717,5 +831,293 @@ Last line of section 2"#;
             err.to_string()
                 .contains("Either query or snippets must be provided")
         );
+    }
+}
+
+#[cfg(test)]
+mod block_detection_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use blz_core::{Storage, TocEntry};
+
+    /// Helper to create a simple TOC structure for testing
+    fn create_test_toc() -> Vec<TocEntry> {
+        vec![
+            TocEntry {
+                heading_path: vec!["Introduction".to_string()],
+                lines: "1-10".to_string(),
+                anchor: None,
+                children: vec![],
+            },
+            TocEntry {
+                heading_path: vec!["Getting Started".to_string()],
+                lines: "11-50".to_string(),
+                anchor: None,
+                children: vec![
+                    TocEntry {
+                        heading_path: vec![
+                            "Getting Started".to_string(),
+                            "Installation".to_string(),
+                        ],
+                        lines: "12-25".to_string(),
+                        anchor: None,
+                        children: vec![],
+                    },
+                    TocEntry {
+                        heading_path: vec![
+                            "Getting Started".to_string(),
+                            "Configuration".to_string(),
+                        ],
+                        lines: "26-50".to_string(),
+                        anchor: None,
+                        children: vec![],
+                    },
+                ],
+            },
+            TocEntry {
+                heading_path: vec!["API Reference".to_string()],
+                lines: "51-100".to_string(),
+                anchor: None,
+                children: vec![],
+            },
+        ]
+    }
+
+    #[test]
+    fn test_find_containing_block_top_level() {
+        let toc = create_test_toc();
+
+        // Request falls in top-level "Introduction" block
+        let result = find_containing_block(&toc, 5, 8);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        assert_eq!(start, 0); // 1-based line 1 -> 0-based index 0
+        assert_eq!(end, 9); // 1-based line 10 -> 0-based index 9
+    }
+
+    #[test]
+    fn test_find_containing_block_nested() {
+        let toc = create_test_toc();
+
+        // Request falls in nested "Installation" block
+        let result = find_containing_block(&toc, 15, 20);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        // Should return the smallest containing block (Installation: 12-25)
+        assert_eq!(start, 11); // 1-based line 12 -> 0-based index 11
+        assert_eq!(end, 24); // 1-based line 25 -> 0-based index 24
+    }
+
+    #[test]
+    fn test_find_containing_block_prefers_smallest() {
+        let toc = create_test_toc();
+
+        // Request at line 30 falls in both "Getting Started" (11-50) and "Configuration" (26-50)
+        // Should return the smaller "Configuration" block
+        let result = find_containing_block(&toc, 30, 35);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        assert_eq!(start, 25); // Configuration starts at line 26
+        assert_eq!(end, 49); // Configuration ends at line 50
+    }
+
+    #[test]
+    fn test_find_containing_block_no_match() {
+        let toc = create_test_toc();
+
+        // Request outside all blocks (line 200)
+        let result = find_containing_block(&toc, 200, 210);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_containing_block_exact_boundaries() {
+        let toc = create_test_toc();
+
+        // Request exactly matching "API Reference" block (51-100)
+        let result = find_containing_block(&toc, 51, 100);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        assert_eq!(start, 50); // Line 51 -> index 50
+        assert_eq!(end, 99); // Line 100 -> index 99
+    }
+
+    #[test]
+    fn test_find_containing_block_single_line() {
+        let toc = create_test_toc();
+
+        // Request single line within a block
+        let result = find_containing_block(&toc, 15, 15);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        // Should find Installation block (12-25)
+        assert_eq!(start, 11);
+        assert_eq!(end, 24);
+    }
+
+    #[test]
+    fn test_find_containing_block_invalid_format() {
+        let toc = vec![
+            TocEntry {
+                heading_path: vec!["Bad Entry".to_string()],
+                lines: "invalid".to_string(), // Bad format
+                anchor: None,
+                children: vec![],
+            },
+            TocEntry {
+                heading_path: vec!["Good Entry".to_string()],
+                lines: "10-20".to_string(),
+                anchor: None,
+                children: vec![],
+            },
+        ];
+
+        // Should skip invalid entry and find good one
+        let result = find_containing_block(&toc, 15, 18);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        assert_eq!(start, 9); // Line 10
+        assert_eq!(end, 19); // Line 20
+    }
+
+    #[test]
+    fn test_find_containing_block_empty_toc() {
+        let toc: Vec<TocEntry> = vec![];
+        let result = find_containing_block(&toc, 10, 20);
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_context_mode_all_with_toc() {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let storage =
+            Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
+
+        // Create test content with clear sections
+        let test_content = "# Documentation\n\
+Line 2\n\
+\n\
+## Section A\n\
+Line 5\n\
+Line 6\n\
+Line 7\n\
+\n\
+## Section B\n\
+Line 10\n\
+Line 11\n\
+Line 12";
+
+        // Create llms.txt
+        std::fs::create_dir_all(temp_dir.path().join("sources/test-toc"))
+            .expect("Failed to create sources dir");
+        std::fs::write(
+            temp_dir.path().join("sources/test-toc/llms.txt"),
+            test_content,
+        )
+        .expect("Failed to write test content");
+
+        // Create llms.json with TOC
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        #[allow(clippy::cast_possible_wrap)]
+        let fetched_at =
+            chrono::DateTime::from_timestamp(now as i64, 0).expect("Failed to create timestamp");
+
+        let llms_json = blz_core::LlmsJson {
+            source: "test-toc".to_string(),
+            metadata: blz_core::Source {
+                url: "https://example.com".to_string(),
+                etag: None,
+                last_modified: None,
+                fetched_at,
+                sha256: "test".to_string(),
+                variant: blz_core::SourceVariant::Llms,
+                aliases: vec![],
+                tags: vec![],
+                description: None,
+                category: None,
+                npm_aliases: vec![],
+                github_aliases: vec![],
+                origin: blz_core::SourceOrigin {
+                    manifest: None,
+                    source_type: None,
+                },
+            },
+            toc: vec![
+                TocEntry {
+                    heading_path: vec!["Documentation".to_string()],
+                    lines: "1-3".to_string(),
+                    anchor: None,
+                    children: vec![],
+                },
+                TocEntry {
+                    heading_path: vec!["Section A".to_string()],
+                    lines: "4-8".to_string(),
+                    anchor: None,
+                    children: vec![],
+                },
+                TocEntry {
+                    heading_path: vec!["Section B".to_string()],
+                    lines: "9-12".to_string(),
+                    anchor: None,
+                    children: vec![],
+                },
+            ],
+            files: vec![],
+            line_index: blz_core::LineIndex {
+                total_lines: 12,
+                byte_offsets: false,
+            },
+            diagnostics: vec![],
+            parse_meta: None,
+        };
+
+        let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
+        std::fs::write(temp_dir.path().join("sources/test-toc/llms.json"), json_str)
+            .expect("Failed to write llms.json");
+
+        // Request lines 5-6 (in Section A: 4-8)
+        let result = retrieve_snippet(&storage, "test-toc", 5, 6, "all", 0);
+        assert!(result.is_ok());
+
+        let snippet = result.unwrap();
+        // Should return entire Section A block (lines 4-8)
+        assert_eq!(snippet.line_start, 4);
+        assert_eq!(snippet.line_end, 8);
+        assert!(snippet.content.contains("## Section A"));
+        assert!(snippet.content.contains("Line 7"));
+        assert!(!snippet.content.contains("Section B"));
+    }
+
+    #[tokio::test]
+    async fn test_context_mode_all_fallback_no_toc() {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let storage =
+            Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
+
+        let test_content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
+
+        std::fs::create_dir_all(temp_dir.path().join("sources/no-toc"))
+            .expect("Failed to create sources dir");
+        std::fs::write(
+            temp_dir.path().join("sources/no-toc/llms.txt"),
+            test_content,
+        )
+        .expect("Failed to write test content");
+
+        // Don't create llms.json - test fallback behavior
+
+        // Request line 3
+        let result = retrieve_snippet(&storage, "no-toc", 3, 3, "all", 0);
+        assert!(result.is_ok());
+
+        let snippet = result.unwrap();
+        // Should fall back to symmetric padding (20 lines each side)
+        // Document only has 5 lines, so should get full document (1-5)
+        assert_eq!(snippet.line_start, 1);
+        assert_eq!(snippet.line_end, 5);
     }
 }
