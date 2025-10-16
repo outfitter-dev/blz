@@ -16,13 +16,13 @@
     }
   ],
   "agent_workflow": [
-    "Call `blz list --format json` first to identify stale or failed sources.",
+    "Call `blz list --json` first to identify stale or failed sources.",
     "Trigger `blz update --all` (or alias-specific) before heavy usage to ensure line numbers and checksums remain current.",
     "Inspect output: updated sources show `Updated <alias>` messages; unchanged ones report `unchanged` (HTTP 304).",
     "After updating, run a quick search to confirm new docs are accessible."
   ],
   "notes": [
-    "Update processes reuse cached metadata. They do **not** re-add alias/tag descriptors—those remain intact.",
+    "Update processes reuse cached metadata. They do **not** re-add alias/tag descriptors\u2014those remain intact.",
     "If the upstream server returns an error, BLZ preserves the previous cache and reports the failure with actionable context.",
     "Pair with `blz history --clear-before <DATE>` if you want to prune search history post-refresh."
   ]

@@ -473,7 +473,10 @@ pub enum Commands {
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
     ///
-    /// Preferred syntax matches search results: `blz get bun:120-142`
+    /// Preferred syntax matches search output: `blz get bun:120-142`
+    ///
+    /// Multiple spans from the same source can be comma-separated:
+    /// `blz get bun:120-142,200-210`
     ///
     /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
     Get {
