@@ -4,8 +4,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use blz_core::Storage;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-    ListResourcesResult, ListToolsResult, PaginatedRequestParam, ProtocolVersion, RawContent,
+    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam,
+    GetPromptResult, Implementation, ListPromptsResult, ListResourcesResult, ListToolsResult,
+    PaginatedRequestParam, Prompt, PromptArgument, PromptsCapability, ProtocolVersion, RawContent,
     RawResource, RawTextContent, ReadResourceRequestParam, ReadResourceResult, Resource,
     ResourceContents, ResourcesCapability, ServerCapabilities, ServerInfo, Tool, ToolsCapability,
 };
@@ -14,7 +15,7 @@ use rmcp::{RoleServer, ServerHandler};
 use serde_json::json;
 use tokio::sync::RwLock;
 
-use crate::{error::McpResult, resources, tools, types::IndexCache};
+use crate::{error::McpResult, prompts, resources, tools, types::IndexCache};
 
 /// MCP server for BLZ
 #[derive(Clone)]
@@ -70,6 +71,7 @@ impl ServerHandler for McpServer {
                     subscribe: None,
                     list_changed: None,
                 }),
+                prompts: Some(PromptsCapability { list_changed: None }),
                 ..Default::default()
             },
             server_info: Implementation {
@@ -623,6 +625,75 @@ impl ServerHandler for McpServer {
         Ok(ReadResourceResult {
             contents: vec![ResourceContents::text(text, request.uri)],
         })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::used_underscore_binding)]
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, ErrorData> {
+        tracing::debug!("listing prompts");
+
+        let prompts = vec![Prompt::new(
+            "discover-docs",
+            Some("Find and add documentation sources for given technologies"),
+            Some(vec![PromptArgument {
+                name: "technologies".to_string(),
+                title: None,
+                description: Some(
+                    "Comma-separated list of technologies to discover documentation for"
+                        .to_string(),
+                ),
+                required: Some(true),
+            }]),
+        )];
+
+        Ok(ListPromptsResult {
+            prompts,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, ErrorData> {
+        tracing::debug!(prompt = %request.name, "getting prompt");
+
+        match request.name.as_ref() {
+            "discover-docs" => {
+                let params: prompts::DiscoverDocsParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid discover-docs parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output =
+                    prompts::handle_discover_docs(&params, &self.storage).map_err(|e| {
+                        tracing::error!("discover-docs prompt error: {}", e);
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    })?;
+
+                Ok(GetPromptResult {
+                    description: None,
+                    messages: output.messages,
+                })
+            },
+            _ => Err(ErrorData::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                format!("Unknown prompt: {}", request.name),
+                None,
+            )),
+        }
     }
 }
 
