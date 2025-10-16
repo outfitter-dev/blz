@@ -211,7 +211,7 @@ What it adds:
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
-It reads from `blz list --format json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
+It reads from `blz list --json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
 
 ### Usage
 
@@ -562,9 +562,9 @@ function Blz-Search {
 # Quick get function
 function Blz-Quick {
     param([string]$Query)
-    $result = blz search $Query --limit 1 -f json | ConvertFrom-Json
+    $result = blz search $Query --limit 1 --json | ConvertFrom-Json
     if ($result) {
-        blz get $result.results[0].alias --lines $result.results[0].lines
+        blz get "$($result.results[0].alias):$($result.results[0].lines)"
     } else {
         Write-Host "No results for: $Query"
     }
@@ -620,7 +620,7 @@ This adds:
 - Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
-It reads from `blz list --format json` and merges canonical + metadata aliases.
+It reads from `blz list --json` and merges canonical + metadata aliases.
 
 ### Troubleshooting
 
@@ -677,12 +677,12 @@ $highScore = blz search "async" -f json | ConvertFrom-Json |
 
 ```powershell
 # Search and select with Out-GridView
-blz search "react" -f json |
+blz search "react" --json |
     ConvertFrom-Json |
     Select-Object -ExpandProperty results |
     Select-Object alias, lines, @{N='Path';E={$_.headingPath -join ' > '}} |
     Out-GridView -PassThru |
-    ForEach-Object { blz get $_.alias --lines $_.lines }
+    ForEach-Object { blz get "$($_.alias):$($_.lines)" }
 ```
 
 ## Elvish
@@ -728,10 +728,10 @@ fn bl { blz list }
 
 # Quick search function
 fn blz-quick [query]{
-    var result = (blz search $query --limit 1 -f json | from-json)
+    var result = (blz search $query --limit 1 --json | from-json)
     if (not-eq $result []) {
         var hit = $result[results][0]
-        blz get $hit[alias] --lines $hit[lines]
+        blz get $hit[alias]":"$hit[lines]
     } else {
         echo "No results for: "$query
     }
@@ -864,7 +864,7 @@ fn select-source {
 ```bash
 # Fish/Bash/Zsh
 function blz-fzf
-    blz search "$1" --format json | \
+    blz search "$1" --json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
@@ -879,12 +879,12 @@ Create a workflow script:
 # For Alfred/Raycast
 
 query="$1"
-results=$(blz search "$query" --format json)
+results=$(blz search "$query" --json)
 
 echo "$results" | jq -r '.results[] | {
     title: .headingPath | join(" > "),
     subtitle: "\(.alias) L\(.lines)",
-    arg: "\(.alias) --lines \(.lines)"
+    arg: "\(.alias):\(.lines)"
 }'
 ```
 
@@ -977,7 +977,7 @@ The dynamic completions query live data:
 
 ```fish
 # Test the query function
-blz list --format json
+blz list --json
 
 # If this works, completions should work
 # If not, check that you have sources:

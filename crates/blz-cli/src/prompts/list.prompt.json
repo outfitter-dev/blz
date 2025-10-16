@@ -3,7 +3,7 @@
   "summary": "Inspect which sources are cached locally, along with metadata, staleness information, and alias mappings.",
   "usage": [
     {
-      "command": "blz list --format json",
+      "command": "blz list --json",
       "description": "Preferred mode for agents. Returns an array with alias, url, tags, lastUpdated, checksum, descriptor, and status fields."
     },
     {
@@ -17,15 +17,15 @@
   ],
   "agent_use_cases": [
     "Determine whether a source already exists before calling `blz add`.",
-    "Detect stale caches: `blz list --format json | jq '.[] | select(.stalenessDays > 3)'`.",
+    "Detect stale caches: `blz list --json | jq '.[] | select(.stalenessDays > 3)'`.",
     "Feature discovery: inspect descriptors to surface categories when building orchestrated prompts."
   ],
   "fields_of_interest": [
-    "alias – canonical name used across CLI commands.",
-    "url / fallbackUrl – where updates pull content from.",
-    "checksum – sha256 of current content (useful for deduping).",
-    "stalenessDays – integer representing days since last successful update.",
-    "descriptor.meta.displayName – optional human-friendly label if provided."
+    "alias \u2013 canonical name used across CLI commands.",
+    "url / fallbackUrl \u2013 where updates pull content from.",
+    "checksum \u2013 sha256 of current content (useful for deduping).",
+    "stalenessDays \u2013 integer representing days since last successful update.",
+    "descriptor.meta.displayName \u2013 optional human-friendly label if provided."
   ],
   "follow_up_commands": [
     "Run `blz update <alias>` for stale entries.",

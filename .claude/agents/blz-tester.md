@@ -13,9 +13,9 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
 1. **Systematic Command Discovery**: Use `blz --help` to discover all available commands, then recursively explore each command's `--help` output to map the complete command surface area.
 
 2. **Comprehensive Testing**: For every command and flag combination:
-   - Test with `--format json` (or `--json` shorthand) to verify machine-readable output
-   - Test with `--format text` (default) to verify human-readable output
-   - Test format shortcuts: `--json`, `--jsonl`, `--text`, `--raw`
+   - Test with `--json` to verify machine-readable output
+   - Test with `--text` to verify human-readable output (default)
+   - Test format shortcuts: `--json`, `--jsonl`, `--text`, `--raw` (legacy: `--format json|text|jsonl|raw`)
    - Test with `--quiet` mode where applicable
    - Test edge cases: empty inputs, invalid arguments, boundary conditions
    - Test deprecated flags (like `--snippet-lines`) to ensure compatibility warnings work

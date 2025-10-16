@@ -2,41 +2,83 @@
   "target": "search",
   "summary": "Full-text query across indexed sources with BM25 scoring. Use this to decide which spans to fetch via `blz get`.",
   "primary_usage": [
-    { "command": "blz search \"<query>\" --format json", "description": "Default mode. JSON hits expose alias, headingPath, lines, snippet, checksum, and score." },
-    { "command": "blz search \"<query>\" --source <alias> --limit 20 --page 2", "description": "Scope to a single alias and paginate deterministically." },
-    { "command": "BLZ_OUTPUT_FORMAT=json blz \"<query>\"", "description": "Shortcut—no subcommand still performs a search; force JSON via the env var." }
+    {
+      "command": "blz search \"<query>\" --json",
+      "description": "Default mode. JSON hits expose alias, headingPath, lines, snippet, checksum, and score."
+    },
+    {
+      "command": "blz search \"<query>\" --source <alias> --limit 20 --page 2",
+      "description": "Scope to a single alias and paginate deterministically."
+    },
+    {
+      "command": "BLZ_OUTPUT_FORMAT=json blz \"<query>\"",
+      "description": "Shortcut\u2014no subcommand still performs a search; force JSON via the env var."
+    }
   ],
   "query_language": [
     "Terms separated by spaces are OR'd (match any term by default).",
     "Exact phrase: wrap in double quotes, escape with single quotes: `blz '\"background fetch\"'`.",
     "Require terms: prefix with `+` for AND logic: `blz '+api +key rotation'` (requires 'api' AND 'key', 'rotation' optional).",
-    "Scores are BM25—higher scores indicate stronger matches."
+    "Scores are BM25\u2014higher scores indicate stronger matches."
   ],
   "workflow_for_agents": [
     "Ensure output is JSON (set `BLZ_OUTPUT_FORMAT=json`).",
-    "One-shot retrieval (recommended): Use `blz search \"<query>\" -C all --format json` to get full sections immediately.",
-    "Two-step approach (precise control): Select the top hit's alias and lines string (example: `react:220-228`), then fetch with `blz get react:220-228 -C 3 --format text`.",
-    "When multiple ranges from the same alias are needed, use one call: `blz get react --lines \"220-228,260-264\" -C 2 --format json`.",
+    "One-shot retrieval (recommended): Use `blz search \"<query>\" -C all --json` to get full sections immediately.",
+    "Two-step approach (precise control): Select the top hit's alias and lines string (example: `react:220-228`), then fetch with `blz get react:220-228 -C 3 --text`.",
+    "When multiple spans from the same alias are needed, call `blz get react:220-228,260-264 -C 2 --json`.",
     "Record the checksum to guarantee later steps detect stale spans."
   ],
   "helpful_flags": [
-    { "flag": "--next / --previous / --last", "impact": "Traverse pagination without manually tracking page numbers. Use --next for forward, --previous for backward, --last to jump to end." },
-    { "flag": "--top <percent>", "impact": "Keep only top percentile of hits (post-pagination) to reduce noise." },
-    { "flag": "--show <components>", "impact": "Augment text output (when not using JSON) with rank/url/anchor metadata." },
-    { "flag": "--max-chars <N>", "impact": "Control snippet length in total characters (default: 200, range: 50-1000). Higher values provide more context for relevance assessment without fetching full content." },
-    { "flag": "-C all (or --context all)", "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size. Legacy: --block" },
-    { "flag": "-C <N> (or --context <N>)", "impact": "Adds ±N lines of context around each hit for lighter-weight expansion. Legacy: -c<N>" }
+    {
+      "flag": "--next / --previous / --last",
+      "impact": "Traverse pagination without manually tracking page numbers. Use --next for forward, --previous for backward, --last to jump to end."
+    },
+    {
+      "flag": "--top <percent>",
+      "impact": "Keep only top percentile of hits (post-pagination) to reduce noise."
+    },
+    {
+      "flag": "--show <components>",
+      "impact": "Augment text output (when not using JSON) with rank/url/anchor metadata."
+    },
+    {
+      "flag": "--max-chars <N>",
+      "impact": "Control snippet length in total characters (default: 200, range: 50-1000). Higher values provide more context for relevance assessment without fetching full content."
+    },
+    {
+      "flag": "-C <N> / -A <N> / -B <N> (grep-style context)",
+      "impact": "Add context lines: -C for symmetric (±N both sides), -A for after only, -B for before only. Long forms: --context, --after-context, --before-context. Keep N small (0-3) for prompt efficiency. Legacy: -c<N>."
+    },
+    {
+      "flag": "-C all (or --context all)",
+      "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size."
+    }
   ],
   "post_processing_examples": [
-    "Filter by minimum score: `blz search \"sdk\" --format json | jq '.results[] | select(.score > 60)'`.",
-    "Group by alias: `blz search \"migration\" --format json | jq '.results | group_by(.alias) | map({alias: .[0].alias, hits: length})'`.",
-    "Pipe to multiget: `blz search \"hooks\" --format json | jq -r '.results[0] | (.alias + \" --lines \" + .lines)' | xargs -I{} blz get {} -C 2 --format json`."
+    "Filter by minimum score: `blz search \"sdk\" --json | jq '.results[] | select(.score > 60)'`.",
+    "Group by alias: `blz search \"migration\" --json | jq '.results | group_by(.alias) | map({alias: .[0].alias, hits: length})'`.",
+    "Pipe to multi-get: `blz search \"hooks\" --json | jq -r '.results[0] | (.alias + \" \" + .lines)' | xargs -I{} blz get {} -C 2 --json`."
   ],
   "try_this": [
-    { "command": "export BLZ_OUTPUT_FORMAT=json", "why": "Set JSON output globally—no need to add --json to every command." },
-    { "command": "blz \"error handling\" -C all -s react", "why": "One command, full sections immediately. Fastest path from query to complete context." },
-    { "command": "blz \"api\" --max-chars 400 --json | jq '.results[0:3]'", "why": "Longer snippets (400 chars) help assess relevance before fetching full content. Grab top 3 hits." },
-    { "command": "blz \"auth\" --next", "why": "Navigate pagination without repeating the query. Use --previous to go back, --last to jump to end." },
-    { "command": "blz \"hooks\" --top 10 --json", "why": "Keep only top 10% of results to eliminate noise from weak matches." }
+    {
+      "command": "export BLZ_OUTPUT_FORMAT=json",
+      "why": "Set JSON output globally\u2014no need to add --json to every command."
+    },
+    {
+      "command": "blz \"error handling\" -C all -s react",
+      "why": "One command, full sections immediately. Fastest path from query to complete context."
+    },
+    {
+      "command": "blz \"api\" --max-chars 400 --json | jq '.results[0:3]'",
+      "why": "Longer snippets (400 chars) help assess relevance before fetching full content. Grab top 3 hits."
+    },
+    {
+      "command": "blz \"auth\" --next",
+      "why": "Navigate pagination without repeating the query. Use --previous to go back, --last to jump to end."
+    },
+    {
+      "command": "blz \"hooks\" --top 10 --json",
+      "why": "Keep only top 10% of results to eliminate noise from weak matches."
+    }
   ]
 }

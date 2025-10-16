@@ -57,23 +57,54 @@ async fn test_get_multiple_ranges_comma_separated() {
     let stdout = String::from_utf8_lossy(&result.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).expect("Should be valid JSON");
 
-    // Should have combined content from all ranges
-    let content = json["content"].as_str().unwrap();
-    assert!(content.contains("Line 1:"), "Should include line 1");
-    assert!(content.contains("Line 2:"), "Should include line 2");
-    assert!(content.contains("Line 3:"), "Should include line 3");
-    assert!(!content.contains("Line 4:"), "Should NOT include line 4");
-    assert!(content.contains("Line 5:"), "Should include line 5");
-    assert!(content.contains("Line 6:"), "Should include line 6");
-    assert!(content.contains("Line 7:"), "Should include line 7");
-    assert!(!content.contains("Line 8:"), "Should NOT include line 8");
-    assert!(content.contains("Line 10:"), "Should include line 10");
+    let requests = json["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert_eq!(
+        request["alias"].as_str().unwrap(),
+        "batch-test",
+        "alias should echo request"
+    );
 
-    // Check line numbers array
-    let line_nums = json["lineNumbers"].as_array().unwrap();
-    let got: Vec<i64> = line_nums.iter().map(|v| v.as_i64().unwrap()).collect();
-    let expected: Vec<i64> = vec![1, 2, 3, 5, 6, 7, 10];
-    assert_eq!(got, expected, "lineNumbers mismatch");
+    let ranges = request["ranges"].as_array().expect("ranges array");
+    assert_eq!(ranges.len(), 3, "expected three discrete ranges");
+
+    let starts: Vec<u64> = ranges
+        .iter()
+        .map(|range| range["lineStart"].as_u64().unwrap())
+        .collect();
+    assert_eq!(starts, vec![1, 5, 10], "lineStart mismatch");
+
+    let ends: Vec<u64> = ranges
+        .iter()
+        .map(|range| range["lineEnd"].as_u64().unwrap())
+        .collect();
+    assert_eq!(ends, vec![3, 7, 10], "lineEnd mismatch");
+
+    let snippets: Vec<&str> = ranges
+        .iter()
+        .map(|range| range["snippet"].as_str().unwrap())
+        .collect();
+    assert!(
+        snippets[0].contains("Line 1:"),
+        "Range 1 should include line 1"
+    );
+    assert!(
+        snippets[0].contains("Line 3:"),
+        "Range 1 should include line 3"
+    );
+    assert!(
+        snippets[1].contains("Line 5:"),
+        "Range 2 should include line 5"
+    );
+    assert!(
+        snippets[1].contains("Line 7:"),
+        "Range 2 should include line 7"
+    );
+    assert!(
+        snippets[2].contains("Line 10:"),
+        "Single-line range should include line 10"
+    );
 }
 
 #[tokio::test]
@@ -107,30 +138,40 @@ async fn test_get_multiple_ranges_with_context() {
     let stdout = String::from_utf8_lossy(&result.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).expect("Should be valid JSON");
 
-    let content = json["content"].as_str().unwrap();
-
-    // Should include context around each line
-    // Line 5 with context should include 3-7
-    assert!(
-        content.contains("Line 3"),
-        "Should include context before line 5"
-    );
-    assert!(content.contains("Line 5"), "Should include line 5");
-    assert!(
-        content.contains("Line 7"),
-        "Should include context after line 5"
+    let requests = json["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert_eq!(
+        request["contextApplied"].as_u64().unwrap(),
+        2,
+        "contextApplied should reflect symmetric context"
     );
 
-    // Line 15 with context should include 13-17
-    assert!(
-        content.contains("Line 13"),
-        "Should include context before line 15"
-    );
-    assert!(content.contains("Line 15"), "Should include line 15");
-    assert!(
-        content.contains("Line 17"),
-        "Should include context after line 15"
-    );
+    let ranges = request["ranges"].as_array().expect("ranges array");
+    assert_eq!(ranges.len(), 3);
+
+    let expected = [(3_u64, 7_u64), (13, 17), (23, 27)];
+    for (range, (start, end)) in ranges.iter().zip(expected) {
+        assert_eq!(
+            range["lineStart"].as_u64().unwrap(),
+            start,
+            "lineStart mismatch with context"
+        );
+        assert_eq!(
+            range["lineEnd"].as_u64().unwrap(),
+            end,
+            "lineEnd mismatch with context"
+        );
+        let snippet = range["snippet"].as_str().unwrap();
+        assert!(
+            snippet.contains(&format!("Line {start}")),
+            "snippet should include contextual start line {start}"
+        );
+        assert!(
+            snippet.contains(&format!("Line {end}")),
+            "snippet should include contextual end line {end}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -162,21 +203,25 @@ async fn test_get_multiple_ranges_mixed_formats() {
     let stdout = String::from_utf8_lossy(&result.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).expect("Should be valid JSON");
 
-    let line_nums = json["lineNumbers"].as_array().unwrap();
+    let requests = json["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    let ranges = request["ranges"].as_array().expect("ranges array");
+    assert_eq!(ranges.len(), 4);
 
-    // Should have: 6 (from 5-10) + 3 (from 20+3) + 1 (from 35) + 3 (from 40-42) = 13 lines
-    let line_nums_vec: Vec<i64> = line_nums.iter().map(|v| v.as_i64().unwrap()).collect();
-    assert_eq!(line_nums_vec.len(), 13);
-
-    let expected: Vec<i64> = vec![5, 6, 7, 8, 9, 10, 20, 21, 22, 35, 40, 41, 42];
-    assert_eq!(
-        line_nums_vec, expected,
-        "lineNumbers mismatch for mixed formats"
-    );
-    assert!(
-        line_nums_vec.windows(2).all(|window| window[0] < window[1]),
-        "lineNumbers should be strictly increasing"
-    );
+    let expected = [(5_u64, 10_u64), (20, 22), (35, 35), (40, 42)];
+    for (range, (start, end)) in ranges.iter().zip(expected) {
+        assert_eq!(
+            range["lineStart"].as_u64().unwrap(),
+            start,
+            "lineStart mismatch for mixed formats"
+        );
+        assert_eq!(
+            range["lineEnd"].as_u64().unwrap(),
+            end,
+            "lineEnd mismatch for mixed formats"
+        );
+    }
 }
 
 #[tokio::test]
@@ -193,7 +238,7 @@ async fn test_get_overlapping_ranges_merged() {
     let (_server, url) = serve_test_content(test_content).await;
     add_source("batch-overlap", &url, data_dir.path(), config_dir.path());
 
-    // Get overlapping ranges - should be merged
+    // Get overlapping ranges - expect separate entries
     let mut cmd = blz_cmd_with_dirs(data_dir.path(), config_dir.path());
     let result = cmd
         .arg("get")
@@ -208,19 +253,24 @@ async fn test_get_overlapping_ranges_merged() {
     let stdout = String::from_utf8_lossy(&result.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).expect("Should be valid JSON");
 
-    let line_nums = json["lineNumbers"].as_array().unwrap();
+    let requests = json["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    let ranges = request["ranges"].as_array().expect("ranges array");
+    assert_eq!(ranges.len(), 3);
 
-    // Should merge to continuous range 5-15 (11 lines total)
-    let nums: Vec<i64> = line_nums.iter().map(|v| v.as_i64().unwrap()).collect();
-    assert_eq!(nums.len(), 11);
-    assert_eq!(nums.first(), Some(&5));
-    assert_eq!(nums.last(), Some(&15));
-    assert!(nums.windows(2).all(|window| window[0] < window[1]));
-
-    // No duplicates
-    let mut seen = std::collections::HashSet::new();
-    for n in &nums {
-        assert!(seen.insert(*n), "Line {n} appeared twice");
+    let expected = [(5_u64, 10_u64), (8, 12), (11, 15)];
+    for (range, (start, end)) in ranges.iter().zip(expected) {
+        assert_eq!(
+            range["lineStart"].as_u64().unwrap(),
+            start,
+            "lineStart mismatch for overlapping range"
+        );
+        assert_eq!(
+            range["lineEnd"].as_u64().unwrap(),
+            end,
+            "lineEnd mismatch for overlapping range"
+        );
     }
 }
 
@@ -243,7 +293,7 @@ async fn test_get_invalid_range_in_batch() {
         .arg("1-2,invalid")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Invalid --lines format"));
+        .stderr(predicate::str::contains("Invalid line specification"));
 }
 
 #[tokio::test]
@@ -266,7 +316,7 @@ async fn test_get_rejects_zero_count_range() {
         .arg("5+0")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Invalid --lines format"));
+        .stderr(predicate::str::contains("Invalid line specification"));
 }
 
 #[tokio::test]
@@ -304,5 +354,12 @@ async fn test_get_jsonl_outputs_one_line_per_entry() {
         "JSONL should emit a single line for the response"
     );
     let value: Value = serde_json::from_str(lines[0]).expect("valid jsonl entry");
-    assert_eq!(value["lineNumbers"].as_array().unwrap().len(), 3);
+    let requests = value["requests"].as_array().expect("requests array");
+    assert_eq!(requests.len(), 1);
+    let ranges = requests[0]["ranges"].as_array().expect("ranges array");
+    assert_eq!(ranges.len(), 2, "expected two discrete ranges");
+    assert_eq!(ranges[0]["lineStart"].as_u64().unwrap(), 1);
+    assert_eq!(ranges[0]["lineEnd"].as_u64().unwrap(), 2);
+    assert_eq!(ranges[1]["lineStart"].as_u64().unwrap(), 4);
+    assert_eq!(ranges[1]["lineEnd"].as_u64().unwrap(), 4);
 }

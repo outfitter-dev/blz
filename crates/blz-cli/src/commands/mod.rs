@@ -43,7 +43,7 @@ pub use docs_bundle::{
     sync as sync_bundled_docs,
 };
 pub use doctor::execute as run_doctor;
-pub use get::execute as get_lines;
+pub use get::{RequestSpec, execute as get_lines};
 pub use history::show as show_history;
 pub use info::execute_info;
 pub use list::execute as list_sources;

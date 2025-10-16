@@ -185,7 +185,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 ## Usage For AI Agents
 
 - **Quick primer**: `blz --prompt` in your terminal
-- **Programmatic CLI docs**: `blz docs export --format json` (legacy: `blz docs --format json`)
+- **Programmatic CLI docs**: `blz docs export --json` (legacy: `blz docs --format json`)
 - **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
 
 ### Typical Agent Flow
@@ -206,11 +206,11 @@ span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 # Retrieve the exact line with 5 lines of context on either side
 blz get "$span" -C 5 --json
 
-# Need more than one range? Supply --lines with a comma-separated list
-blz get bun --lines "41994-42009,42010-42020" --json
+# Need more than one range? Comma-separate them after the alias
+blz get bun:41994-42009,42010-42020 --json
 
 # Want the full heading section? Expand with --context all (and cap the output)
-blz get bun:41994-42009 --context all --limit 10 --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -227,7 +227,7 @@ blz "test runner" -s bun --json
 blz get bun:423-445
 
 # Merge multiple spans for the same source (comma-separated)
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 --json
 
 # Expand to the entire heading block when the agent needs full prose
 blz get bun:41994-42009 --context all --max-lines 80 --json

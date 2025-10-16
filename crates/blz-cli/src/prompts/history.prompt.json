@@ -3,7 +3,7 @@
   "summary": "Inspect or prune the locally stored search history (`history.jsonl`). Handy for agents that want to replay queries or keep the cache lean.",
   "usage": [
     {
-      "command": "blz history --limit 20 --format json",
+      "command": "blz history --limit 20 --json",
       "description": "Return the most recent queries with timestamp, alias filter, and whether results were found."
     },
     {

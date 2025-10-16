@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use colored::Colorize;
 
+use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
@@ -223,9 +224,12 @@ pub async fn get_by_anchor(
         OutputFormat::Text => {
             // Convert context to ContextMode
             let context_mode = context.map(crate::cli::ContextMode::Symmetric);
-            crate::commands::get::execute(
-                alias,
-                &entry.lines,
+            let requests = vec![RequestSpec {
+                alias: alias.to_string(),
+                line_expression: entry.lines.clone(),
+            }];
+            crate::commands::get_lines(
+                &requests,
                 context_mode.as_ref(),
                 false,
                 None,

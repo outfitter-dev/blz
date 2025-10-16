@@ -1,9 +1,9 @@
 {
   "target": "info",
-  "summary": "Inspect a single source’s metadata, storage paths, cache sizes, and variant information.",
+  "summary": "Inspect a single source\u2019s metadata, storage paths, cache sizes, and variant information.",
   "usage": [
     {
-      "command": "blz info <alias> --format json",
+      "command": "blz info <alias> --json",
       "description": "Detailed JSON payload including descriptor, storage paths, last update timestamps, archive counts, and checksum."
     },
     {
@@ -17,7 +17,7 @@
     "Consult `archives` to understand how many historical snapshots are stored (useful for diff workflows)."
   ],
   "follow_up": [
-    "Combine with `blz stats --format json` for a workspace-level view.",
+    "Combine with `blz stats --json` for a workspace-level view.",
     "If a source is stale, jump straight to `blz update <alias>`.",
     "To remove it afterwards, call `blz remove <alias> --yes`."
   ]
