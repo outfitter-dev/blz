@@ -36,6 +36,10 @@ pub enum McpError {
     /// Source not found
     #[error("source not found: {0}")]
     SourceNotFound(String),
+
+    /// Missing required parameter
+    #[error("missing required parameter: {0}")]
+    MissingParameter(String),
 }
 
 impl McpError {
@@ -45,7 +49,10 @@ impl McpError {
             Self::Storage(_) | Self::Index(_) | Self::Internal(_) => -32603, // Internal error
             Self::Json(_) => -32700,                                         // Parse error
             Self::Protocol(_) => -32600,                                     // Invalid request
-            Self::InvalidCitation(_) | Self::InvalidPadding(_) | Self::SourceNotFound(_) => {
+            Self::InvalidCitation(_)
+            | Self::InvalidPadding(_)
+            | Self::SourceNotFound(_)
+            | Self::MissingParameter(_) => {
                 -32602 // Invalid params
             },
         }

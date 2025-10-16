@@ -120,7 +120,7 @@ impl ServerHandler for McpServer {
                 },
                 "source": {
                     "type": "string",
-                    "description": "Optional source filter"
+                    "description": "Source to search (required when using query parameter)"
                 }
             }
         });

@@ -418,8 +418,8 @@ pub async fn handle_find(
         // For now, we require a source to be specified for search
         // In the future, we could search across all sources
         let source = params.source.as_ref().ok_or_else(|| {
-            crate::error::McpError::Internal(
-                "Source must be specified for search (multi-source search not yet implemented)"
+            crate::error::McpError::MissingParameter(
+                "source (required for search operations - specify which documentation source to search)"
                     .to_string(),
             )
         })?;
@@ -831,6 +831,30 @@ Last line of section 2"#;
             err.to_string()
                 .contains("Either query or snippets must be provided")
         );
+    }
+
+    #[tokio::test]
+    async fn test_query_without_source_returns_missing_parameter_error() {
+        let (storage, _temp_dir) = setup_test_storage();
+        let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
+
+        let params = FindParams {
+            query: Some("test query".to_string()),
+            snippets: None,
+            context_mode: "none".to_string(),
+            line_padding: 0,
+            max_results: 10,
+            source: None, // Missing required source parameter
+        };
+
+        let result = handle_find(params, &storage, &index_cache).await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(matches!(err, McpError::MissingParameter(_)));
+        assert_eq!(err.error_code(), -32602); // Invalid params
+        assert!(err.to_string().contains("source"));
+        assert!(err.to_string().contains("required for search operations"));
     }
 }
 
