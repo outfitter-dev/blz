@@ -77,7 +77,7 @@
 ## JSON + Agent Workflows
 ### Machine-Readable Docs
 - `blz docs export --format json` mirrors the Clap command tree for tool scaffolding.
-- `blz get <alias> section --format json` returns structured slices with headings + line numbers.
+- `blz get <alias> section --format json` surfaces `requests[]` entries with `snippet`, `lineStart`, and `lineEnd` (multi-range calls expose `ranges[]`).
 ### Prompt Builder Integration
 - Global `--prompt` flag (e.g., `blz --prompt search`) emits JSON describing arguments, outputs, and gotchas.
 - Agents can read `llms.json` for a normalized Table of Contents and anchor metadata.

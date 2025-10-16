@@ -31,14 +31,27 @@ JSON output shape (search)
 - Each result: { alias, file, headingPath[], lines, lineNumbers[], snippet, score, sourceUrl, checksum }
 
 Get Exact Lines
-- Fetch text:                   blz get <alias> --lines <range> [--context N]
-- Ranges:                       "A-B" | "A+N" | "A:B,C:D"
+- Single span:                  blz get <alias>:<start-end> [-C N|--context all]
+- Multi-range:                  blz get <alias> --lines "A-B,C-D" [-C N]
+- Multi-source:                 blz get <alias1>:<start-end> <alias2>:<start-end> --format json
+- Ranges syntax:                "A-B" | "A+N" | comma-delimited list (e.g., "A-B,C,D-F")
+
+JSON output shape (get)
+- Top-level: { requests[], executionTimeMs?, totalSources? }
+- Each entry in requests[]:
+  - Single range ⇒ `snippet`, `lineStart`, `lineEnd`, plus optional metadata (`checksum`, `contextApplied`, `truncated`).
+  - Multi-range ⇒ `snippet`/`lineStart`/`lineEnd` omitted; inspect `ranges[]`, where every span carries its own `lineStart`, `lineEnd`, and `snippet`.
+- Each ranges[] item: { lineStart, lineEnd, snippet }
+- Clipboard helpers: use `.snippet` when present; otherwise aggregate `ranges[].snippet` (e.g. `jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd)\n\(.snippet)'"`).
 
 Agent Flow (recommended)
 1) Ensure source exists (blz list --format json); if missing, blz add <alias> <url> -y
 2) Search for topic (blz search "<query>" --source <alias> --format json)
-3) Pick top result; extract alias + lines
-4) Fetch content (blz get <alias> --lines <lines> --context 3)
+3) Pick top result; extract alias + lines (or multiple hits across aliases)
+4) Fetch content:
+   - single span:       blz get <alias>:<lines> --context 3 --format json
+   - multi-range:       blz get <alias> --lines "A-B,C-D" --context 2 --format json
+   - cross-source set:  blz get bun:7105-7164 turbo:2656-2729 --context 2 --format json
 
 Notes
 - Prefer llms-full.txt when available (updates may auto-upgrade with --yes; configurable default).
