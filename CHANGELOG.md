@@ -12,7 +12,12 @@ _(no unreleased changes yet)_
 ## [1.2.0] - 2025-10-16
 
 ### Changed
-- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` (or `ranges[]` for multi-range calls) and execution metadata, enabling multi-source retrieval in a single command.
+- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` for single spans, or `ranges[]` for multi-range calls, along with `executionTimeMs` / `totalSources`. Scripts should switch from the legacy `.content` field to `requests[*].snippet` or `requests[*].ranges[]`.
+- **Snippet invariants**: Snippet ranges now rely on `NonZeroUsize` line numbers and validated constructors to guarantee `line_start <= line_end`, removing impossible zero ranges ahead of future CLI work.
+
+### Documentation & Prompts
+- **Agent & CLI guidance**: Updated prompts, agent instructions, and CLI reference to describe the new JSON shape, including jq helpers for iterating `requests[].ranges[]` and multi-source responses.
+- **History limit flag**: Documented the default history retention behavior added in 1.1, ensuring users have guidance on how the flag behaves post-upgrade.
 
 ## [1.1.1] - 2025-10-13
 
