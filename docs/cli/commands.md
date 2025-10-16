@@ -306,7 +306,7 @@ The context flags follow grep/ripgrep conventions and can be combined:
 - Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
 
-> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges distinct spans, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry contains its own `lineStart`, `lineEnd`, and `snippet`. Combining multirange with `--context all` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
+> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges distinct spans, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry carries its own `lineStart`, `lineEnd`, and `snippet`. When you pass more than one `alias[:lines]`, the response contains one entry per source in `requests[]`. Pairing either style with `--context all` is supported—the enclosing heading becomes the snippet (subject to `--max-lines`).
 
 **Examples:**
 
@@ -314,8 +314,11 @@ The context flags follow grep/ripgrep conventions and can be combined:
 # Preferred shorthand (matches search output)
 blz get bun:41994-42009
 
-# Retrieve multiple spans for the same source
+# Retrieve multiple spans for the same source (inspect requests[0].ranges[])
 blz get bun --lines "41994-42009,42010-42020" --json
+
+# Retrieve spans from multiple sources in one call
+blz get bun:7105-7164 turbo:2656-2729 --context 2 --json
 
 # Expand to the entire heading section (capped at 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json
@@ -341,7 +344,7 @@ blz get bun --lines "41994-42009,42010-42020" --json \
 
 # Inspect each source when querying multiple aliases
 blz get bun:7105-7164 turbo:2656-2729 --context 2 --json \
-  | jq -r '.requests[] | "\(.alias):\n" + (.snippet // (.ranges | map(.snippet) | join("\n\n")))'
+  | jq -r '.requests[] | "\(.alias):\n" + (.snippet // ((.ranges // []) | map(.snippet) | join("\n\n")))'
 
 **Example response (single range; produced with `-C3`):**
 
@@ -351,10 +354,10 @@ blz get bun:7105-7164 turbo:2656-2729 --context 2 --json \
     {
       "alias": "bun",
       "source": "bun",
-      "snippet": "# Cache Storage\n...",
+      "snippet": "...",
       "lineStart": 41994,
       "lineEnd": 42009,
-      "checksum": "checksum123",
+      "checksum": "...",
       "contextApplied": 3
     }
   ],
