@@ -477,11 +477,11 @@ pub enum Commands {
     ///
     /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
     Get {
-        /// Source or "source:lines" (preferred: matches search output, e.g., "bun:1-3")
+        /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
-        /// When using colon syntax, the --lines flag is optional
-        #[arg(value_name = "ALIAS")]
-        alias: String,
+        /// The --lines flag remains available for single-target compatibility.
+        #[arg(value_name = "ALIAS[:RANGES]", num_args = 1..)]
+        targets: Vec<String>,
         /// Explicit source alias (use when positional alias is ambiguous)
         #[arg(long = "source", short = 's', value_name = "SOURCE")]
         source: Option<String>,
