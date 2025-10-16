@@ -3,7 +3,7 @@
   "summary": "Aggregate view of the cache: number of sources, storage usage, average staleness, and environment details.",
   "usage": [
     {
-      "command": "blz stats --format json",
+      "command": "blz stats --json",
       "description": "Machine-friendly summary (ideal for dashboards or health checks)."
     },
     {

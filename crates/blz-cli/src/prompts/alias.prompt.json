@@ -20,7 +20,7 @@
   ],
   "agent_workflow": [
     "Use `alias add` when ingesting docs that have multiple ecosystem names (e.g., `react` vs `reactjs`).",
-    "After adjusting aliases, run `blz list --format json | jq '.[] | select(.alias==\"<canonical>\")'` to confirm they persisted.",
+    "After adjusting aliases, run `blz list --json | jq '.[] | select(.alias==\"<canonical>\")'` to confirm they persisted.",
     "Remember aliases only affect CLI resolution; storage paths remain tied to the canonical alias."
   ],
   "notes": [

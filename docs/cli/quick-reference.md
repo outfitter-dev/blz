@@ -57,7 +57,10 @@ blz "query" --page 2
 blz get bun:41994-42009
 
 # Multiple ranges (comma-separated)
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 --json
+
+# Multiple sources in one call
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 --json
 
 # Heading-aware retrieval (entire section, capped at 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json

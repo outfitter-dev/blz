@@ -20,8 +20,8 @@ mod prompt;
 mod utils;
 
 use crate::commands::{
-    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, print_full_content, print_overview,
-    sync_bundled_docs,
+    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, RequestSpec, print_full_content,
+    print_overview, sync_bundled_docs,
 };
 
 use crate::utils::preferences::{self, CliPreferences};
@@ -683,7 +683,7 @@ async fn execute_command(
         },
         // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
         Some(Commands::Get {
-            alias,
+            targets,
             lines,
             source,
             context,
@@ -695,29 +695,65 @@ async fn execute_command(
             format,
             copy,
         }) => {
-            // Parse flexible syntax: "alias:lines" or "alias" with separate lines arg
-            let (default_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
-                // Colon syntax: "bun:1-3"
-                let (a, l) = alias.split_at(colon_pos);
-                let lines_part = &l[1..]; // Skip the colon
+            if targets.is_empty() {
+                anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
+            }
 
-                // If --lines flag was also provided, prefer it over colon syntax
-                let chosen_lines = lines.map_or_else(|| lines_part.to_string(), |l| l);
-                (a.to_string(), chosen_lines)
-            } else {
-                // No colon, must have --lines flag or error
-                match lines {
-                    Some(l) => (alias.clone(), l),
-                    None => {
-                        anyhow::bail!(
-                            "Missing line specification. Use one of:\n  \
-                             blz get {alias}:1-3\n  \
-                             blz get {alias} 1-3\n  \
-                             blz get {alias} --lines 1-3"
-                        );
-                    },
+            if lines.is_some() && targets.len() > 1 {
+                anyhow::bail!(
+                    "--lines can only be combined with a single alias. \
+                     Provide explicit ranges via colon syntax for each additional target."
+                );
+            }
+
+            let mut request_specs = Vec::with_capacity(targets.len());
+            for (idx, target) in targets.iter().enumerate() {
+                let trimmed = target.trim();
+                if trimmed.is_empty() {
+                    anyhow::bail!("Alias at position {} cannot be empty.", idx + 1);
                 }
-            };
+
+                if let Some((alias_part, range_part)) = trimmed.split_once(':') {
+                    let trimmed_alias = alias_part.trim();
+                    if trimmed_alias.is_empty() {
+                        anyhow::bail!(
+                            "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
+                            idx + 1
+                        );
+                    }
+                    if range_part.is_empty() {
+                        anyhow::bail!(
+                            "Alias '{trimmed_alias}' is missing a range. \
+                             Use syntax like '{trimmed_alias}:120-142'."
+                        );
+                    }
+                    request_specs.push(RequestSpec {
+                        alias: trimmed_alias.to_string(),
+                        line_expression: range_part.trim().to_string(),
+                    });
+                } else {
+                    let Some(line_expr) = lines.clone() else {
+                        anyhow::bail!(
+                            "Missing line specification for alias '{trimmed}'. \
+                             Use '{trimmed}:1-3' or provide --lines."
+                        );
+                    };
+                    request_specs.push(RequestSpec {
+                        alias: trimmed.to_string(),
+                        line_expression: line_expr,
+                    });
+                }
+            }
+
+            if let Some(explicit_source) = source {
+                if request_specs.len() > 1 {
+                    anyhow::bail!("--source cannot be combined with multiple alias targets.");
+                }
+                if let Some(first) = request_specs.first_mut() {
+                    first.alias = explicit_source;
+                }
+            }
+
             // Merge all context flags into a single ContextMode
             let merged_context = crate::cli::merge_context_flags(
                 context,
@@ -726,11 +762,8 @@ async fn execute_command(
                 before_context,
             );
 
-            let final_alias = source.unwrap_or(default_alias);
-
             commands::get_lines(
-                &final_alias,
-                &parsed_lines,
+                &request_specs,
                 merged_context.as_ref(),
                 block,
                 max_lines,
@@ -2158,7 +2191,7 @@ mod tests {
         .unwrap();
 
         if let Some(Commands::Get {
-            alias,
+            targets,
             lines,
             source,
             context,
@@ -2169,7 +2202,7 @@ mod tests {
             ..
         }) = cli.command
         {
-            assert_eq!(alias, "test");
+            assert_eq!(targets, vec!["test".to_string()]);
             assert_eq!(lines, Some("1-10".to_string()));
             assert!(source.is_none());
             assert_eq!(context, Some(crate::cli::ContextMode::Symmetric(5)));
@@ -2720,7 +2753,14 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Get { source, lines, .. }) = cli.command {
+        if let Some(Commands::Get {
+            targets,
+            source,
+            lines,
+            ..
+        }) = cli.command
+        {
+            assert_eq!(targets, vec!["meta".to_string()]);
             assert_eq!(source.as_deref(), Some("bun"));
             assert_eq!(lines.as_deref(), Some("1-3"));
         } else {
@@ -2734,7 +2774,11 @@ mod tests {
 
         let cli = Cli::try_parse_from(vec!["blz", "get", "meta:4-6", "-s", "canonical"]).unwrap();
 
-        if let Some(Commands::Get { source, .. }) = cli.command {
+        if let Some(Commands::Get {
+            targets, source, ..
+        }) = cli.command
+        {
+            assert_eq!(targets, vec!["meta:4-6".to_string()]);
             assert_eq!(source.as_deref(), Some("canonical"));
         } else {
             panic!("Expected get command");
