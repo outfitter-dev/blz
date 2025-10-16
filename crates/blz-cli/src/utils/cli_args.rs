@@ -18,28 +18,35 @@ pub struct FormatArg {
         long = "format",
         value_enum,
         env = "BLZ_OUTPUT_FORMAT",
-        conflicts_with_all = ["json", "jsonl", "text", "raw"]
+        conflicts_with_all = ["json", "jsonl", "text", "raw"],
+        display_order = 44
     )]
     pub format: Option<OutputFormat>,
 
     /// Convenience flag for JSON output (equivalent to --format json)
-    #[arg(long, conflicts_with_all = ["format", "jsonl", "text", "raw"])]
+    #[arg(long, conflicts_with_all = ["format", "jsonl", "text", "raw"], display_order = 40)]
     pub json: bool,
 
     /// Convenience flag for JSONL output (equivalent to --format jsonl)
-    #[arg(long, conflicts_with_all = ["format", "json", "text", "raw"])]
+    #[arg(long, conflicts_with_all = ["format", "json", "text", "raw"], display_order = 41)]
     pub jsonl: bool,
 
     /// Convenience flag for text output (equivalent to --format text)
-    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "raw"])]
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "raw"], display_order = 42)]
     pub text: bool,
 
     /// Convenience flag for raw output (equivalent to --format raw)
-    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "text"])]
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "text"], display_order = 43)]
     pub raw: bool,
 
     /// Hidden deprecated alias that maps to `--format`
-    #[arg(long = "output", short = 'o', hide = true, value_enum)]
+    #[arg(
+        long = "output",
+        short = 'o',
+        hide = true,
+        value_enum,
+        display_order = 100
+    )]
     pub deprecated_output: Option<OutputFormat>,
 }
 

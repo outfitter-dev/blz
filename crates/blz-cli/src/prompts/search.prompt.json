@@ -46,12 +46,12 @@
       "impact": "Control snippet length in total characters (default: 200, range: 50-1000). Higher values provide more context for relevance assessment without fetching full content."
     },
     {
-      "flag": "-C all (or --context all)",
-      "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size. Legacy: --block"
+      "flag": "-C <N> / -A <N> / -B <N> (grep-style context)",
+      "impact": "Add context lines: -C for symmetric (±N both sides), -A for after only, -B for before only. Long forms: --context, --after-context, --before-context. Keep N small (0-3) for prompt efficiency. Legacy: -c<N>."
     },
     {
-      "flag": "-C <N> (or --context <N>)",
-      "impact": "Adds \u00b1N lines of context around each hit for lighter-weight expansion. Legacy: -c<N>"
+      "flag": "-C all (or --context all)",
+      "impact": "Returns full sections around each hit for one-shot retrieval. Use --max-lines to cap output size."
     }
   ],
   "post_processing_examples": [

@@ -185,7 +185,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 ## Usage For AI Agents
 
 - **Quick primer**: `blz --prompt` in your terminal
-- **Programmatic CLI docs**: `blz docs export --format json` (legacy: `blz docs --format json`)
+- **Programmatic CLI docs**: `blz docs export --json` (legacy: `blz docs --format json`)
 - **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
 
 ### Typical Agent Flow
