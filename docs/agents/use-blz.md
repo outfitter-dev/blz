@@ -80,8 +80,11 @@ blz "authentication flow" --max-chars 400 --json | jq '.results[0] | {heading: .
 blz get bun:41994-42009 -C 5 --json
 
 # Combine multiple spans into one payload
-blz get bun --lines "41994-42009,42010-42020" --json
-#   └─ In JSON mode this returns `requests[0].ranges[]`; aggregate snippets manually
+blz get bun:41994-42009,42010-42020 -C 2 --json
+#   └─ JSON replies with `requests[0].ranges[]`; aggregate snippets manually
+
+# Mix sources in one call
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
 
 # Expand to the whole section (and cap the output to 80 lines)
 blz get bun:41994-42009 --context all --max-lines 80 --json
@@ -107,7 +110,7 @@ span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 blz get "$span" --json | jq -r '.requests[0].snippet'
 
 # Multi-range helper: join snippets when `ranges[]` is present
-blz get bun --lines "41994-42009,42010-42020" --json \
+blz get bun:41994-42009,42010-42020 -C 2 --json \
   | jq -r '.requests[0] | .snippet // ((.ranges // []) | map(.snippet) | join("\n\n"))'
 
 # Filter to high-confidence matches
