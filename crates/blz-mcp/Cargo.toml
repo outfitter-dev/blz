@@ -1,0 +1,25 @@
+[package]
+name = "blz-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+blz-core = { path = "../blz-core" }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "io-std"] }
+rmcp = { version = "0.8.1", features = ["server", "macros"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
