@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.2.0] - 2025-10-16
+
 ### Changed
 - **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` (or `ranges[]` for multi-range calls) and execution metadata, enabling multi-source retrieval in a single command.
 
@@ -375,6 +379,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
+[1.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.2.0
 [1.1.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.1
 [1.1.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.0
 [1.0.0-beta.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.0.0-beta.1
