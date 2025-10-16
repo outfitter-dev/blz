@@ -317,7 +317,7 @@ The context flags follow grep/ripgrep conventions and can be combined:
 blz get bun:41994-42009
 
 # Retrieve multiple spans for the same source (inspect requests[0].ranges[])
-blz get bun:41994-42009 bun:42010-42020 -C 2 --json
+blz get bun:41994-42009,42010-42020 -C 2 --json
 
 # Retrieve spans from multiple sources in one call
 blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
