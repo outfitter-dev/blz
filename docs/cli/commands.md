@@ -147,7 +147,7 @@ You can copy this template directly from `registry/templates/batch-manifest.exam
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY> [--format text|json|jsonl]
+blz lookup <QUERY> [--json|--jsonl|--text]
 ```
 
 > **Beta** · The bundled registry is still small. After each lookup you’ll see a reminder to open a PR with any llms.txt sources we’re missing.
@@ -560,13 +560,13 @@ blz docs search "context flags"
 blz docs sync
 
 # Export CLI reference as JSON (for agents/tooling)
-blz docs export --format json | jq '.subcommands[] | {name, usage}'
+blz docs export --json | jq '.subcommands[] | {name, usage}'
 
 # Export as markdown (default)
 blz docs export > BLZ-CLI.md
 
 # Legacy syntax (still works)
-blz docs --format json  # Equivalent to: blz docs export --format json
+blz docs --format json  # Equivalent to: blz docs export --json
 ```
 
 **Notes:**
