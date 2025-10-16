@@ -126,11 +126,12 @@ fn parse_citation(citation: &str) -> Result<(String, Vec<(usize, usize)>), Strin
     }
 
     let source = source.to_string();
-    let ranges_str = parts[1];
+    let ranges_text = parts[1];
 
     let mut ranges = Vec::new();
 
-    for range_str in ranges_str.split(',') {
+    for range_part in ranges_text.split(',') {
+        let range_str = range_part.trim();
         let range_parts: Vec<&str> = range_str.split('-').collect();
 
         if range_parts.len() != 2 {
@@ -139,13 +140,16 @@ fn parse_citation(citation: &str) -> Result<(String, Vec<(usize, usize)>), Strin
             ));
         }
 
-        let start = range_parts[0]
-            .parse::<usize>()
-            .map_err(|_| format!("Invalid line number: {}", range_parts[0]))?;
+        let start_str = range_parts[0].trim();
+        let end_str = range_parts[1].trim();
 
-        let end = range_parts[1]
+        let start = start_str
             .parse::<usize>()
-            .map_err(|_| format!("Invalid line number: {}", range_parts[1]))?;
+            .map_err(|_| format!("Invalid line number: {start_str}"))?;
+
+        let end = end_str
+            .parse::<usize>()
+            .map_err(|_| format!("Invalid line number: {end_str}"))?;
 
         if start == 0 || end == 0 {
             return Err("Line numbers must be >= 1".to_string());
@@ -506,6 +510,85 @@ mod tests {
         assert!(parse_citation("bun:20-10").is_err()); // start > end
         assert!(parse_citation("bun:0-10").is_err()); // zero line number
         assert!(parse_citation("bun:abc-10").is_err()); // non-numeric
+    }
+
+    #[test]
+    fn test_parse_citation_whitespace_after_colon() {
+        let result = parse_citation("bun: 10-20");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "bun");
+            assert_eq!(ranges, vec![(10, 20)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_whitespace_around_dash() {
+        let result = parse_citation("bun:10 - 20");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "bun");
+            assert_eq!(ranges, vec![(10, 20)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_whitespace_after_comma() {
+        let result = parse_citation("bun:10-20, 30-40");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "bun");
+            assert_eq!(ranges, vec![(10, 20), (30, 40)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_multiple_spaces() {
+        let result = parse_citation("bun:  10  -  20  ,  30  -  40");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "bun");
+            assert_eq!(ranges, vec![(10, 20), (30, 40)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_leading_trailing_whitespace() {
+        let result = parse_citation("  bun:10-20  ");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "bun");
+            assert_eq!(ranges, vec![(10, 20)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_all_whitespace_variations() {
+        // Combination of all whitespace patterns
+        let result = parse_citation("  react: 10 - 20 , 30 - 40  ");
+        assert!(result.is_ok());
+        if let Ok((source, ranges)) = result {
+            assert_eq!(source, "react");
+            assert_eq!(ranges, vec![(10, 20), (30, 40)]);
+        }
+    }
+
+    #[test]
+    fn test_parse_citation_existing_valid_formats_still_work() {
+        // Ensure backward compatibility with existing valid formats
+        let test_cases = vec![
+            ("bun:10-20", vec![(10, 20)]),
+            ("react:10-20,30-40", vec![(10, 20), (30, 40)]),
+            ("vue:1-5,10-15,20-25", vec![(1, 5), (10, 15), (20, 25)]),
+        ];
+
+        for (input, expected_ranges) in test_cases {
+            let result = parse_citation(input);
+            assert!(result.is_ok(), "Failed to parse: {input}");
+            if let Ok((_, ranges)) = result {
+                assert_eq!(ranges, expected_ranges);
+            }
+        }
     }
 }
 
