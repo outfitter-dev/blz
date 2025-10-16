@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/blz-core",
     "crates/blz-cli",
+    "crates/blz-mcp",
     "crates/blz-release",
     "crates/blz-registry-build",
 ]
