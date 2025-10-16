@@ -147,7 +147,7 @@ You can copy this template directly from `registry/templates/batch-manifest.exam
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY> [--format text|json|jsonl]
+blz lookup <QUERY> [--json|--jsonl|--text]
 ```
 
 > **Beta** · The bundled registry is still small. After each lookup you’ll see a reminder to open a PR with any llms.txt sources we’re missing.
@@ -204,10 +204,10 @@ blz search <QUERY> [OPTIONS]
 
 The context flags follow grep/ripgrep conventions and can be combined:
 
-- `-C5` - 5 lines before and after each match (symmetric context)
-- `-A3` - 3 lines after each match only
-- `-B5` - 5 lines before each match only
-- `-A3 -B5` - 5 lines before, 3 lines after (asymmetric context)
+- `-C 5` - 5 lines before and after each match (symmetric context)
+- `-A 3` - 3 lines after each match only
+- `-B 5` - 5 lines before each match only
+- `-A 3 -B 5` - 5 lines before, 3 lines after (asymmetric context)
 - When multiple flags are specified, the maximum value for each direction is used
 
 **Examples:**
@@ -229,10 +229,10 @@ blz "async" --json
 blz "database" --top 10
 
 # Search with context (grep-style)
-blz "error handling" -C3        # 3 lines before and after
-blz "async await" -A5           # 5 lines after only
-blz "config options" -B3        # 3 lines before only
-blz "api docs" -B5 -A3          # Asymmetric: 5 before, 3 after
+blz "error handling" -C 3       # 3 lines before and after
+blz "async await" -A 5          # 5 lines after only
+blz "config options" -B 3       # 3 lines before only
+blz "api docs" -B 5 -A 3        # Asymmetric: 5 before, 3 after
 
 # Exact phrase (Unix shells - single quotes around double quotes)
 blz '"test runner"'
@@ -293,10 +293,10 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 
 The context flags follow grep/ripgrep conventions and can be combined:
 
-- `-C5` – 5 lines before and after (symmetric context)
-- `-A3` – 3 lines after only
-- `-B5` – 5 lines before only
-- `-A3 -B5` – 5 lines before, 3 lines after (asymmetric context)
+- `-C 5` – 5 lines before and after (symmetric context)
+- `-A 3` – 3 lines after only
+- `-B 5` – 5 lines before only
+- `-A 3 -B 5` – 5 lines before, 3 lines after (asymmetric context)
 - When multiple flags are specified, the maximum value for each direction is used
 
 **Line Range Formats:**
@@ -306,7 +306,9 @@ The context flags follow grep/ripgrep conventions and can be combined:
 - Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
 
-> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges distinct spans, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry carries its own `lineStart`, `lineEnd`, and `snippet`. When you pass more than one `alias[:lines]`, the response contains one entry per source in `requests[]`. Pairing either style with `--context all` is supported—the enclosing heading becomes the snippet (subject to `--max-lines`).
+> ℹ️ Whether you comma-separate spans (`bun:36-43,320-350`) or repeat the alias (`bun:36-43 bun:320-350`), BLZ merges distinct ranges, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry carries its own `lineStart`, `lineEnd`, and `snippet`. Passing multiple aliases returns one entry per source in `requests[]`. Pairing either style with `--context all` is supported—the enclosing heading becomes the snippet (subject to `--max-lines`).
+
+> Tip: Comma-separated spans (`bun:36-43,320-350`) and additional aliases (`turbo:2656-2729`) can be mixed in a single call.
 
 **Examples:**
 
@@ -315,35 +317,38 @@ The context flags follow grep/ripgrep conventions and can be combined:
 blz get bun:41994-42009
 
 # Retrieve multiple spans for the same source (inspect requests[0].ranges[])
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 -C 2 --json
 
 # Retrieve spans from multiple sources in one call
-blz get bun:7105-7164 turbo:2656-2729 --context 2 --json
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
 
 # Expand to the entire heading section (capped at 80 lines)
-blz get bun:41994-42009 --context all --max-lines 80 --json
+blz get bun:41994-42009 -C all --max-lines 80 --json
+
+# Single line with two lines of context
+blz get bun:7105 -C 2 --json
 
 # Include 3 lines of context around the range (symmetric)
-blz get bun:25760-25780 -C3
+blz get bun:25760-25780 -C 3
 
 # Include context after only (grep-style)
-blz get bun:25760-25780 -A5
+blz get bun:25760-25780 -A 5
 
 # Include context before only (grep-style)
-blz get bun:25760-25780 -B3
+blz get bun:25760-25780 -B 3
 
 # Asymmetric context: 5 before, 3 after
-blz get bun:25760-25780 -B5 -A3
+blz get bun:25760-25780 -B 5 -A 3
 
 # Pipe structured output to jq
 blz get bun:41994-42009 --json | jq -r '.requests[0].snippet'
 
 # Iterate ranges for a multi-span request
-blz get bun --lines "41994-42009,42010-42020" --json \
+blz get bun:41994-42009,42010-42020 -C 2 --json \
   | jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd):\n\(.snippet)"'
 
 # Inspect each source when querying multiple aliases
-blz get bun:7105-7164 turbo:2656-2729 --context 2 --json \
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json \
   | jq -r '.requests[] | "\(.alias):\n" + (.snippet // ((.ranges // []) | map(.snippet) | join("\n\n")))'
 
 **Example response (single range; produced with `-C3`):**
@@ -555,13 +560,13 @@ blz docs search "context flags"
 blz docs sync
 
 # Export CLI reference as JSON (for agents/tooling)
-blz docs export --format json | jq '.subcommands[] | {name, usage}'
+blz docs export --json | jq '.subcommands[] | {name, usage}'
 
 # Export as markdown (default)
 blz docs export > BLZ-CLI.md
 
 # Legacy syntax (still works)
-blz docs --format json  # Equivalent to: blz docs export --format json
+blz docs --format json  # Equivalent to: blz docs export --json
 ```
 
 **Notes:**

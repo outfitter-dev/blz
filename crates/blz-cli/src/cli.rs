@@ -209,9 +209,10 @@ pub struct Cli {
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
     /// Deprecated: use `blz --prompt`
-    #[command(hide = true)]
+    #[command(hide = true, display_order = 100)]
     Instruct,
     /// Generate shell completions
+    #[command(display_order = 51)]
     Completions {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -225,24 +226,28 @@ pub enum Commands {
     },
 
     /// Manage aliases for a source
+    #[command(display_order = 52)]
     Alias {
         #[command(subcommand)]
         command: AliasCommands,
     },
 
     /// Bundled documentation hub and CLI reference export
+    #[command(display_order = 50)]
     Docs {
         #[command(subcommand)]
         command: Option<DocsCommands>,
     },
 
     /// Anchor utilities
+    #[command(display_order = 53)]
     Anchor {
         #[command(subcommand)]
         command: AnchorCommands,
     },
 
     /// Show anchors for a source or remap mappings
+    #[command(display_order = 54)]
     Anchors {
         /// Source alias
         alias: String,
@@ -254,9 +259,11 @@ pub enum Commands {
         mappings: bool,
     },
     /// Add a new source
+    #[command(display_order = 1)]
     Add(AddArgs),
 
     /// Search registries for documentation to add
+    #[command(display_order = 30)]
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
@@ -269,6 +276,7 @@ pub enum Commands {
     },
 
     /// Manage the registry (create sources, validate, etc.)
+    #[command(display_order = 55)]
     Registry {
         #[command(subcommand)]
         command: RegistryCommands,
@@ -287,6 +295,7 @@ pub enum Commands {
     ///   blz '+api +key'                # Require both terms
     ///   blz '"exact phrase"'           # Exact phrase match
     ///   blz search "async" -s bun      # Search specific source
+    #[command(display_order = 2)]
     Search {
         /// Search query (required unless --next, --previous, or --last)
         #[arg(required_unless_present_any = ["next", "previous", "last"])]
@@ -307,7 +316,8 @@ pub enum Commands {
             long,
             conflicts_with = "page",
             conflicts_with = "last",
-            conflicts_with = "previous"
+            conflicts_with = "previous",
+            display_order = 50
         )]
         next: bool,
         /// Go back to previous page
@@ -315,7 +325,8 @@ pub enum Commands {
             long,
             conflicts_with = "page",
             conflicts_with = "last",
-            conflicts_with = "next"
+            conflicts_with = "next",
+            display_order = 51
         )]
         previous: bool,
         /// Jump to last page of results
@@ -323,21 +334,29 @@ pub enum Commands {
             long,
             conflicts_with = "next",
             conflicts_with = "page",
-            conflicts_with = "previous"
+            conflicts_with = "previous",
+            display_order = 52
         )]
         last: bool,
         /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
-        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+        #[arg(
+            short = 'n',
+            long,
+            value_name = "COUNT",
+            conflicts_with = "all",
+            display_order = 53
+        )]
         limit: Option<usize>,
         /// Show all results (no limit)
-        #[arg(long, conflicts_with = "limit")]
+        #[arg(long, conflicts_with = "limit", display_order = 54)]
         all: bool,
         /// Page number for pagination
         #[arg(
             long,
             default_value = "1",
             conflicts_with = "next",
-            conflicts_with = "last"
+            conflicts_with = "last",
+            display_order = 55
         )]
         page: usize,
         /// Show only top N percentile of results (1-100). Applied after paging is calculated.
@@ -391,7 +410,8 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with_all = ["block", "context_deprecated"]
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
         )]
         context: Option<ContextMode>,
         /// Deprecated: use -C or --context instead (hidden for backward compatibility)
@@ -402,7 +422,8 @@ pub enum Commands {
             default_missing_value = "5",
             allow_hyphen_values = false,
             conflicts_with_all = ["block", "context"],
-            hide = true
+            hide = true,
+            display_order = 100
         )]
         context_deprecated: Option<ContextMode>,
         /// Print LINES lines of context after each match
@@ -417,7 +438,8 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with = "block"
+            conflicts_with = "block",
+            display_order = 31
         )]
         after_context: Option<usize>,
         /// Print LINES lines of context before each match
@@ -432,17 +454,19 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with = "block"
+            conflicts_with = "block",
+            display_order = 32
         )]
         before_context: Option<usize>,
         /// Return the full heading block containing each hit (legacy alias for --context all)
-        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"])]
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize)
+            value_parser = clap::value_parser!(usize),
+            display_order = 34
         )]
         max_lines: Option<usize>,
         /// Don't save this search to history
@@ -456,6 +480,7 @@ pub enum Commands {
     /// Show recent search history and defaults (last 20 entries by default)
     ///
     /// Displays the last 20 searches unless `--limit` is provided to override the count.
+    #[command(display_order = 14)]
     History {
         /// Maximum number of entries to display
         #[arg(long, default_value_t = 20)]
@@ -473,9 +498,13 @@ pub enum Commands {
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
     ///
-    /// Preferred syntax matches search results: `blz get bun:120-142`
+    /// Preferred syntax matches search output: `blz get bun:120-142`
+    ///
+    /// Multiple spans from the same source can be comma-separated:
+    /// `blz get bun:120-142,200-210`
     ///
     /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
+    #[command(display_order = 3)]
     Get {
         /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
@@ -505,7 +534,8 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with_all = ["block", "context_deprecated"]
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
         )]
         context: Option<ContextMode>,
         /// Deprecated: use -C or --context instead (hidden for backward compatibility)
@@ -516,7 +546,8 @@ pub enum Commands {
             default_missing_value = "5",
             allow_hyphen_values = false,
             conflicts_with_all = ["block", "context"],
-            hide = true
+            hide = true,
+            display_order = 100
         )]
         context_deprecated: Option<ContextMode>,
         /// Print LINES lines of context after each line/range
@@ -531,7 +562,8 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with = "block"
+            conflicts_with = "block",
+            display_order = 31
         )]
         after_context: Option<usize>,
         /// Print LINES lines of context before each line/range
@@ -546,17 +578,19 @@ pub enum Commands {
             num_args = 0..=1,
             default_missing_value = "5",
             allow_hyphen_values = false,
-            conflicts_with = "block"
+            conflicts_with = "block",
+            display_order = 32
         )]
         before_context: Option<usize>,
         /// Return the full heading block containing the range (legacy alias for --context all)
-        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"])]
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
-            value_parser = clap::value_parser!(usize)
+            value_parser = clap::value_parser!(usize),
+            display_order = 34
         )]
         max_lines: Option<usize>,
         /// Output format
@@ -568,6 +602,7 @@ pub enum Commands {
     },
 
     /// Show detailed information about a source
+    #[command(display_order = 12)]
     Info {
         /// Source to inspect
         alias: String,
@@ -577,7 +612,7 @@ pub enum Commands {
     },
 
     /// List all cached sources
-    #[command(visible_alias = "sources")]
+    #[command(visible_alias = "sources", display_order = 4)]
     List {
         /// Output format
         #[command(flatten)]
@@ -594,6 +629,7 @@ pub enum Commands {
     },
 
     /// Show cache statistics and overview
+    #[command(display_order = 13)]
     Stats {
         /// Output format
         #[command(flatten)]
@@ -604,6 +640,7 @@ pub enum Commands {
     },
 
     /// Validate source integrity and availability
+    #[command(display_order = 15)]
     Validate {
         /// Source to validate (validates all if not specified)
         alias: Option<String>,
@@ -616,6 +653,7 @@ pub enum Commands {
     },
 
     /// Run health checks on cache and sources
+    #[command(display_order = 16)]
     Doctor {
         /// Output format
         #[command(flatten)]
@@ -626,6 +664,7 @@ pub enum Commands {
     },
 
     /// Update sources
+    #[command(display_order = 10)]
     Update {
         /// Source to update (updates all if not specified)
         alias: Option<String>,
@@ -638,7 +677,7 @@ pub enum Commands {
     },
 
     /// Remove/delete a source
-    #[command(alias = "rm", alias = "delete")]
+    #[command(alias = "rm", alias = "delete", display_order = 11)]
     Remove {
         /// Source to remove
         alias: String,
@@ -648,6 +687,7 @@ pub enum Commands {
     },
 
     /// Clear the entire cache (removes all sources and their data)
+    #[command(display_order = 17)]
     Clear {
         /// Skip confirmation prompt
         #[arg(short = 'f', long = "force")]
@@ -655,7 +695,7 @@ pub enum Commands {
     },
 
     /// View diffs (coming soon)
-    #[command(hide = true)]
+    #[command(hide = true, display_order = 101)]
     Diff {
         /// Source to compare
         alias: String,
