@@ -11,22 +11,40 @@ _(no unreleased changes yet)_
 
 ## [1.2.0] - 2025-10-16
 
+### Added
+- **Multi-source, multi-range `blz get`** ([BLZ-199](https://linear.app/outfitter/issue/BLZ-199)): Dramatically improved ergonomics for retrieving documentation spans
+  - **Multiple ranges from same source**: `blz get bun:120-142,200-210,300-350 --json` returns all spans in one call
+  - **Multiple sources in one command**: `blz get bun:120-142 turbo:50-75 react:200-220 --json` for cross-library comparisons
+  - **Matches search output**: Copy `alias:lines` directly from `blz search` JSON into `blz get` for seamless workflows
+  - **Consistent JSON schema**: All responses use `requests[]` array structure, whether fetching one span or many sources
+  - **Performance**: Single round-trip instead of multiple CLI invocations for agents and scripts
+
 ### Changed
-- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` for single spans, or `ranges[]` for multi-range calls, along with `executionTimeMs` / `totalSources`. Scripts should switch from the legacy `.content` field to `requests[*].snippet` or `requests[*].ranges[]`.
-- **Snippet invariants**: Snippet ranges now rely on `NonZeroUsize` line numbers and validated constructors to guarantee `line_start <= line_end`, removing impossible zero ranges ahead of future CLI work.
+- **`blz get` JSON schema** ([BLZ-199](https://linear.app/outfitter/issue/BLZ-199)): New structure optimized for multi-source, multi-range retrieval
+  - **Top-level `requests[]` array**: Each entry represents one source with its spans
+  - **Single span**: `snippet` + `lineStart`/`lineEnd` fields directly on request
+  - **Multiple spans**: `ranges[]` array with separate snippets for each span
+  - **Execution metadata**: `executionTimeMs` and `totalSources` at response root
+  - **Migration**: Scripts should update from legacy `.content` field to `requests[0].snippet` or iterate `requests[0].ranges[]`
+- **Snippet invariants** ([BLZ-163](https://linear.app/outfitter/issue/BLZ-163)): Enforced with `NonZeroUsize` line numbers and validated constructors
+  - Guarantees `line_start <= line_end` at compile time
+  - Eliminates impossible zero ranges and invalid spans
+  - Foundation for future CLI enhancements
 - **CLI help organization**: Commands and flags now appear in logical priority order for better discoverability
   - Core commands (add, search, get, list) appear first in help output
   - Related flags grouped together: context flags (30-34), format flags (40-44), pagination flags (50-55)
   - Deprecated flags hidden but still functional for backward compatibility
-- **Prompt consolidation**: Grep-style context flags (`-C`, `-A`, `-B`) consolidated in agent prompts for improved token efficiency
-  - Removed `--block` references from prompts (still works as legacy alias for `--context all`)
 
 ### Documentation & Prompts
-- **Agent & CLI guidance**: Updated prompts, agent instructions, and CLI reference to describe the new JSON shape, including jq helpers for iterating `requests[].ranges[]` and multi-source responses.
-- **History limit flag**: Documented the default history retention behavior added in 1.1, ensuring users have guidance on how the flag behaves post-upgrade.
-- **Syntax standardization**: Updated all documentation to use short format flags (`--json`, `--text`) instead of verbose `--format json/text`
-- **Multi-range examples**: Shell integration examples now demonstrate comma-separated multi-range syntax (`bun:120-142,200-210`)
-- **Testing guidance**: Updated blz-tester agent instructions to reflect new flag priorities
+- **Multi-range workflow guidance** ([BLZ-200](https://linear.app/outfitter/issue/BLZ-200), [BLZ-201](https://linear.app/outfitter/issue/BLZ-201), [BLZ-202](https://linear.app/outfitter/issue/BLZ-202)): Comprehensive updates for new `blz get` capabilities
+  - **Agent prompts**: Examples showing `alias:lines` → `blz get` workflows with jq helpers for parsing `ranges[]`
+  - **Shell integration**: Updated all examples (PowerShell, Elvish, Fish, Bash, Zsh, Alfred, Raycast) to use colon syntax
+  - **CLI reference**: Documented colon syntax (`bun:120-142`) as preferred over legacy `--lines` flag
+  - **Syntax standardization**: All docs now use short format flags (`--json`, `--text`) instead of verbose `--format json/text`
+  - **Cross-source patterns**: Examples demonstrating how to fetch and compare spans from multiple libraries
+- **Prompt consolidation**: Grep-style context flags (`-C`, `-A`, `-B`) consolidated in agent prompts for improved token efficiency
+  - Removed `--block` references from prompts (still works as legacy alias for `--context all`)
+- **History limit flag**: Documented the default history retention behavior added in 1.1
 
 ## [1.1.1] - 2025-10-13
 
