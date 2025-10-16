@@ -25,6 +25,10 @@ pub enum McpError {
     #[error("internal error: {0}")]
     Internal(String),
 
+    /// Invalid parameter provided
+    #[error("invalid parameter: {0}")]
+    InvalidParams(String),
+
     /// Invalid citation format
     #[error("invalid citation: {0}")]
     InvalidCitation(String),
@@ -36,6 +40,10 @@ pub enum McpError {
     /// Source not found
     #[error("source not found: {0}")]
     SourceNotFound(String),
+
+    /// Source already exists
+    #[error("source already exists: {0}")]
+    SourceExists(String),
 }
 
 impl McpError {
@@ -45,7 +53,11 @@ impl McpError {
             Self::Storage(_) | Self::Index(_) | Self::Internal(_) => -32603, // Internal error
             Self::Json(_) => -32700,                                         // Parse error
             Self::Protocol(_) => -32600,                                     // Invalid request
-            Self::InvalidCitation(_) | Self::InvalidPadding(_) | Self::SourceNotFound(_) => {
+            Self::InvalidParams(_)
+            | Self::InvalidCitation(_)
+            | Self::InvalidPadding(_)
+            | Self::SourceNotFound(_)
+            | Self::SourceExists(_) => {
                 -32602 // Invalid params
             },
         }

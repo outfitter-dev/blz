@@ -79,6 +79,7 @@ impl ServerHandler for McpServer {
     }
 
     #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
         #[allow(clippy::used_underscore_binding)] _request: Option<PaginatedRequestParam>,
@@ -125,16 +126,69 @@ impl ServerHandler for McpServer {
             }
         });
 
-        let schema_obj = find_schema
+        let list_sources_schema = json!({
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["installed", "registry", "all"],
+                    "description": "Filter by source kind"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search query to filter sources"
+                }
+            }
+        });
+
+        let source_add_schema = json!({
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string",
+                    "description": "Alias for the source"
+                },
+                "url": {
+                    "type": "string",
+                    "description": "URL override (if not from registry)"
+                },
+                "force": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Force override if source exists"
+                }
+            },
+            "required": ["alias"]
+        });
+
+        let find_schema_obj = find_schema
             .as_object()
             .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
             .clone();
 
-        let tools = vec![Tool::new(
-            "find",
-            "Search & retrieve documentation snippets",
-            Arc::new(schema_obj),
-        )];
+        let list_sources_schema_obj = list_sources_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let source_add_schema_obj = source_add_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let tools = vec![
+            Tool::new(
+                "find",
+                "Search & retrieve documentation snippets",
+                Arc::new(find_schema_obj),
+            ),
+            Tool::new(
+                "list-sources",
+                "List docs",
+                Arc::new(list_sources_schema_obj),
+            ),
+            Tool::new("source-add", "Add docs", Arc::new(source_add_schema_obj)),
+        ];
 
         Ok(ListToolsResult {
             tools,
@@ -143,6 +197,7 @@ impl ServerHandler for McpServer {
     }
 
     #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::too_many_lines)]
     async fn call_tool(
         &self,
         request: CallToolRequestParam,
@@ -168,6 +223,105 @@ impl ServerHandler for McpServer {
                     .map_err(|e| {
                         tracing::error!("find tool error: {}", e);
                         ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "list-sources" => {
+                let params: tools::ListSourcesParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid list-sources parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_list_sources(params, &self.storage)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("list-sources tool error: {}", e);
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "source-add" => {
+                let params: tools::SourceAddParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid source-add parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_source_add(params, &self.storage, &self.index_cache)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("source-add tool error: {}", e);
+                        let error_code = match e {
+                            crate::error::McpError::SourceExists(_)
+                            | crate::error::McpError::SourceNotFound(_) => {
+                                ErrorCode::INVALID_PARAMS
+                            },
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
                     })?;
 
                 let result_json = serde_json::to_value(&output).map_err(|e| {
