@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` (or `ranges[]` for multi-range calls) and execution metadata, enabling multi-source retrieval in a single command. See `docs/releases/blz-get-json-migration.md` for downstream coordination details.
+- **`blz get` JSON schema**: JSON/JSONL output now emits a top-level `requests[]` array with `snippet` + `lineStart`/`lineEnd` (or `ranges[]` for multi-range calls) and execution metadata, enabling multi-source retrieval in a single command.
 
 ## [1.1.1] - 2025-10-13
 
