@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Changed
+- **CLI help organization**: Commands and flags now appear in logical priority order for better discoverability
+  - Core commands (add, search, get, list) appear first in help output
+  - Related flags grouped together: context flags (30-34), format flags (40-44), pagination flags (50-55)
+  - Deprecated flags hidden but still functional for backward compatibility
+- **Prompt consolidation**: Grep-style context flags (`-C`, `-A`, `-B`) consolidated in agent prompts for improved token efficiency
+  - Removed `--block` references from prompts (still works as legacy alias for `--context all`)
+
+### Documentation
+- **Syntax standardization**: Updated all documentation to use short format flags (`--json`, `--text`) instead of verbose `--format json/text`
+- **Multi-range examples**: Shell integration examples now demonstrate comma-separated multi-range syntax (`bun:120-142,200-210`)
+- **Testing guidance**: Updated blz-tester agent instructions to reflect new flag priorities
 
 ## [1.2.0] - 2025-10-16
 
