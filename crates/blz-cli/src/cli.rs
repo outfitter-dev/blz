@@ -670,8 +670,7 @@ pub enum Commands {
         #[arg(
             value_name = "ALIAS",
             num_args = 0..,
-            conflicts_with = "all",
-            trailing_var_arg = true
+            conflicts_with = "all"
         )]
         aliases: Vec<String>,
         /// Update all sources
