@@ -44,12 +44,12 @@ fn sanitize_output(output: &str, root_dir: &Path) -> String {
     let start = std::time::Instant::now();
 
     let root_str = root_dir.to_string_lossy();
-    let sanitized = output.replace(root_str.as_ref(), "<root>");
+    let mut sanitized = output.replace(root_str.as_ref(), "<root>");
 
     // Also sanitize any home directory references
     if let Some(home) = directories::BaseDirs::new() {
         let home_str = home.home_dir().to_string_lossy();
-        let sanitized = sanitized.replace(home_str.as_ref(), "~");
+        sanitized = sanitized.replace(home_str.as_ref(), "~");
 
         let elapsed = start.elapsed();
         tracing::debug!(
