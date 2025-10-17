@@ -256,12 +256,9 @@ pub async fn handle_source_add(
 
         // Find exact match or best match
         let entry = search_results
-            .into_iter()
+            .iter()
             .find(|result| result.entry.slug == params.alias)
-            .or_else(|| {
-                // If no exact match, take the best fuzzy match
-                registry.search(&params.alias).into_iter().next()
-            })
+            .or_else(|| search_results.first())
             .ok_or_else(|| McpError::SourceNotFound(params.alias.clone()))?;
 
         entry.entry.llms_url.clone()

@@ -276,7 +276,11 @@ impl ServerHandler for McpServer {
                     .await
                     .map_err(|e| {
                         tracing::error!("list-sources tool error: {}", e);
-                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                        let error_code = match e {
+                            crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
                     })?;
 
                 let result_json = serde_json::to_value(&output).map_err(|e| {
@@ -324,9 +328,8 @@ impl ServerHandler for McpServer {
                         tracing::error!("source-add tool error: {}", e);
                         let error_code = match e {
                             crate::error::McpError::SourceExists(_)
-                            | crate::error::McpError::SourceNotFound(_) => {
-                                ErrorCode::INVALID_PARAMS
-                            },
+                            | crate::error::McpError::SourceNotFound(_)
+                            | crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
                             _ => ErrorCode::INTERNAL_ERROR,
                         };
                         ErrorData::new(error_code, e.to_string(), None)
