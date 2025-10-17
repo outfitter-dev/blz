@@ -167,7 +167,15 @@ impl ServerHandler for McpServer {
                     .await
                     .map_err(|e| {
                         tracing::error!("find tool error: {}", e);
-                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                        let error_code = match e.error_code() {
+                            -32700 => ErrorCode::PARSE_ERROR,
+                            -32600 => ErrorCode::INVALID_REQUEST,
+                            -32601 => ErrorCode::METHOD_NOT_FOUND,
+                            -32602 => ErrorCode::INVALID_PARAMS,
+                            -32603 => ErrorCode::INTERNAL_ERROR,
+                            other => ErrorCode(other),
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
                     })?;
 
                 let result_json = serde_json::to_value(&output).map_err(|e| {
