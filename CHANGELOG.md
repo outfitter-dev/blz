@@ -7,14 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
-
-## [1.3.0] - 2025-10-16
-
 ### Added
 - **MCP Server v1.0** ([BLZ-206](https://linear.app/outfitter/issue/BLZ-206)): Native Rust-based Model Context Protocol server (`blz mcp`)
   - Sub-50ms search latency with direct `blz-core` integration (P50: 0.177ms, P95: 0.42ms) ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
   - Unified `find` tool for search and snippet retrieval with context modes (none, symmetric, all) ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
+  - **Response format optimization**: `format` parameter on `find` tool with concise/detailed modes for 30-65% token savings
   - Source management tools: `list-sources`, `source-add` ([BLZ-209](https://linear.app/outfitter/issue/BLZ-209))
   - Read-only diagnostic commands via `run-command` whitelist ([BLZ-210](https://linear.app/outfitter/issue/BLZ-210))
   - Embedded learning resources via `learn-blz` prompts ([BLZ-210](https://linear.app/outfitter/issue/BLZ-210))
@@ -433,7 +430,6 @@ _(no unreleased changes yet)_
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
-[1.3.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.3.0
 [1.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.2.0
 [1.1.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.1
 [1.1.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.0
