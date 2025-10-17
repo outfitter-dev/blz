@@ -132,6 +132,12 @@ impl ServerHandler for McpServer {
                 "source": {
                     "type": "string",
                     "description": "Source to search (required when using query parameter)"
+                },
+                "format": {
+                    "type": "string",
+                    "enum": ["concise", "detailed"],
+                    "default": "concise",
+                    "description": "Response format (concise = minimal, detailed = full metadata)"
                 }
             }
         });
@@ -219,23 +225,27 @@ impl ServerHandler for McpServer {
 
         let tools = vec![
             Tool::new(
-                "find",
+                "blz_find",
                 "Search & retrieve documentation snippets",
                 Arc::new(find_schema_obj),
             ),
             Tool::new(
-                "list-sources",
+                "blz_list_sources",
                 "List docs",
                 Arc::new(list_sources_schema_obj),
             ),
-            Tool::new("source-add", "Add docs", Arc::new(source_add_schema_obj)),
             Tool::new(
-                "run-command",
+                "blz_add_source",
+                "Add docs",
+                Arc::new(source_add_schema_obj),
+            ),
+            Tool::new(
+                "blz_run_command",
                 "Run safe diagnostic commands",
                 Arc::new(run_command_schema_obj),
             ),
             Tool::new(
-                "learn-blz",
+                "blz_learn",
                 "Learn BLZ usage",
                 Arc::new(learn_blz_schema_obj),
             ),
@@ -257,7 +267,7 @@ impl ServerHandler for McpServer {
         tracing::debug!(tool = %request.name, "calling tool");
 
         match request.name.as_ref() {
-            "find" => {
+            "blz_find" => {
                 let params: tools::FindParams = serde_json::from_value(serde_json::Value::Object(
                     request.arguments.unwrap_or_default(),
                 ))
@@ -311,7 +321,7 @@ impl ServerHandler for McpServer {
                     meta: None,
                 })
             },
-            "list-sources" => {
+            "blz_list_sources" => {
                 let params: tools::ListSourcesParams = serde_json::from_value(
                     serde_json::Value::Object(request.arguments.unwrap_or_default()),
                 )
@@ -361,7 +371,7 @@ impl ServerHandler for McpServer {
                     meta: None,
                 })
             },
-            "source-add" => {
+            "blz_add_source" => {
                 let params: tools::SourceAddParams = serde_json::from_value(
                     serde_json::Value::Object(request.arguments.unwrap_or_default()),
                 )
@@ -413,7 +423,7 @@ impl ServerHandler for McpServer {
                     meta: None,
                 })
             },
-            "run-command" => {
+            "blz_run_command" => {
                 let params: tools::RunCommandParams = serde_json::from_value(
                     serde_json::Value::Object(request.arguments.unwrap_or_default()),
                 )
@@ -465,7 +475,7 @@ impl ServerHandler for McpServer {
                     meta: None,
                 })
             },
-            "learn-blz" => {
+            "blz_learn" => {
                 let params: tools::LearnBlzParams = serde_json::from_value(
                     serde_json::Value::Object(request.arguments.unwrap_or_default()),
                 )

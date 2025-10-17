@@ -3,7 +3,11 @@
 use blz_core::{SearchIndex, Storage};
 use serde::{Deserialize, Serialize};
 
-use crate::{cache, error::McpResult, types::IndexCache};
+use crate::{
+    cache,
+    error::McpResult,
+    types::{IndexCache, ResponseFormat},
+};
 
 /// Default maximum number of search results
 const DEFAULT_MAX_RESULTS: usize = 10;
@@ -39,6 +43,13 @@ pub struct FindParams {
     /// Optional source filter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+
+    /// Response format: "concise" (default) or "detailed"
+    ///
+    /// Concise returns minimal data, detailed includes all metadata.
+    /// Based on Anthropic research showing 30-65% token savings with concise mode.
+    #[serde(default)]
+    pub format: ResponseFormat,
 }
 
 fn default_context_mode() -> String {
@@ -673,6 +684,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         // Store index in cache
@@ -703,6 +715,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -737,6 +750,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         // Store index in cache
@@ -769,6 +783,7 @@ Last line of section 2"#;
                 line_padding: padding,
                 max_results: 10,
                 source: None,
+                format: ResponseFormat::default(),
             };
 
             let result = handle_find(params, &storage, &index_cache).await;
@@ -783,6 +798,7 @@ Last line of section 2"#;
             line_padding: 51,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -802,6 +818,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -825,6 +842,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -839,6 +857,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -859,6 +878,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 1000,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -872,6 +892,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 1001,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -900,6 +921,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -922,6 +944,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -947,6 +970,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None, // Missing required source parameter
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;

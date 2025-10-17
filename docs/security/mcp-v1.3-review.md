@@ -9,7 +9,7 @@
 
 **Overall Security Posture: PASS WITH RECOMMENDATIONS**
 
-The BLZ MCP server demonstrates strong security fundamentals with defense-in-depth implementation. The codebase is read-only by design (except for the intentionally scoped `source-add` tool), properly validates inputs, sanitizes outputs, and follows Rust best practices for memory safety.
+The BLZ MCP server demonstrates strong security fundamentals with defense-in-depth implementation. The codebase is read-only by design (except for the intentionally scoped `blz_add_source` tool), properly validates inputs, sanitizes outputs, and follows Rust best practices for memory safety.
 
 **Key Strengths:**
 - Command whitelist enforcement prevents arbitrary command execution
@@ -19,7 +19,7 @@ The BLZ MCP server demonstrates strong security fundamentals with defense-in-dep
 - Proper error handling without panics in production code
 
 **Recommendations:**
-- Add rate limiting for `source-add` operations
+- Add rate limiting for `blz_add_source` operations
 - Consider additional validation for URL schemes
 - Add timeout enforcement for HTTP fetches
 - Document threat model for multi-user scenarios
@@ -34,15 +34,15 @@ The BLZ MCP server demonstrates strong security fundamentals with defense-in-dep
 
 Reviewed all tools in `/crates/blz-mcp/src/tools/`:
 - `find.rs` - Search and retrieval only, no mutations
-- `list-sources.rs` - Read-only metadata access
-- `run-command.rs` - Diagnostic commands, all read-only
-- `learn-blz.rs` - Returns static embedded JSON
-- `sources.rs` - `source-add` is the only write operation (by design)
+- `blz_list_sources.rs` - Read-only metadata access
+- `blz_run_command.rs` - Diagnostic commands, all read-only
+- `blz_learn.rs` - Returns static embedded JSON
+- `sources.rs` - `blz_add_source` is the only write operation (by design)
 
 **Verification:**
 
 ```rust
-// run-command.rs whitelist (lines 11-12)
+// blz_run_command.rs whitelist (lines 11-12)
 const WHITELISTED_COMMANDS: &[&str] =
     &["list", "stats", "history", "validate", "inspect", "schema"];
 ```
@@ -64,14 +64,14 @@ No shell execution paths found. All operations use Rust APIs:
 - No system call wrappers
 
 **Findings:**
-- ✅ Only `source-add` performs mutations (intentional design)
+- ✅ Only `blz_add_source` performs mutations (intentional design)
 - ✅ No command injection vectors
 - ✅ No arbitrary file write capabilities
 - ✅ All diagnostic commands are read-only
 
 **Recommendations:**
-- Consider adding audit logging for `source-add` operations
-- Document that `source-add` requires network access for fetching
+- Consider adding audit logging for `blz_add_source` operations
+- Document that `blz_add_source` requires network access for fetching
 
 ---
 
@@ -81,7 +81,7 @@ No shell execution paths found. All operations use Rust APIs:
 
 **Analysis:**
 
-Command whitelist enforcement in `run-command.rs` (lines 340-347):
+Command whitelist enforcement in `blz_run_command.rs` (lines 340-347):
 
 ```rust
 // Validate command is whitelisted
@@ -143,7 +143,7 @@ async fn test_reject_non_whitelisted() {
 
 **Analysis:**
 
-Path sanitization in `run-command.rs` (lines 42-74):
+Path sanitization in `blz_run_command.rs` (lines 42-74):
 
 ```rust
 fn sanitize_output(output: &str, root_dir: &Path) -> String {
@@ -540,7 +540,7 @@ fn parse_citation(citation: &str) -> Result<(String, Vec<(usize, usize)>), Strin
    }
    ```
 2. **Add URL parsing:** Use `url::Url::parse()` to validate URL structure
-3. **Document rate limiting:** Consider rate limiting `source-add` to prevent DoS
+3. **Document rate limiting:** Consider rate limiting `blz_add_source` to prevent DoS
 
 ---
 
@@ -550,8 +550,8 @@ fn parse_citation(citation: &str) -> Result<(String, Vec<(usize, usize)>), Strin
 
 | Risk | Likelihood | Impact | Overall | Mitigation |
 |------|------------|--------|---------|------------|
-| SSRF via source-add | Medium | Medium | Medium | Add IP blocklist, document network requirements |
-| DoS via source-add | Low | Medium | Low | Rate limiting, resource quotas |
+| SSRF via blz_add_source | Medium | Medium | Medium | Add IP blocklist, document network requirements |
+| DoS via blz_add_source | Low | Medium | Low | Rate limiting, resource quotas |
 | Path traversal via alias | Very Low | High | Low | Already mitigated by validation |
 | Information leakage | Very Low | Low | Very Low | Path sanitization in place |
 | Command injection | Very Low | Critical | Very Low | Whitelist enforcement prevents |
@@ -559,13 +559,13 @@ fn parse_citation(citation: &str) -> Result<(String, Vec<(usize, usize)>), Strin
 ### Residual Risks
 
 **SSRF (Server-Side Request Forgery):**
-- **Description:** `source-add` allows arbitrary HTTP(S) URLs, could target internal services
+- **Description:** `blz_add_source` allows arbitrary HTTP(S) URLs, could target internal services
 - **Mitigation Status:** Partial - scheme validation only
 - **Recommendation:** Add IP address blocklist for internal networks
 - **Business Context:** Limited risk if MCP runs in user context (not privileged server)
 
 **Rate Limiting:**
-- **Description:** No rate limiting on `source-add` operations
+- **Description:** No rate limiting on `blz_add_source` operations
 - **Mitigation Status:** None
 - **Recommendation:** Implement per-session rate limiting
 - **Business Context:** Low risk for single-user CLI usage, higher for multi-user deployments
@@ -874,7 +874,7 @@ fuzz_target!(|data: &[u8]| {
 
 4. **Resource Exhaustion:**
    - Large file downloads via malicious URLs
-   - Rapid source-add operations
+   - Rapid blz_add_source operations
    - Deeply nested JSON in llms.txt
 
 5. **Input Fuzzing:**
@@ -955,7 +955,7 @@ Response time: 48 hours
 
 ## Known Limitations
 
-- `source-add` requires network access
+- `blz_add_source` requires network access
 - No multi-user isolation
 - Runs with user privileges
 ```
@@ -965,7 +965,7 @@ Response time: 48 hours
 Update `docs/mcp/security.md`:
 
 - Document that MCP runs in user context
-- Explain source-add permissions
+- Explain blz_add_source permissions
 - Describe path sanitization behavior
 - List security best practices
 - Provide example security configurations
