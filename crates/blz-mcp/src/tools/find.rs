@@ -47,6 +47,11 @@ impl SourceFilter {
 }
 
 /// Parameters for the find tool
+///
+/// # Performance Notes
+/// - Cross-source queries scale linearly with the number of sources searched
+/// - Results are merged and re-ranked globally by relevance across sources
+/// - Failed sources emit warnings and are skipped to keep responses resilient
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FindParams {
@@ -559,49 +564,39 @@ pub async fn handle_find(
         tracing::debug!(query, source = ?params.source, "executing search");
 
         // Determine which sources to search
-        #[allow(clippy::option_if_let_else)] // More readable as explicit match
-        let sources_to_search = match &params.source {
-            None => {
-                // No source specified - search all sources
-                storage.list_sources()
-            },
-            Some(filter) => {
-                if filter.is_all() {
-                    // Explicit "all" - search all sources
-                    storage.list_sources()
-                } else if let Some(sources) = filter.sources() {
-                    // Specific source(s) - we'll validate when we try to load them
-                    // (no need to validate against storage.list_sources() since we
-                    // check the index cache and attempt to load)
-                    sources
-                } else {
-                    storage.list_sources()
-                }
-            },
-        };
+        let mut sources_to_search = params
+            .source
+            .as_ref()
+            .and_then(SourceFilter::sources)
+            .unwrap_or_else(|| storage.list_sources());
 
         // Validate we have sources to search
         // If no sources are available from storage but we're searching all,
         // fall back to sources in the cache
-        let sources_to_search = if sources_to_search.is_empty() && params.source.is_none() {
-            let cache_read = index_cache.read().await;
-            let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
-            drop(cache_read);
+        if sources_to_search.is_empty() {
+            if params.source.is_none() {
+                let cache_read = index_cache.read().await;
+                let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
+                drop(cache_read);
 
-            if cached_sources.is_empty() {
-                return Err(crate::error::McpError::Internal(
-                    "No sources available to search".to_string(),
-                ));
+                if cached_sources.is_empty() {
+                    let available = storage.list_sources();
+                    return Err(crate::error::McpError::Internal(format!(
+                        "No sources available to search. Available sources: {:?}",
+                        available
+                    )));
+                }
+
+                sources_to_search = cached_sources;
+            } else {
+                let available = storage.list_sources();
+                return Err(crate::error::McpError::Internal(format!(
+                    "No sources available to search for filter {:?}. Available sources: {:?}",
+                    params.source.as_ref(),
+                    available
+                )));
             }
-
-            cached_sources
-        } else if sources_to_search.is_empty() {
-            return Err(crate::error::McpError::Internal(
-                "No sources available to search".to_string(),
-            ));
-        } else {
-            sources_to_search
-        };
+        }
 
         tracing::debug!(
             sources = ?sources_to_search,
@@ -610,7 +605,10 @@ pub async fn handle_find(
         );
 
         // Search across all specified sources and merge results
-        let mut all_hits = Vec::new();
+        let estimated_capacity = params
+            .max_results
+            .saturating_mul(sources_to_search.len().min(4));
+        let mut all_hits = Vec::with_capacity(estimated_capacity);
 
         for source in &sources_to_search {
             // Get or load the index for this source

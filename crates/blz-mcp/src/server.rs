@@ -130,8 +130,17 @@ impl ServerHandler for McpServer {
                     "description": "Maximum search results"
                 },
                 "source": {
-                    "type": "string",
-                    "description": "Source to search (required when using query parameter)"
+                    "description": "Optional source filter: omit or set to \"all\" to search every source, provide a string alias for one source, or an array of aliases to target multiple sources",
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1
+                        }
+                    ]
                 },
                 "format": {
                     "type": "string",
