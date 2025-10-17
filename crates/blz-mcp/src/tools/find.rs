@@ -32,6 +32,7 @@ pub enum SourceFilter {
 
 impl SourceFilter {
     /// Check if this filter represents "all sources"
+    #[cfg(test)]
     fn is_all(&self) -> bool {
         matches!(self, Self::Single(s) if s == "all")
     }
@@ -317,11 +318,18 @@ fn find_containing_block(
     let mut flat_toc: Vec<(&blz_core::TocEntry, usize, usize)> = Vec::new();
     flatten_toc(toc, &mut flat_toc);
 
-    // Find the entry containing the start line with the deepest nesting level
-    // (longest heading_path) to get the most specific section
+    // Find the entry containing BOTH start_line and end_line with the deepest
+    // nesting level (longest heading_path) to get the most specific section.
+    // If no section contains the entire range, the function returns None so the caller
+    // can fall back to symmetric padding.
     let containing_entry = flat_toc
         .iter()
-        .filter(|(_, block_start, block_end)| *block_start <= start_line && end_line <= *block_end)
+        .filter(|(_, block_start, block_end)| {
+            *block_start <= start_line
+                && start_line <= *block_end
+                && *block_start <= end_line
+                && end_line <= *block_end
+        })
         .max_by_key(|(entry, _, _)| entry.heading_path.len())?;
 
     let (current_entry, section_start, _) = *containing_entry;
@@ -582,8 +590,7 @@ pub async fn handle_find(
                 if cached_sources.is_empty() {
                     let available = storage.list_sources();
                     return Err(crate::error::McpError::Internal(format!(
-                        "No sources available to search. Available sources: {:?}",
-                        available
+                        "No sources available to search. Available sources: {available:?}"
                     )));
                 }
 
@@ -591,9 +598,8 @@ pub async fn handle_find(
             } else {
                 let available = storage.list_sources();
                 return Err(crate::error::McpError::Internal(format!(
-                    "No sources available to search for filter {:?}. Available sources: {:?}",
-                    params.source.as_ref(),
-                    available
+                    "No sources available to search for filter {:?}. Available sources: {available:?}",
+                    params.source.as_ref()
                 )));
             }
         }
@@ -1511,6 +1517,35 @@ mod block_detection_tests {
         let toc: Vec<TocEntry> = vec![];
         let result = find_containing_block(&toc, 10, 20);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_containing_block_cross_section_range_returns_none() {
+        let toc = create_test_toc();
+
+        // Request range 8-15 spans two top-level sections:
+        // - Introduction (1-10) contains line 8 but not line 15
+        // - Getting Started (11-50) contains line 15 but not line 8
+        // Should return None to fall back to symmetric padding
+        let result = find_containing_block(&toc, 8, 15);
+        assert!(
+            result.is_none(),
+            "Cross-section ranges should return None to trigger fallback"
+        );
+    }
+
+    #[test]
+    fn test_find_containing_block_range_entirely_within_section() {
+        let toc = create_test_toc();
+
+        // Request range 20-24 is entirely within Installation (12-25)
+        // Should find and return the Installation section boundary
+        let result = find_containing_block(&toc, 20, 24);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        // Should return Installation section (12-25)
+        assert_eq!(start, 11); // Line 12 -> 0-based index 11
+        assert_eq!(end, 24); // Line 25 -> 0-based index 24
     }
 
     #[tokio::test]
