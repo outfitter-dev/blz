@@ -574,15 +574,20 @@ impl ServerHandler for McpServer {
     ) -> Result<ReadResourceResult, ErrorData> {
         tracing::debug!(uri = %request.uri, "reading resource");
 
-        let result = if request.uri.starts_with("blz://registry")
-            || request.uri.starts_with("resource://blz/registry")
-        {
+        let result = if matches!(
+            request.uri.as_str(),
+            "blz://registry" | "resource://blz/registry"
+        ) {
             // Handle registry resource
             resources::handle_registry_resource(&request.uri)
                 .await
                 .map_err(|e| {
                     tracing::error!("registry resource error: {}", e);
-                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    let error_code = match e {
+                        crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                        _ => ErrorCode::INTERNAL_ERROR,
+                    };
+                    ErrorData::new(error_code, e.to_string(), None)
                 })?
         } else if request.uri.starts_with("blz://sources/")
             || request.uri.starts_with("resource://blz/sources/")

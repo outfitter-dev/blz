@@ -23,7 +23,7 @@ fn parse_registry_uri(uri: &str) -> McpResult<()> {
         return Ok(());
     }
 
-    Err(McpError::Internal(format!(
+    Err(McpError::InvalidParams(format!(
         "Invalid registry resource URI: {uri}"
     )))
 }
@@ -47,12 +47,16 @@ pub async fn handle_registry_resource(uri: &str) -> McpResult<serde_json::Value>
         .iter()
         .map(|entry| {
             // Infer category from description (first word before space/colon/dash)
-            let category = entry
+            let first_word = entry
                 .description
                 .split(&[' ', ':', '-'][..])
                 .next()
-                .unwrap_or("general")
-                .to_lowercase();
+                .unwrap_or("");
+            let category = if first_word.is_empty() {
+                "general".to_string()
+            } else {
+                first_word.to_lowercase()
+            };
 
             json!({
                 "alias": entry.slug,
