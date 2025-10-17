@@ -58,8 +58,6 @@ fn sanitize_output(output: &str, root_dir: &Path) -> String {
             sanitized_len = sanitized.len(),
             "output sanitized"
         );
-
-        sanitized
     } else {
         let elapsed = start.elapsed();
         tracing::debug!(
@@ -68,9 +66,9 @@ fn sanitize_output(output: &str, root_dir: &Path) -> String {
             sanitized_len = sanitized.len(),
             "output sanitized (no home dir)"
         );
-
-        sanitized
     }
+
+    sanitized
 }
 
 /// Execute the list command
