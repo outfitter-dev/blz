@@ -248,10 +248,19 @@ async fn execute_search(
     Ok(results)
 }
 
-/// Find the smallest TOC entry containing the given line range.
+/// Find section boundary for context "all" mode based on heading hierarchy.
 ///
-/// Recursively searches the TOC tree to find the block that contains
-/// the requested lines. Returns the block boundaries if found.
+/// Locates the TOC entry containing the requested lines and expands to the
+/// logical section boundary by finding the next heading of equal or higher level.
+///
+/// ## Heading Hierarchy
+///
+/// The heading level is determined by `heading_path.len()`:
+/// - H1: `heading_path.len() == 1` (e.g., `["Introduction"]`)
+/// - H2: `heading_path.len() == 2` (e.g., `["Introduction", "Setup"]`)
+/// - H3: `heading_path.len() == 3` (e.g., `["Introduction", "Setup", "Prerequisites"]`)
+///
+/// Expansion stops at the next heading with `heading_path.len() <= current_level`.
 ///
 /// ## Arguments
 ///
@@ -261,17 +270,68 @@ async fn execute_search(
 ///
 /// ## Returns
 ///
-/// `Some((block_start, block_end))` with 0-based indices if a containing
-/// block is found, `None` otherwise.
+/// `Some((section_start, section_end))` with 0-based indices if a section
+/// boundary is found, `None` otherwise (falls back to symmetric padding).
 #[tracing::instrument]
 fn find_containing_block(
     toc: &[blz_core::TocEntry],
     start_line: usize,
     end_line: usize,
 ) -> Option<(usize, usize)> {
-    let mut best_match: Option<(usize, usize)> = None;
-    let mut best_size = usize::MAX;
+    // Flatten the TOC tree into a linear list of entries with their boundaries
+    let mut flat_toc: Vec<(&blz_core::TocEntry, usize, usize)> = Vec::new();
+    flatten_toc(toc, &mut flat_toc);
 
+    // Find the entry containing the start line with the deepest nesting level
+    // (longest heading_path) to get the most specific section
+    let containing_entry = flat_toc
+        .iter()
+        .filter(|(_, block_start, block_end)| {
+            *block_start <= start_line && start_line <= *block_end
+        })
+        .max_by_key(|(entry, _, _)| entry.heading_path.len())?;
+
+    let (current_entry, section_start, _) = *containing_entry;
+    let current_level = current_entry.heading_path.len();
+
+    tracing::debug!(
+        heading = %current_entry.heading_path.join(" > "),
+        level = current_level,
+        section_lines = %current_entry.lines,
+        "Found containing section"
+    );
+
+    // Find the next heading of same or higher level (equal or shorter heading_path)
+    let section_end = flat_toc
+        .iter()
+        .skip_while(|(entry, _, _)| entry.lines != current_entry.lines)
+        .skip(1) // Skip the current entry itself
+        .find(|(entry, _, _)| entry.heading_path.len() <= current_level)
+        .map_or_else(
+            || {
+                // No next section found - this is the last section, use its end boundary
+                flat_toc.last().map_or(section_start, |(_, _, end)| *end)
+            },
+            |(_, next_start, _)| next_start.saturating_sub(1), // End just before next section
+        );
+
+    tracing::debug!(section_start, section_end, "Expanded to section boundary");
+
+    // Convert to 0-based indexing
+    Some((
+        section_start.saturating_sub(1),
+        section_end.saturating_sub(1),
+    ))
+}
+
+/// Recursively flatten TOC tree into a linear list of (entry, start, end) tuples.
+///
+/// This helper function traverses the TOC tree in depth-first order and extracts
+/// the line boundaries for each entry.
+fn flatten_toc<'a>(
+    toc: &'a [blz_core::TocEntry],
+    result: &mut Vec<(&'a blz_core::TocEntry, usize, usize)>,
+) {
     for entry in toc {
         // Parse the "start-end" format from TOC entry
         let parts: Vec<&str> = entry.lines.split('-').collect();
@@ -299,33 +359,13 @@ fn find_containing_block(
             continue;
         };
 
-        // Check if this block contains our requested range
-        if block_start <= start_line && end_line <= block_end {
-            let block_size = block_end - block_start;
+        result.push((entry, block_start, block_end));
 
-            // Track smallest containing block
-            if block_size < best_size {
-                // Convert to 0-based indexing for return value
-                best_match = Some((block_start.saturating_sub(1), block_end.saturating_sub(1)));
-                best_size = block_size;
-            }
-
-            // Recursively check children for a tighter match
-            if !entry.children.is_empty() {
-                if let Some(child_match) =
-                    find_containing_block(&entry.children, start_line, end_line)
-                {
-                    let child_size = child_match.1 - child_match.0;
-                    if child_size < best_size {
-                        best_match = Some(child_match);
-                        best_size = child_size;
-                    }
-                }
-            }
+        // Recursively process children
+        if !entry.children.is_empty() {
+            flatten_toc(&entry.children, result);
         }
     }
-
-    best_match
 }
 
 /// Retrieve snippet with context
@@ -1197,26 +1237,29 @@ mod block_detection_tests {
     fn test_find_containing_block_nested() {
         let toc = create_test_toc();
 
-        // Request falls in nested "Installation" block
+        // Request falls in nested "Installation" block (H2 level: heading_path length = 2)
+        // Should expand to section boundary: from Installation start until next H2 or H1
+        // "Installation" is lines 12-25, next H2 is "Configuration" at line 26
         let result = find_containing_block(&toc, 15, 20);
         assert!(result.is_some());
         let (start, end) = result.unwrap();
-        // Should return the smallest containing block (Installation: 12-25)
+        // Should return boundary: from Installation (line 12) to before Configuration (line 25)
         assert_eq!(start, 11); // 1-based line 12 -> 0-based index 11
         assert_eq!(end, 24); // 1-based line 25 -> 0-based index 24
     }
 
     #[test]
-    fn test_find_containing_block_prefers_smallest() {
+    fn test_find_containing_block_expands_to_section_boundary() {
         let toc = create_test_toc();
 
         // Request at line 30 falls in both "Getting Started" (11-50) and "Configuration" (26-50)
-        // Should return the smaller "Configuration" block
+        // Should find the deepest entry ("Configuration" at H2) and expand to section boundary
+        // "Configuration" is H2, next H2 or H1 is "API Reference" at line 51
         let result = find_containing_block(&toc, 30, 35);
         assert!(result.is_some());
         let (start, end) = result.unwrap();
-        assert_eq!(start, 25); // Configuration starts at line 26
-        assert_eq!(end, 49); // Configuration ends at line 50
+        assert_eq!(start, 25); // Configuration starts at line 26 -> 0-based index 25
+        assert_eq!(end, 49); // Expands to before "API Reference" (line 51 -> end at 50 -> 0-based index 49)
     }
 
     #[test]
@@ -1244,13 +1287,14 @@ mod block_detection_tests {
     fn test_find_containing_block_single_line() {
         let toc = create_test_toc();
 
-        // Request single line within a block
+        // Request single line within the Installation block
+        // "Installation" is H2 (level 2), next H2 or H1 is "Configuration" at line 26
         let result = find_containing_block(&toc, 15, 15);
         assert!(result.is_some());
         let (start, end) = result.unwrap();
-        // Should find Installation block (12-25)
-        assert_eq!(start, 11);
-        assert_eq!(end, 24);
+        // Should expand to section boundary: Installation (12-25)
+        assert_eq!(start, 11); // Line 12 -> 0-based index 11
+        assert_eq!(end, 24); // Line 25 -> 0-based index 24
     }
 
     #[test]
@@ -1424,7 +1468,6 @@ Line 12";
         let storage =
             Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
 
-        // Document has only three lines.
         let test_content = "Line 1\nLine 2\nLine 3\n";
 
         let source_dir = temp_dir.path().join("sources/out-of-bounds");
@@ -1432,7 +1475,6 @@ Line 12";
         std::fs::write(source_dir.join("llms.txt"), test_content)
             .expect("Failed to write llms.txt");
 
-        // Persist llms.json with a TOC entry that overflows past the end of the file.
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("Time went backwards")
@@ -1483,9 +1525,149 @@ Line 12";
         assert!(result.is_ok());
 
         let snippet = result.unwrap();
-        // Even though TOC says 1-10, the snippet should clamp to the file length.
         assert_eq!(snippet.line_start, 1);
         assert_eq!(snippet.line_end, 3);
         assert!(snippet.content.contains("Line 3"));
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn test_context_mode_all_respects_heading_hierarchy() {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let storage =
+            Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
+
+        let test_content = "# Main Title
+Line 2
+
+## H2 Section
+Line 5
+Line 6
+
+### H3 Subsection
+Line 9
+Line 10
+
+#### H4 Subsubsection
+Line 13
+Line 14
+
+##### H5 Deep Section
+Line 17
+Line 18
+Line 19
+
+## Next H2 Section
+Line 22
+Line 23";
+
+        std::fs::create_dir_all(temp_dir.path().join("sources/hierarchy-test"))
+            .expect("Failed to create sources dir");
+        std::fs::write(
+            temp_dir.path().join("sources/hierarchy-test/llms.txt"),
+            test_content,
+        )
+        .expect("Failed to write test content");
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        #[allow(clippy::cast_possible_wrap)]
+        let fetched_at =
+            chrono::DateTime::from_timestamp(now as i64, 0).expect("Failed to create timestamp");
+
+        let llms_json = blz_core::LlmsJson {
+            source: "hierarchy-test".to_string(),
+            metadata: blz_core::Source {
+                url: "https://example.com".to_string(),
+                etag: None,
+                last_modified: None,
+                fetched_at,
+                sha256: "test".to_string(),
+                variant: blz_core::SourceVariant::Llms,
+                aliases: vec![],
+                tags: vec![],
+                description: None,
+                category: None,
+                npm_aliases: vec![],
+                github_aliases: vec![],
+                origin: blz_core::SourceOrigin {
+                    manifest: None,
+                    source_type: None,
+                },
+            },
+            toc: vec![
+                TocEntry {
+                    heading_path: vec!["Main Title".to_string()],
+                    lines: "1-3".to_string(),
+                    anchor: None,
+                    children: vec![],
+                },
+                TocEntry {
+                    heading_path: vec!["H2 Section".to_string()],
+                    lines: "4-20".to_string(),
+                    anchor: None,
+                    children: vec![TocEntry {
+                        heading_path: vec!["H2 Section".to_string(), "H3 Subsection".to_string()],
+                        lines: "8-20".to_string(),
+                        anchor: None,
+                        children: vec![TocEntry {
+                            heading_path: vec![
+                                "H2 Section".to_string(),
+                                "H3 Subsection".to_string(),
+                                "H4 Subsubsection".to_string(),
+                            ],
+                            lines: "12-20".to_string(),
+                            anchor: None,
+                            children: vec![TocEntry {
+                                heading_path: vec![
+                                    "H2 Section".to_string(),
+                                    "H3 Subsection".to_string(),
+                                    "H4 Subsubsection".to_string(),
+                                    "H5 Deep Section".to_string(),
+                                ],
+                                lines: "16-19".to_string(),
+                                anchor: None,
+                                children: vec![],
+                            }],
+                        }],
+                    }],
+                },
+                TocEntry {
+                    heading_path: vec!["Next H2 Section".to_string()],
+                    lines: "21-23".to_string(),
+                    anchor: None,
+                    children: vec![],
+                },
+            ],
+            files: vec![],
+            line_index: blz_core::LineIndex {
+                total_lines: 23,
+                byte_offsets: false,
+            },
+            diagnostics: vec![],
+            parse_meta: None,
+        };
+
+        let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
+        std::fs::write(
+            temp_dir.path().join("sources/hierarchy-test/llms.json"),
+            json_str,
+        )
+        .expect("Failed to write llms.json");
+
+        let result = retrieve_snippet(&storage, "hierarchy-test", 17, 17, "all", 0);
+        assert!(result.is_ok());
+
+        let snippet = result.unwrap();
+        assert_eq!(snippet.line_start, 4);
+        assert_eq!(snippet.line_end, 20);
+        let content = snippet.content;
+        assert!(content.contains("## H2 Section"));
+        assert!(content.contains("### H3 Subsection"));
+        assert!(content.contains("#### H4 Subsubsection"));
+        assert!(content.contains("##### H5 Deep Section"));
+        assert!(!content.contains("## Next H2 Section"));
     }
 }
