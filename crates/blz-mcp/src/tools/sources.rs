@@ -1,6 +1,6 @@
 //! Source management tools for listing and adding documentation sources
 
-use blz_core::{Registry, Storage};
+use blz_core::{Registry, SourceDescriptor, Storage};
 use serde::{Deserialize, Serialize};
 
 use crate::{cache, error::McpError, error::McpResult, types::IndexCache};
@@ -343,6 +343,17 @@ pub async fn handle_source_add(
     storage
         .save_llms_json(&params.alias, &llms_json)
         .map_err(|e| McpError::Internal(format!("Failed to save llms.json: {e}")))?;
+
+    // Persist metadata so other commands (update/list) can read source state
+    storage
+        .save_source_metadata(&params.alias, &llms_json.metadata)
+        .map_err(|e| McpError::Internal(format!("Failed to save source metadata: {e}")))?;
+
+    // Write descriptor snapshot for CLI compatibility
+    let descriptor = SourceDescriptor::from_source(&params.alias, &llms_json.metadata);
+    storage
+        .save_descriptor(&descriptor)
+        .map_err(|e| McpError::Internal(format!("Failed to save source descriptor: {e}")))?;
 
     // Build search index
     let index_path = storage
