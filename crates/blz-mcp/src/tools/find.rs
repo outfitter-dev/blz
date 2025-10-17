@@ -323,7 +323,26 @@ fn retrieve_snippet(
                             block = %format!("{}-{}", block_start + 1, block_end + 1),
                             "Found containing block from TOC"
                         );
-                        (block_start, block_end)
+
+                        let max_idx = lines.len().saturating_sub(1);
+                        let clamped_start = block_start.min(max_idx);
+                        let clamped_end = block_end.min(max_idx);
+
+                        if clamped_start != block_start || clamped_end != block_end {
+                            tracing::warn!(
+                                requested = %format!("{start}-{end}"),
+                                toc_block = %format!("{}-{}", block_start + 1, block_end + 1),
+                                clamped_block = %format!(
+                                    "{}-{}",
+                                    clamped_start + 1,
+                                    clamped_end + 1
+                                ),
+                                total_lines = lines.len(),
+                                "TOC block exceeded document bounds; clamped to file length"
+                            );
+                        }
+
+                        (clamped_start, clamped_end)
                     } else {
                         // No containing block found, fall back to symmetric padding
                         tracing::warn!(
