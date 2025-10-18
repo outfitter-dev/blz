@@ -5,15 +5,16 @@ use std::{collections::HashMap, sync::Arc};
 use blz_core::Storage;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-    ListToolsResult, PaginatedRequestParam, ProtocolVersion, RawContent, RawTextContent,
-    ServerCapabilities, ServerInfo, Tool, ToolsCapability,
+    ListResourcesResult, ListToolsResult, PaginatedRequestParam, ProtocolVersion, RawContent,
+    RawResource, RawTextContent, ReadResourceRequestParam, ReadResourceResult, Resource,
+    ResourceContents, ResourcesCapability, ServerCapabilities, ServerInfo, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::{RoleServer, ServerHandler};
 use serde_json::json;
 use tokio::sync::RwLock;
 
-use crate::{error::McpResult, tools, types::IndexCache};
+use crate::{error::McpResult, resources, tools, types::IndexCache};
 
 /// MCP server for BLZ
 #[derive(Clone)]
@@ -65,6 +66,10 @@ impl ServerHandler for McpServer {
             protocol_version: ProtocolVersion::default(),
             capabilities: ServerCapabilities {
                 tools: Some(ToolsCapability { list_changed: None }),
+                resources: Some(ResourcesCapability {
+                    subscribe: None,
+                    list_changed: None,
+                }),
                 ..Default::default()
             },
             server_info: Implementation {
@@ -505,6 +510,119 @@ impl ServerHandler for McpServer {
                 None,
             )),
         }
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::used_underscore_binding)]
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        tracing::debug!("listing resources");
+
+        // Get all installed sources
+        let installed_sources = self.storage.list_sources();
+
+        // Create resource entries for each source
+        let mut resources: Vec<Resource> = installed_sources
+            .into_iter()
+            .map(|alias| {
+                let uri = format!("blz://sources/{alias}");
+                Resource {
+                    raw: RawResource {
+                        uri,
+                        name: alias.clone(),
+                        title: None,
+                        description: Some(format!("Metadata for source '{alias}'")),
+                        mime_type: Some("application/json".to_string()),
+                        size: None,
+                        icons: None,
+                    },
+                    annotations: None,
+                }
+            })
+            .collect();
+
+        // Add registry resource
+        resources.push(Resource {
+            raw: RawResource {
+                uri: "blz://registry".to_string(),
+                name: "registry".to_string(),
+                title: None,
+                description: Some("Complete BLZ registry of available sources".to_string()),
+                mime_type: Some("application/json".to_string()),
+                size: None,
+                icons: None,
+            },
+            annotations: None,
+        });
+
+        tracing::debug!(count = resources.len(), "listed resources");
+
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        tracing::debug!(uri = %request.uri, "reading resource");
+
+        let result = if matches!(
+            request.uri.as_str(),
+            "blz://registry" | "resource://blz/registry"
+        ) {
+            // Handle registry resource
+            resources::handle_registry_resource(&request.uri)
+                .await
+                .map_err(|e| {
+                    tracing::error!("registry resource error: {}", e);
+                    let error_code = match e {
+                        crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                        _ => ErrorCode::INTERNAL_ERROR,
+                    };
+                    ErrorData::new(error_code, e.to_string(), None)
+                })?
+        } else if request.uri.starts_with("blz://sources/")
+            || request.uri.starts_with("resource://blz/sources/")
+        {
+            // Handle source resource
+            resources::handle_source_resource(&request.uri, &self.storage)
+                .await
+                .map_err(|e| {
+                    tracing::error!("source resource error: {}", e);
+                    let error_code = match e {
+                        crate::error::McpError::SourceNotFound(_) => ErrorCode::INVALID_PARAMS,
+                        _ => ErrorCode::INTERNAL_ERROR,
+                    };
+                    ErrorData::new(error_code, e.to_string(), None)
+                })?
+        } else {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Unknown resource URI: {}", request.uri),
+                None,
+            ));
+        };
+
+        // Convert JSON value to text content
+        let text = serde_json::to_string_pretty(&result).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to serialize resource: {e}"),
+                None,
+            )
+        })?;
+
+        Ok(ReadResourceResult {
+            contents: vec![ResourceContents::text(text, request.uri)],
+        })
     }
 }
 
