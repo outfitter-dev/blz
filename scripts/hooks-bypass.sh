@@ -18,6 +18,9 @@ Commands:
   disable             Disable bypass (removes .hooks/allow-strict-bypass)
   status              Check current bypass status
 
+Exit codes:
+  status command returns 0 if bypass is disabled, 1 if enabled.
+
 Examples:
   # Enable bypass with confirmation
   $0 enable
@@ -87,7 +90,12 @@ status() {
   if [[ -f "$BYPASS_FILE" ]]; then
     echo "⚠️  Bypass is ENABLED"
     echo "  File: $BYPASS_FILE"
-    echo "  Created: $(stat -c %y "$BYPASS_FILE" 2>/dev/null || stat -f "%Sm" "$BYPASS_FILE")"
+    # Cross-platform timestamp display (GNU stat vs BSD stat)
+    if stat -c %y "$BYPASS_FILE" >/dev/null 2>&1; then
+      echo "  Modified: $(stat -c %y "$BYPASS_FILE")"
+    elif stat -f "%Sm" "$BYPASS_FILE" >/dev/null 2>&1; then
+      echo "  Modified: $(stat -f "%Sm" "$BYPASS_FILE")"
+    fi
     echo ""
     echo "To disable: scripts/hooks-bypass.sh disable"
     exit 1  # Exit 1 to indicate bypass is active

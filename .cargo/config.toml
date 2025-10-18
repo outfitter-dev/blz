@@ -3,8 +3,6 @@
 [build]
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
-# Enable incremental compilation for faster rebuilds in dev/test
-incremental = true
 
 [target.'cfg(all())']
 # Optimize for local CPU architecture in release builds
@@ -23,6 +21,8 @@ strip = true
 [profile.dev]
 # Faster compilation in dev mode
 opt-level = 0
+# Enable incremental compilation for faster rebuilds
+incremental = true
 
 [profile.dev.package."*"]
 # Dependencies still optimized in dev for better performance
