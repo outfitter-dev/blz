@@ -35,7 +35,7 @@ fn parse_source_uri(uri: &str) -> McpResult<String> {
         return Ok(normalized);
     }
 
-    Err(McpError::Internal(format!(
+    Err(McpError::InvalidParams(format!(
         "Invalid source resource URI: {uri}"
     )))
 }
