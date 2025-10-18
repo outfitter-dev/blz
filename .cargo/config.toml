@@ -4,8 +4,12 @@
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
 
-[target.'cfg(all())']
-# Optimize for local CPU architecture in release builds
+[target.'cfg(target_os = "macos")']
+# Optimize for the local CPU architecture when building on macOS hosts.
+# GitHub Actions runners report inconsistent CPU capabilities under Linux
+# virtualization, and `target-cpu=native` can produce binaries that cause
+# SIGILL when build scripts run during CI. Limit this tweak to macOS where
+# we actually benefit from it for local development.
 rustflags = ["-C", "target-cpu=native"]
 
 [profile.release]
