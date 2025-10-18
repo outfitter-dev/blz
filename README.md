@@ -28,6 +28,18 @@ blz "test runner"
 blz get bun:304-324 --json
 ```
 
+### MCP Server Setup
+
+Enable BLZ in your AI coding assistant with one command:
+
+```bash
+# Claude Code
+claude mcp add blz blz mcp --scope user
+
+# Cursor, Windsurf, and others
+# See detailed setup: docs/mcp/SETUP.md
+```
+
 **What you'll see:**
 
 ```
