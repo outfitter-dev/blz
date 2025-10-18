@@ -22,11 +22,11 @@ pub use server::McpServer;
 ///
 /// Returns an error if the server fails to initialize or run.
 pub async fn serve_stdio() -> McpResult<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
+    // Initialize tracing if a subscriber has not already been registered by the caller.
+    let _ = tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_target(false)
-        .init();
+        .try_init();
 
     tracing::debug!("initializing BLZ MCP server");
 
