@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.3.0] - 2025-10-18
+
 ### Added
 - **MCP Server v1.0** ([BLZ-206](https://linear.app/outfitter/issue/BLZ-206)): Native Rust-based Model Context Protocol server (`blz mcp`)
   - Sub-50ms search latency with direct `blz-core` integration (P50: 0.177ms, P95: 0.42ms) ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
@@ -430,6 +434,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ETag-based conditional fetching for efficiency
 - Local filesystem storage with archive support
 
+[1.3.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.3.0
 [1.2.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.2.0
 [1.1.1]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.1
 [1.1.0]: https://github.com/outfitter-dev/blz/releases/tag/v1.1.0
