@@ -39,3 +39,6 @@ jobs:
 
       - name: Doc tests
         run: cargo test --doc --workspace --quiet
+
+      - name: Compile-fail UI tests
+        run: cargo test --workspace --quiet -- --ignored --test-threads=1
