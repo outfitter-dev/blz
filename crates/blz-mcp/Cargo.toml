@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-blz-core = { path = "../blz-core" }
+blz-core.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "io-std"] }
 rmcp = { version = "0.8.1", features = ["server", "macros"] }
 serde = { workspace = true }
