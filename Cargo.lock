@@ -367,6 +367,7 @@ dependencies = [
  "anyhow",
  "blz-core",
  "chrono",
+ "directories",
  "rmcp",
  "serde",
  "serde_json",

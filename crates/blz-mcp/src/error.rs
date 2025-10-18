@@ -48,21 +48,32 @@ pub enum McpError {
     /// Source already exists
     #[error("source already exists: {0}")]
     SourceExists(String),
+
+    /// Unsupported command
+    #[error("unsupported command: {0}")]
+    UnsupportedCommand(String),
+
+    /// Learn payload error
+    #[error("failed to load learn payload: {0}")]
+    LearnPayloadError(String),
 }
 
 impl McpError {
     /// Map error to MCP error code
     pub const fn error_code(&self) -> i32 {
         match self {
-            Self::Storage(_) | Self::Index(_) | Self::Internal(_) => -32603, // Internal error
-            Self::Json(_) => -32700,                                         // Parse error
-            Self::Protocol(_) => -32600,                                     // Invalid request
+            Self::Storage(_) | Self::Index(_) | Self::Internal(_) | Self::LearnPayloadError(_) => {
+                -32603 // Internal error
+            },
+            Self::Json(_) => -32700,     // Parse error
+            Self::Protocol(_) => -32600, // Invalid request
             Self::InvalidParams(_)
             | Self::InvalidCitation(_)
             | Self::InvalidPadding(_)
             | Self::SourceNotFound(_)
             | Self::MissingParameter(_)
-            | Self::SourceExists(_) => {
+            | Self::SourceExists(_)
+            | Self::UnsupportedCommand(_) => {
                 -32602 // Invalid params
             },
         }
