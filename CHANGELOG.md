@@ -9,18 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _(no unreleased changes yet)_
 
-## [1.3.0] - 2025-10-XX
+## [1.3.0] - 2025-10-16
 
 ### Added
 - **MCP Server v1.0** ([BLZ-206](https://linear.app/outfitter/issue/BLZ-206)): Native Rust-based Model Context Protocol server (`blz mcp`)
-  - Sub-50ms search latency with direct `blz-core` integration ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
-  - Unified `find` tool for search and snippet retrieval ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
+  - Sub-50ms search latency with direct `blz-core` integration (P50: 0.177ms, P95: 0.42ms) ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
+  - Unified `find` tool for search and snippet retrieval with context modes (none, symmetric, all) ([BLZ-208](https://linear.app/outfitter/issue/BLZ-208))
   - Source management tools: `list-sources`, `source-add` ([BLZ-209](https://linear.app/outfitter/issue/BLZ-209))
   - Read-only diagnostic commands via `run-command` whitelist ([BLZ-210](https://linear.app/outfitter/issue/BLZ-210))
   - Embedded learning resources via `learn-blz` prompts ([BLZ-210](https://linear.app/outfitter/issue/BLZ-210))
   - Custom `blz://` URI resources for sources and registry ([BLZ-211](https://linear.app/outfitter/issue/BLZ-211))
   - Interactive documentation discovery with `discover-docs` prompt ([BLZ-212](https://linear.app/outfitter/issue/BLZ-212))
   - <1 KB handshake payload for efficient agent integration
+  - Security: Read-only by default, whitelisted commands, path sanitization
+  - Performance targets validated: Search < 10ms P50 (58x faster), < 50ms P95 (119x faster)
+  - Comprehensive documentation: Setup guides for Claude Code and Cursor, tool reference, security review
 
 ### Documentation
 - **MCP Server documentation** ([BLZ-215](https://linear.app/outfitter/issue/BLZ-215)): Comprehensive guides for setup and usage
