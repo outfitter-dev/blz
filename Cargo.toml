@@ -58,6 +58,7 @@ fs2 = "0.4"
 
 # Internal crates (ensure version is set for crates.io publish of dependents)
 blz-core = { path = "crates/blz-core", version = "1.2.0" }
+blz-mcp = { path = "crates/blz-mcp", version = "1.2.0" }
 
 [patch.crates-io]
 # Work around macOS ARM CPU feature detection panic in ring 0.17.14

@@ -29,6 +29,7 @@ required-features = ["dev-profile"]
 
 [dependencies]
 blz-core.workspace = true
+blz-mcp.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true
