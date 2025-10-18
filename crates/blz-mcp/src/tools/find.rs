@@ -302,7 +302,7 @@ fn find_containing_block(
     // Find the next heading of same or higher level (equal or shorter heading_path)
     let section_end = flat_toc
         .iter()
-        .skip_while(|(entry, _, _)| entry.lines != current_entry.lines)
+        .skip_while(|(entry, _, _)| !std::ptr::eq(*entry, current_entry))
         .skip(1) // Skip the current entry itself
         .find(|(entry, _, _)| entry.heading_path.len() <= current_level)
         .map_or_else(
@@ -1600,7 +1600,7 @@ B line 3
             ],
             files: vec![],
             line_index: blz_core::LineIndex {
-                total_lines: 11,
+                total_lines: 12,
                 byte_offsets: false,
             },
             diagnostics: vec![],
