@@ -7,6 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::output::OutputFormat;
+use crate::utils::count_headings;
 
 /// Detailed information about a source
 #[derive(Debug, Serialize)]
@@ -22,6 +23,8 @@ pub struct SourceInfo {
     pub aliases: Vec<String>,
     /// Total number of lines in the document
     pub lines: usize,
+    /// Total number of headings in the document
+    pub headings: usize,
     /// Size in bytes
     pub size_bytes: u64,
     /// Last updated timestamp (ISO 8601)
@@ -62,6 +65,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
 
     let size_bytes = file_metadata.len();
     let lines = llms.line_index.total_lines;
+    let headings = count_headings(&llms.toc);
 
     let cache_path = llms_file.parent().map(PathBuf::from).unwrap_or_default();
 
@@ -71,6 +75,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         variant: format!("{:?}", metadata.variant),
         aliases: metadata.aliases.clone(),
         lines,
+        headings,
         size_bytes,
         last_updated: Some(metadata.fetched_at.to_rfc3339()),
         etag: metadata.etag.clone(),
@@ -111,6 +116,7 @@ fn print_text_info(info: &SourceInfo) {
     }
 
     println!("Lines: {}", format_number(info.lines));
+    println!("Headings: {}", format_number(info.headings));
     println!("Size: {}", format_bytes(info.size_bytes));
 
     if let Some(updated) = &info.last_updated {
