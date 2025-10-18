@@ -286,9 +286,7 @@ fn find_containing_block(
     // (longest heading_path) to get the most specific section
     let containing_entry = flat_toc
         .iter()
-        .filter(|(_, block_start, block_end)| {
-            *block_start <= start_line && start_line <= *block_end
-        })
+        .filter(|(_, block_start, block_end)| *block_start <= start_line && end_line <= *block_end)
         .max_by_key(|(entry, _, _)| entry.heading_path.len())?;
 
     let (current_entry, section_start, _) = *containing_entry;
@@ -1260,6 +1258,15 @@ mod block_detection_tests {
         let (start, end) = result.unwrap();
         assert_eq!(start, 25); // Configuration starts at line 26 -> 0-based index 25
         assert_eq!(end, 49); // Expands to before "API Reference" (line 51 -> end at 50 -> 0-based index 49)
+    }
+
+    #[test]
+    fn test_find_containing_block_range_spanning_sections_returns_none() {
+        let toc = create_test_toc();
+
+        // Lines 20-30 span Installation (12-25) and Configuration (26-50), so no single block should match.
+        let result = find_containing_block(&toc, 20, 30);
+        assert!(result.is_none());
     }
 
     #[test]
