@@ -3,6 +3,13 @@
     "linear-server": {
       "type": "sse",
       "url": "https://mcp.linear.app/sse"
+    },
+    "blz": {
+      "command": "blz",
+      "args": ["mcp"],
+      "env": {
+        "RUST_LOG": "blz_mcp=debug,blz_core=info"
+      }
     }
   }
 }

@@ -30,7 +30,7 @@ pub struct DiscoverDocsOutput {
 /// Three-step flow:
 /// 1. List matching installed sources
 /// 2. Surface registry-only entries (sources in registry but not installed)
-/// 3. Suggest `find` tool usage for installed sources
+/// 3. Suggest `blz_find` tool usage for installed sources
 ///
 /// Cap output at 3 messages total.
 #[tracing::instrument(skip(storage))]
@@ -124,7 +124,7 @@ pub fn handle_discover_docs(
         messages.push(PromptMessage::new_text(
             PromptMessageRole::Assistant,
             format!(
-                "Found {} source(s) in the registry (not yet installed):\n\n{}\n\nTo add a source, use the `source-add` tool or run: `{}`",
+                "Found {} source(s) in the registry (not yet installed):\n\n{}\n\nTo add a source, use the `blz_add_source` tool or run: `{}`",
                 registry_only.len(),
                 registry_list,
                 add_command
@@ -132,12 +132,12 @@ pub fn handle_discover_docs(
         ));
     }
 
-    // Step 3: Suggest `find` tool usage for installed sources
+    // Step 3: Suggest `blz_find` tool usage for installed sources
     if let Some(example_source) = installed_sources.first() {
         messages.push(PromptMessage::new_text(
             PromptMessageRole::Assistant,
             format!(
-                "To search within installed sources, use the `find` tool:\n\n```json\n{{\n  \"query\": \"your search query\",\n  \"source\": \"{example_source}\"\n}}\n```"
+                "To search within installed sources, use the `blz_find` tool:\n\n```json\n{{\n  \"query\": \"your search query\",\n  \"source\": \"{example_source}\"\n}}\n```"
             ),
         ));
     } else if registry_only.is_empty() {
@@ -145,7 +145,7 @@ pub fn handle_discover_docs(
         messages.push(PromptMessage::new_text(
             PromptMessageRole::Assistant,
             format!(
-                "No documentation sources found for: {}\n\nTry different technology names or check the registry with the `list-sources` tool.",
+                "No documentation sources found for: {}\n\nTry different technology names or check the registry with the `blz_list_sources` tool.",
                 params.technologies
             ),
         ));

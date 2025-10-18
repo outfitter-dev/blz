@@ -3,7 +3,11 @@
 use blz_core::{SearchIndex, Storage};
 use serde::{Deserialize, Serialize};
 
-use crate::{cache, error::McpResult, types::IndexCache};
+use crate::{
+    cache,
+    error::McpResult,
+    types::{IndexCache, ResponseFormat},
+};
 
 /// Default maximum number of search results
 const DEFAULT_MAX_RESULTS: usize = 10;
@@ -11,6 +15,10 @@ const DEFAULT_MAX_RESULTS: usize = 10;
 const MAX_LINE_PADDING: u32 = 50;
 /// Maximum allowed search results
 const MAX_ALLOWED_RESULTS: usize = 1000;
+/// Maximum number of characters to include in search snippets when using concise format
+const CONCISE_SEARCH_SNIPPET_CHARS: usize = 160;
+/// Maximum number of characters to include in snippet content when using concise format
+const CONCISE_SNIPPET_CONTENT_CHARS: usize = 800;
 
 /// Parameters for the find tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +47,13 @@ pub struct FindParams {
     /// Optional source filter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+
+    /// Response format: "concise" (default) or "detailed"
+    ///
+    /// Concise returns minimal data, detailed includes all metadata.
+    /// Based on Anthropic research showing 30-65% token savings with concise mode.
+    #[serde(default)]
+    pub format: ResponseFormat,
 }
 
 fn default_context_mode() -> String {
@@ -104,6 +119,42 @@ pub struct FindExecuted {
     pub search_executed: bool,
     /// Whether snippet retrieval was executed
     pub snippets_executed: bool,
+}
+
+/// Truncate a string to the specified number of characters, appending ellipsis when shortened.
+fn truncate_with_ellipsis(text: &mut String, max_chars: usize) {
+    if text.chars().count() <= max_chars {
+        return;
+    }
+
+    let mut truncated = String::with_capacity(max_chars + 3);
+    for (idx, ch) in text.chars().enumerate() {
+        if idx >= max_chars {
+            truncated.push_str("...");
+            *text = truncated;
+            return;
+        }
+        truncated.push(ch);
+    }
+}
+
+/// Apply the concise response format by trimming verbose fields.
+fn apply_concise_format(
+    search_results: &mut Option<Vec<SearchHitResult>>,
+    snippet_results: &mut Option<Vec<SnippetResult>>,
+) {
+    if let Some(hits) = search_results {
+        for hit in hits {
+            hit.heading_path = None;
+            truncate_with_ellipsis(&mut hit.snippet, CONCISE_SEARCH_SNIPPET_CHARS);
+        }
+    }
+
+    if let Some(snippets) = snippet_results {
+        for snippet in snippets {
+            truncate_with_ellipsis(&mut snippet.content, CONCISE_SNIPPET_CONTENT_CHARS);
+        }
+    }
 }
 
 /// Parse citation string into source and line ranges
@@ -483,6 +534,10 @@ pub async fn handle_find(
         snippet_results = Some(results);
     }
 
+    if matches!(params.format, ResponseFormat::Concise) {
+        apply_concise_format(&mut search_results, &mut snippet_results);
+    }
+
     Ok(FindOutput {
         search_results,
         snippet_results,
@@ -619,6 +674,7 @@ mod integration_tests {
     use super::*;
     use crate::{error::McpError, types::IndexCache};
     use blz_core::{SearchIndex, Storage};
+    use std::fmt::Write as _;
     use std::sync::Arc;
     use tempfile::TempDir;
     use tokio::sync::RwLock;
@@ -673,6 +729,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         // Store index in cache
@@ -703,6 +760,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -737,6 +795,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         // Store index in cache
@@ -756,6 +815,108 @@ Last line of section 2"#;
     }
 
     #[tokio::test]
+    async fn test_concise_format_truncates_snippet_content() {
+        let (storage, temp_dir) = setup_test_storage();
+        let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
+        let alias = "concise-source";
+
+        // Create a long document to guarantee truncation
+        let mut long_content = String::new();
+        for i in 1..=200 {
+            writeln!(
+                &mut long_content,
+                "Line {i}: Lorem ipsum dolor sit amet, consectetur adipiscing elit."
+            )
+            .expect("failed to write test content");
+        }
+
+        let source_dir = temp_dir.path().join(format!("sources/{alias}"));
+        std::fs::create_dir_all(&source_dir).expect("Failed to create sources dir");
+        std::fs::write(source_dir.join("llms.txt"), long_content).expect("Failed to write content");
+
+        let params = FindParams {
+            query: None,
+            snippets: Some(vec![format!("{alias}:1-200")]),
+            context_mode: "none".to_string(),
+            line_padding: 0,
+            max_results: 10,
+            source: None,
+            format: ResponseFormat::Concise,
+        };
+
+        let result = handle_find(params, &storage, &index_cache).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        let snippets = output
+            .snippet_results
+            .expect("expected snippet results in concise mode");
+        let snippet = snippets.first().expect("missing snippet content");
+        assert!(
+            snippet.content.len() <= super::CONCISE_SNIPPET_CONTENT_CHARS + 3,
+            "concise content should be truncated"
+        );
+        assert!(
+            snippet.content.ends_with("..."),
+            "concise content should end with ellipsis"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_detailed_format_preserves_snippet_content() {
+        let (storage, temp_dir) = setup_test_storage();
+        let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
+        let alias = "detailed-source";
+
+        let mut long_content = String::new();
+        for i in 1..=200 {
+            writeln!(
+                &mut long_content,
+                "Line {i}: Detailed format retains full content for validation."
+            )
+            .expect("failed to write test content");
+        }
+
+        let source_dir = temp_dir.path().join(format!("sources/{alias}"));
+        std::fs::create_dir_all(&source_dir).expect("Failed to create sources dir");
+        std::fs::write(source_dir.join("llms.txt"), long_content.clone())
+            .expect("Failed to write content");
+
+        let params = FindParams {
+            query: None,
+            snippets: Some(vec![format!("{alias}:1-200")]),
+            context_mode: "none".to_string(),
+            line_padding: 0,
+            max_results: 10,
+            source: None,
+            format: ResponseFormat::Detailed,
+        };
+
+        let result = handle_find(params, &storage, &index_cache).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        let snippets = output
+            .snippet_results
+            .expect("expected snippet results in detailed mode");
+        let snippet = snippets.first().expect("missing snippet content");
+        assert!(
+            snippet.content.len() > super::CONCISE_SNIPPET_CONTENT_CHARS,
+            "detailed format should retain full content"
+        );
+        assert!(
+            !snippet.content.ends_with("..."),
+            "detailed content should not be truncated"
+        );
+        assert!(
+            snippet
+                .content
+                .contains("Detailed format retains full content"),
+            "should include full text from source"
+        );
+    }
+
+    #[tokio::test]
     async fn test_padding_boundary_validation() {
         let (storage, _temp_dir) = setup_test_storage();
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
@@ -769,6 +930,7 @@ Last line of section 2"#;
                 line_padding: padding,
                 max_results: 10,
                 source: None,
+                format: ResponseFormat::default(),
             };
 
             let result = handle_find(params, &storage, &index_cache).await;
@@ -783,6 +945,7 @@ Last line of section 2"#;
             line_padding: 51,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -802,6 +965,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -825,6 +989,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -839,6 +1004,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: Some("test-source".to_string()),
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -859,6 +1025,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 1000,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -872,6 +1039,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 1001,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -900,6 +1068,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -922,6 +1091,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None,
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -947,6 +1117,7 @@ Last line of section 2"#;
             line_padding: 0,
             max_results: 10,
             source: None, // Missing required source parameter
+            format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;

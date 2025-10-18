@@ -14,17 +14,17 @@
     {
       "name": "Search and retrieve",
       "steps": [
-        "Use find tool with query to search documentation",
+        "Use blz_find tool with query to search documentation",
         "Review search results to identify relevant citations",
-        "Use find tool with snippets parameter to retrieve full content"
+        "Use blz_find tool with snippets parameter to retrieve full content"
       ]
     },
     {
       "name": "Add new source",
       "steps": [
-        "Use list-sources to check if source is in registry",
-        "Use source-add with alias to install from registry",
-        "Or use source-add with alias and url for custom sources"
+        "Use blz_list_sources to check if source is in registry",
+        "Use blz_add_source with alias to install from registry",
+        "Or use blz_add_source with alias and url for custom sources"
       ]
     }
   ],
@@ -32,13 +32,13 @@
     "Always specify a source filter when searching for best performance",
     "Use context_mode='symmetric' with line_padding=5 for code examples",
     "Use context_mode='all' to retrieve entire documentation sections",
-    "Check list-sources before adding to avoid duplicates",
+    "Check blz_list_sources before adding to avoid duplicates",
     "Citations format: 'source:start-end' or 'source:range1,range2' for multiple ranges"
   ],
   "examples": [
     {
       "description": "Search for async patterns in Bun docs",
-      "tool": "find",
+      "tool": "blz_find",
       "params": {
         "query": "async await",
         "source": "bun",
@@ -47,7 +47,7 @@
     },
     {
       "description": "Retrieve code example with context",
-      "tool": "find",
+      "tool": "blz_find",
       "params": {
         "snippets": ["bun:1234-1250"],
         "contextMode": "symmetric",
@@ -56,14 +56,14 @@
     },
     {
       "description": "List all installed sources",
-      "tool": "list-sources",
+      "tool": "blz_list_sources",
       "params": {
         "kind": "installed"
       }
     },
     {
       "description": "Add React documentation",
-      "tool": "source-add",
+      "tool": "blz_add_source",
       "params": {
         "alias": "react"
       }
