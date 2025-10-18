@@ -274,14 +274,14 @@ The MCP server exposes:
 // Search for documentation
 find({
   query: "test runner",
-  sources: ["bun"],
+  source: "bun",
   maxResults: 5
 })
 
 // Retrieve exact content
 find({
   snippets: ["bun:304-324"],
-  contextMode: "block"
+  contextMode: "symmetric"
 })
 ```
 
