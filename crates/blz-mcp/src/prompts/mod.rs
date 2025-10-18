@@ -1,3 +1,7 @@
 //! MCP prompts for BLZ
 //!
-//! This module will contain prompt implementations in future phases.
+//! Prompts provide guided workflows for agents to discover and work with documentation.
+
+pub mod discover;
+
+pub use discover::{DiscoverDocsParams, handle_discover_docs};

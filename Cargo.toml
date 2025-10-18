@@ -64,6 +64,7 @@ blz-core = { path = "crates/blz-core", version = "1.2.0" }
 # TODO(@galligan): drop this override once a crates.io release includes commit
 # 1bb94b3b86380e398d2bc4cf61be7081ff4731a8 (tracked in release checklist).
 ring = { git = "https://github.com/briansmith/ring", rev = "1bb94b3b86380e398d2bc4cf61be7081ff4731a8" }
+rmcp = { path = "vendor/rmcp" }
 
 
 

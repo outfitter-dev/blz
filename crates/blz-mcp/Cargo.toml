@@ -19,6 +19,7 @@ tracing-subscriber = { workspace = true }
 thiserror = "2"
 chrono = { workspace = true }
 directories = { workspace = true }
+schemars = "0.8"
 
 [dev-dependencies]
 tempfile = { workspace = true }
