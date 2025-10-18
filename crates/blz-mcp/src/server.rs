@@ -3,20 +3,24 @@
 use std::{collections::HashMap, sync::Arc};
 
 use blz_core::Storage;
-use rmcp::ServerHandler;
-use rmcp::model::{Implementation, ProtocolVersion, ServerCapabilities, ServerInfo};
+use rmcp::model::{
+    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
+    ListToolsResult, PaginatedRequestParam, ProtocolVersion, RawContent, RawTextContent,
+    ServerCapabilities, ServerInfo, Tool, ToolsCapability,
+};
+use rmcp::service::RequestContext;
+use rmcp::{RoleServer, ServerHandler};
+use serde_json::json;
 use tokio::sync::RwLock;
 
-use crate::{error::McpResult, types::IndexCache};
+use crate::{error::McpResult, tools, types::IndexCache};
 
 /// MCP server for BLZ
 #[derive(Clone)]
 pub struct McpServer {
-    /// Storage backend (unused in this phase, will be used for tool implementations)
-    #[allow(dead_code)]
+    /// Storage backend for accessing cached documentation
     storage: Arc<Storage>,
-    /// Index cache with double-checked locking (unused in this phase, will be used for tool implementations)
-    #[allow(dead_code)]
+    /// Index cache with double-checked locking for search operations
     index_cache: IndexCache,
 }
 
@@ -59,7 +63,10 @@ impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::default(),
-            capabilities: ServerCapabilities::default(),
+            capabilities: ServerCapabilities {
+                tools: Some(ToolsCapability { list_changed: None }),
+                ..Default::default()
+            },
             server_info: Implementation {
                 name: "blz-mcp".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
@@ -68,6 +75,141 @@ impl ServerHandler for McpServer {
                 website_url: None,
             },
             instructions: None,
+        }
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn list_tools(
+        &self,
+        #[allow(clippy::used_underscore_binding)] _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        tracing::debug!("listing tools");
+
+        // Minimal schema to keep handshake <1 KB
+        let find_schema = json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query (optional if only retrieving snippets)"
+                },
+                "snippets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Citation strings (e.g., 'bun:10-20,30-40')"
+                },
+                "contextMode": {
+                    "type": "string",
+                    "enum": ["none", "symmetric", "all"],
+                    "default": "none",
+                    "description": "Context expansion mode"
+                },
+                "linePadding": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50,
+                    "default": 0,
+                    "description": "Lines of padding for symmetric mode"
+                },
+                "maxResults": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 10,
+                    "description": "Maximum search results"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source to search (required when using query parameter)"
+                }
+            }
+        });
+
+        let schema_obj = find_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let tools = vec![Tool::new(
+            "find",
+            "Search & retrieve documentation snippets",
+            Arc::new(schema_obj),
+        )];
+
+        Ok(ListToolsResult {
+            tools,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        tracing::debug!(tool = %request.name, "calling tool");
+
+        match request.name.as_ref() {
+            "find" => {
+                let params: tools::FindParams = serde_json::from_value(serde_json::Value::Object(
+                    request.arguments.unwrap_or_default(),
+                ))
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid find parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_find(params, &self.storage, &self.index_cache)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("find tool error: {}", e);
+                        let error_code = match e.error_code() {
+                            -32700 => ErrorCode::PARSE_ERROR,
+                            -32600 => ErrorCode::INVALID_REQUEST,
+                            -32601 => ErrorCode::METHOD_NOT_FOUND,
+                            -32602 => ErrorCode::INVALID_PARAMS,
+                            -32603 => ErrorCode::INTERNAL_ERROR,
+                            other => ErrorCode(other),
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            _ => Err(ErrorData::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                format!("Unknown tool: {}", request.name),
+                None,
+            )),
         }
     }
 }

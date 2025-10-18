@@ -366,6 +366,7 @@ version = "1.2.0"
 dependencies = [
  "anyhow",
  "blz-core",
+ "chrono",
  "rmcp",
  "serde",
  "serde_json",

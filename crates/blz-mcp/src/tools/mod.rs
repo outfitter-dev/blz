@@ -1,3 +1,5 @@
 //! MCP tools for BLZ
-//!
-//! This module will contain tool implementations in future phases.
+
+pub mod find;
+
+pub use find::{FindOutput, FindParams, handle_find};
