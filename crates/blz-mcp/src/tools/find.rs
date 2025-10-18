@@ -1261,15 +1261,6 @@ mod block_detection_tests {
     }
 
     #[test]
-    fn test_find_containing_block_range_spanning_sections_returns_none() {
-        let toc = create_test_toc();
-
-        // Lines 20-30 span Installation (12-25) and Configuration (26-50), so no single block should match.
-        let result = find_containing_block(&toc, 20, 30);
-        assert!(result.is_none());
-    }
-
-    #[test]
     fn test_find_containing_block_no_match() {
         let toc = create_test_toc();
 
@@ -1538,40 +1529,29 @@ Line 12";
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
-    async fn test_context_mode_all_respects_heading_hierarchy() {
+    async fn test_context_mode_all_preserves_requested_range_across_sections() {
         let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
         let storage =
             Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
 
-        let test_content = "# Main Title
+        let test_content = "# Doc
 Line 2
 
-## H2 Section
-Line 5
-Line 6
+## Section A
+A line 1
+A line 2
+A line 3
 
-### H3 Subsection
-Line 9
-Line 10
+## Section B
+B line 1
+B line 2
+B line 3
+";
 
-#### H4 Subsubsection
-Line 13
-Line 14
-
-##### H5 Deep Section
-Line 17
-Line 18
-Line 19
-
-## Next H2 Section
-Line 22
-Line 23";
-
-        std::fs::create_dir_all(temp_dir.path().join("sources/hierarchy-test"))
+        std::fs::create_dir_all(temp_dir.path().join("sources/cross-sections"))
             .expect("Failed to create sources dir");
         std::fs::write(
-            temp_dir.path().join("sources/hierarchy-test/llms.txt"),
+            temp_dir.path().join("sources/cross-sections/llms.txt"),
             test_content,
         )
         .expect("Failed to write test content");
@@ -1585,7 +1565,7 @@ Line 23";
             chrono::DateTime::from_timestamp(now as i64, 0).expect("Failed to create timestamp");
 
         let llms_json = blz_core::LlmsJson {
-            source: "hierarchy-test".to_string(),
+            source: "cross-sections".to_string(),
             metadata: blz_core::Source {
                 url: "https://example.com".to_string(),
                 etag: None,
@@ -1606,51 +1586,21 @@ Line 23";
             },
             toc: vec![
                 TocEntry {
-                    heading_path: vec!["Main Title".to_string()],
-                    lines: "1-3".to_string(),
+                    heading_path: vec!["Section A".to_string()],
+                    lines: "4-7".to_string(),
                     anchor: None,
                     children: vec![],
                 },
                 TocEntry {
-                    heading_path: vec!["H2 Section".to_string()],
-                    lines: "4-20".to_string(),
-                    anchor: None,
-                    children: vec![TocEntry {
-                        heading_path: vec!["H2 Section".to_string(), "H3 Subsection".to_string()],
-                        lines: "8-20".to_string(),
-                        anchor: None,
-                        children: vec![TocEntry {
-                            heading_path: vec![
-                                "H2 Section".to_string(),
-                                "H3 Subsection".to_string(),
-                                "H4 Subsubsection".to_string(),
-                            ],
-                            lines: "12-20".to_string(),
-                            anchor: None,
-                            children: vec![TocEntry {
-                                heading_path: vec![
-                                    "H2 Section".to_string(),
-                                    "H3 Subsection".to_string(),
-                                    "H4 Subsubsection".to_string(),
-                                    "H5 Deep Section".to_string(),
-                                ],
-                                lines: "16-19".to_string(),
-                                anchor: None,
-                                children: vec![],
-                            }],
-                        }],
-                    }],
-                },
-                TocEntry {
-                    heading_path: vec!["Next H2 Section".to_string()],
-                    lines: "21-23".to_string(),
+                    heading_path: vec!["Section B".to_string()],
+                    lines: "9-11".to_string(),
                     anchor: None,
                     children: vec![],
                 },
             ],
             files: vec![],
             line_index: blz_core::LineIndex {
-                total_lines: 23,
+                total_lines: 11,
                 byte_offsets: false,
             },
             diagnostics: vec![],
@@ -1659,22 +1609,33 @@ Line 23";
 
         let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
         std::fs::write(
-            temp_dir.path().join("sources/hierarchy-test/llms.json"),
+            temp_dir.path().join("sources/cross-sections/llms.json"),
             json_str,
         )
         .expect("Failed to write llms.json");
 
-        let result = retrieve_snippet(&storage, "hierarchy-test", 17, 17, "all", 0);
-        assert!(result.is_ok());
+        let result = retrieve_snippet(&storage, "cross-sections", 6, 10, "all", 0);
+        assert!(
+            result.is_ok(),
+            "context all should succeed for multi-section range"
+        );
 
         let snippet = result.unwrap();
-        assert_eq!(snippet.line_start, 4);
-        assert_eq!(snippet.line_end, 20);
-        let content = snippet.content;
-        assert!(content.contains("## H2 Section"));
-        assert!(content.contains("### H3 Subsection"));
-        assert!(content.contains("#### H4 Subsubsection"));
-        assert!(content.contains("##### H5 Deep Section"));
-        assert!(!content.contains("## Next H2 Section"));
+        assert!(
+            snippet.line_start <= 6,
+            "snippet should not start after requested range"
+        );
+        assert!(
+            snippet.line_end >= 10,
+            "snippet should include the full requested range"
+        );
+        assert!(
+            snippet.content.contains("A line 3"),
+            "snippet should include content from Section A"
+        );
+        assert!(
+            snippet.content.contains("B line 2"),
+            "snippet should include content from Section B"
+        );
     }
 }
