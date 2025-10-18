@@ -153,6 +153,68 @@ jobs:
           echo "Timed out waiting for blz-core $V after ${MAX_ATTEMPTS} attempts" >&2
           exit 1
 
+      - name: Check if blz-mcp exists
+        id: crate_mcp_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          V='${{ steps.resolve.outputs.version }}'
+          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-mcp/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish blz-mcp
+        if: ${{ steps.crate_mcp_exists.outputs.exists != 'true' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.cargo-token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Publishing blz-mcp"
+          if out=$(cargo publish -p blz-mcp --locked 2>&1); then
+            echo "Published blz-mcp successfully"
+          else
+            code=$?
+            if echo "$out" | grep -qiE 'already uploaded|already been uploaded|previously published'; then
+              echo "blz-mcp already published; continuing."
+            else
+              echo "$out"
+              echo "Failed with exit code $code"
+              exit $code
+            fi
+          fi
+          echo "::endgroup::"
+
+      - name: Wait for blz-mcp propagation
+        if: ${{ steps.crate_mcp_exists.outputs.exists != 'true' }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          INPUT_MAX_ATTEMPTS: ${{ inputs.propagation_attempts }}
+          INPUT_DELAY_SECONDS: ${{ inputs.propagation_delay_seconds }}
+        run: |
+          set -euo pipefail
+          V="$VERSION"
+          MAX_ATTEMPTS=${INPUT_MAX_ATTEMPTS:-30}
+          DELAY=${INPUT_DELAY_SECONDS:-5}
+          echo "Waiting for blz-mcp $V to propagate (max ${MAX_ATTEMPTS} attempts, delay ${DELAY}s)..."
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if cargo search blz-mcp | grep -Fq "blz-mcp = \"$V\""; then
+              echo "blz-mcp $V available via cargo search on attempt $attempt"
+              exit 0
+            fi
+            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-mcp/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+              echo "blz-mcp $V available via API on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: Not yet available, waiting ${DELAY}s..."
+            sleep "$DELAY"
+          done
+          echo "Timed out waiting for blz-mcp $V after ${MAX_ATTEMPTS} attempts" >&2
+          exit 1
+
       - name: Check if blz-cli exists
         id: crate_cli_exists
         shell: bash
