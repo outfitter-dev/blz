@@ -808,6 +808,9 @@ async fn execute_command(
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
+        Some(Commands::Mcp) => {
+            commands::mcp_server().await?;
+        },
         Some(Commands::Anchor { command }) => {
             handle_anchor(command, cli.quiet).await?;
         },

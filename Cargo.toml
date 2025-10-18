@@ -3,12 +3,13 @@ resolver = "2"
 members = [
     "crates/blz-core",
     "crates/blz-cli",
+    "crates/blz-mcp",
     "crates/blz-release",
     "crates/blz-registry-build",
 ]
 
 [workspace.package]
-version = "1.2.0"
+version = "1.3.0"
 edition = "2024"
 authors = ["Outfitter Dev"]
 license = "MIT"
@@ -56,13 +57,15 @@ is-terminal = "0.4"
 fs2 = "0.4"
 
 # Internal crates (ensure version is set for crates.io publish of dependents)
-blz-core = { path = "crates/blz-core", version = "1.2.0" }
+blz-core = { path = "crates/blz-core", version = "1.3.0" }
+blz-mcp = { path = "crates/blz-mcp", version = "1.3.0" }
 
 [patch.crates-io]
 # Work around macOS ARM CPU feature detection panic in ring 0.17.14
 # TODO(@galligan): drop this override once a crates.io release includes commit
 # 1bb94b3b86380e398d2bc4cf61be7081ff4731a8 (tracked in release checklist).
 ring = { git = "https://github.com/briansmith/ring", rev = "1bb94b3b86380e398d2bc4cf61be7081ff4731a8" }
+rmcp = { path = "vendor/rmcp" }
 
 
 

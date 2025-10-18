@@ -1,0 +1,752 @@
+//! MCP server implementation for BLZ
+
+use std::{collections::HashMap, sync::Arc};
+
+use blz_core::Storage;
+use rmcp::model::{
+    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam,
+    GetPromptResult, Implementation, ListPromptsResult, ListResourcesResult, ListToolsResult,
+    PaginatedRequestParam, Prompt, PromptArgument, PromptsCapability, ProtocolVersion, RawContent,
+    RawResource, RawTextContent, ReadResourceRequestParam, ReadResourceResult, Resource,
+    ResourceContents, ResourcesCapability, ServerCapabilities, ServerInfo, Tool, ToolsCapability,
+};
+use rmcp::service::RequestContext;
+use rmcp::{RoleServer, ServerHandler};
+use serde_json::json;
+use tokio::sync::RwLock;
+
+use crate::{error::McpResult, prompts, resources, tools, types::IndexCache};
+
+/// MCP server for BLZ
+#[derive(Clone)]
+pub struct McpServer {
+    /// Storage backend for accessing cached documentation
+    storage: Arc<Storage>,
+    /// Index cache with double-checked locking for search operations
+    index_cache: IndexCache,
+}
+
+impl McpServer {
+    /// Create a new MCP server
+    pub fn new() -> McpResult<Self> {
+        let storage = Storage::new()?;
+        Ok(Self {
+            storage: Arc::new(storage),
+            index_cache: Arc::new(RwLock::new(HashMap::new())),
+        })
+    }
+
+    /// Serve the MCP protocol over stdio
+    pub async fn serve_stdio(&self) -> McpResult<()> {
+        tracing::info!("BLZ MCP server starting");
+
+        let stdin = tokio::io::stdin();
+        let stdout = tokio::io::stdout();
+
+        let service = rmcp::serve_server(self.clone(), (stdin, stdout))
+            .await
+            .map_err(|e| {
+                tracing::error!("server initialization error: {}", e);
+                crate::error::McpError::Protocol(e.to_string())
+            })?;
+
+        // Keep the service running until it's cancelled
+        service.waiting().await.map_err(|e| {
+            tracing::error!("server runtime error: {}", e);
+            crate::error::McpError::Protocol(e.to_string())
+        })?;
+
+        tracing::info!("BLZ MCP server stopped");
+        Ok(())
+    }
+}
+
+impl ServerHandler for McpServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            protocol_version: ProtocolVersion::default(),
+            capabilities: ServerCapabilities {
+                tools: Some(ToolsCapability { list_changed: None }),
+                resources: Some(ResourcesCapability {
+                    subscribe: None,
+                    list_changed: None,
+                }),
+                prompts: Some(PromptsCapability {
+                    list_changed: None,
+                    get: Some(true),
+                }),
+                ..Default::default()
+            },
+            server_info: Implementation {
+                name: "blz-mcp".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                title: None,
+                icons: None,
+                website_url: None,
+            },
+            instructions: None,
+        }
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::too_many_lines)]
+    async fn list_tools(
+        &self,
+        #[allow(clippy::used_underscore_binding)] _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        tracing::debug!("listing tools");
+
+        // Minimal schema to keep handshake <1 KB
+        let find_schema = json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query (optional if only retrieving snippets)"
+                },
+                "snippets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Citation strings (e.g., 'bun:10-20,30-40')"
+                },
+                "contextMode": {
+                    "type": "string",
+                    "enum": ["none", "symmetric", "all"],
+                    "default": "none",
+                    "description": "Context expansion mode"
+                },
+                "linePadding": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50,
+                    "default": 0,
+                    "description": "Lines of padding for symmetric mode"
+                },
+                "maxResults": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 10,
+                    "description": "Maximum search results"
+                },
+                "source": {
+                    "description": "Optional source filter: omit or set to \"all\" to search every source, provide a string alias for one source, or an array of aliases to target multiple sources",
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1
+                        }
+                    ]
+                },
+                "format": {
+                    "type": "string",
+                    "enum": ["concise", "detailed"],
+                    "default": "concise",
+                    "description": "Response format (concise = minimal, detailed = full metadata)"
+                }
+            }
+        });
+
+        let list_sources_schema = json!({
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["installed", "registry", "all"],
+                    "description": "Filter by source kind"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search query to filter sources"
+                }
+            }
+        });
+
+        let source_add_schema = json!({
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string",
+                    "description": "Alias for the source"
+                },
+                "url": {
+                    "type": "string",
+                    "description": "URL override (if not from registry)"
+                },
+                "force": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Force override if source exists"
+                }
+            },
+            "required": ["alias"]
+        });
+
+        let run_command_schema = json!({
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "enum": ["list", "stats", "history", "validate", "inspect", "schema"],
+                    "description": "Diagnostic command to execute"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Optional source for commands that operate on a specific source"
+                }
+            },
+            "required": ["command"]
+        });
+
+        let learn_blz_schema = json!({
+            "type": "object",
+            "properties": {}
+        });
+
+        let find_schema_obj = find_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let list_sources_schema_obj = list_sources_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let source_add_schema_obj = source_add_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let run_command_schema_obj = run_command_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let learn_blz_schema_obj = learn_blz_schema
+            .as_object()
+            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
+            .clone();
+
+        let tools = vec![
+            Tool::new(
+                "blz_find",
+                "Search & retrieve documentation snippets",
+                Arc::new(find_schema_obj),
+            ),
+            Tool::new(
+                "blz_list_sources",
+                "List docs",
+                Arc::new(list_sources_schema_obj),
+            ),
+            Tool::new(
+                "blz_add_source",
+                "Add docs",
+                Arc::new(source_add_schema_obj),
+            ),
+            Tool::new(
+                "blz_run_command",
+                "Run safe diagnostic commands",
+                Arc::new(run_command_schema_obj),
+            ),
+            Tool::new(
+                "blz_learn",
+                "Learn BLZ usage",
+                Arc::new(learn_blz_schema_obj),
+            ),
+        ];
+
+        Ok(ListToolsResult {
+            tools,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::too_many_lines)]
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        tracing::debug!(tool = %request.name, "calling tool");
+
+        match request.name.as_ref() {
+            "blz_find" => {
+                let params: tools::FindParams = serde_json::from_value(serde_json::Value::Object(
+                    request.arguments.unwrap_or_default(),
+                ))
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid find parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_find(params, &self.storage, &self.index_cache)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("find tool error: {}", e);
+                        let error_code = match e.error_code() {
+                            -32700 => ErrorCode::PARSE_ERROR,
+                            -32600 => ErrorCode::INVALID_REQUEST,
+                            -32601 => ErrorCode::METHOD_NOT_FOUND,
+                            -32602 => ErrorCode::INVALID_PARAMS,
+                            -32603 => ErrorCode::INTERNAL_ERROR,
+                            other => ErrorCode(other),
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "blz_list_sources" => {
+                let params: tools::ListSourcesParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid list-sources parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_list_sources(params, &self.storage)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("list-sources tool error: {}", e);
+                        let error_code = match e {
+                            crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "blz_add_source" => {
+                let params: tools::SourceAddParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid source-add parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_source_add(params, &self.storage, &self.index_cache)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("source-add tool error: {}", e);
+                        let error_code = match e {
+                            crate::error::McpError::SourceExists(_)
+                            | crate::error::McpError::SourceNotFound(_)
+                            | crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "blz_run_command" => {
+                let params: tools::RunCommandParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid run-command parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_run_command(params, &self.storage)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("run-command tool error: {}", e);
+                        let error_code = match e {
+                            crate::error::McpError::UnsupportedCommand(_) => {
+                                ErrorCode::INVALID_PARAMS
+                            },
+                            _ => ErrorCode::INTERNAL_ERROR,
+                        };
+                        ErrorData::new(error_code, e.to_string(), None)
+                    })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            "blz_learn" => {
+                let params: tools::LearnBlzParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid learn-blz parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output = tools::handle_learn_blz(params).await.map_err(|e| {
+                    tracing::error!("learn-blz tool error: {}", e);
+                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                })?;
+
+                let result_json = serde_json::to_value(&output).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize output: {e}"),
+                        None,
+                    )
+                })?;
+
+                Ok(CallToolResult {
+                    content: vec![Content {
+                        raw: RawContent::Text(RawTextContent {
+                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to format output: {e}"),
+                                    None,
+                                )
+                            })?,
+                            meta: None,
+                        }),
+                        annotations: None,
+                    }],
+                    structured_content: Some(result_json),
+                    is_error: None,
+                    meta: None,
+                })
+            },
+            _ => Err(ErrorData::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                format!("Unknown tool: {}", request.name),
+                None,
+            )),
+        }
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::used_underscore_binding)]
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        tracing::debug!("listing resources");
+
+        // Get all installed sources
+        let installed_sources = self.storage.list_sources();
+
+        // Create resource entries for each source
+        let mut resources: Vec<Resource> = installed_sources
+            .into_iter()
+            .map(|alias| {
+                let uri = format!("blz://sources/{alias}");
+                Resource {
+                    raw: RawResource {
+                        uri,
+                        name: alias.clone(),
+                        title: None,
+                        description: Some(format!("Metadata for source '{alias}'")),
+                        mime_type: Some("application/json".to_string()),
+                        size: None,
+                        icons: None,
+                    },
+                    annotations: None,
+                }
+            })
+            .collect();
+
+        // Add registry resource
+        resources.push(Resource {
+            raw: RawResource {
+                uri: "blz://registry".to_string(),
+                name: "registry".to_string(),
+                title: None,
+                description: Some("Complete BLZ registry of available sources".to_string()),
+                mime_type: Some("application/json".to_string()),
+                size: None,
+                icons: None,
+            },
+            annotations: None,
+        });
+
+        tracing::debug!(count = resources.len(), "listed resources");
+
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        tracing::debug!(uri = %request.uri, "reading resource");
+
+        let result = if matches!(
+            request.uri.as_str(),
+            "blz://registry" | "resource://blz/registry"
+        ) {
+            // Handle registry resource
+            resources::handle_registry_resource(&request.uri)
+                .await
+                .map_err(|e| {
+                    tracing::error!("registry resource error: {}", e);
+                    let error_code = match e {
+                        crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
+                        _ => ErrorCode::INTERNAL_ERROR,
+                    };
+                    ErrorData::new(error_code, e.to_string(), None)
+                })?
+        } else if request.uri.starts_with("blz://sources/")
+            || request.uri.starts_with("resource://blz/sources/")
+        {
+            // Handle source resource
+            resources::handle_source_resource(&request.uri, &self.storage)
+                .await
+                .map_err(|e| {
+                    tracing::error!("source resource error: {}", e);
+                    let error_code = match e {
+                        crate::error::McpError::SourceNotFound(_) => ErrorCode::INVALID_PARAMS,
+                        _ => ErrorCode::INTERNAL_ERROR,
+                    };
+                    ErrorData::new(error_code, e.to_string(), None)
+                })?
+        } else {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Unknown resource URI: {}", request.uri),
+                None,
+            ));
+        };
+
+        // Convert JSON value to text content
+        let text = serde_json::to_string_pretty(&result).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to serialize resource: {e}"),
+                None,
+            )
+        })?;
+
+        Ok(ReadResourceResult {
+            contents: vec![ResourceContents::text(text, request.uri)],
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    #[allow(clippy::used_underscore_binding)]
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, ErrorData> {
+        tracing::debug!("listing prompts");
+
+        let prompts = vec![Prompt::new(
+            "discover-docs",
+            Some("Find and add documentation sources for given technologies"),
+            Some(vec![PromptArgument {
+                name: "technologies".to_string(),
+                title: None,
+                description: Some(
+                    "Comma-separated list of technologies to discover documentation for"
+                        .to_string(),
+                ),
+                required: Some(true),
+            }]),
+        )];
+
+        Ok(ListPromptsResult {
+            prompts,
+            next_cursor: None,
+        })
+    }
+
+    #[tracing::instrument(skip(self, _context))]
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, ErrorData> {
+        tracing::debug!(prompt = %request.name, "getting prompt");
+
+        match request.name.as_ref() {
+            "discover-docs" => {
+                let params: prompts::DiscoverDocsParams = serde_json::from_value(
+                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
+                )
+                .map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Invalid discover-docs parameters: {e}"),
+                        None,
+                    )
+                })?;
+
+                let output =
+                    prompts::handle_discover_docs(&params, &self.storage).map_err(|e| {
+                        tracing::error!("discover-docs prompt error: {}", e);
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    })?;
+
+                Ok(GetPromptResult {
+                    description: None,
+                    messages: output.messages,
+                })
+            },
+            _ => Err(ErrorData::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                format!("Unknown prompt: {}", request.name),
+                None,
+            )),
+        }
+    }
+}
+
+// Note: Default impl removed - McpServer::new() can fail, so Default is inappropriate here.
+// Use McpServer::new() directly instead.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_server_info_response() {
+        let server = McpServer::new().expect("Failed to create server");
+        let info = server.get_info();
+
+        assert_eq!(info.server_info.name, "blz-mcp");
+        assert!(!info.server_info.version.is_empty());
+        assert_eq!(info.protocol_version, ProtocolVersion::default());
+    }
+
+    #[test]
+    fn test_server_info_serialization_size() {
+        let server = McpServer::new().expect("Failed to create server");
+        let info = server.get_info();
+        let json = serde_json::to_string(&info).expect("Failed to serialize");
+
+        // DoD requirement: handshake < 1KB
+        assert!(
+            json.len() < 1024,
+            "Handshake response {} bytes exceeds 1KB limit",
+            json.len()
+        );
+    }
+}

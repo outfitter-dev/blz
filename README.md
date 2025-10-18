@@ -251,9 +251,46 @@ The JSON output is designed for easy parsing by agents:
 }
 ```
 
-### MCP Server (Coming Soon)
+### MCP Server
 
-For deeper integration, BLZ will expose an MCP server with resources, prompts, and tools for `search`, looking up a `snippet`, and finally `command` to expose the full set of capabilities.
+BLZ provides a Model Context Protocol server for deep integration with AI coding assistants.
+
+**Launch the server:**
+
+```bash
+blz mcp
+```
+
+The MCP server exposes:
+- **`find` tool**: Search and retrieve documentation with exact line citations
+- **`list-sources` tool**: Discover installed and registry sources
+- **`source-add` tool**: Add documentation sources
+- **Resources**: Browse source metadata via `blz://sources/{alias}` URIs
+- **Prompts**: Guided workflows like `discover-docs`
+
+**Quick example:**
+
+```javascript
+// Search for documentation
+find({
+  query: "test runner",
+  source: "bun",
+  maxResults: 5
+})
+
+// Retrieve exact content
+find({
+  snippets: ["bun:304-324"],
+  contextMode: "symmetric"
+})
+```
+
+**Performance:**
+- <1 KB handshake size
+- Sub-50ms search latency (warm cache)
+- Direct `blz-core` integration (no CLI shell-outs)
+
+See [docs/mcp/README.md](docs/mcp/README.md) for complete documentation and [docs/mcp/SETUP.md](docs/mcp/SETUP.md) for client configuration.
 
 ## Shell Completions
 
