@@ -39,3 +39,8 @@ jobs:
 
       - name: Doc tests
         run: cargo test --doc --workspace --quiet
+
+      - name: Compile-fail UI tests
+        # Runs tests marked #[ignore], specifically compile_fail_ui (120+ seconds)
+        # Single-threaded to avoid trybuild file conflicts
+        run: cargo test --workspace --quiet -- --ignored --test-threads=1

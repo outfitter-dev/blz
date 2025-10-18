@@ -2,7 +2,8 @@ skip_in_ci: true
 colors: true
 
 pre-commit:
-  # Keep pre-commit blazing fast: hygiene + fmt + quick compile
+  # Keep pre-commit blazing fast: hygiene + fmt + quick compile + basic clippy
+  # Target: <30s total
   parallel: true
   commands:
     yaml_format:
@@ -63,6 +64,19 @@ pre-commit:
     cargo_check:
       run: cargo check --workspace --quiet
 
+    clippy_basic:
+      run: |
+        bash -lc '
+          if ! cargo clippy -V >/dev/null 2>&1; then
+            echo "clippy not available. Install with: rustup component add clippy"
+            echo "Or run: just bootstrap-fast"
+            exit 2
+          fi
+          # Quick clippy check without full strictness (saves those for pre-push)
+          # Only check workspace members, not all targets (no benches, examples)
+          cargo clippy --workspace --quiet -- -W clippy::all
+        '
+
 commit-msg:
   commands:
     commitlint:
@@ -77,7 +91,9 @@ commit-msg:
         fi
 
 pre-push:
-  # Fast by default; enable strict gates locally with BLZ_STRICT=1
+  # Strict quality gates: full clippy + tests
+  # Target: <3 minutes with caching
+  # Bypass with: scripts/hooks-bypass.sh enable
   parallel: false
   commands:
     clippy_strict:
@@ -93,11 +109,14 @@ pre-push:
             echo "Or run: just bootstrap-fast"
             exit 2
           fi
-          if command -v sccache >/dev/null; then
+          # Enable sccache if available for faster compilation
+          if command -v sccache >/dev/null 2>&1; then
             export RUSTC_WRAPPER=sccache
+            echo "🔧 Using sccache for build acceleration"
           else
-            echo "(tip) Install sccache to speed builds: cargo install sccache or run just bootstrap-fast"
+            echo "💡 Tip: Install sccache for 2-3x faster builds: cargo install sccache"
           fi
+          # Run strict clippy on all targets with warnings as errors
           cargo clippy --workspace --all-targets -- -D warnings
         '
 
@@ -109,16 +128,25 @@ pre-push:
             echo "⏭  Strict bypass enabled (.hooks/allow-strict-bypass). Skipping tests."
             exit 0
           fi
-          if command -v sccache >/dev/null; then
+          # Enable sccache if available for faster compilation
+          if command -v sccache >/dev/null 2>&1; then
             export RUSTC_WRAPPER=sccache
+            echo "🔧 Using sccache for build acceleration"
           else
-            echo "(tip) Install sccache to speed builds: cargo install sccache or run just bootstrap-fast"
+            echo "💡 Tip: Install sccache for 2-3x faster builds: cargo install sccache"
           fi
-          if command -v cargo-nextest >/dev/null; then
-            cargo nextest run --workspace
+          # Run tests excluding slow compile-time UI tests (run those in CI)
+          # compile_fail_ui takes 120+ seconds and is marked #[ignore] - CI runs it separately
+          if command -v cargo-nextest >/dev/null 2>&1; then
+            # nextest runs tests in parallel, much faster
+            echo "🧪 Running tests with cargo-nextest (parallel execution)..."
+            cargo nextest run --workspace -E "not test(compile_fail_ui)"
+            # Doc tests must be run separately (nextest doesn'\''t support them yet)
             cargo test --doc --workspace --quiet
           else
-            echo "cargo-nextest not found. Install with: cargo install cargo-nextest (or run just bootstrap-fast). Falling back to cargo test."
-            cargo test --workspace --quiet
+            echo "🧪 Running tests with cargo test..."
+            echo "💡 Tip: Install cargo-nextest for 2-3x faster test execution: cargo install cargo-nextest"
+            # Exclude the slow UI test explicitly
+            cargo test --workspace --quiet -- --skip compile_fail_ui
           fi
         '

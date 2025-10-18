@@ -25,6 +25,8 @@ strip = true
 [profile.dev]
 # Faster compilation in dev mode
 opt-level = 0
+# Enable incremental compilation for faster rebuilds
+incremental = true
 
 [profile.dev.package."*"]
 # Dependencies still optimized in dev for better performance
