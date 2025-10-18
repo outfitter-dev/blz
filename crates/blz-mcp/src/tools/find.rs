@@ -20,7 +20,39 @@ const CONCISE_SEARCH_SNIPPET_CHARS: usize = 160;
 /// Maximum number of characters to include in snippet content when using concise format
 const CONCISE_SNIPPET_CONTENT_CHARS: usize = 800;
 
+/// Source filter for search operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SourceFilter {
+    /// Search multiple specific sources
+    Multiple(Vec<String>),
+    /// Search a single source (including "all")
+    Single(String),
+}
+
+impl SourceFilter {
+    /// Check if this filter represents "all sources"
+    #[cfg(test)]
+    fn is_all(&self) -> bool {
+        matches!(self, Self::Single(s) if s == "all")
+    }
+
+    /// Get the list of specific sources to search, or None for "all"
+    fn sources(&self) -> Option<Vec<String>> {
+        match self {
+            Self::Single(s) if s == "all" => None,
+            Self::Single(s) => Some(vec![s.clone()]),
+            Self::Multiple(sources) => Some(sources.clone()),
+        }
+    }
+}
+
 /// Parameters for the find tool
+///
+/// # Performance Notes
+/// - Cross-source queries scale linearly with the number of sources searched
+/// - Results are merged and re-ranked globally by relevance across sources
+/// - Failed sources emit warnings and are skipped to keep responses resilient
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FindParams {
@@ -44,9 +76,13 @@ pub struct FindParams {
     #[serde(default = "default_max_results")]
     pub max_results: usize,
 
-    /// Optional source filter
+    /// Optional source filter - can be:
+    /// - None: search all sources
+    /// - "all": search all sources explicitly
+    /// - Single string: search one source
+    /// - Array of strings: search multiple specific sources
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
+    pub source: Option<SourceFilter>,
 
     /// Response format: "concise" (default) or "detailed"
     ///
@@ -282,11 +318,18 @@ fn find_containing_block(
     let mut flat_toc: Vec<(&blz_core::TocEntry, usize, usize)> = Vec::new();
     flatten_toc(toc, &mut flat_toc);
 
-    // Find the entry containing the start line with the deepest nesting level
-    // (longest heading_path) to get the most specific section
+    // Find the entry containing BOTH start_line and end_line with the deepest
+    // nesting level (longest heading_path) to get the most specific section.
+    // If no section contains the entire range, the function returns None so the caller
+    // can fall back to symmetric padding.
     let containing_entry = flat_toc
         .iter()
-        .filter(|(_, block_start, block_end)| *block_start <= start_line && end_line <= *block_end)
+        .filter(|(_, block_start, block_end)| {
+            *block_start <= start_line
+                && start_line <= *block_end
+                && *block_start <= end_line
+                && end_line <= *block_end
+        })
         .max_by_key(|(entry, _, _)| entry.heading_path.len())?;
 
     let (current_entry, section_start, _) = *containing_entry;
@@ -482,6 +525,7 @@ fn retrieve_snippet(
 
 /// Main handler for find tool
 #[tracing::instrument(skip(storage, index_cache))]
+#[allow(clippy::too_many_lines)] // Complex search logic with validation, caching, and multi-source merging
 pub async fn handle_find(
     params: FindParams,
     storage: &Storage,
@@ -527,29 +571,103 @@ pub async fn handle_find(
         }
         tracing::debug!(query, source = ?params.source, "executing search");
 
-        // For now, we require a source to be specified for search
-        // In the future, we could search across all sources
-        let source = params.source.as_ref().ok_or_else(|| {
-            crate::error::McpError::MissingParameter(
-                "source (required for search operations - specify which documentation source to search)"
-                    .to_string(),
-            )
-        })?;
+        // Determine which sources to search
+        let mut sources_to_search = params
+            .source
+            .as_ref()
+            .and_then(SourceFilter::sources)
+            .unwrap_or_else(|| storage.list_sources());
 
-        // Get or load the index for the specified source
-        let index = cache::get_or_load_index(index_cache, storage, source).await?;
+        // Validate we have sources to search
+        // If no sources are available from storage but we're searching all,
+        // fall back to sources in the cache
+        if sources_to_search.is_empty() {
+            if params.source.is_none() {
+                let cache_read = index_cache.read().await;
+                let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
+                drop(cache_read);
 
-        let results = execute_search(&index, query, Some(source), params.max_results).await?;
+                if cached_sources.is_empty() {
+                    let available = storage.list_sources();
+                    return Err(crate::error::McpError::Internal(format!(
+                        "No sources available to search. Available sources: {available:?}"
+                    )));
+                }
 
-        tracing::debug!(count = results.len(), "search completed");
-        search_results = Some(results);
+                sources_to_search = cached_sources;
+            } else {
+                let available = storage.list_sources();
+                return Err(crate::error::McpError::Internal(format!(
+                    "No sources available to search for filter {:?}. Available sources: {available:?}",
+                    params.source.as_ref()
+                )));
+            }
+        }
+
+        tracing::debug!(
+            sources = ?sources_to_search,
+            count = sources_to_search.len(),
+            "searching sources"
+        );
+
+        // Search across all specified sources and merge results
+        let source_count = sources_to_search.len().max(1);
+        let estimated_capacity = params
+            .max_results
+            .saturating_mul(source_count)
+            .min(MAX_ALLOWED_RESULTS);
+        let mut all_hits = Vec::with_capacity(estimated_capacity.max(params.max_results));
+
+        for source in &sources_to_search {
+            // Get or load the index for this source
+            let index = match cache::get_or_load_index(index_cache, storage, source).await {
+                Ok(idx) => idx,
+                Err(e) => {
+                    tracing::warn!(
+                        source,
+                        error = %e,
+                        "failed to load index, skipping source"
+                    );
+                    continue;
+                },
+            };
+
+            // Search this index (it already filters by alias internally)
+            match execute_search(&index, query, Some(source), params.max_results).await {
+                Ok(hits) => {
+                    all_hits.extend(hits);
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        source,
+                        error = %e,
+                        "search failed for source, skipping"
+                    );
+                },
+            }
+        }
+
+        // Sort merged results by score (descending) and limit
+        all_hits.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        all_hits.truncate(params.max_results);
+
+        tracing::debug!(
+            count = all_hits.len(),
+            sources_searched = sources_to_search.len(),
+            "search completed"
+        );
+        search_results = Some(all_hits);
     }
 
     // Retrieve snippets if requested
     if let Some(ref citations) = params.snippets {
         tracing::debug!(count = citations.len(), "retrieving snippets");
 
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(citations.len());
 
         for citation in citations {
             let (source, ranges) =
@@ -588,7 +706,66 @@ pub async fn handle_find(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::assertions_on_constants)] // Test assertions are intentional
     use super::*;
+
+    #[test]
+    fn test_source_filter_deserialization_single_string() {
+        let params: FindParams = serde_json::from_value(serde_json::json!({
+            "source": "bun",
+            "query": "test"
+        }))
+        .expect("Should deserialize single source");
+
+        assert!(params.source.is_some());
+        if let Some(SourceFilter::Single(s)) = params.source {
+            assert_eq!(s, "bun");
+        } else {
+            assert!(false, "Expected Single variant");
+        }
+    }
+
+    #[test]
+    fn test_source_filter_deserialization_all_string() {
+        let params: FindParams = serde_json::from_value(serde_json::json!({
+            "source": "all",
+            "query": "test"
+        }))
+        .expect("Should deserialize 'all' source");
+
+        assert!(params.source.is_some());
+        if let Some(ref filter) = params.source {
+            assert!(filter.is_all());
+        } else {
+            assert!(false, "Expected source to be present");
+        }
+    }
+
+    #[test]
+    fn test_source_filter_deserialization_array() {
+        let params: FindParams = serde_json::from_value(serde_json::json!({
+            "source": ["bun", "turbo", "react"],
+            "query": "test"
+        }))
+        .expect("Should deserialize array of sources");
+
+        assert!(params.source.is_some());
+        if let Some(SourceFilter::Multiple(sources)) = params.source {
+            assert_eq!(sources, vec!["bun", "turbo", "react"]);
+        } else {
+            assert!(false, "Expected Multiple variant");
+        }
+    }
+
+    #[test]
+    fn test_source_filter_deserialization_none() {
+        let params: FindParams = serde_json::from_value(serde_json::json!({
+            "query": "test"
+        }))
+        .expect("Should deserialize without source");
+
+        assert!(params.source.is_none());
+    }
 
     #[test]
     fn test_parse_citation_single_range() {
@@ -766,7 +943,7 @@ Last line of section 2"#;
             context_mode: "none".to_string(),
             line_padding: 0,
             max_results: 10,
-            source: Some("test-source".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
         };
 
@@ -777,6 +954,9 @@ Last line of section 2"#;
         }
 
         let result = handle_find(params, &storage, &index_cache).await;
+        if let Err(ref e) = result {
+            eprintln!("Error in test_query_only_execution: {e:?}");
+        }
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -832,7 +1012,7 @@ Last line of section 2"#;
             context_mode: "none".to_string(),
             line_padding: 0,
             max_results: 10,
-            source: Some("test-source".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
         };
 
@@ -1026,7 +1206,7 @@ Last line of section 2"#;
             context_mode: "none".to_string(),
             line_padding: 0,
             max_results: 10,
-            source: Some("test-source".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
         };
 
@@ -1041,7 +1221,7 @@ Last line of section 2"#;
             context_mode: "none".to_string(),
             line_padding: 0,
             max_results: 10,
-            source: Some("test-source".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
         };
 
@@ -1144,28 +1324,42 @@ Last line of section 2"#;
     }
 
     #[tokio::test]
-    async fn test_query_without_source_returns_missing_parameter_error() {
-        let (storage, _temp_dir) = setup_test_storage();
+    async fn test_query_without_source_searches_all_sources() {
+        let (storage, temp_dir) = setup_test_storage();
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
+        // Create and index the test source
+        let index_path = temp_dir.path().join("sources/test-source/.index");
+        let index = SearchIndex::create(&index_path).expect("Failed to create index");
+
+        // Store index in cache
+        {
+            let mut cache = index_cache.write().await;
+            cache.insert("test-source".to_string(), Arc::new(index));
+        }
+
         let params = FindParams {
-            query: Some("test query".to_string()),
+            query: Some("section".to_string()),
             snippets: None,
             context_mode: "none".to_string(),
             line_padding: 0,
             max_results: 10,
-            source: None, // Missing required source parameter
+            source: None, // No source specified - should search all
             format: ResponseFormat::default(),
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
-        assert!(result.is_err());
+        if let Err(ref e) = result {
+            eprintln!("Error in test_query_without_source_searches_all_sources: {e:?}");
+        }
+        assert!(
+            result.is_ok(),
+            "Should search all sources when no source specified"
+        );
 
-        let err = result.unwrap_err();
-        assert!(matches!(err, McpError::MissingParameter(_)));
-        assert_eq!(err.error_code(), -32602); // Invalid params
-        assert!(err.to_string().contains("source"));
-        assert!(err.to_string().contains("required for search operations"));
+        let output = result.unwrap();
+        assert!(output.executed.search_executed);
+        assert!(output.search_results.is_some());
     }
 }
 
@@ -1325,6 +1519,35 @@ mod block_detection_tests {
         let toc: Vec<TocEntry> = vec![];
         let result = find_containing_block(&toc, 10, 20);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_containing_block_cross_section_range_returns_none() {
+        let toc = create_test_toc();
+
+        // Request range 8-15 spans two top-level sections:
+        // - Introduction (1-10) contains line 8 but not line 15
+        // - Getting Started (11-50) contains line 15 but not line 8
+        // Should return None to fall back to symmetric padding
+        let result = find_containing_block(&toc, 8, 15);
+        assert!(
+            result.is_none(),
+            "Cross-section ranges should return None to trigger fallback"
+        );
+    }
+
+    #[test]
+    fn test_find_containing_block_range_entirely_within_section() {
+        let toc = create_test_toc();
+
+        // Request range 20-24 is entirely within Installation (12-25)
+        // Should find and return the Installation section boundary
+        let result = find_containing_block(&toc, 20, 24);
+        assert!(result.is_some());
+        let (start, end) = result.unwrap();
+        // Should return Installation section (12-25)
+        assert_eq!(start, 11); // Line 12 -> 0-based index 11
+        assert_eq!(end, 24); // Line 25 -> 0-based index 24
     }
 
     #[tokio::test]
