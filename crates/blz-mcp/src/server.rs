@@ -71,7 +71,10 @@ impl ServerHandler for McpServer {
                     subscribe: None,
                     list_changed: None,
                 }),
-                prompts: Some(PromptsCapability { list_changed: None }),
+                prompts: Some(PromptsCapability {
+                    list_changed: None,
+                    get: Some(true),
+                }),
                 ..Default::default()
             },
             server_info: Implementation {
