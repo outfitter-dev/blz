@@ -42,7 +42,7 @@ const OVERVIEW_TEXT: &str = "blz built-in docs alias: blz-docs (@blz)\n\
 - inspect full text with `blz docs cat` or export CLI usage via `blz docs export --format markdown`";
 
 /// Embedded llms-full content compiled into the binary.
-static BUNDLED_CONTENT: &str = include_str!("../../../../docs/llms/blz/llms-full.txt");
+static BUNDLED_CONTENT: &str = include_str!(env!("BLZ_BUNDLED_DOC"));
 
 /// Pre-computed SHA-256 hash (base64) of the bundled content.
 static BUNDLED_SHA256: LazyLock<String> = LazyLock::new(|| {
