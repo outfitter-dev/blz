@@ -413,12 +413,21 @@ async fn fetch_and_index(
     if !no_language_filter {
         let mut language_filter = LanguageFilter::new(true);
 
-        // Filter heading blocks by extracting URLs from their content
+        // Filter heading blocks using both URL-based and text-based methods
         let original_count = parse_result.heading_blocks.len();
         parse_result.heading_blocks.retain(|block| {
-            extract_urls_from_content(&block.content)
-                .iter()
-                .all(|url| language_filter.is_english_url(url))
+            // First check URLs in content (fast, catches locale-based URLs)
+            let urls_in_content = extract_urls_from_content(&block.content);
+            let url_check = urls_in_content.is_empty()
+                || urls_in_content
+                    .iter()
+                    .all(|url| language_filter.is_english_url(url));
+
+            // Then check heading text (catches non-URL-based translations)
+            let heading_check = language_filter.is_english_heading_path(&block.path);
+
+            // Block must pass both checks to be kept
+            url_check && heading_check
         });
 
         let filtered_count = original_count - parse_result.heading_blocks.len();
