@@ -4,13 +4,73 @@ This guide covers setting up the BLZ MCP server with various AI coding assistant
 
 ## Prerequisites
 
-1. **Install BLZ**: Follow the [installation guide](../QUICKSTART.md)
+1. **Install BLZ**: Follow the [installation guide](../quickstart.md)
 2. **Verify installation**: `blz --version`
 3. **Add at least one source**: `blz add bun https://bun.sh/llms.txt`
 
-## Claude Code
+## Quick Install
 
-### Configuration
+### Recommended: User-level Installation
+
+Install globally for use across all your projects:
+
+<details>
+<summary><strong>Claude Code CLI</strong></summary>
+
+```bash
+claude mcp add blz blz mcp --scope user
+```
+
+The `--scope user` flag installs BLZ for all your projects. Verify installation:
+
+```bash
+claude mcp list
+```
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Add to your user settings (`~/.cursor/config/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "blz": {
+      "command": "blz",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Restart Cursor and verify in Command Palette → "MCP: Show Servers"
+
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Add to `~/.windsurf/.mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "blz": {
+      "serverUrl": "blz mcp",
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+Restart Windsurf to activate.
+
+</details>
+
+<details>
+<summary><strong>Claude Code Desktop</strong></summary>
 
 1. Open Claude Code settings (Cmd/Ctrl + Shift + P → "Claude Code: Settings")
 2. Navigate to MCP Servers
@@ -30,9 +90,116 @@ This guide covers setting up the BLZ MCP server with various AI coding assistant
 }
 ```
 
-### Optional: Debug Logging
+Restart Claude Code and verify in the MCP panel.
+
+</details>
+
+<details>
+<summary><strong>Codex</strong></summary>
+
+Add to your Codex configuration:
+
+```json
+{
+  "mcpServers": {
+    "blz": {
+      "command": "blz",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Factory CLI</strong></summary>
+
+```bash
+/mcp add blz blz mcp
+```
+
+Verify with `/mcp list`
+
+</details>
+
+<details>
+<summary><strong>OpenCode</strong></summary>
+
+Add to OpenCode MCP configuration:
+
+```json
+{
+  "servers": {
+    "blz": {
+      "command": "blz",
+      "args": ["mcp"],
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>AMP</strong></summary>
+
+Configure in AMP settings under MCP Servers:
+
+```json
+{
+  "blz": {
+    "command": "blz",
+    "args": ["mcp"]
+  }
+}
+```
+
+</details>
+
+## Installation Scopes (Claude Code CLI)
+
+When using `claude mcp add`, choose the appropriate scope:
+
+- `--scope user`: Available across **all your projects** (recommended for personal tools)
+- `--scope project`: Shared with your **team** via `.mcp.json` (committed to version control)
+- `--scope local`: This **project only**, not shared (default)
+
+**Examples:**
+
+```bash
+# Personal use across all projects
+claude mcp add blz blz mcp --scope user
+
+# Team-shared configuration
+claude mcp add blz blz mcp --scope project
+
+# Project-specific, not shared
+claude mcp add blz blz mcp --scope local
+```
+
+## Verification
+
+After installation, verify BLZ is connected:
+
+### Claude Code
+1. Restart Claude Code
+2. Open the MCP panel
+3. Verify "blz" server is connected
+4. Check available tools: `find`, `list-sources`, `source-add`, `run-command`, `learn-blz`
+
+### Other Clients
+1. Restart your IDE
+2. Look for MCP server status indicator
+3. Try a search: "Can you search the Bun docs for information about the test runner?"
+
+## Optional: Debug Logging
 
 For troubleshooting, enable debug logging:
+
+<details>
+<summary><strong>Claude Code</strong></summary>
 
 ```json
 {
@@ -48,111 +215,24 @@ For troubleshooting, enable debug logging:
 }
 ```
 
-### Verification
+</details>
 
-1. Restart Claude Code
-2. Open the MCP panel
-3. Verify "blz" server is connected
-4. Check available tools: `find`, `list-sources`, `source-add`, `run-command`, `learn-blz`
+<details>
+<summary><strong>Other Clients</strong></summary>
 
-### Usage
-
-Ask Claude to search documentation:
-
-```
-Can you search the Bun docs for information about the test runner?
-```
-
-Claude will use the `find` tool automatically:
-
-```javascript
-// Claude's internal call
-find({
-  query: "test runner",
-  sources: ["bun"]
-})
-```
-
-## Cursor
-
-### Configuration
-
-1. Open Cursor settings (Cmd/Ctrl + ,)
-2. Navigate to Features → MCP Servers
-3. Add BLZ configuration:
-
-```json
-{
-  "mcpServers": {
-    "blz": {
-      "command": "blz",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-### Verification
-
-1. Restart Cursor
-2. Open Command Palette (Cmd/Ctrl + Shift + P)
-3. Run "MCP: Show Servers"
-4. Verify "blz" appears in the list
-
-### Usage
-
-In the chat panel:
-
-```
-Find documentation about async/await in the Bun docs
-```
-
-Cursor will use the MCP server to search and retrieve relevant content.
-
-## Other MCP Clients
-
-### Generic Setup
-
-For any MCP-compatible client:
-
-1. **Stdio transport**: BLZ uses stdio for communication
-2. **Command**: `blz mcp`
-3. **No special arguments**: The server auto-detects stdio mode
-
-**Example configuration:**
-
-```json
-{
-  "servers": {
-    "blz": {
-      "command": "blz",
-      "args": ["mcp"],
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-### Environment Variables
-
-**BLZ-specific:**
-
-- `BLZ_DATA_DIR`: Override data directory (default: `~/.blz`)
-- `BLZ_GLOBAL_CONFIG_DIR`: Override config directory
-- `RUST_LOG`: Set logging level
-
-**Example:**
+Add the `RUST_LOG` environment variable to your configuration:
 
 ```json
 {
   "command": "blz",
   "args": ["mcp"],
   "env": {
-    "BLZ_DATA_DIR": "/custom/path",
-    "RUST_LOG": "info"
+    "RUST_LOG": "debug"
   }
 }
 ```
+
+</details>
 
 ## Testing the Connection
 
@@ -369,9 +449,15 @@ Run multiple BLZ instances with different configurations:
 
 Each instance maintains separate caches and sources.
 
-### Debug Logging Levels
+### Environment Variables
 
-Control logging verbosity:
+**BLZ-specific:**
+
+- `BLZ_DATA_DIR`: Override data directory (default: `~/.blz`)
+- `BLZ_GLOBAL_CONFIG_DIR`: Override config directory
+- `RUST_LOG`: Set logging level
+
+**Debug logging levels:**
 
 | Level | Use Case | Setting |
 |-------|----------|---------|
