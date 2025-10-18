@@ -140,7 +140,7 @@ pre-push:
           if command -v cargo-nextest >/dev/null 2>&1; then
             # nextest runs tests in parallel, much faster
             echo "🧪 Running tests with cargo-nextest (parallel execution)..."
-            cargo nextest run --workspace -E 'not test(compile_fail_ui)'
+            cargo nextest run --workspace -E "not test(compile_fail_ui)"
             # Doc tests must be run separately (nextest doesn'\''t support them yet)
             cargo test --doc --workspace --quiet
           else
