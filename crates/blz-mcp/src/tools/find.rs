@@ -1246,4 +1246,75 @@ Line 12";
         assert_eq!(snippet.line_start, 1);
         assert_eq!(snippet.line_end, 5);
     }
+
+    #[tokio::test]
+    async fn test_context_mode_all_clamps_out_of_bounds_toc() {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let storage =
+            Storage::with_root(temp_dir.path().to_path_buf()).expect("Failed to create storage");
+
+        // Document has only three lines.
+        let test_content = "Line 1\nLine 2\nLine 3\n";
+
+        let source_dir = temp_dir.path().join("sources/out-of-bounds");
+        std::fs::create_dir_all(&source_dir).expect("Failed to create sources dir");
+        std::fs::write(source_dir.join("llms.txt"), test_content)
+            .expect("Failed to write llms.txt");
+
+        // Persist llms.json with a TOC entry that overflows past the end of the file.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        #[allow(clippy::cast_possible_wrap)]
+        let fetched_at =
+            chrono::DateTime::from_timestamp(now as i64, 0).expect("Failed to create timestamp");
+
+        let llms_json = blz_core::LlmsJson {
+            source: "out-of-bounds".to_string(),
+            metadata: blz_core::Source {
+                url: "https://example.com".to_string(),
+                etag: None,
+                last_modified: None,
+                fetched_at,
+                sha256: "test".to_string(),
+                variant: blz_core::SourceVariant::Llms,
+                aliases: vec![],
+                tags: vec![],
+                description: None,
+                category: None,
+                npm_aliases: vec![],
+                github_aliases: vec![],
+                origin: blz_core::SourceOrigin {
+                    manifest: None,
+                    source_type: None,
+                },
+            },
+            toc: vec![TocEntry {
+                heading_path: vec!["Overflow".to_string()],
+                lines: "1-10".to_string(),
+                anchor: None,
+                children: vec![],
+            }],
+            files: vec![],
+            line_index: blz_core::LineIndex {
+                total_lines: 3,
+                byte_offsets: false,
+            },
+            diagnostics: vec![],
+            parse_meta: None,
+        };
+
+        let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
+        std::fs::write(source_dir.join("llms.json"), json_str).expect("Failed to write llms.json");
+
+        let result = retrieve_snippet(&storage, "out-of-bounds", 1, 2, "all", 0);
+        assert!(result.is_ok());
+
+        let snippet = result.unwrap();
+        // Even though TOC says 1-10, the snippet should clamp to the file length.
+        assert_eq!(snippet.line_start, 1);
+        assert_eq!(snippet.line_end, 3);
+        assert!(snippet.content.contains("Line 3"));
+    }
 }
