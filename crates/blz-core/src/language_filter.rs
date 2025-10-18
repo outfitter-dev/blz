@@ -46,20 +46,13 @@ const NON_ENGLISH_LOCALES: &[&str] = &[
     "zh-cn", "zh-tw", "pt-br", "pt-pt", "es-mx", "es-es",
 ];
 
-/// Common non-English words that are distinctive
-/// These are words that rarely appear in English documentation
-/// IMPORTANT: Only include words that are NOT also valid English words
-const NON_ENGLISH_INDICATORS: &[&str] = &[
-    // Italian - distinctive words not found in English
-    "della",
-    "degli",
-    "nell",
-    "nelle",
-    "nella",
+/// Strong non-English indicator words that rarely appear in English text.
+/// A single match from this list is enough to flag a heading as non-English.
+const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
+    // Italian
     "flussi",
     "lavoro",
     "comuni",
-    "problemi",
     "risoluzione",
     "validazione",
     "esempi",
@@ -71,98 +64,88 @@ const NON_ENGLISH_INDICATORS: &[&str] = &[
     "empiriche",
     "solide",
     "costruire",
-    "casi",
-    "usa",
-    "nostro",
-    "miglioratore",
-    "per",
-    "ottimizzare",
-    "tuoi",
-    "migliori",
-    "guida",
+    "problemi",
     "situazioni",
     "specifiche",
     "evitare",
     "concentrarsi",
     "superare",
     "subagenti",
+    "subagentes",
     "gestione",
     "definizione",
     "programmatica",
     "raccomandato",
-    // German - distinctive words
-    "und",
-    "der",
-    "die",
-    "das",
-    "für",
-    "mit",
-    "von",
-    "zur",
-    "im",
-    "dokumentation",
-    "anleitung",
+    "miglioratore",
+    "ottimizzare",
+    "migliori",
+    "guida",
+    "documentazione",
+    // German
     "befehle",
     "benutzerdefinierte",
+    "dokumentation",
+    "anleitung",
     "erstellen",
-    "beispiele",
     "praktische",
     "marktplätze",
     "troubleshooten",
     "validierung",
     "testen",
-    // French - distinctive words (removed "de" - too ambiguous)
-    "le",
-    "la",
-    "les",
-    "pour",
-    "avec",
+    // French
     "utilisez",
-    "notre",
     "générer",
-    "exemples",
     "améliorateur",
-    "prompts",
-    "créer",
-    "des",
     "évaluations",
     "construire",
     "principes",
     "conception",
-    // Spanish - distinctive words
-    "del",
-    "los",
-    "las",
-    "para",
+    // Spanish
     "documentación",
-    // Portuguese - distinctive words
-    "dos",
-    "das",
+    "documentacion",
+    "introducción",
+    "introduccion",
+    "mejores",
+    "desarrolladores",
+    "usuarios",
+    "agentes",
+    // Portuguese
     "documentação",
+    "documentacao",
     "gerenciando",
-    "subagentes",
     "gerenciamento",
-    "direto",
     "arquivos",
-    // Indonesian - distinctive words
+    // Indonesian
     "perintah",
-    "dalam",
     "membuat",
     "contoh",
     "kustom",
-    // Dutch - distinctive words
-    "het",
-    "van",
-    "een",
-    "voor",
-    "met",
-    // Polish - distinctive words (removed single letters)
-    "dla",
+    // Polish
     "dokumentacja",
-    // Russian (romanized common words)
+    // Russian (romanized)
     "rukovodstvo",
     "dokumentatsiya",
 ];
+
+/// Weak indicator words that are common stop words in other languages and more ambiguous.
+/// We require a combination of at least two weak indicators to flag text.
+const WEAK_NON_ENGLISH_INDICATORS: &[&str] = &[
+    // Italian function words
+    "della", "degli", "nelle", "nella", "nell", // German function words
+    "und", "der", "die", "das", "für", "mit", "von", "zur", "im",
+    // French function words
+    "le", "la", "les", "pour", "avec", "des", // Spanish function words
+    "del", "los", "las", "para", // Portuguese function words
+    "dos", "das", // Dutch function words
+    "het", "van", "een", "voor", "met", // Polish
+    "dla",
+];
+
+#[derive(Default)]
+struct IndicatorCounts {
+    strong: usize,
+    weak: usize,
+}
 
 /// Statistics about language filtering operations
 #[derive(Debug, Default, Clone)]
@@ -415,23 +398,29 @@ impl LanguageFilter {
     }
 
     /// Count non-English indicator words in text
-    fn count_non_english_indicators(lower_text: &str) -> usize {
+    fn count_non_english_indicators(lower_text: &str) -> IndicatorCounts {
         // Split into words, also splitting on apostrophes, hyphens, and other punctuation
-        let words: Vec<&str> = lower_text
-            .split(|c: char| {
-                c.is_whitespace()
-                    || c == '\''
-                    || c == '\u{2019}' // Unicode right single quotation mark
-                    || c == '`'
-                    || c == '-' // Split on hyphens (e.g., "Slash-Befehle" -> ["Slash", "Befehle"])
-            })
-            .filter(|w| !w.is_empty())
-            .collect();
+        let mut counts = IndicatorCounts::default();
 
-        words
-            .iter()
-            .filter(|word| NON_ENGLISH_INDICATORS.contains(word))
-            .count()
+        for word in lower_text.split(|c: char| !c.is_alphabetic()) {
+            if word.is_empty() {
+                continue;
+            }
+
+            if STRONG_NON_ENGLISH_INDICATORS.contains(&word) {
+                counts.strong += 1;
+            } else if WEAK_NON_ENGLISH_INDICATORS.contains(&word) {
+                counts.weak += 1;
+            }
+        }
+
+        counts
+    }
+
+    /// Detect extended Latin characters with diacritics (Ã, É, ç, ñ, etc.)
+    fn has_extended_latin(text: &str) -> bool {
+        text.chars()
+            .any(|c| ('\u{00C0}'..='\u{017F}').contains(&c) && c.is_alphabetic())
     }
 
     /// Check if text appears to be in English
@@ -469,11 +458,20 @@ impl LanguageFilter {
             return false;
         }
 
-        // Check for non-English indicator words (requires 2+ to avoid false positives)
-        let lower_text = text.to_lowercase();
-        let non_english_count = Self::count_non_english_indicators(&lower_text);
+        // Check for common extended Latin diacritics (é, ñ, ç, etc.)
+        if Self::has_extended_latin(text) {
+            return false;
+        }
 
-        non_english_count < 2
+        // Check for non-English indicator words using weighted heuristics
+        let lower_text = text.to_lowercase();
+        let indicator_counts = Self::count_non_english_indicators(&lower_text);
+
+        if indicator_counts.strong >= 1 {
+            return false;
+        }
+
+        (indicator_counts.strong + indicator_counts.weak) < 2
     }
 
     /// Check if a heading path is in English
@@ -490,10 +488,16 @@ impl LanguageFilter {
     /// let filter = LanguageFilter::new(true);
     ///
     /// // English headings (accepted)
-    /// assert!(filter.is_english_heading_path(&["Getting Started", "Installation"]));
+    /// assert!(filter.is_english_heading_path(&[
+    ///     "Getting Started".to_string(),
+    ///     "Installation".to_string()
+    /// ]));
     ///
     /// // Non-English headings (rejected)
-    /// assert!(!filter.is_english_heading_path(&["Flussi di lavoro comuni", "Test"]));
+    /// assert!(!filter.is_english_heading_path(&[
+    ///     "Flussi di lavoro comuni".to_string(),
+    ///     "Test".to_string()
+    /// ]));
     /// ```
     pub fn is_english_heading_path(&self, heading_path: &[String]) -> bool {
         if !self.enabled {
@@ -719,6 +723,7 @@ mod tests {
         assert!(filter.is_english_text("Installation Instructions"));
         assert!(filter.is_english_text("Common Workflows"));
         assert!(filter.is_english_text("Test Runner"));
+        assert!(filter.is_english_text("USA per-region quotas"));
 
         // Italian text should be rejected
         assert!(!filter.is_english_text("Flussi di lavoro comuni"));
@@ -737,6 +742,11 @@ mod tests {
 
         // Spanish text should be rejected
         assert!(!filter.is_english_text("Documentación para desarrolladores"));
+        assert!(!filter.is_english_text("Documentación"));
+        assert!(!filter.is_english_text("Documentación: Guía rápida"));
+        assert!(!filter.is_english_text("Documentacao de usuario"));
+        assert!(!filter.is_english_text("Documentacion, guia rapida"));
+        assert!(!filter.is_english_text("Los mejores agentes de soporte"));
 
         // Indonesian text should be rejected
         assert!(!filter.is_english_text("Perintah Slash dalam SDK"));
