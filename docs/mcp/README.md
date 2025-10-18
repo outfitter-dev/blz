@@ -41,7 +41,7 @@ Once connected, the MCP client can use these tools:
   "name": "find",
   "arguments": {
     "query": "test runner",
-    "sources": ["bun"],
+    "source": "bun",
     "maxResults": 5
   }
 }
@@ -70,7 +70,7 @@ Unified tool for searching documentation and retrieving exact content spans.
 ```json
 {
   "query": "test runner",
-  "sources": ["bun"],
+  "source": "bun",
   "maxResults": 10
 }
 ```
@@ -86,7 +86,7 @@ Unified tool for searching documentation and retrieving exact content spans.
 **Parameters:**
 - `query` (string, optional): Search text
 - `snippets` (array, optional): Citation references (e.g., `["bun:120-145"]`)
-- `sources` (array, optional): Filter to specific documentation sources
+- `source` (string, optional): Alias of the documentation source to search (required with `query`)
 - `contextMode` (enum, optional): `"none"` | `"symmetric"` | `"all"` - How to expand snippets
 - `linePadding` (integer, optional): Lines to add before/after (0-50)
 - `maxResults` (integer, optional): Limit search hits (1-50, default: 10)
@@ -174,15 +174,8 @@ Add new documentation source from the registry or a custom URL.
 Execute whitelisted read-only BLZ commands.
 
 **Parameters:**
-- `args` (array, required): Command arguments
-
-**Whitelisted commands:**
-- `stats` - Index statistics
-- `history` - Update history
-- `list` - List sources
-- `validate` - Validate integrity
-- `inspect` - Inspect metadata
-- `schema` - JSON schema
+- `command` (string, required): Whitelisted command name (`stats`, `history`, `list`, `validate`, `inspect`, `schema`)
+- `source` (string, optional): Documentation alias for commands that operate on a specific source
 
 **Returns:**
 ```json
@@ -212,10 +205,10 @@ Returns curated reference data about BLZ capabilities and usage patterns.
   ],
   "flags": {
     "contextMode": ["none", "symmetric", "all"],
-    "sources": ["bun", "react", "tanstack"]
+    "source": ["bun", "react", "tanstack"]
   },
   "examples": [
-    "find(query='test runner', sources=['bun'])",
+    "find(query='test runner', source='bun')",
     "list-sources(filter='react')"
   ]
 }
@@ -339,7 +332,7 @@ Write operations (update, remove, clear) are not exposed. Users must run `blz` C
 // Step 1: Search for relevant documentation
 const searchResult = await mcp.callTool("find", {
   query: "test runner",
-  sources: ["bun"],
+  source: "bun",
   maxResults: 5
 });
 
@@ -474,7 +467,7 @@ For reference, here's how MCP tools map to CLI commands:
 | `find(snippets=...)` | `blz get source:lines --json` |
 | `list-sources()` | `blz list --json` |
 | `source-add(alias=...)` | `blz add alias url` |
-| `run-command(args=["stats"])` | `blz stats` |
+| `run-command(command="stats")` | `blz stats` |
 
 The MCP server uses the same `blz-core` library, so results should be identical to CLI output.
 

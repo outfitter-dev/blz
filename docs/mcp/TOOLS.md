@@ -36,10 +36,9 @@ Unified tool for searching documentation and retrieving exact content spans.
         "items": {"type": "string"},
         "description": "Source refs (e.g., 'bun:120-145')"
       },
-      "sources": {
-        "type": "array",
-        "items": {"type": "string"},
-        "description": "Filter to specific sources"
+      "source": {
+        "type": "string",
+        "description": "Alias of the documentation source to search (required with query)"
       },
       "contextMode": {
         "type": "string",
@@ -96,17 +95,20 @@ Citation references to retrieve. Format: `"source:start-end"` or `"source:range1
 {snippets: ["bun:100-120,130-150"]} // Multiple ranges from same source
 ```
 
-#### `sources` (array of strings, optional)
+#### `source` (string, optional)
 
-Filter search to specific documentation sources. Uses source aliases.
+Alias of the documentation source to search. This field is **required** whenever
+`query` is provided because search is currently single-source. When retrieving
+snippets, the source is inferred from each citation string.
 
 **Examples:**
 ```javascript
-{sources: ["bun"]}
-{sources: ["bun", "react", "tanstack"]}
+{source: "bun"}
+{source: "react"} // Search React docs
 ```
 
-**Performance note:** Filtering to specific sources significantly improves search speed.
+**Tip:** To search multiple sources, call the tool repeatedly with different
+`source` values.
 
 #### `contextMode` (enum, optional)
 
@@ -197,7 +199,7 @@ Limit number of search hits. Range: 1-50. Default: 10.
   "name": "find",
   "arguments": {
     "query": "test runner",
-    "sources": ["bun"],
+    "source": "bun",
     "maxResults": 3
   }
 }
@@ -283,7 +285,7 @@ blz get bun:304-324 --context block --json
   "arguments": {
     "query": "test runner",
     "snippets": ["bun:304-324"],
-    "sources": ["bun"],
+    "source": "bun",
     "contextMode": "symmetric",
     "maxResults": 5
   }
@@ -685,22 +687,25 @@ Execute whitelisted read-only BLZ commands.
   "inputSchema": {
     "type": "object",
     "properties": {
-      "args": {
-        "type": "array",
-        "items": {"type": "string"},
-        "description": "Command arguments"
+      "command": {
+        "type": "string",
+        "description": "Whitelisted command to execute"
+      },
+      "source": {
+        "type": "string",
+        "description": "Optional documentation alias for commands that operate on a source"
       }
     },
-    "required": ["args"]
+    "required": ["command"]
   }
 }
 ```
 
 ### Parameters
 
-#### `args` (array of strings, required)
+#### `command` (string, required)
 
-Command arguments. First element is the command name.
+Whitelisted command name to execute.
 
 **Whitelisted commands:**
 - `stats` - Index statistics
@@ -710,11 +715,16 @@ Command arguments. First element is the command name.
 - `inspect` - Inspect metadata
 - `schema` - JSON schema
 
+#### `source` (string, optional)
+
+Alias of the documentation source when the command operates on a specific
+source (e.g., `history`, `validate`, `inspect`).
+
 **Examples:**
 ```javascript
-{args: ["stats"]}
-{args: ["history", "bun"]}
-{args: ["validate", "bun"]}
+{command: "stats"}
+{command: "history", source: "bun"}
+{command: "validate", source: "bun"}
 ```
 
 ### Response Format
@@ -738,7 +748,7 @@ Command arguments. First element is the command name.
 {
   "name": "run-command",
   "arguments": {
-    "args": ["stats"]
+    "command": "stats"
   }
 }
 ```
@@ -764,7 +774,8 @@ blz stats
 {
   "name": "run-command",
   "arguments": {
-    "args": ["history", "bun"]
+    "command": "history",
+    "source": "bun"
   }
 }
 ```
@@ -787,8 +798,8 @@ blz history bun
 
 | Error Code | Reason | Example |
 |------------|--------|---------|
-| `-32002` | Command not whitelisted | `{args: ["remove", "bun"]}` |
-| `-32602` | Invalid arguments | `{args: []}` (empty) |
+| `-32002` | Command not whitelisted | `{command: "remove"}` |
+| `-32602` | Invalid arguments | `{command: ""}` (empty) |
 
 **Note:** Write operations (add, update, remove) must use dedicated tools or CLI directly.
 
@@ -848,10 +859,10 @@ No parameters required.
   ],
   "flags": {
     "contextMode": ["none", "symmetric", "all"],
-    "sources": ["bun", "react", "tanstack"]
+    "source": ["bun", "react", "tanstack"]
   },
   "examples": [
-    "find(query='test runner', sources=['bun'])",
+    "find(query='test runner', source='bun')",
     "find(snippets=['bun:304-324'], contextMode='symmetric')",
     "list-sources(filter='react')",
     "source-add(alias='astro')"
@@ -878,7 +889,7 @@ Agents can call `learn-blz` to understand:
 // Step 1: Search
 const search = await callTool("find", {
   query: "test runner",
-  sources: ["bun"],
+  source: "bun",
   maxResults: 5
 });
 
@@ -910,19 +921,21 @@ if (sources.sources.some(s => s.kind === "registry")) {
 ### Pattern 3: Multi-Source Search
 
 ```javascript
-// Search across multiple sources
-const results = await callTool("find", {
-  query: "authentication",
-  sources: ["bun", "react", "next"],
-  maxResults: 15
-});
+// Search across multiple sources by calling find per alias
+const aliases = ["bun", "react", "next"];
+const bySource = {};
 
-// Group by source
-const bySource = results.hits.reduce((acc, hit) => {
-  acc[hit.alias] = acc[hit.alias] || [];
-  acc[hit.alias].push(hit);
-  return acc;
-}, {});
+for (const alias of aliases) {
+  const results = await callTool("find", {
+    query: "authentication",
+    source: alias,
+    maxResults: 5
+  });
+
+  if (results.hits) {
+    bySource[alias] = results.hits;
+  }
+}
 ```
 
 ### Pattern 4: Incremental Context
