@@ -611,10 +611,12 @@ pub async fn handle_find(
         );
 
         // Search across all specified sources and merge results
+        let source_count = sources_to_search.len().max(1);
         let estimated_capacity = params
             .max_results
-            .saturating_mul(sources_to_search.len().min(4));
-        let mut all_hits = Vec::with_capacity(estimated_capacity);
+            .saturating_mul(source_count)
+            .min(MAX_ALLOWED_RESULTS);
+        let mut all_hits = Vec::with_capacity(estimated_capacity.max(params.max_results));
 
         for source in &sources_to_search {
             // Get or load the index for this source
@@ -665,7 +667,7 @@ pub async fn handle_find(
     if let Some(ref citations) = params.snippets {
         tracing::debug!(count = citations.len(), "retrieving snippets");
 
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(citations.len());
 
         for citation in citations {
             let (source, ranges) =
