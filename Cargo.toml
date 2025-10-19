@@ -95,6 +95,21 @@ panic = "warn"
 unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
 
+[profile.dev]
+# Enable incremental compilation for faster rebuilds
+incremental = true
+
+# Optimize dependencies in dev mode for better runtime performance
+# while keeping quick compilation for our crates
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+# Slightly optimize test builds for faster execution
+opt-level = 1
+# Enable incremental compilation for faster test rebuilds
+incremental = true
+
 [profile.release]
 lto = true
 codegen-units = 1

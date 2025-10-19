@@ -88,6 +88,128 @@ Welcome to the BLZ development documentation. This guide covers our development 
 - **Git Hooks**: Lefthook for pre-commit checks (see "Local Hooks + Nextest" in docs/development/ci_cd.md; quick start: `just bootstrap-fast`)
 - **AI Assistance**: Claude for code reviews and development
 
+## ⚡ Build Performance Optimization
+
+### Compilation Speed
+
+BLZ uses several techniques to optimize build and test performance:
+
+#### Profile Optimizations
+
+The workspace is configured with optimized build profiles in `Cargo.toml`:
+
+- **Dev profile**: Incremental compilation enabled, dependencies optimized at level 2
+- **Test profile**: Incremental compilation with opt-level 1 for faster test execution
+- **Release profile**: Full LTO and single codegen unit for maximum runtime performance
+
+These settings significantly reduce compilation time while maintaining good runtime performance during development.
+
+#### Shared Compilation Cache (sccache)
+
+[sccache](https://github.com/mozilla/sccache) provides shared compilation caching to dramatically reduce rebuild times:
+
+**Installation:**
+
+```bash
+# macOS
+brew install sccache
+
+# Arch Linux
+pacman -S sccache
+
+# Cargo (universal)
+cargo install sccache
+```
+
+**Setup:**
+
+Add to your shell configuration file (`~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`):
+
+```bash
+# Bash/Zsh
+export RUSTC_WRAPPER=sccache
+
+# Fish
+set -gx RUSTC_WRAPPER sccache
+```
+
+**Verify it's working:**
+
+```bash
+sccache --show-stats
+```
+
+You should see cache hits increase as you rebuild the project.
+
+**Performance Impact:**
+
+- Initial build: ~8 minutes
+- With warm sccache: ~2-3 minutes (60-70% faster)
+- Incremental builds: <30 seconds
+
+#### Build Timings Analysis
+
+To identify slow dependencies and compilation bottlenecks:
+
+```bash
+# Generate HTML report of build times
+cargo build --timings
+
+# Open the generated report
+open target/cargo-timings/cargo-timing.html
+```
+
+This creates a detailed timeline showing:
+- Which crates take longest to compile
+- Dependency graph and parallel compilation opportunities
+- CPU utilization during the build
+
+Use this to identify optimization opportunities or problematic dependencies.
+
+### Parallel Test Execution
+
+Use [cargo-nextest](https://nexte.st/) for faster test runs:
+
+```bash
+# Install
+cargo install cargo-nextest
+
+# Run tests (automatically uses all CPU cores)
+cargo nextest run --workspace
+
+# Run with coverage
+cargo llvm-cov nextest --workspace
+```
+
+Nextest runs tests in parallel by default and provides better output formatting.
+
+### Reducing Target Directory Bloat
+
+The `target/` directory can grow to 50GB+ over time. Clean it periodically:
+
+```bash
+# Remove all build artifacts
+cargo clean
+
+# Remove only release artifacts
+cargo clean --release
+
+# Remove specific package artifacts
+cargo clean -p blz-core
+```
+
+Consider using [cargo-sweep](https://github.com/holmgr/cargo-sweep) to automatically remove old artifacts:
+
+```bash
+cargo install cargo-sweep
+
+# Mark current files as used
+cargo sweep -s
+
+# Remove unused artifacts older than 30 days
+cargo sweep -f -t 30
+```
+
 ## 📋 Project Structure
 
 ```
