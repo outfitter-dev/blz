@@ -15,7 +15,7 @@ async fn test_language_filter_blocks_non_english_headings() -> anyhow::Result<()
     let config_dir = tempdir()?;
     let server = MockServer::start().await;
 
-    let doc = r#"# Anthropic Docs
+    let doc = r"# Anthropic Docs
 
 ## Getting Started
 English-only onboarding content.
@@ -37,7 +37,7 @@ Anleitung in tedesco con caratteri non inglesi.
 
 ## Utilisez notre améliorateur de prompts
 Contenu français avec diacritiques.
-"#;
+";
 
     // Serve fixture content
     Mock::given(method("HEAD"))
@@ -98,9 +98,7 @@ Contenu français avec diacritiques.
         let hits = run_search(query)?;
         assert!(
             hits.is_empty(),
-            "expected no hits for non-English heading \"{}\", got {:?}",
-            query,
-            hits
+            "expected no hits for non-English heading \"{query}\", got {hits:?}"
         );
     }
 

@@ -782,8 +782,8 @@ mod tests {
                 "ドキュメント", // Japanese
                 "文档",         // Chinese
                 "Документация", // Russian
-                "مستندات",     // Arabic
-                "תיעוד",       // Hebrew
+                "مستندات",      // Arabic
+                "תיעוד",        // Hebrew
             ],
         );
     }
