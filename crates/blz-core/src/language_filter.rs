@@ -515,6 +515,24 @@ impl LanguageFilter {
 mod tests {
     use super::*;
 
+    fn assert_all_english(filter: &LanguageFilter, samples: &[&str]) {
+        for text in samples {
+            assert!(
+                filter.is_english_text(text),
+                "expected English text `{text}` to be accepted"
+            );
+        }
+    }
+
+    fn assert_all_non_english(filter: &LanguageFilter, samples: &[&str]) {
+        for text in samples {
+            assert!(
+                !filter.is_english_text(text),
+                "expected non-English text `{text}` to be rejected"
+            );
+        }
+    }
+
     #[test]
     fn test_english_urls_accepted() {
         let mut filter = LanguageFilter::new(true);
@@ -717,60 +735,57 @@ mod tests {
     fn test_is_english_text() {
         let filter = LanguageFilter::new(true);
 
-        // English text should be accepted
-        assert!(filter.is_english_text("Getting Started Guide"));
-        assert!(filter.is_english_text("API Documentation"));
-        assert!(filter.is_english_text("Installation Instructions"));
-        assert!(filter.is_english_text("Common Workflows"));
-        assert!(filter.is_english_text("Test Runner"));
-        assert!(filter.is_english_text("USA per-region quotas"));
+        assert_all_english(
+            &filter,
+            &[
+                "Getting Started Guide",
+                "API Documentation",
+                "Installation Instructions",
+                "Common Workflows",
+                "Test Runner",
+                "USA per-region quotas",
+                "Documentation pour", // Only 1 French word
+            ],
+        );
 
-        // Italian text should be rejected
-        assert!(!filter.is_english_text("Flussi di lavoro comuni"));
-        assert!(!filter.is_english_text("Risoluzione dei problemi"));
-        assert!(!filter.is_english_text("Comandi Slash nell'SDK"));
-        assert!(!filter.is_english_text("Esempi Pratici"));
-
-        // German text should be rejected
-        assert!(!filter.is_english_text("Dokumentation für Entwickler"));
-        assert!(!filter.is_english_text("Anleitung zur Installation"));
-
-        // French text should be rejected (needs 2 indicators)
-        // "Documentation" appears in English, so needs other French words
-        assert!(filter.is_english_text("Documentation pour")); // Only 1 French word
-        assert!(!filter.is_english_text("Documentation pour les")); // 2 French words
-
-        // Spanish text should be rejected
-        assert!(!filter.is_english_text("Documentación para desarrolladores"));
-        assert!(!filter.is_english_text("Documentación"));
-        assert!(!filter.is_english_text("Documentación: Guía rápida"));
-        assert!(!filter.is_english_text("Documentacao de usuario"));
-        assert!(!filter.is_english_text("Documentacion, guia rapida"));
-        assert!(!filter.is_english_text("Los mejores agentes de soporte"));
-
-        // Indonesian text should be rejected
-        assert!(!filter.is_english_text("Perintah Slash dalam SDK"));
-        assert!(!filter.is_english_text("Membuat Perintah Slash Kustom"));
-
-        // More German examples should be rejected
-        assert!(!filter.is_english_text("Slash-Befehle im SDK"));
-        assert!(!filter.is_english_text("Benutzerdefinierte Slash-Befehle erstellen"));
-        assert!(!filter.is_english_text("Praktische Beispiele"));
-
-        // More French examples should be rejected
-        assert!(!filter.is_english_text("Utilisez notre améliorateur de prompts"));
-        assert!(!filter.is_english_text("Générer des exemples de test"));
-
-        // More Italian examples should be rejected
-        assert!(!filter.is_english_text("Creare valutazioni empiriche solide"));
-        assert!(!filter.is_english_text("Costruire valutazioni e casi di test"));
-
-        // Non-Latin scripts should be rejected
-        assert!(!filter.is_english_text("ドキュメント")); // Japanese
-        assert!(!filter.is_english_text("文档")); // Chinese
-        assert!(!filter.is_english_text("Документация")); // Russian
-        assert!(!filter.is_english_text("مستندات")); // Arabic
-        assert!(!filter.is_english_text("תיעוד")); // Hebrew
+        assert_all_non_english(
+            &filter,
+            &[
+                // Italian
+                "Flussi di lavoro comuni",
+                "Risoluzione dei problemi",
+                "Comandi Slash nell'SDK",
+                "Esempi Pratici",
+                "Creare valutazioni empiriche solide",
+                "Costruire valutazioni e casi di test",
+                // German
+                "Dokumentation für Entwickler",
+                "Anleitung zur Installation",
+                "Slash-Befehle im SDK",
+                "Benutzerdefinierte Slash-Befehle erstellen",
+                "Praktische Beispiele",
+                // French (needs 2 indicators to reject)
+                "Documentation pour les",
+                "Utilisez notre améliorateur de prompts",
+                "Générer des exemples de test",
+                // Spanish
+                "Documentación para desarrolladores",
+                "Documentación",
+                "Documentación: Guía rápida",
+                "Documentacao de usuario",
+                "Documentacion, guia rapida",
+                "Los mejores agentes de soporte",
+                // Indonesian
+                "Perintah Slash dalam SDK",
+                "Membuat Perintah Slash Kustom",
+                // Non-Latin scripts
+                "ドキュメント", // Japanese
+                "文档",         // Chinese
+                "Документация", // Russian
+                "مستندات",     // Arabic
+                "תיעוד",       // Hebrew
+            ],
+        );
     }
 
     #[test]
