@@ -10,7 +10,7 @@ Options:
   --prune            Remove heavy subdirectories (tests, llvm-cov-target, nextest, tmp).
   --prune-debug      Remove debug build caches (target/debug/deps and target/debug/incremental).
   --prune-all        Remove the entire target directory (full clean).
-  --threshold <GB>   Warn when total target size exceeds this gigabyte threshold (default: 60, whole numbers only).
+  --threshold <GB>   Warn when total target size exceeds this gigabyte threshold (default: 8, whole numbers only).
   --sweep            Run cargo-sweep (if installed) after pruning to clear stale incremental artefacts.
   --yes              Do not prompt before pruning.
   --help             Show this message.
@@ -23,7 +23,7 @@ USAGE
 }
 
 mode="check"
-threshold_gb=60
+threshold_gb=8
 auto_confirm=false
 
 while [[ $# -gt 0 ]]; do

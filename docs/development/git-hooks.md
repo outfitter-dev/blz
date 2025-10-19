@@ -55,7 +55,7 @@ cargo install sccache
 - First run: Normal compilation time
 - Subsequent runs: 2-3x faster (50-70% cache hit rate typical)
 - Especially effective for clippy + tests since they share compilation artifacts
-- Hooks also surface cache-bloat warnings via `scripts/prune-target.sh --check`, nudging you to prune oversized `target/` directories before long runs. For large debug caches, run `scripts/prune-target.sh --prune-debug [--sweep]`.
+- Hooks also surface cache-bloat warnings via `scripts/prune-target.sh --check`, nudging you to prune oversized `target/` directories (8 GB default threshold). For large debug caches, run `scripts/prune-target.sh --prune-debug [--sweep]`.
 
 ### 2. cargo-nextest (Parallel Test Execution)
 

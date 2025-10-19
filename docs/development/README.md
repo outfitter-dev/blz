@@ -190,7 +190,7 @@ The `target/` directory can grow quickly—on 2025-10-19 a long-lived checkout m
 Use the helper script to inspect and prune bloat:
 
 ```bash
-# Summarize sizes and warn if they exceed 60 GB
+# Summarize sizes and warn if they exceed 8 GB
 scripts/prune-target.sh --check
 
 # Drop incremental/debug caches (fast rebuild once sccache warms)
