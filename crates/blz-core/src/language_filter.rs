@@ -399,7 +399,12 @@ impl LanguageFilter {
 
     /// Count non-English indicator words in text
     fn count_non_english_indicators(lower_text: &str) -> IndicatorCounts {
-        // Split into words, also splitting on apostrophes, hyphens, and other punctuation
+        // Split on ALL non-alphabetic characters (spaces, punctuation, etc.)
+        // This handles various delimiters: hyphens, apostrophes, periods, commas, etc.
+        // Examples:
+        // - "example.della" → ["example", "della"] (period delimiter)
+        // - "Slash-Befehle" → ["Slash", "Befehle"] (hyphen delimiter)
+        // - "l'esempio" → ["l", "esempio"] (apostrophe delimiter)
         let mut counts = IndicatorCounts::default();
 
         for word in lower_text.split(|c: char| !c.is_alphabetic()) {
