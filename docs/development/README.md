@@ -106,7 +106,7 @@ These settings significantly reduce compilation time while maintaining good runt
 
 #### Shared Compilation Cache (sccache)
 
-[sccache](https://github.com/mozilla/sccache) provides shared compilation caching to dramatically reduce rebuild times:
+[sccache](https://github.com/mozilla/sccache) provides shared compilation caching to dramatically reduce rebuild times. **Optional but recommended:** builds work without sccache, but enabling it accelerates rebuilds significantly—especially on repeat clippy/test runs.
 
 **Installation (once):**
 
