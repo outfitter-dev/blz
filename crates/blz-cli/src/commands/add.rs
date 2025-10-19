@@ -3,7 +3,7 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
-    Fetcher, LanguageFilter, MarkdownParser, PerformanceMetrics, SearchIndex, Source,
+    Fetcher, LanguageFilter, MarkdownParser, ParseResult, PerformanceMetrics, SearchIndex, Source,
     SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage,
 };
 use chrono::Utc;
@@ -312,6 +312,7 @@ pub async fn execute_manifest(
                     dry_run,
                     quiet,
                     metrics.clone(),
+                    no_language_filter,
                 )
                 .await?;
             },
@@ -410,26 +411,7 @@ async fn fetch_and_index(
     let mut parse_result = parser.parse(&content)?;
 
     // Apply language filtering if enabled
-    if !no_language_filter {
-        let mut language_filter = LanguageFilter::new(true);
-
-        // Filter heading blocks by extracting URLs from their content
-        let original_count = parse_result.heading_blocks.len();
-        parse_result.heading_blocks.retain(|block| {
-            extract_urls_from_content(&block.content)
-                .iter()
-                .all(|url| language_filter.is_english_url(url))
-        });
-
-        let filtered_count = original_count - parse_result.heading_blocks.len();
-        if filtered_count > 0 && !quiet {
-            println!(
-                "Filtered {} non-English content blocks ({:.1}% reduction)",
-                filtered_count,
-                percentage(filtered_count, original_count)
-            );
-        }
-    }
+    apply_language_filter(&mut parse_result, no_language_filter, quiet);
 
     // In dry-run mode, analyze content and output JSON instead of indexing
     if dry_run {
@@ -511,6 +493,7 @@ async fn add_local_source(
     dry_run: bool,
     quiet: bool,
     metrics: PerformanceMetrics,
+    no_language_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
     if storage.exists(alias) {
@@ -550,7 +533,10 @@ async fn add_local_source(
 
     spinner.set_message("Parsing markdown...");
     let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(&content)?;
+    let mut parse_result = parser.parse(&content)?;
+
+    // Apply language filtering for consistency with remote sources
+    apply_language_filter(&mut parse_result, no_language_filter, quiet);
 
     if dry_run {
         let analysis = SourceAnalysis {
@@ -748,6 +734,44 @@ fn finalize_add(
     index.index_blocks(alias, &parse_result.heading_blocks)?;
 
     Ok(llms_json)
+}
+
+/// Apply language filtering to parse results
+///
+/// Filters out non-English heading blocks using hybrid URL-based and text-based detection.
+/// Prints filtering statistics if blocks were filtered and not in quiet mode.
+fn apply_language_filter(parse_result: &mut ParseResult, no_language_filter: bool, quiet: bool) {
+    if no_language_filter {
+        return;
+    }
+
+    let mut language_filter = LanguageFilter::new(true);
+
+    // Filter heading blocks using both URL-based and text-based methods
+    let original_count = parse_result.heading_blocks.len();
+    parse_result.heading_blocks.retain(|block| {
+        // First check URLs in content (fast, catches locale-based URLs)
+        let urls_in_content = extract_urls_from_content(&block.content);
+        let url_check = urls_in_content.is_empty()
+            || urls_in_content
+                .iter()
+                .all(|url| language_filter.is_english_url(url));
+
+        // Then check heading text (catches non-URL-based translations)
+        let heading_check = language_filter.is_english_heading_path(&block.path);
+
+        // Block must pass both checks to be kept
+        url_check && heading_check
+    });
+
+    let filtered_count = original_count - parse_result.heading_blocks.len();
+    if filtered_count > 0 && !quiet {
+        println!(
+            "Filtered {} non-English content blocks ({:.1}% reduction)",
+            filtered_count,
+            percentage(filtered_count, original_count)
+        );
+    }
 }
 
 fn dedupe_sorted(values: Vec<String>) -> Vec<String> {
