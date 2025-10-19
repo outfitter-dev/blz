@@ -102,13 +102,13 @@ The workspace is configured with optimized build profiles in `Cargo.toml`:
 - **Test profile**: Incremental compilation with opt-level 1 for faster test execution
 - **Release profile**: Full LTO and single codegen unit for maximum runtime performance
 
-These settings significantly reduce compilation time while maintaining good runtime performance during development.
+These settings significantly reduce compilation time while maintaining good runtime performance during development. Host/OS-specific tweaks (e.g., `target-cpu=native` on macOS) remain in `.cargo/config.toml`.
 
 #### Shared Compilation Cache (sccache)
 
 [sccache](https://github.com/mozilla/sccache) provides shared compilation caching to dramatically reduce rebuild times:
 
-**Installation:**
+**Installation (once):**
 
 ```bash
 # macOS
@@ -121,7 +121,7 @@ pacman -S sccache
 cargo install sccache
 ```
 
-**Setup:**
+**Setup (per shell):**
 
 Add to your shell configuration file (`~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`):
 
@@ -143,9 +143,9 @@ You should see cache hits increase as you rebuild the project.
 
 **Performance Impact:**
 
-- Initial build: ~8 minutes
-- With warm sccache: ~2-3 minutes (60-70% faster)
-- Incremental builds: <30 seconds
+- Cold compile of the entire workspace: ~8½ minutes (measured 2025-10-19 without cache)
+- With warm sccache: ~2-3 minutes (60-70% faster once cache is primed)
+- Incremental builds: typically <30 seconds
 
 #### Build Timings Analysis
 
@@ -185,18 +185,28 @@ Nextest runs tests in parallel by default and provides better output formatting.
 
 ### Reducing Target Directory Bloat
 
-The `target/` directory can grow to 50GB+ over time. Clean it periodically:
+The `target/` directory can grow quickly—on 2025-10-19 a long-lived checkout measured ~86 GB with the heaviest paths at `target/debug` (~43 GB), `target/llvm-cov-target` (~2.9 GB), and `target/tests` (~1.1 GB). Clean it periodically:
+
+Use the helper script to inspect and prune bloat:
 
 ```bash
-# Remove all build artifacts
-cargo clean
+# Summarize sizes and warn if they exceed 60 GB
+scripts/prune-target.sh --check
 
-# Remove only release artifacts
-cargo clean --release
+# Drop incremental/debug caches (fast rebuild once sccache warms)
+scripts/prune-target.sh --prune-debug
 
-# Remove specific package artifacts
-cargo clean -p blz-core
+# Remove coverage + test artefacts (prompts before deleting)
+scripts/prune-target.sh --prune
+
+# Full reset (equivalent to cargo clean, but safer prompts)
+scripts/prune-target.sh --prune-all
+
+# Optional: pair any prune with cargo-sweep cleanup (requires cargo-sweep installed)
+scripts/prune-target.sh --prune-debug --sweep
 ```
+
+Most integration tests already run in temporary directories via `tempfile::tempdir()`, so they clean up cleanly and keep `~/.blz` untouched. Large leftovers usually come from cached build artefacts rather than the tests themselves. The pruning script also powers automated warnings in local git hooks when the cache grows past the configured threshold.
 
 Consider using [cargo-sweep](https://github.com/holmgr/cargo-sweep) to automatically remove old artifacts:
 

@@ -96,20 +96,22 @@ unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
 
 [profile.dev]
-# Enable incremental compilation for faster rebuilds
+# Shared defaults for contributors; host-specific overrides live in `.cargo/config.toml`.
+# Enables incremental builds for fast rebuilds while matching the per-host config.
 incremental = true
 
-# Optimize dependencies in dev mode for better runtime performance
-# while keeping quick compilation for our crates
 [profile.dev.package."*"]
+# Keep dependencies reasonably optimized without slowing down compile times.
 opt-level = 2
 
 [profile.test]
-# Slightly optimize test builds for faster execution
+# Align test builds with dev performance expectations.
 opt-level = 1
-# Enable incremental compilation for faster test rebuilds
 incremental = true
 
 [profile.release]
+# Mirrors the release tuning in `.cargo/config.toml`; see that file for host-specific flags.
 lto = true
 codegen-units = 1
+opt-level = "z"
+strip = true

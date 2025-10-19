@@ -1,4 +1,5 @@
 # Cargo configuration for blz
+# Host/OS specific tweaks stay here; shared profile defaults live in `Cargo.toml`.
 
 [build]
 # Number of parallel jobs, defaults to # of CPUs
@@ -12,25 +13,8 @@ jobs = 8
 # we actually benefit from it for local development.
 rustflags = ["-C", "target-cpu=native"]
 
-[profile.release]
-# Enable link-time optimization for smaller, faster binaries
-lto = true
-# Optimize for size (also often improves speed due to cache effects)
-opt-level = "z"
-# Allow compiler to inline across crates
-codegen-units = 1
-# Strip symbols for smaller binary
-strip = true
-
-[profile.dev]
-# Faster compilation in dev mode
-opt-level = 0
-# Enable incremental compilation for faster rebuilds
-incremental = true
-
-[profile.dev.package."*"]
-# Dependencies still optimized in dev for better performance
-opt-level = 2
+# Shared profile defaults now live in the workspace `Cargo.toml`.
+# Keep this file focused on host-specific tweaks and developer conveniences.
 
 [alias]
 # Convenient aliases

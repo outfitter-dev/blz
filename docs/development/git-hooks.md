@@ -47,13 +47,15 @@ cargo install sccache
 
 **How it works:**
 - Hooks check for `sccache` and set `RUSTC_WRAPPER=sccache` automatically
-- No `.cargo/config.toml` modification (avoids issues with remote containers and git worktrees)
+- For non-hook workflows (manual `cargo` runs, IDE integration), export `RUSTC_WRAPPER=sccache` in your shell rc file
+- No `.cargo/config.toml` modification is required for cache usage, which keeps remote container and worktree setups happy
 - sccache caches compilation artifacts locally (default: `~/.cache/sccache`)
 
 **Benefits:**
 - First run: Normal compilation time
 - Subsequent runs: 2-3x faster (50-70% cache hit rate typical)
 - Especially effective for clippy + tests since they share compilation artifacts
+- Hooks also surface cache-bloat warnings via `scripts/prune-target.sh --check`, nudging you to prune oversized `target/` directories before long runs. For large debug caches, run `scripts/prune-target.sh --prune-debug [--sweep]`.
 
 ### 2. cargo-nextest (Parallel Test Execution)
 
@@ -74,14 +76,7 @@ cargo install cargo-nextest
 
 ### 3. Incremental Compilation
 
-The `.cargo/config.toml` enables incremental compilation for faster rebuilds:
-
-```toml
-[build]
-incremental = true
-```
-
-This reuses previous compilation results when only small changes are made.
+The workspace `Cargo.toml` enables incremental compilation (and dependency opt-level tuning) for dev and test profiles. Host-specific overrides, such as `target-cpu=native` for macOS, remain in `.cargo/config.toml`. Together they ensure fast rebuilds without sacrificing per-platform optimizations.
 
 ### 4. Excluded Slow Tests
 
