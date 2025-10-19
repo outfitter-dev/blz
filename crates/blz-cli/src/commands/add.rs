@@ -3,7 +3,7 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
-    Fetcher, LanguageFilter, MarkdownParser, PerformanceMetrics, SearchIndex, Source,
+    Fetcher, LanguageFilter, MarkdownParser, ParseResult, PerformanceMetrics, SearchIndex, Source,
     SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage,
 };
 use chrono::Utc;
@@ -312,6 +312,7 @@ pub async fn execute_manifest(
                     dry_run,
                     quiet,
                     metrics.clone(),
+                    no_language_filter,
                 )
                 .await?;
             },
@@ -411,33 +412,7 @@ async fn fetch_and_index(
 
     // Apply language filtering if enabled
     if !no_language_filter {
-        let mut language_filter = LanguageFilter::new(true);
-
-        // Filter heading blocks using both URL-based and text-based methods
-        let original_count = parse_result.heading_blocks.len();
-        parse_result.heading_blocks.retain(|block| {
-            // First check URLs in content (fast, catches locale-based URLs)
-            let urls_in_content = extract_urls_from_content(&block.content);
-            let url_check = urls_in_content.is_empty()
-                || urls_in_content
-                    .iter()
-                    .all(|url| language_filter.is_english_url(url));
-
-            // Then check heading text (catches non-URL-based translations)
-            let heading_check = language_filter.is_english_heading_path(&block.path);
-
-            // Block must pass both checks to be kept
-            url_check && heading_check
-        });
-
-        let filtered_count = original_count - parse_result.heading_blocks.len();
-        if filtered_count > 0 && !quiet {
-            println!(
-                "Filtered {} non-English content blocks ({:.1}% reduction)",
-                filtered_count,
-                percentage(filtered_count, original_count)
-            );
-        }
+        apply_language_filter(&mut parse_result, quiet);
     }
 
     // In dry-run mode, analyze content and output JSON instead of indexing
@@ -520,6 +495,7 @@ async fn add_local_source(
     dry_run: bool,
     quiet: bool,
     metrics: PerformanceMetrics,
+    no_language_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
     if storage.exists(alias) {
@@ -559,7 +535,12 @@ async fn add_local_source(
 
     spinner.set_message("Parsing markdown...");
     let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(&content)?;
+    let mut parse_result = parser.parse(&content)?;
+
+    // Apply language filtering to local sources for parity with remote adds
+    if !no_language_filter {
+        apply_language_filter(&mut parse_result, quiet);
+    }
 
     if dry_run {
         let analysis = SourceAnalysis {
@@ -829,6 +810,34 @@ fn clean_url_slice(slice: &str) -> Option<&str> {
         None
     } else {
         Some(&trimmed[..end])
+    }
+}
+
+/// Apply language filtering to parsed content blocks
+fn apply_language_filter(parse_result: &mut ParseResult, quiet: bool) {
+    let mut language_filter = LanguageFilter::new(true);
+    let original_count = parse_result.heading_blocks.len();
+
+    parse_result.heading_blocks.retain(|block| {
+        let urls_in_content = extract_urls_from_content(&block.content);
+        let url_check = urls_in_content.is_empty()
+            || urls_in_content
+                .iter()
+                .all(|url| language_filter.is_english_url(url));
+
+        let heading_check = language_filter.is_english_heading_path(&block.path);
+
+        // Block must pass both checks to be kept
+        url_check && heading_check
+    });
+
+    let filtered_count = original_count - parse_result.heading_blocks.len();
+    if filtered_count > 0 && !quiet {
+        println!(
+            "Filtered {} non-English content blocks ({:.1}% reduction)",
+            filtered_count,
+            percentage(filtered_count, original_count)
+        );
     }
 }
 
