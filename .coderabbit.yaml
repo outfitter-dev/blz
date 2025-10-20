@@ -22,9 +22,9 @@ reviews:
       - "main"
       - "fix/.*"
       - "feat/.*"
-      - "gt/.*"      # Graphite stacked branches with slash prefix
-      - "gt-.*"      # Graphite stacked branches with dash prefix
+      - "gt.*"           # Graphite stacked branches with gt prefix
       - ".*-blz-[0-9]+"  # Linear-generated branches like feature-blz-123
+      - "blz-.*"         # Linear-generated branches like blz-123-feature
 
   tools:
     clippy:
