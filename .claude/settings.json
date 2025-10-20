@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Task",
+      "SlashCommand",
+      "TodoWrite",
+      "NotebookRead",
+      "NotebookEdit",
+      "WebSearch",
+      "WebFetch",
+      "mcp__graphite",
+      "mcp__firecrawl",
+      "mcp__blz",
+      "mcp__context7",
+      "mcp__linear-server"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(rm -r:*)",
+      "Bash(rm --recursive:*)",
+      "Bash(rm --force:*)",
+      "Bash(sudo rm:*)",
+      "Bash(shred:*)",
+      "Bash(dd if=:*)",
+      "Bash(mkfs:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "-lc",
+              "if [ -n \"${AGENT_TYPE:-}\" ]; then ./scripts/setup-agent-universal.sh; fi"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
