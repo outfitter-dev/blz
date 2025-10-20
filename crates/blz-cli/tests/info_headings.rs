@@ -30,6 +30,7 @@ async fn info_json_includes_headings_count() -> anyhow::Result<()> {
     // Add a source
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["add", "testdoc", &url, "-y"])
         .assert()
         .success();
@@ -38,6 +39,7 @@ async fn info_json_includes_headings_count() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["info", "testdoc", "-f", "json"])
         .assert()
         .success()
@@ -97,6 +99,7 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
     // Add a source
     let mut cmd = blz_cmd();
     cmd.env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["add", "testdoc", &url, "-y"])
         .assert()
         .success();
@@ -105,6 +108,7 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let info_out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["info", "testdoc", "-f", "json"])
         .assert()
         .success()
@@ -122,6 +126,7 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
     let mut cmd = blz_cmd();
     let list_out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
+        .env("BLZ_CONFIG_DIR", tmp.path())
         .args(["list", "-f", "json"])
         .assert()
         .success()
@@ -130,6 +135,10 @@ async fn info_headings_matches_list() -> anyhow::Result<()> {
         .clone();
     let list: Value = serde_json::from_slice(&list_out)?;
     let list_arr = list.as_array().expect("list should be an array");
+    assert!(
+        !list_arr.is_empty(),
+        "list should contain at least one source"
+    );
     let first_source = &list_arr[0];
     let list_headings = first_source
         .get("headings")
