@@ -1,0 +1,32 @@
+{
+  "name": "blz",
+  "version": "1.4.0",
+  "description": "Fast local documentation search with llms.txt indexing. Search 12K+ line docs in 6ms with line-accurate citations. One command (/blz) and one agent (@blz:trailblazer) for all documentation operations.",
+  "author": {
+    "name": "Outfitter",
+    "email": "team@outfitter.dev"
+  },
+  "homepage": "https://github.com/outfitter-dev/blz",
+  "repository": "https://github.com/outfitter-dev/blz",
+  "license": "MIT",
+  "keywords": [
+    "documentation",
+    "search",
+    "llms-txt",
+    "cli",
+    "rust",
+    "tantivy",
+    "docs",
+    "indexing"
+  ],
+  "category": "documentation",
+  "commands": [
+    "./commands/"
+  ],
+  "agents": [
+    "./agents/"
+  ],
+  "skills": [
+    "./skills/"
+  ]
+}
