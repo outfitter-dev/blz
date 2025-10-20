@@ -28,6 +28,18 @@ blz "test runner"
 blz get bun:304-324 --json
 ```
 
+### MCP Server Setup
+
+Enable BLZ in your AI coding assistant with one command:
+
+```bash
+# Claude Code
+claude mcp add blz blz mcp --scope user
+
+# Cursor, Windsurf, and others
+# See detailed setup: docs/mcp/SETUP.md
+```
+
 **What you'll see:**
 
 ```
@@ -41,6 +53,13 @@ Search results for 'test runner' (6ms):
    ### Test runner
    Bun includes a fast built-in test runner...
 ```
+
+## Docs
+
+- [Documentation index](docs/README.md) – Overview of every guide, reference, and technical deep dive.
+- [Quickstart guide](docs/QUICKSTART.md) – Install BLZ and run your first searches in minutes.
+- [Agent playbook](docs/agents/README.md) – Best practices for using BLZ inside AI workflows.
+- [Architecture overview](docs/architecture/README.md) – Core components, storage layout, and performance notes.
 
 ## What's llms.txt?
 
@@ -151,29 +170,59 @@ blz completions zsh > ~/.zsh/completions/_blz
 blz completions elvish > ~/.local/share/elvish/lib/blz.elv
 ```
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+### Getting Started
+
+- [Quick Start](docs/QUICKSTART.md) - Installation and first steps
+- [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
+- [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
+
+### CLI Reference
+
+- [Command Reference](docs/cli/commands.md) - Complete command catalog
+- [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
+- [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
+- [Configuration](docs/cli/configuration.md) - Global, per-source, and env settings
+- [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
+
+### Technical Details
+
+- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
+- [Architecture](docs/architecture/README.md) - System design and performance
+- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
+
 ## Usage For AI Agents
 
 - **Quick primer**: `blz --prompt` in your terminal
-- **Programmatic CLI docs**: `blz docs --json`
+- **Programmatic CLI docs**: `blz docs export --json` (legacy: `blz docs --format json`)
 - **Detailed instructions**: See `docs/agents/use-blz.md` (copy into CLAUDE.md or AGENTS.md)
 
 ### Typical Agent Flow
 
 ```bash
-# Ensure sources exist (add non-interactively)
+# Get caught up with blz's features and capabilities
+blz --prompt
+
+# List available sources
+blz list --status --json
+
+# Add sources non-interactively
 blz add bun https://bun.sh/llms.txt -y
 
 # Search Bun docs and capture the first alias:lines citation
-span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
-# Retrieve the exact lines with a small amount of context
-blz get "$span" -c5 --json
+# Retrieve the exact line with 5 lines of context on either side
+blz get "$span" -C 5 --json
 
-# Need more than one range? Supply --lines with a comma-separated list
-blz get bun --lines "41994-42009,42010-42020" --json
+# Need more than one range? Comma-separate them after the alias
+blz get bun:41994-42009,42010-42020 --json
 
-# Want the full heading section? Expand with --block (and cap the output)
-blz get bun:41994-42009 --block --max-lines 80 --json
+# Want the full heading section? Expand with --context all (and cap the output)
+blz get bun:41994-42009 --context all --max-lines 80 --json
 ```
 
 ## IDE Agent Integration
@@ -190,12 +239,12 @@ blz "test runner" -s bun --json
 blz get bun:423-445
 
 # Merge multiple spans for the same source (comma-separated)
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 --json
 
 # Expand to the entire heading block when the agent needs full prose
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 
-# List all indexed sources
+# List all indexed sources (note: list returns array; search returns object with .results)
 blz list --json | jq 'length'
 ```
 
@@ -214,9 +263,46 @@ The JSON output is designed for easy parsing by agents:
 }
 ```
 
-### MCP Server (Coming Soon)
+### MCP Server
 
-For deeper integration, an MCP server interface is in development that will expose tools like `search`, `get`, `update`, and `diff` (MCP protocol 2024-11-05) via stdio for Claude Code, Cursor MCP, and other MCP-compatible hosts.
+BLZ provides a Model Context Protocol server for deep integration with AI coding assistants.
+
+**Launch the server:**
+
+```bash
+blz mcp
+```
+
+The MCP server exposes:
+- **`find` tool**: Search and retrieve documentation with exact line citations
+- **`list-sources` tool**: Discover installed and registry sources
+- **`source-add` tool**: Add documentation sources
+- **Resources**: Browse source metadata via `blz://sources/{alias}` URIs
+- **Prompts**: Guided workflows like `discover-docs`
+
+**Quick example:**
+
+```javascript
+// Search for documentation
+find({
+  query: "test runner",
+  source: "bun",
+  maxResults: 5
+})
+
+// Retrieve exact content
+find({
+  snippets: ["bun:304-324"],
+  contextMode: "symmetric"
+})
+```
+
+**Performance:**
+- <1 KB handshake size
+- Sub-50ms search latency (warm cache)
+- Direct `blz-core` integration (no CLI shell-outs)
+
+See [docs/mcp/README.md](docs/mcp/README.md) for complete documentation and [docs/mcp/SETUP.md](docs/mcp/SETUP.md) for client configuration.
 
 ## Shell Completions
 
@@ -256,6 +342,12 @@ For Fish users, completions can auto-regenerate when the binary updates:
 
 See [PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for detailed benchmarks and methodology.
 
+**Reproducing**: Performance claims based on warm cache, hyperfine benchmarks with 100+ runs. See PERFORMANCE.md for:
+
+- Exact benchmark commands (`hyperfine --warmup 20 --min-runs 100 './target/release/blz search "test" -s bun -f json'`)
+- Test environment details (CPU, OS, cache state)
+- Representative query set and data sizes
+
 ## Building from Source
 
 ```bash
@@ -285,40 +377,14 @@ cargo install --path .
 
 MIT
 
-## Documentation
-
-Comprehensive documentation is available in the [`docs/`](docs/) directory:
-
-### Getting Started
-
-- [Quick Start](docs/QUICKSTART.md) - Installation and first steps
-- [CLI Overview](docs/cli/README.md) - Installation, flags, and binaries
-- [How-To Guide](docs/cli/howto.md) - Task-oriented "I want to…" solutions
-
-### CLI Reference
-
-- [Command Reference](docs/cli/commands.md) - Complete command catalog
-- [Search Guide](docs/cli/search.md) - Search syntax and advanced patterns
-- [Managing Sources](docs/cli/sources.md) - Adding and organizing documentation
-- [Configuration](docs/cli/configuration.md) - Global, per-source, and env settings
-- [Shell Integration](docs/cli/shell_integration.md) - Completions for Bash, Zsh, Fish, PowerShell, Elvish
-
-### Configuration & Storage
-
-- [Storage Layout](docs/architecture/STORAGE.md) - Directory structure and disk management
-
-### Technical Details
-
-- [Architecture](docs/architecture/README.md) - System design and performance
-- [Performance](docs/architecture/PERFORMANCE.md) - Benchmarks and optimization
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Roadmap
 
-- [x] v0.1: Core CLI with search and retrieval (MVP)
-- [ ] v0.3+: Diff tracking and change journal
-- [ ] v0.3.x: MCP server with stdio transport
-- [ ] v0.4+: Optional vector search, fuzzy matching
+- [x] Core CLI with search and retrieval (MVP)
+- [ ] Diff tracking and change journal
+- [ ] `llms.txt` registry for faster onboarding
+- [ ] MCP server
+- [ ] Optional vector search, fuzzy matching

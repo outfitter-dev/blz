@@ -94,7 +94,7 @@ Where indexed sources are stored:
 **Linux:**
 
 ```
-~/.local/share/dev.outfitter.blz/
+~/.local/share/blz/
 ```
 
 **macOS:**
@@ -106,13 +106,13 @@ Where indexed sources are stored:
 **Windows:**
 
 ```
-%APPDATA%\dev.outfitter.blz\
+%APPDATA%\outfitter\blz\
 ```
 
 **Override:**
 
 ```bash
-export BLZ_ROOT=/path/to/cache
+export BLZ_DATA_DIR=/path/to/cache
 ```
 
 ### Per-Source Directory Structure
@@ -229,7 +229,7 @@ Each source can have its own `settings.toml` file that overrides global defaults
 For example:
 
 ```
-~/.local/share/dev.outfitter.blz/react/settings.toml
+~/.local/share/blz/react/settings.toml
 ```
 
 ### Example
@@ -306,9 +306,15 @@ Environment variables provide runtime configuration overrides.
 - Override global configuration directory
 - Example: `export BLZ_GLOBAL_CONFIG_DIR=~/.config/blz`
 
-**`BLZ_ROOT`**
+**`BLZ_DATA_DIR`** *(canonical)*
 
-- Override cache root directory
+- Override data root directory
+- Example: `export BLZ_DATA_DIR=/custom/cache`
+
+**`BLZ_ROOT`** *(legacy, deprecated)*
+
+- Legacy alias for `BLZ_DATA_DIR`, maintained for backward compatibility
+- Prefer `BLZ_DATA_DIR` in new configurations
 - Example: `export BLZ_ROOT=/custom/cache`
 
 ### Behavior Variables
@@ -347,6 +353,13 @@ Environment variables provide runtime configuration overrides.
 - Default CLI output format
 - Values: `json`, `text`, `jsonl`
 - Example: `export BLZ_OUTPUT_FORMAT=json`
+
+**`BLZ_MAX_CHARS`**
+
+- Default snippet length for search results (total characters, including newlines)
+- Range: 50–1000 (values outside are automatically clamped)
+- Default: 200
+- Example: `export BLZ_MAX_CHARS=300`
 
 **`BLZ_SUPPRESS_DEPRECATIONS`**
 
@@ -430,7 +443,7 @@ refresh_hours = 48
 EOF
 
 # Per-source settings
-cat > ~/.local/share/dev.outfitter.blz/react/settings.toml <<EOF
+cat > ~/.local/share/blz/react/settings.toml <<EOF
 [fetch]
 refresh_hours = 12
 EOF
@@ -533,7 +546,7 @@ root = "/mnt/external/blz-cache"
 Or:
 
 ```bash
-export BLZ_ROOT=/mnt/external/blz-cache
+export BLZ_DATA_DIR=/mnt/external/blz-cache
 ```
 
 ### Per-Project Config

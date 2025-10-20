@@ -147,7 +147,7 @@ You can copy this template directly from `registry/templates/batch-manifest.exam
 Search registries for available documentation sources.
 
 ```bash
-blz lookup <QUERY> [--format text|json|jsonl]
+blz lookup <QUERY> [--json|--jsonl|--text]
 ```
 
 > **Beta** · The bundled registry is still small. After each lookup you’ll see a reminder to open a PR with any llms.txt sources we’re missing.
@@ -189,11 +189,26 @@ blz search <QUERY> [OPTIONS]
 - `--all` - Show all results (no limit)
 - `--page <N>` - Page number for pagination (default: 1)
 - `--top <N>` - Show only top N percentile of results (1-100)
+- `--max-chars <CHARS>` - Limit snippet length (default 200; clamps between 50 and 1000).
+  - Environment: `BLZ_MAX_CHARS` adjusts the default for implicit searches.
+- `-C, --context <N>` - Print N lines of context (both before and after) for each result
+- `-A, --after-context <N>` - Print N lines of context after each result
+- `-B, --before-context <N>` - Print N lines of context before each result
 - `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
 - `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
   - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl` to avoid passing `--format` each time (alias `ndjson` still accepted)
 
 > ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
+
+**Context Flags (grep-style):**
+
+The context flags follow grep/ripgrep conventions and can be combined:
+
+- `-C 5` - 5 lines before and after each match (symmetric context)
+- `-A 3` - 3 lines after each match only
+- `-B 5` - 5 lines before each match only
+- `-A 3 -B 5` - 5 lines before, 3 lines after (asymmetric context)
+- When multiple flags are specified, the maximum value for each direction is used
 
 **Examples:**
 
@@ -212,6 +227,12 @@ blz "async" --json
 
 # Top 10% of results only
 blz "database" --top 10
+
+# Search with context (grep-style)
+blz "error handling" -C 3       # 3 lines before and after
+blz "async await" -A 5          # 5 lines after only
+blz "config options" -B 3       # 3 lines before only
+blz "api docs" -B 5 -A 3        # Asymmetric: 5 before, 3 after
 
 # Exact phrase (Unix shells - single quotes around double quotes)
 blz '"test runner"'
@@ -257,13 +278,26 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 **Options:**
 
 - `-l, --lines <RANGE>` – Line range(s) to retrieve (optional when using `source:lines`)
-- `-c, --context <N>` – Include N context lines around each range
-- `--block` – Expand to the entire heading block that contains the first requested range
-- `--max-lines <N>` – Optional hard cap when using `--block` (prevents oversized spans)
+- `-C, --context <N>` – Print N lines of context (both before and after). Use `all` to expand to the entire heading block
+- `-A, --after-context <N>` – Print N lines of context after each line/range
+- `-B, --before-context <N>` – Print N lines of context before each line/range
+- `--context all` – Expand to the entire heading block that contains the first requested range
+- `--block` – Legacy alias for `--context all`
+- `--max-lines <N>` – Optional hard cap when using `--context all` (prevents oversized spans)
 - `-f, --format <FORMAT>` – Output format: `text` (default), `json`, `jsonl`, or `raw`
 - `--json`, `--jsonl` – Convenience shorthands for their respective formats
 - `--copy` – Copy results to the clipboard via OSC 52 (useful in interactive shells)
 - `--prompt` – Emit agent guidance JSON (e.g. `blz get --prompt`)
+
+**Context Flags (grep-style):**
+
+The context flags follow grep/ripgrep conventions and can be combined:
+
+- `-C 5` – 5 lines before and after (symmetric context)
+- `-A 3` – 3 lines after only
+- `-B 5` – 5 lines before only
+- `-A 3 -B 5` – 5 lines before, 3 lines after (asymmetric context)
+- When multiple flags are specified, the maximum value for each direction is used
 
 **Line Range Formats:**
 
@@ -272,7 +306,9 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 - Multiple ranges: `36-43,320-350`
 - Relative: `36+20` (36 plus next 20 lines)
 
-> ℹ️ When you supply multiple ranges (via `source:lines1,lines2` or `--lines "range1,range2"`), BLZ merges the distinct spans, removes duplicates, and keeps line numbers sorted. Combining this with `--block` is supported—the heading containing the first range is returned, and `--max-lines` still applies.
+> ℹ️ Whether you comma-separate spans (`bun:36-43,320-350`) or repeat the alias (`bun:36-43 bun:320-350`), BLZ merges distinct ranges, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry carries its own `lineStart`, `lineEnd`, and `snippet`. Passing multiple aliases returns one entry per source in `requests[]`. Pairing either style with `--context all` is supported—the enclosing heading becomes the snippet (subject to `--max-lines`).
+
+> Tip: Comma-separated spans (`bun:36-43,320-350`) and additional aliases (`turbo:2656-2729`) can be mixed in a single call.
 
 **Examples:**
 
@@ -280,17 +316,89 @@ blz get <SOURCE> --lines <RANGE> [OPTIONS]
 # Preferred shorthand (matches search output)
 blz get bun:41994-42009
 
-# Retrieve multiple spans for the same source
-blz get bun --lines "41994-42009,42010-42020" --json
+# Retrieve multiple spans for the same source (inspect requests[0].ranges[])
+blz get bun:41994-42009,42010-42020 -C 2 --json
 
-# Heading-aware retrieval (grabs the whole section, capped at 80 lines)
-blz get bun:41994-42009 --block --max-lines 80 --json
+# Retrieve spans from multiple sources in one call
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
 
-# Include 3 lines of context around the range (text output)
-blz get bun:25760-25780 -c3
+# Expand to the entire heading section (capped at 80 lines)
+blz get bun:41994-42009 -C all --max-lines 80 --json
+
+# Single line with two lines of context
+blz get bun:7105 -C 2 --json
+
+# Include 3 lines of context around the range (symmetric)
+blz get bun:25760-25780 -C 3
+
+# Include context after only (grep-style)
+blz get bun:25760-25780 -A 5
+
+# Include context before only (grep-style)
+blz get bun:25760-25780 -B 3
+
+# Asymmetric context: 5 before, 3 after
+blz get bun:25760-25780 -B 5 -A 3
 
 # Pipe structured output to jq
-blz get bun:41994-42009 --json | jq '.content'
+blz get bun:41994-42009 --json | jq -r '.requests[0].snippet'
+
+# Iterate ranges for a multi-span request
+blz get bun:41994-42009,42010-42020 -C 2 --json \
+  | jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd):\n\(.snippet)"'
+
+# Inspect each source when querying multiple aliases
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json \
+  | jq -r '.requests[] | "\(.alias):\n" + (.snippet // ((.ranges // []) | map(.snippet) | join("\n\n")))'
+
+**Example response (single range; produced with `-C3`):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "snippet": "...",
+      "lineStart": 41994,
+      "lineEnd": 42009,
+      "checksum": "...",
+      "contextApplied": 3
+    }
+  ],
+  "executionTimeMs": 12,
+  "totalSources": 1
+}
+```
+
+**Example response (multi-range; two spans, no extra context):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "ranges": [
+        {
+          "lineStart": 41994,
+          "lineEnd": 42009,
+          "snippet": "# Cache Storage\n..."
+        },
+        {
+          "lineStart": 42010,
+          "lineEnd": 42020,
+          "snippet": "### Cache API\n..."
+        }
+      ],
+      "checksum": "checksum123"
+    }
+  ],
+  "executionTimeMs": 9,
+  "totalSources": 1
+}
+```
+
 ```
 
 ## Management Commands
@@ -429,32 +537,44 @@ blz completions zsh > ~/.zsh/completions/_blz
 
 ### `blz docs`
 
-Generate CLI documentation directly from the clap definitions.
+Bundled documentation hub with subcommands for embedded documentation.
 
 ```bash
-blz docs [--format markdown|json]
+blz docs <subcommand>
 ```
 
-**Options:**
+**Subcommands:**
 
-- `--format` - Output format. Defaults to `markdown`. Use `json` for agent/scripting scenarios.
-  - Respects global `BLZ_OUTPUT_FORMAT=json` to default to JSON without passing `--format`.
+- `search <query>` – Search the bundled blz-docs source
+- `sync` – Sync or resync embedded documentation files and index
+- `overview` – Display quick-start guide
+- `cat` – Print entire bundled llms-full.txt to stdout
+- `export` – Export CLI docs in markdown or JSON
 
 **Examples:**
 
 ```bash
-# Human-readable CLI docs
-blz docs
+# Search bundled docs (stays scoped to internal docs)
+blz docs search "context flags"
 
-# Structured docs for agents / tooling
-blz docs --json | jq '.subcommands[] | {name, usage}'
+# Sync embedded docs after upgrade
+blz docs sync
 
-# Pipe docs into a file for offline reference
-blz docs > BLZ-CLI.md
+# Export CLI reference as JSON (for agents/tooling)
+blz docs export --json | jq '.subcommands[] | {name, usage}'
 
-# Use global env var to default to JSON
-BLZ_OUTPUT_FORMAT=json blz docs | jq '.name'
+# Export as markdown (default)
+blz docs export > BLZ-CLI.md
+
+# Legacy syntax (still works)
+blz docs --format json  # Equivalent to: blz docs export --json
 ```
+
+**Notes:**
+
+- The `blz-docs` alias (also `@blz`) is internal and hidden from default search
+- Use `blz docs search` to query this source specifically
+- Legacy `blz docs --format <FORMAT>` is mapped to `blz docs export --format <FORMAT>`
 
 ## Default Behavior
 

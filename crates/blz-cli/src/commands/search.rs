@@ -1,11 +1,14 @@
 //! Search command implementation
 
 use anyhow::{Context, Result};
+use blz_core::index::{DEFAULT_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT, MIN_SNIPPET_CHAR_LIMIT};
 use blz_core::{
     HitContext, LlmsJson, PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Source,
     Storage,
 };
 use futures::stream::{self, StreamExt};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -23,6 +26,7 @@ use crate::utils::toc::{
 
 const ALL_RESULTS_LIMIT: usize = 10_000;
 const DEFAULT_SCORE_PRECISION: u8 = 1;
+pub const DEFAULT_MAX_CHARS: usize = DEFAULT_SNIPPET_CHAR_LIMIT;
 
 /// Search options
 #[derive(Debug, Clone)]
@@ -45,9 +49,12 @@ pub struct SearchOptions {
     pub(crate) all: bool,
     pub no_history: bool,
     pub copy: bool,
-    pub context: Option<usize>,
+    pub before_context: usize,
+    pub after_context: usize,
     pub block: bool,
     pub max_block_lines: Option<usize>,
+    pub max_chars: usize,
+    pub quiet: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -75,6 +82,10 @@ fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
     toggles
 }
 
+pub fn clamp_max_chars(value: usize) -> usize {
+    value.clamp(MIN_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT)
+}
+
 /// Execute a search across cached documentation
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::fn_params_excessive_bools)]
@@ -90,15 +101,24 @@ pub async fn execute(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
-    context: Option<usize>,
+    max_chars: usize,
+    context_mode: Option<&crate::cli::ContextMode>,
     block: bool,
     max_block_lines: Option<usize>,
     no_history: bool,
     copy: bool,
+    quiet: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
+    // Convert ContextMode to before/after context and block flag
+    let (before_context, after_context, block) = match context_mode {
+        Some(crate::cli::ContextMode::All) => (0, 0, true),
+        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
+        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
+        None => (0, 0, block),
+    };
     let toggles = resolve_show_components(show);
     let options = SearchOptions {
         query: query.to_string(),
@@ -118,9 +138,12 @@ pub async fn execute(
         all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
         no_history,
         copy,
-        context,
+        before_context,
+        after_context,
         block,
         max_block_lines,
+        max_chars: clamp_max_chars(max_chars),
+        quiet,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -188,6 +211,7 @@ pub async fn handle_default(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
     prefs: &mut CliPreferences,
+    quiet: bool,
 ) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
@@ -245,6 +269,11 @@ pub async fn handle_default(
         .filter(|value| (1..=10).contains(value));
     let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
 
+    let max_chars_env = std::env::var("BLZ_MAX_CHARS")
+        .ok()
+        .and_then(|raw| raw.parse::<usize>().ok());
+    let max_chars = max_chars_env.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
+
     let sources = alias.map_or_else(Vec::new, |alias_str| vec![alias_str]);
 
     execute(
@@ -259,11 +288,13 @@ pub async fn handle_default(
         false,
         Some(score_precision),
         snippet_lines,
+        max_chars,
         None,
         false,
         None,
         false, // no_history: false for default search
         false, // copy: false for default search
+        quiet,
         Some(prefs),
         metrics,
         resource_monitor,
@@ -312,20 +343,47 @@ async fn perform_search(
     let start_time = Instant::now();
     let storage = Arc::new(Storage::new()?);
     // Resolve requested sources (supports metadata aliases)
-    let sources = if options.sources.is_empty() {
-        storage.list_sources()
-    } else {
+    let explicit_sources_requested = !options.sources.is_empty();
+
+    let sources = if explicit_sources_requested {
         let mut resolved = Vec::new();
         for requested in &options.sources {
             match crate::utils::resolver::resolve_source(&storage, requested) {
                 Ok(Some(canonical)) => resolved.push(canonical),
                 Ok(None) => {
-                    // Fallback: show hint and continue with the requested name
+                    // Source not found - use fuzzy matching to suggest similar sources
                     let known = storage.list_sources();
-                    if !known.contains(requested) && matches!(options.format, OutputFormat::Text) {
-                        eprintln!(
-                            "Source '{requested}' not found. Use 'blz list' to see available or 'blz lookup <name>' to add."
-                        );
+                    if !known.contains(requested) {
+                        let matcher = SkimMatcherV2::default();
+                        let mut suggestions: Vec<(i64, String)> = known
+                            .iter()
+                            .filter_map(|source| {
+                                matcher
+                                    .fuzzy_match(source, requested)
+                                    .filter(|&score| score > 0)
+                                    .map(|score| (score, source.clone()))
+                            })
+                            .collect();
+
+                        // Sort by score descending and take top 3
+                        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                        suggestions.truncate(3);
+
+                        if !options.quiet {
+                            if suggestions.is_empty() {
+                                eprintln!("Warning: Source '{requested}' not found.");
+                            } else {
+                                let suggestion_list = suggestions
+                                    .iter()
+                                    .map(|(_, name)| name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                eprintln!(
+                                    "Warning: Source '{requested}' not found. Did you mean: {suggestion_list}?"
+                                );
+                            }
+                            eprintln!("Run 'blz list' to see all sources.");
+                        }
                     }
                     resolved.push(requested.clone());
                 },
@@ -333,6 +391,8 @@ async fn perform_search(
             }
         }
         resolved
+    } else {
+        storage.list_sources()
     };
 
     // Filter out index-only sources (navigation-only, no searchable content)
@@ -341,7 +401,15 @@ async fn perform_search(
         .filter(|alias| {
             // Load source metadata and check if it's index-only
             match storage.load_source_metadata(alias) {
-                Ok(Some(metadata)) => !metadata.is_index_only(),
+                Ok(Some(metadata)) => {
+                    if metadata.is_index_only() {
+                        return false;
+                    }
+                    if !explicit_sources_requested && metadata.is_internal() {
+                        return false;
+                    }
+                    true
+                },
                 Ok(None) | Err(_) => true, // Allow search when metadata missing or failed
             }
         })
@@ -367,10 +435,13 @@ async fn perform_search(
 
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
-    let search_tasks = sources.into_iter().map(|source| {
-        let storage = Arc::clone(&storage);
+    let snippet_limit = options.max_chars;
+    let storage_for_tasks = Arc::clone(&storage);
+    let search_tasks = sources.into_iter().map(move |source| {
+        let storage = Arc::clone(&storage_for_tasks);
         let metrics = metrics.clone();
         let query = options.query.clone();
+        let snippet_limit = snippet_limit;
 
         async move {
             tokio::task::spawn_blocking(
@@ -391,7 +462,12 @@ async fn perform_search(
                         .with_metrics(metrics);
 
                     let hits = index
-                        .search(&query, Some(&source), effective_limit)
+                        .search_with_snippet_limit(
+                            &query,
+                            Some(&source),
+                            effective_limit,
+                            snippet_limit,
+                        )
                         .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
@@ -472,8 +548,14 @@ async fn perform_search(
             &mut llms_cache,
             &mut line_cache,
         );
-    } else if let Some(context_lines) = options.context {
-        enrich_hits_with_context(&mut all_hits, context_lines, &storage, &mut line_cache);
+    } else if options.before_context > 0 || options.after_context > 0 {
+        enrich_hits_with_context(
+            &mut all_hits,
+            options.before_context,
+            options.after_context,
+            &storage,
+            &mut line_cache,
+        );
     }
 
     sources_searched.sort();
@@ -537,7 +619,8 @@ fn apply_percentile_filter(
 
 fn enrich_hits_with_context(
     hits: &mut [SearchHit],
-    context_lines: usize,
+    before_lines: usize,
+    after_lines: usize,
     storage: &Arc<Storage>,
     line_cache: &mut HashMap<String, Vec<String>>,
 ) {
@@ -551,8 +634,8 @@ fn enrich_hits_with_context(
                 continue;
             }
             let total = lines.len();
-            let start = base_start.saturating_sub(context_lines).max(1);
-            let end = (base_end + context_lines).min(total);
+            let start = base_start.saturating_sub(before_lines).max(1);
+            let end = (base_end + after_lines).min(total);
             if start > end {
                 continue;
             }
@@ -1026,14 +1109,24 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         // Should not panic even with empty results
         let result = format_and_display(&results, &options);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_clamp_max_chars_bounds() {
+        assert_eq!(clamp_max_chars(10), MIN_SNIPPET_CHAR_LIMIT);
+        assert_eq!(clamp_max_chars(DEFAULT_MAX_CHARS), DEFAULT_MAX_CHARS);
+        assert_eq!(clamp_max_chars(10_000), MAX_SNIPPET_CHAR_LIMIT);
     }
 
     #[test]
@@ -1058,9 +1151,12 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1090,9 +1186,12 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         // This should NOT panic even with empty results
@@ -1119,9 +1218,12 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -1153,9 +1255,12 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1186,9 +1291,12 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1213,9 +1321,12 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let test_results = create_test_results(10);
@@ -1247,9 +1358,12 @@ mod tests {
             all: false,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let results1 = create_test_results(8);
@@ -1279,9 +1393,12 @@ mod tests {
             all: true,
             no_history: false,
             copy: false,
-            context: None,
+            before_context: 0,
+            after_context: 0,
             block: false,
             max_block_lines: None,
+            max_chars: DEFAULT_MAX_CHARS,
+            quiet: false,
         };
 
         let results2 = create_test_results(0);
@@ -1321,5 +1438,259 @@ mod tests {
                 assert!(pages >= 1);
             }
         }
+    }
+
+    // Tests for fuzzy matching warning feature (BLZ-154)
+
+    #[test]
+    fn test_fuzzy_matcher_finds_close_matches() {
+        // Test that fuzzy matching correctly identifies similar sources
+        // NOTE: SkimMatcherV2 is case-sensitive and uses subsequence matching
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["react".to_string(), "vue".to_string(), "node".to_string()];
+        let typo = "reac"; // Close match for "react" (substring)
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Should find "react" as the best match
+        assert!(
+            !suggestions.is_empty(),
+            "Should find at least one suggestion"
+        );
+        assert_eq!(suggestions[0].1, "react", "Best match should be 'react'");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_no_matches_for_unrelated_term() {
+        // Test that completely unrelated terms don't match
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["react".to_string(), "vue".to_string()];
+        let unrelated = "xyz123";
+
+        let suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, unrelated)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        // Should not find any good matches
+        assert!(
+            suggestions.is_empty(),
+            "Should not find suggestions for completely unrelated term"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_limits_to_top_three() {
+        // Test that we only show top 3 suggestions even with many matches
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "react-dom".to_string(),
+            "react-native".to_string(),
+            "react-router".to_string(),
+            "react-query".to_string(),
+            "react-hook-form".to_string(),
+            "preact".to_string(),
+        ];
+        let query = "react";
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+        suggestions.truncate(3);
+
+        // Should limit to 3 suggestions
+        assert_eq!(
+            suggestions.len(),
+            3,
+            "Should limit to top 3 suggestions even when more match"
+        );
+
+        // Should be sorted by score (all should have scores)
+        assert!(
+            suggestions[0].0 > 0,
+            "First suggestion should have positive score"
+        );
+        assert!(
+            suggestions[1].0 > 0,
+            "Second suggestion should have positive score"
+        );
+        assert!(
+            suggestions[2].0 > 0,
+            "Third suggestion should have positive score"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_suggestions_are_sorted() {
+        // Test that suggestions are sorted by match quality
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "javascript".to_string(),
+            "java".to_string(),
+            "typescript".to_string(),
+        ];
+        let query = "java";
+
+        let mut suggestions: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Should find matches (both "java" and "javascript" contain "java")
+        assert!(!suggestions.is_empty(), "Should find at least one match");
+        // Note: The fuzzy matcher may rank "javascript" higher than "java" because it's a longer match
+        // What matters is that matches are found and sorted by score
+
+        // Scores should be in descending order
+        for i in 0..suggestions.len().saturating_sub(1) {
+            assert!(
+                suggestions[i].0 >= suggestions[i + 1].0,
+                "Suggestions should be sorted by score descending"
+            );
+        }
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_case_sensitivity() {
+        // Test fuzzy matching behavior with different cases
+        // SkimMatcherV2 performs case-insensitive matching by default
+        let matcher = SkimMatcherV2::default();
+        let known_sources = ["React".to_string(), "Vue".to_string()];
+
+        let lowercase_query = "reac"; // Substring match
+        let suggestions_lower: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, lowercase_query)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        // Should match "React" even with lowercase query
+        assert!(
+            !suggestions_lower.is_empty(),
+            "Should match with lowercase query"
+        );
+        assert_eq!(suggestions_lower[0].1, "React");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_handles_typos() {
+        // Test common typo patterns
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "typescript".to_string(),
+            "javascript".to_string(),
+            "python".to_string(),
+        ];
+
+        // Transposition typo: "typscript" -> "typescript"
+        let typo1 = "typscript";
+        let suggestions1: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo1)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(
+            !suggestions1.is_empty(),
+            "Should handle transposition typos"
+        );
+        assert_eq!(suggestions1[0].1, "typescript");
+
+        // Missing letter: "pythn" -> "python"
+        let typo2 = "pythn";
+        let suggestions2: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, typo2)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(
+            !suggestions2.is_empty(),
+            "Should handle missing letter typos"
+        );
+        assert_eq!(suggestions2[0].1, "python");
+    }
+
+    #[test]
+    fn test_fuzzy_matcher_partial_matches() {
+        // Test that partial matches work (prefix, suffix, infix)
+        let matcher = SkimMatcherV2::default();
+        let known_sources = [
+            "react-native".to_string(),
+            "vue-router".to_string(),
+            "angular".to_string(),
+        ];
+
+        // Prefix match
+        let prefix = "react";
+        let suggestions_prefix: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, prefix)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(!suggestions_prefix.is_empty(), "Should match prefix");
+        assert_eq!(suggestions_prefix[0].1, "react-native");
+
+        // Suffix match
+        let suffix = "router";
+        let suggestions_suffix: Vec<(i64, String)> = known_sources
+            .iter()
+            .filter_map(|source| {
+                matcher
+                    .fuzzy_match(source, suffix)
+                    .filter(|&score| score > 0)
+                    .map(|score| (score, source.clone()))
+            })
+            .collect();
+
+        assert!(!suggestions_suffix.is_empty(), "Should match suffix");
+        assert_eq!(suggestions_suffix[0].1, "vue-router");
     }
 }

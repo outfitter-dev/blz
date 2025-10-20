@@ -163,9 +163,15 @@ rustup component add clippy rustfmt rust-src
 cargo install cargo-deny    # License and vulnerability checking
 cargo install cargo-shear   # Unused dependency detection
 
-# Git hooks
+# Git hooks (for automated code quality checks)
+# Recommended: Use bootstrap script for full setup with performance optimizations
+./scripts/bootstrap-fast.sh
+
+# Or install lefthook manually
 brew install lefthook  # or see other installation methods
 lefthook install
+
+# See docs/development/git-hooks.md for performance optimization tips
 
 # Or use the Makefile/justfile for convenience
 make install-tools   # or: just install-tools

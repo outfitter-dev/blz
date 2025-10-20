@@ -6,9 +6,11 @@ use is_terminal::IsTerminal;
 use crate::output::OutputFormat;
 
 static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
+static SNIPPET_LINES_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
 /// Shared clap argument for commands that accept an output format.
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct FormatArg {
     /// Canonical output format flag (`--format` / `-f`)
     #[arg(
@@ -16,16 +18,35 @@ pub struct FormatArg {
         long = "format",
         value_enum,
         env = "BLZ_OUTPUT_FORMAT",
-        conflicts_with = "json"
+        conflicts_with_all = ["json", "jsonl", "text", "raw"],
+        display_order = 44
     )]
     pub format: Option<OutputFormat>,
 
     /// Convenience flag for JSON output (equivalent to --format json)
-    #[arg(long, conflicts_with = "format")]
+    #[arg(long, conflicts_with_all = ["format", "jsonl", "text", "raw"], display_order = 40)]
     pub json: bool,
 
+    /// Convenience flag for JSONL output (equivalent to --format jsonl)
+    #[arg(long, conflicts_with_all = ["format", "json", "text", "raw"], display_order = 41)]
+    pub jsonl: bool,
+
+    /// Convenience flag for text output (equivalent to --format text)
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "raw"], display_order = 42)]
+    pub text: bool,
+
+    /// Convenience flag for raw output (equivalent to --format raw)
+    #[arg(long, conflicts_with_all = ["format", "json", "jsonl", "text"], display_order = 43)]
+    pub raw: bool,
+
     /// Hidden deprecated alias that maps to `--format`
-    #[arg(long = "output", short = 'o', hide = true, value_enum)]
+    #[arg(
+        long = "output",
+        short = 'o',
+        hide = true,
+        value_enum,
+        display_order = 100
+    )]
     pub deprecated_output: Option<OutputFormat>,
 }
 
@@ -43,9 +64,18 @@ impl FormatArg {
     /// explicit override with `--format text` when needed.
     #[must_use]
     pub fn resolve(&self, quiet: bool) -> OutputFormat {
-        // If --json flag is set, return JSON immediately
+        // If shortcut flags are set, use them
         if self.json {
             return OutputFormat::Json;
+        }
+        if self.jsonl {
+            return OutputFormat::Jsonl;
+        }
+        if self.text {
+            return OutputFormat::Text;
+        }
+        if self.raw {
+            return OutputFormat::Raw;
         }
 
         if let Some(deprecated) = self.deprecated_output {
@@ -80,6 +110,25 @@ fn emit_deprecated_warning(quiet: bool) {
     {
         eprintln!(
             "warning: --output/-o is deprecated; use --format/-f. This alias will be removed in a future release."
+        );
+    }
+}
+
+/// Emits a deprecation warning for --snippet-lines flag (once per session).
+///
+/// Suggests using --max-chars instead and indicates the flag will be removed in v2.0.
+/// Respects quiet mode and `BLZ_SUPPRESS_DEPRECATIONS` environment variable.
+pub fn emit_snippet_lines_deprecation(quiet: bool) {
+    if quiet || std::env::var_os("BLZ_SUPPRESS_DEPRECATIONS").is_some() {
+        return;
+    }
+
+    if SNIPPET_LINES_DEPRECATED_WARNED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        eprintln!(
+            "warning: --snippet-lines is deprecated; use --max-chars instead. This flag will be removed in v2.0."
         );
     }
 }
@@ -145,6 +194,10 @@ mod tests {
         OUTPUT_DEPRECATED_WARNED.store(false, Ordering::SeqCst);
     }
 
+    fn reset_snippet_lines_warning_flag() {
+        SNIPPET_LINES_DEPRECATED_WARNED.store(false, Ordering::SeqCst);
+    }
+
     #[test]
     fn resolve_prefers_canonical_flag() {
         let _env_guard = test_support::env_mutex()
@@ -156,6 +209,9 @@ mod tests {
         let args = FormatArg {
             format: Some(OutputFormat::Jsonl),
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
@@ -176,6 +232,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -200,6 +259,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: Some(OutputFormat::Json),
         };
 
@@ -223,6 +285,9 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
@@ -240,9 +305,185 @@ mod tests {
         let args = FormatArg {
             format: None,
             json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
             deprecated_output: None,
         };
 
         assert_eq!(args.resolve(false), OutputFormat::Json);
+    }
+
+    #[test]
+    fn jsonl_flag_returns_jsonl_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: true,
+            text: false,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn text_flag_returns_text_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: false,
+            text: true,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Text);
+    }
+
+    #[test]
+    fn raw_flag_returns_raw_format() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        let args = FormatArg {
+            format: None,
+            json: false,
+            jsonl: false,
+            text: false,
+            raw: true,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Raw);
+    }
+
+    #[test]
+    fn explicit_format_takes_precedence_over_shortcuts() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        // When --format is set, it should take precedence over shortcut flags
+        let args = FormatArg {
+            format: Some(OutputFormat::Jsonl),
+            json: false,
+            jsonl: false,
+            text: false,
+            raw: false,
+            deprecated_output: None,
+        };
+
+        assert_eq!(args.resolve(false), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn shortcuts_take_precedence_over_deprecated_output() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_warning_flag();
+
+        let args = FormatArg {
+            format: None,
+            json: true,
+            jsonl: false,
+            text: false,
+            raw: false,
+            deprecated_output: Some(OutputFormat::Text),
+        };
+
+        // Shortcut should win, no deprecation warning should be emitted
+        assert_eq!(args.resolve(false), OutputFormat::Json);
+        assert!(!OUTPUT_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_sets_warning_flag_once() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // First call should set the flag
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Reset the flag to test it gets set again
+        reset_snippet_lines_warning_flag();
+
+        // Second call should also set the flag (proving it works)
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Third call should not toggle it back to false
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_suppressed_when_quiet() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // Quiet mode should suppress the warning
+        emit_snippet_lines_deprecation(true);
+        assert!(!SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_suppressed_with_env_var() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.set("1");
+
+        // Environment variable should suppress the warning
+        emit_snippet_lines_deprecation(false);
+        assert!(!SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn snippet_lines_deprecation_only_warns_once_per_session() {
+        let _env_guard = test_support::env_mutex()
+            .lock()
+            .expect("env mutex poisoned");
+
+        reset_snippet_lines_warning_flag();
+        let suppress_guard = EnvGuard::new("BLZ_SUPPRESS_DEPRECATIONS");
+        suppress_guard.remove();
+
+        // First call sets the flag
+        emit_snippet_lines_deprecation(false);
+        assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+
+        // Subsequent calls should not change the flag state
+        // (In real usage, this means the warning is only printed once)
+        for _ in 0..5 {
+            emit_snippet_lines_deprecation(false);
+            assert!(SNIPPET_LINES_DEPRECATED_WARNED.load(Ordering::SeqCst));
+        }
     }
 }

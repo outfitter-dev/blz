@@ -205,6 +205,14 @@ impl Source {
             .iter()
             .any(|tag| tag.eq_ignore_ascii_case("index"))
     }
+
+    /// Returns true when the source is marked as internal-only content.
+    #[must_use]
+    pub fn is_internal(&self) -> bool {
+        self.tags
+            .iter()
+            .any(|tag| tag.eq_ignore_ascii_case("internal"))
+    }
 }
 
 /// Records provenance information for a source.

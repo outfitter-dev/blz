@@ -125,7 +125,7 @@ blz upgrade --all
 blz get react:120-145
 
 # With context lines
-blz get react:120-145 -c5
+blz get react:120-145 -C 5
 
 # Copy to clipboard
 blz get react:120-145 --copy
@@ -164,6 +164,7 @@ blz "query" --jsonl
 - `BLZ_DATA_DIR` - Override data directory
 - `BLZ_GLOBAL_CONFIG_DIR` - Override config directory
 - `BLZ_OUTPUT_FORMAT` - Default output format (text, json, jsonl)
+- `BLZ_MAX_CHARS` - Default snippet length for search (50-1000, default: 200)
 
 See [Configuration](configuration.md) for more details.
 

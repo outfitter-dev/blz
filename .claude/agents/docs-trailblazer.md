@@ -19,7 +19,7 @@ If you are ever unsure of how to use `blz` or a subcommand properly, always defe
    - Should you search across all sources or target a specific one?
    - Do you need multiple searches to cover different aspects of the query?
 4. **Retrieve Precise Context**: Use `blz get` to retrieve the exact lines that answer the query. Choose the appropriate retrieval strategy:
-   - Use `--block` when you need the full heading section for complete context
+   - Use `--context all` when you need the full heading section for complete context
    - Use `-c<N>` when you need precise line control with N lines before/after
    - Add `--max-lines <N>` to limit very large sections
    - Always use `--json` for structured output
@@ -33,7 +33,7 @@ If you are ever unsure of how to use `blz` or a subcommand properly, always defe
    - Your analysis of what you searched for and why
    - The relevant documentation content (exact lines)
    - The exact `blz get` command the user can run to retrieve the same content
-   - Guidance on retrieval options (--block, --max-lines, -c<N>) appropriate to their use case
+   - Guidance on retrieval options (--context all, --max-lines, -c<N>) appropriate to their use case
    - Source information (which documentation source, line ranges, relevance scores)
 
 ## Workflow Pattern
@@ -48,7 +48,7 @@ blz "<query>" --json
 blz "<query>" --source <alias> --json
 
 # 3. Retrieve exact content
-blz get <alias>:<line-range> --block --json
+blz get <alias>:<line-range> --context all --json
 # Or with line control:
 blz get <alias>:<line-range> -c5 --json
 
@@ -83,10 +83,12 @@ Prefer llms-full.txt over llms.txt for comprehensive coverage.
 - Limit MCP requests to 20k tokens max per call
 
 **Retrieval strategy selection:**
-- Use `--block` when: User needs full context of a feature/concept, the heading section is likely self-contained
+- Use `--context all` when: User needs full context of a feature/concept, the heading section is likely self-contained
 - Use `-c<N>` when: User needs precise control, wants to see surrounding code examples, section might be very large
-- Use `--max-lines` when: Using --block but want to prevent overwhelming output from large sections
+- Use `--max-lines` when: Using `--context all` but want to prevent overwhelming output from large sections
 - Always use `--json` for structured, parseable output
+
+> Note: `--block` is a legacy alias for `--context all` and will continue to work.
 
 ## Quality Standards
 
@@ -123,7 +125,7 @@ Structure your responses as:
 
 **Retrieve this section:**
 ```bash
-blz get alias:start-end --block --json
+blz get alias:start-end --context all --json
 ```
 
 [Repeat for each relevant section found]

@@ -3,7 +3,7 @@
   "summary": "Inspect or prune the locally stored search history (`history.jsonl`). Handy for agents that want to replay queries or keep the cache lean.",
   "usage": [
     {
-      "command": "blz history --limit 20 --format json",
+      "command": "blz history --limit 20 --json",
       "description": "Return the most recent queries with timestamp, alias filter, and whether results were found."
     },
     {
@@ -21,7 +21,7 @@
     "Compact history before sharing a workspace snapshot (`--clear-before` or `--clear`)."
   ],
   "notes": [
-    "History is scoped to the profile (`~/.blz/` for stable, `~/.blz-dev/` for the dev binary).",
+    "History is scoped to the profile (platform-specific paths: Linux uses ~/.local/share/blz/, macOS uses ~/Library/Application Support/dev.outfitter.blz/). Dev binary uses -dev suffix.",
     "Entries store resolved alias + query payload so you can detect drift when sources are renamed."
   ]
 }

@@ -24,7 +24,7 @@ ok "lefthook hooks installed"
 
 # 2) Ensure speed tools: nextest and sccache
 if ! has cargo-nextest; then
-  note "Installing cargo-nextest for fast tests..."
+  note "Installing cargo-nextest for fast parallel tests..."
   cargo install cargo-nextest || die "Failed to install cargo-nextest"
   ok "cargo-nextest installed"
 else
@@ -32,11 +32,20 @@ else
 fi
 
 if ! has sccache; then
-  note "Installing sccache to speed builds..."
+  note "Installing sccache for build caching..."
   cargo install sccache || die "Failed to install sccache"
   ok "sccache installed"
 else
   ok "sccache present"
+fi
+
+# Start sccache server if not running (improves first-run performance)
+if has sccache; then
+  if ! sccache --show-stats >/dev/null 2>&1; then
+    note "Starting sccache server..."
+    sccache --start-server || warn "Could not start sccache server (non-fatal)"
+  fi
+  ok "sccache server running"
 fi
 
 # 2b) Ensure commitlint-rs for commit message linting
@@ -47,26 +56,14 @@ else
   ok "commitlint present"
 fi
 
-# 3) Configure Cargo to use sccache (local-only)
-CARGO_CFG=".cargo/config.toml"
-mkdir -p .cargo
-if ! grep -q "^rustc-wrapper\s*=\s*\"sccache\"" "$CARGO_CFG" 2>/dev/null; then
-  note "Configuring Cargo to use sccache (build.rustc-wrapper)"
-  # Add or extend [build] section
-  if grep -q "^\[build\]" "$CARGO_CFG" 2>/dev/null; then
-    # Append to existing build section (avoid duplicates)
-    awk '
-      BEGIN{printed=0}
-      {print}
-      /^\[build\]/{inbuild=1; next}
-    ' "$CARGO_CFG" > "$CARGO_CFG.tmp" && mv "$CARGO_CFG.tmp" "$CARGO_CFG"
-  else
-    echo "[build]" >> "$CARGO_CFG"
-  fi
-  echo 'rustc-wrapper = "sccache"' >> "$CARGO_CFG"
-  ok "sccache enabled in .cargo/config.toml"
-else
-  ok "sccache already enabled in .cargo/config.toml"
+# 3) Configure environment for sccache (avoid .cargo/config.toml to prevent issues)
+# Note: We use RUSTC_WRAPPER in hooks instead of config.toml to avoid issues with:
+# - Remote containers (Factory AI agent environments)
+# - Git worktrees
+# - CI/CD environments where sccache may not be available
+if has sccache; then
+  note "sccache will be used automatically in git hooks via RUSTC_WRAPPER"
+  ok "sccache configuration ready"
 fi
 
 # 4) Ensure rustfmt & clippy available (best-effort)

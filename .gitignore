@@ -4,6 +4,10 @@ target/
 ## Track lockfile for deterministic releases
 # (Do not ignore Cargo.lock)
 
+# Temporary files
+tmp/
+temp/
+
 # Environment files
 .env
 .env.*
@@ -50,6 +54,9 @@ cache_profile.pb
 llms.txt
 llms-full.txt
 llms.json
+# Allow the bundled guide checked into source control
+!docs/llms/blz/llms-full.txt
+!crates/blz-cli/bundled-docs/llms-full.txt
 
 # Benchmark results
 criterion/
@@ -62,6 +69,8 @@ coverage.json
 
 # Logs
 *.log
+test_output.txt
+test_output-*.txt
 
 # Claude
 !.claude/commands/log
@@ -73,6 +82,9 @@ coverage.json
 # Branchwork directory (temporary location for branchwork docs)
 .branchwork
 
+# Conductor directory (agent coordination)
+.conductor/
+
 # Graphite local data
 .xdg-data/
 
@@ -82,3 +94,5 @@ coverage.json
 # npm local binaries and packs (do not commit)
 /npm/bin/blz-*
 /outfitter-blz-*.tgz
+test_parser
+/npm/bin/test_parser

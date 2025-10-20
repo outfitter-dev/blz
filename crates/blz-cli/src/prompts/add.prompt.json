@@ -38,7 +38,7 @@
     "If the registry misses a source, probe for llms-full.txt manually: check `<docs-root>/llms-full.txt`, inspect the site's robots/config, or search the repo for `llms-full`. Always prefer the `llms-full` variant before settling on `llms.txt`.",
     "Run `blz add <alias> <https://domain/llms-full.txt> -y` to ingest it once confirmed.",
     "Use `blz add <alias> <url> --dry-run` to sanity-check heading counts before committing.",
-    "Verify ingestion with `blz list --format json | jq '.[] | select(.alias==\"<alias>\")'` before handing off to prompts."
+    "Verify ingestion with `blz list --json | jq '.[] | select(.alias==\"<alias>\")'` before handing off to prompts."
   ],
   "error_recovery": [
     "Checksum mismatches typically indicate the upstream file changed mid-run. Retry after `blz update <alias>`.",

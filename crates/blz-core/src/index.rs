@@ -9,6 +9,23 @@ use tantivy::schema::{Field, STORED, STRING, Schema, TEXT, Value};
 use tantivy::{Index, IndexReader, doc};
 use tracing::{Level, debug, info};
 
+/// Default number of characters returned for a search snippet (before any ellipses).
+pub const DEFAULT_SNIPPET_CHAR_LIMIT: usize = 200;
+/// Minimum number of characters permitted for a search snippet.
+pub const MIN_SNIPPET_CHAR_LIMIT: usize = 50;
+/// Maximum number of characters permitted for a search snippet.
+pub const MAX_SNIPPET_CHAR_LIMIT: usize = 1_000;
+
+pub(crate) const fn clamp_snippet_chars(chars: usize) -> usize {
+    if chars < MIN_SNIPPET_CHAR_LIMIT {
+        MIN_SNIPPET_CHAR_LIMIT
+    } else if chars > MAX_SNIPPET_CHAR_LIMIT {
+        MAX_SNIPPET_CHAR_LIMIT
+    } else {
+        chars
+    }
+}
+
 /// Tantivy-based search index for llms.txt documentation
 pub struct SearchIndex {
     index: Index,
@@ -210,12 +227,23 @@ impl SearchIndex {
     }
 
     /// Searches the index with optional alias filtering
-    #[allow(clippy::too_many_lines)] // Complex search logic requires detailed implementation
     pub fn search(
         &self,
         query_str: &str,
         alias: Option<&str>,
         limit: usize,
+    ) -> Result<Vec<SearchHit>> {
+        self.search_with_snippet_limit(query_str, alias, limit, DEFAULT_SNIPPET_CHAR_LIMIT)
+    }
+
+    /// Searches the index with optional alias filtering and an explicit snippet character limit.
+    #[allow(clippy::too_many_lines)] // Complex search logic requires detailed implementation
+    pub fn search_with_snippet_limit(
+        &self,
+        query_str: &str,
+        alias: Option<&str>,
+        limit: usize,
+        snippet_max_chars: usize,
     ) -> Result<Vec<SearchHit>> {
         let timer = self.metrics.as_ref().map_or_else(
             || OperationTimer::new(&format!("search_{query_str}")),
@@ -224,6 +252,7 @@ impl SearchIndex {
 
         let mut timings = ComponentTimings::new();
         let mut lines_searched = 0usize;
+        let snippet_limit = clamp_snippet_chars(snippet_max_chars);
 
         let searcher = timings.time("searcher_creation", || self.reader.searcher());
 
@@ -317,7 +346,7 @@ impl SearchIndex {
                     .map(std::string::ToString::to_string)
                     .collect();
 
-                let snippet = Self::extract_snippet(&content, query_str, 100);
+                let snippet = Self::extract_snippet(&content, query_str, snippet_limit);
 
                 // Prefer exact match line(s) when possible for better citations
                 let exact_lines = Self::compute_match_lines(&content, query_str, &lines)
@@ -799,6 +828,49 @@ mod tests {
             hits[0].snippet.contains("React hooks"),
             "Highest scored result should contain exact match"
         );
+    }
+
+    #[test]
+    fn test_search_snippet_respects_limits() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("test_index");
+
+        let index = SearchIndex::create(&index_path).expect("Should create index");
+
+        let blocks = vec![HeadingBlock {
+            path: vec!["Hooks".to_string()],
+            content: "React provides hooks for state and effect management. Hooks enable composing complex logic from simple primitives. Extensive documentation follows here to ensure the snippet must truncate properly when limits are applied.".to_string(),
+            start_line: 1,
+            end_line: 20,
+        }];
+
+        index
+            .index_blocks("test", &blocks)
+            .expect("Should index blocks");
+
+        let default_hits = index
+            .search("hooks", Some("test"), 5)
+            .expect("Should search with default limit");
+        assert!(!default_hits.is_empty());
+        let default_len = default_hits[0].snippet.chars().count();
+        assert!(
+            default_len <= DEFAULT_SNIPPET_CHAR_LIMIT + 6,
+            "Default snippet should clamp near default limit"
+        );
+
+        let custom_limit = 80;
+        let custom_hits = index
+            .search_with_snippet_limit("hooks", Some("test"), 5, custom_limit)
+            .expect("Should search with custom limit");
+        assert!(!custom_hits.is_empty());
+        let custom_len = custom_hits[0].snippet.chars().count();
+        assert!(
+            custom_len <= clamp_snippet_chars(custom_limit) + 6,
+            "Custom snippet should respect provided limit"
+        );
+
+        // Ensure custom limit produces a shorter snippet than the default when truncation occurs.
+        assert!(custom_len <= default_len);
     }
 
     #[test]

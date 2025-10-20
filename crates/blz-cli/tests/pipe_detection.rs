@@ -259,8 +259,25 @@ async fn test_get_outputs_json_when_piped() {
         );
 
         if let Ok(json) = result {
-            assert_eq!(json["alias"], "pipe-test");
-            assert!(json["content"].is_string());
+            let request = json["requests"]
+                .as_array()
+                .and_then(|arr| arr.first())
+                .expect("request entry");
+            assert_eq!(request["alias"], "pipe-test");
+            let snippet = request.get("snippet").and_then(Value::as_str);
+            let ranges = request.get("ranges").and_then(Value::as_array);
+
+            assert!(
+                snippet.is_some() || ranges.is_some_and(|arr| !arr.is_empty()),
+                "Expected snippet or ranges in JSON output"
+            );
+
+            if let Some(snippet) = snippet {
+                assert!(!snippet.is_empty());
+            } else if let Some(array) = ranges {
+                assert!(!array.is_empty());
+                assert!(array[0]["snippet"].is_string());
+            }
         }
     }
 }

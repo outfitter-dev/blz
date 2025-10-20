@@ -302,7 +302,7 @@ ls -la ~/Library/Application\ Support/dev.outfitter.blz/
 2. **Check ownership** (Linux):
 
 ```bash
-ls -la ~/.local/share/dev.outfitter.blz/
+ls -la ~/.local/share/blz/
 # Should be owned by your user
 ```
 
@@ -313,7 +313,7 @@ ls -la ~/.local/share/dev.outfitter.blz/
 chmod -R u+rw ~/Library/Application\ Support/dev.outfitter.blz/
 
 # Linux
-chmod -R u+rw ~/.local/share/dev.outfitter.blz/
+chmod -R u+rw ~/.local/share/blz/
 ```
 
 4. **Use custom directory**:
@@ -354,7 +354,7 @@ blz add <alias> <url>
 du -sh ~/Library/Application\ Support/dev.outfitter.blz/*
 
 # Linux
-du -sh ~/.local/share/dev.outfitter.blz/*
+du -sh ~/.local/share/blz/*
 ```
 
 2. **Remove unused sources**:
@@ -371,7 +371,7 @@ blz remove <unused-alias>
 rm -rf ~/Library/Application\ Support/dev.outfitter.blz/*
 
 # Linux
-rm -rf ~/.local/share/dev.outfitter.blz/*
+rm -rf ~/.local/share/blz/*
 
 # Then re-add sources
 blz add bun https://bun.sh/llms.txt

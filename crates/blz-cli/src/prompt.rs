@@ -94,6 +94,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Doctor { .. } => "doctor".into(),
                 Commands::Clear { .. } => "clear".into(),
                 Commands::Diff { .. } => "diff".into(),
+                Commands::Mcp => "mcp".into(),
                 Commands::Anchor { .. } | Commands::Anchors { .. } => "anchor".into(),
             };
         }

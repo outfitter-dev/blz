@@ -13,7 +13,7 @@ Use the [`blz`](https://github.com/outfitter-dev/blz) CLI to keep documentation 
 3. Inspect indexed sources: `blz list --json`
 4. Prefer `--json` / `--jsonl` outputs so tooling can parse them cleanly
 5. Feed `alias:lines` citations straight into `blz get`
-6. Use `--block` (plus `--max-lines <N>` if needed) for whole sections, or `-c<N>` to add a small context window
+6. Use `--context all` (plus `--max-lines <N>` if needed) for whole sections, or `-C <N>` to add a small context window
 7. Expect tight payloads: the standard `search` → `get` flow typically returns 20–80 lines instead of multi-kilobyte pages, keeping token usage low
 8. Set a default format when you want every command in JSON: `export BLZ_OUTPUT_FORMAT=json`
 9. Check source health with `blz info <alias> --json` (or `blz list --status --json`) before a heavy retrieval session
@@ -44,19 +44,53 @@ blz "test runner" --json
 
 # Narrow the scope
 blz "test reporters" --json
+
+# Control snippet length (default: 200 chars, range: 50-1000)
+blz "api documentation" --max-chars 300 --json  # Longer snippets for better context
+blz "quick reference" --max-chars 100 --json     # Shorter snippets to save tokens
+```
+
+### Tuning Snippet Length
+
+The `--max-chars` flag controls the total character count of snippets returned in search results, including newlines and all text:
+
+- **Default**: 200 characters provides good balance between context and token efficiency
+- **Range**: 50-1000 characters (values outside this range are automatically clamped)
+- **Environment**: Set `BLZ_MAX_CHARS` to change the default for all searches
+- **Use cases**:
+  - **50-100 chars**: Minimal snippets when you just need to identify relevant sections
+  - **200 chars** (default): Good balance for assessing relevance without fetching full content
+  - **300-500 chars**: More context for complex topics or when you need better relevance signals
+  - **500-1000 chars**: Maximum context before fetching full sections with `blz get`
+
+Example workflow:
+
+```bash
+# Quick scan with short snippets
+blz "error handling" --max-chars 100 --json | jq -r '.results[0:3] | .[] | .alias + ":" + .lines'
+
+# Detailed assessment with longer snippets
+blz "authentication flow" --max-chars 400 --json | jq '.results[0] | {heading: .headingPath, snippet}'
 ```
 
 ## Retrieve Content
 
 ```bash
 # Copy alias:lines from search output and fetch the span with context
-blz get bun:41994-42009 -c5 --json
+blz get bun:41994-42009 -C 5 --json
 
 # Combine multiple spans into one payload
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 -C 2 --json
+#   └─ JSON replies with `requests[0].ranges[]`; aggregate snippets manually
 
-# Expand to the whole heading (and cap the output to 80 lines)
-blz get bun:41994-42009 --block --max-lines 80 --json
+# Mix sources in one call
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
+
+# Expand to the whole section (and cap the output to 80 lines)
+blz get bun:41994-42009 --context all --max-lines 80 --json
+
+# Note: --block is a legacy alias for --context all
+# Note: -c<N> is legacy syntax; prefer -C <N> (grep-style)
 ```
 
 ## Keep Sources Fresh
@@ -70,13 +104,17 @@ blz update --all --json      # Refresh everything
 
 ```bash
 # Pull the first alias:lines citation
-span=$(blz "test runner" --json | jq -r '.[0] | "\(.alias):\(.lines)"')
+span=$(blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"')
 
 # Fetch the content straight into your pipeline
-blz get "$span" --json | jq '.content'
+blz get "$span" --json | jq -r '.requests[0].snippet'
+
+# Multi-range helper: join snippets when `ranges[]` is present
+blz get bun:41994-42009,42010-42020 -C 2 --json \
+  | jq -r '.requests[0] | .snippet // ((.ranges // []) | map(.snippet) | join("\n\n"))'
 
 # Filter to high-confidence matches
-blz "test reporters" --json | jq '[.[] | select(.score >= 60)]'
+blz "test reporters" --json | jq '[.results[] | select(.score >= 60)]'
 ```
 
 ## Exit Codes

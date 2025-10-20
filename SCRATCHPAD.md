@@ -1,4 +1,4 @@
-# Scratchpad
+# Scratchpad (Archived)
 
 ## 2025-10-08
 
@@ -130,3 +130,4 @@ Quick notes and links to detailed work logs.
 - Expanded `blz list` to support `--details` (descriptor-aware output) and richer JSON payloads; docs updated with manifest workflow, added template at `registry/templates/batch-manifest.example.toml`, documented `blz add` metadata flags/defaults, and introduced curl-install script (`install.sh`).
 - Reworked v1.0.0-beta.1 improvement plan with enriched JSON as the first P0 deliverable, defaulted `--context` to 5 lines, documented `--block`/`--context` exclusivity, added pre-announcement easy wins, and captured follow-on notes for manifests/staleness updates.
 - Finished enriched context/block implementation for search/get: introduced shared block finalization helpers, ensured heading-aware ranges (accurate `lines`/`lineNumbers`), trimmed trailing blank lines, and updated CLI tests + doctests to cover new metadata fields (all clippy/tests passing).
+Log progress in Linear issue comments. Remove any temporary notes here before finishing a session. Historical snapshots live under `.agents/.archive/logs/`.

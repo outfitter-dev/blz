@@ -57,8 +57,6 @@
 
 use clap::{Args, Parser, Subcommand};
 
-// ConfigCommand removed in v1.0.0-beta.1
-use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
@@ -172,7 +170,7 @@ pub struct Cli {
 ///
 /// ## Source Management
 /// - [`Add`]: Add a new documentation source
-/// - [`Lookup`]: Search registries for documentation to add  
+/// - [`Lookup`]: Search registries for documentation to add
 /// - [`List`]: List all cached sources
 /// - [`Update`]: Update cached content from sources
 /// - [`Remove`]: Remove a source and its cached content
@@ -202,7 +200,7 @@ pub struct Cli {
 ///
 /// # Content access
 /// blz search "useEffect" --limit 5
-/// blz get react --lines 120-142 --context 3
+/// blz get react --lines 120-142 -C 3
 /// blz diff react --since "2024-01-01"
 ///
 /// # Utility
@@ -211,9 +209,10 @@ pub struct Cli {
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
     /// Deprecated: use `blz --prompt`
-    #[command(hide = true)]
+    #[command(hide = true, display_order = 100)]
     Instruct,
     /// Generate shell completions
+    #[command(display_order = 51)]
     Completions {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -227,55 +226,57 @@ pub enum Commands {
     },
 
     /// Manage aliases for a source
+    #[command(display_order = 52)]
     Alias {
         #[command(subcommand)]
         command: AliasCommands,
     },
 
-    /// Generate CLI docs from the clap definitions
+    /// Bundled documentation hub and CLI reference export
+    #[command(display_order = 50)]
     Docs {
-        /// Output format for docs
-        /// Defaults to `markdown`.
-        #[arg(long = "format", value_enum, default_value = "markdown")]
-        format: crate::commands::DocsFormat,
+        #[command(subcommand)]
+        command: Option<DocsCommands>,
     },
 
     /// Anchor utilities
+    #[command(display_order = 53)]
     Anchor {
         #[command(subcommand)]
         command: AnchorCommands,
     },
 
     /// Show anchors for a source or remap mappings
+    #[command(display_order = 54)]
     Anchors {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
         /// Show anchors remap mappings if available
         #[arg(long)]
         mappings: bool,
     },
     /// Add a new source
+    #[command(display_order = 1)]
     Add(AddArgs),
 
     /// Search registries for documentation to add
+    #[command(display_order = 30)]
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Maximum number of results to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Manage the registry (create sources, validate, etc.)
+    #[command(display_order = 55)]
     Registry {
         #[command(subcommand)]
         command: RegistryCommands,
@@ -294,9 +295,10 @@ pub enum Commands {
     ///   blz '+api +key'                # Require both terms
     ///   blz '"exact phrase"'           # Exact phrase match
     ///   blz search "async" -s bun      # Search specific source
+    #[command(display_order = 2)]
     Search {
-        /// Search query (required unless --next or --last)
-        #[arg(required_unless_present_any = ["next", "last"])]
+        /// Search query (required unless --next, --previous, or --last)
+        #[arg(required_unless_present_any = ["next", "previous", "last"])]
         query: Option<String>,
         /// Filter by source(s) - comma-separated for multiple
         #[arg(
@@ -310,23 +312,51 @@ pub enum Commands {
         )]
         sources: Vec<String>,
         /// Continue from previous search (next page)
-        #[arg(long, conflicts_with = "page", conflicts_with = "last")]
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "previous",
+            display_order = 50
+        )]
         next: bool,
+        /// Go back to previous page
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "next",
+            display_order = 51
+        )]
+        previous: bool,
         /// Jump to last page of results
-        #[arg(long, conflicts_with = "next", conflicts_with = "page")]
+        #[arg(
+            long,
+            conflicts_with = "next",
+            conflicts_with = "page",
+            conflicts_with = "previous",
+            display_order = 52
+        )]
         last: bool,
         /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
-        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+        #[arg(
+            short = 'n',
+            long,
+            value_name = "COUNT",
+            conflicts_with = "all",
+            display_order = 53
+        )]
         limit: Option<usize>,
         /// Show all results (no limit)
-        #[arg(long, conflicts_with = "limit")]
+        #[arg(long, conflicts_with = "limit", display_order = 54)]
         all: bool,
         /// Page number for pagination
         #[arg(
             long,
             default_value = "1",
             conflicts_with = "next",
-            conflicts_with = "last"
+            conflicts_with = "last",
+            display_order = 55
         )]
         page: usize,
         /// Show only top N percentile of results (1-100). Applied after paging is calculated.
@@ -355,28 +385,88 @@ pub enum Commands {
             value_name = "LINES",
             value_parser = clap::value_parser!(u8).range(1..=10),
             env = "BLZ_SNIPPET_LINES",
-            default_value_t = 3
+            default_value_t = 3,
+            hide = true
         )]
         snippet_lines: u8,
-        /// Return surrounding context lines for each hit (defaults to 5 when no value supplied)
+        /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
         #[arg(
+            long = "max-chars",
+            value_name = "CHARS",
+            env = "BLZ_MAX_CHARS",
+            value_parser = clap::value_parser!(usize)
+        )]
+        max_chars: Option<usize>,
+        /// Print LINES lines of context (both before and after match). Same as -C.
+        ///
+        /// Examples:
+        ///   -C 10              # 10 lines before and after
+        ///   -C all             # Full section expansion
+        ///   --context 5        # Long form (also valid)
+        #[arg(
+            short = 'C',
             long = "context",
             value_name = "LINES",
             num_args = 0..=1,
             default_missing_value = "5",
-            value_parser = clap::value_parser!(usize),
-            conflicts_with = "block"
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
         )]
-        context: Option<usize>,
-        /// Return the full heading block containing each hit
-        #[arg(long, conflicts_with = "context")]
+        context: Option<ContextMode>,
+        /// Deprecated: use -C or --context instead (hidden for backward compatibility)
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true,
+            display_order = 100
+        )]
+        context_deprecated: Option<ContextMode>,
+        /// Print LINES lines of context after each match
+        ///
+        /// Examples:
+        ///   -A3                # 3 lines after match
+        ///   --after-context 5  # 5 lines after match
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 31
+        )]
+        after_context: Option<usize>,
+        /// Print LINES lines of context before each match
+        ///
+        /// Examples:
+        ///   -B3                # 3 lines before match
+        ///   --before-context 5 # 5 lines before match
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 32
+        )]
+        before_context: Option<usize>,
+        /// Return the full heading block containing each hit (legacy alias for --context all)
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
             value_parser = clap::value_parser!(usize),
-            requires = "block"
+            display_order = 34
         )]
         max_lines: Option<usize>,
         /// Don't save this search to history
@@ -387,7 +477,10 @@ pub enum Commands {
         copy: bool,
     },
 
-    /// Show recent search history and defaults
+    /// Show recent search history and defaults (last 20 entries by default)
+    ///
+    /// Displays the last 20 searches unless `--limit` is provided to override the count.
+    #[command(display_order = 14)]
     History {
         /// Maximum number of entries to display
         #[arg(long, default_value_t = 20)]
@@ -405,15 +498,22 @@ pub enum Commands {
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source
     ///
-    /// Preferred syntax matches search results: `blz get bun:120-142`
+    /// Preferred syntax matches search output: `blz get bun:120-142`
+    ///
+    /// Multiple spans from the same source can be comma-separated:
+    /// `blz get bun:120-142,200-210`
     ///
     /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
+    #[command(display_order = 3)]
     Get {
-        /// Source or "source:lines" (preferred: matches search output, e.g., "bun:1-3")
+        /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
-        /// When using colon syntax, the --lines flag is optional
-        #[arg(value_name = "ALIAS")]
-        alias: String,
+        /// The --lines flag remains available for single-target compatibility.
+        #[arg(value_name = "ALIAS[:RANGES]", num_args = 1..)]
+        targets: Vec<String>,
+        /// Explicit source alias (use when positional alias is ambiguous)
+        #[arg(long = "source", short = 's', value_name = "SOURCE")]
+        source: Option<String>,
         /// Line range(s) to retrieve
         ///
         /// Format: "120-142", "36:43,320:350", "36+20", "1,5,10-15"
@@ -421,18 +521,76 @@ pub enum Commands {
         /// Can be omitted if using colon syntax (e.g., "bun:1-3")
         #[arg(short = 'l', long, value_name = "RANGE")]
         lines: Option<String>,
-        /// Context lines around each line/range
-        #[arg(short = 'c', long, conflicts_with = "block")]
-        context: Option<usize>,
-        /// Return the full heading block containing the range
-        #[arg(long, conflicts_with = "context")]
+        /// Print LINES lines of context (both before and after). Same as -C.
+        ///
+        /// Examples:
+        ///   -C 10              # 10 lines before and after
+        ///   -C all             # Full section expansion
+        ///   --context 5        # Long form (also valid)
+        #[arg(
+            short = 'C',
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
+        )]
+        context: Option<ContextMode>,
+        /// Deprecated: use -C or --context instead (hidden for backward compatibility)
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true,
+            display_order = 100
+        )]
+        context_deprecated: Option<ContextMode>,
+        /// Print LINES lines of context after each line/range
+        ///
+        /// Examples:
+        ///   -A3                # 3 lines after
+        ///   --after-context 5  # 5 lines after
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 31
+        )]
+        after_context: Option<usize>,
+        /// Print LINES lines of context before each line/range
+        ///
+        /// Examples:
+        ///   -B3                # 3 lines before
+        ///   --before-context 5 # 5 lines before
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 32
+        )]
+        before_context: Option<usize>,
+        /// Return the full heading block containing the range (legacy alias for --context all)
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
-        /// Maximum number of lines to include when --block is used
+        /// Maximum number of lines to include when using block expansion (--block or --context all)
         #[arg(
             long = "max-lines",
             value_name = "LINES",
             value_parser = clap::value_parser!(usize),
-            requires = "block"
+            display_order = 34
         )]
         max_lines: Option<usize>,
         /// Output format
@@ -444,6 +602,7 @@ pub enum Commands {
     },
 
     /// Show detailed information about a source
+    #[command(display_order = 12)]
     Info {
         /// Source to inspect
         alias: String,
@@ -453,7 +612,7 @@ pub enum Commands {
     },
 
     /// List all cached sources
-    #[command(visible_alias = "sources")]
+    #[command(visible_alias = "sources", display_order = 4)]
     List {
         /// Output format
         #[command(flatten)]
@@ -464,16 +623,24 @@ pub enum Commands {
         /// Show descriptor metadata (description, category, tags, origin)
         #[arg(long)]
         details: bool,
+        /// Maximum number of sources to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Show cache statistics and overview
+    #[command(display_order = 13)]
     Stats {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Maximum number of sources to display in statistics
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
 
     /// Validate source integrity and availability
+    #[command(display_order = 15)]
     Validate {
         /// Source to validate (validates all if not specified)
         alias: Option<String>,
@@ -486,6 +653,7 @@ pub enum Commands {
     },
 
     /// Run health checks on cache and sources
+    #[command(display_order = 16)]
     Doctor {
         /// Output format
         #[command(flatten)]
@@ -496,6 +664,7 @@ pub enum Commands {
     },
 
     /// Update sources
+    #[command(display_order = 10)]
     Update {
         /// Source to update (updates all if not specified)
         alias: Option<String>,
@@ -508,7 +677,7 @@ pub enum Commands {
     },
 
     /// Remove/delete a source
-    #[command(alias = "rm", alias = "delete")]
+    #[command(alias = "rm", alias = "delete", display_order = 11)]
     Remove {
         /// Source to remove
         alias: String,
@@ -518,6 +687,7 @@ pub enum Commands {
     },
 
     /// Clear the entire cache (removes all sources and their data)
+    #[command(display_order = 17)]
     Clear {
         /// Skip confirmation prompt
         #[arg(short = 'f', long = "force")]
@@ -525,7 +695,7 @@ pub enum Commands {
     },
 
     /// View diffs (coming soon)
-    #[command(hide = true)]
+    #[command(hide = true, display_order = 101)]
     Diff {
         /// Source to compare
         alias: String,
@@ -533,6 +703,86 @@ pub enum Commands {
         #[arg(long)]
         since: Option<String>,
     },
+
+    /// Launch MCP server for AI agent integration
+    ///
+    /// Starts the BLZ MCP (Model Context Protocol) server over stdio transport.
+    /// This enables AI agents like Claude Desktop to use BLZ for documentation search
+    /// via the standardized MCP protocol.
+    ///
+    /// The server runs until interrupted with SIGINT (Ctrl+C) or SIGTERM.
+    Mcp,
+}
+
+/// Subcommands for `blz docs`.
+#[derive(Subcommand, Clone, Debug)]
+pub enum DocsCommands {
+    /// Search the bundled `blz-docs` source without touching other aliases.
+    #[command(alias = "find")]
+    Search(DocsSearchArgs),
+    /// Sync (or resync) the embedded documentation files and index.
+    Sync {
+        /// Rebuild even when hashes already match.
+        #[arg(long)]
+        force: bool,
+        /// Suppress status output (errors still emit).
+        #[arg(long)]
+        quiet: bool,
+    },
+    /// Print a concise quick-start overview for humans and agents.
+    Overview,
+    /// Print the entire bundled llms-full.txt to stdout.
+    Cat,
+    /// Export autogenerated CLI docs (clap schema) in markdown or JSON.
+    Export {
+        /// Output format for docs export (defaults to markdown).
+        #[arg(long = "format", value_enum, default_value = "markdown")]
+        format: crate::commands::DocsFormat,
+    },
+}
+
+/// Arguments accepted by the `blz docs search` subcommand.
+#[derive(Args, Clone, Debug)]
+pub struct DocsSearchArgs {
+    /// Query terms passed directly to the Tantivy searcher.
+    #[arg(value_name = "QUERY", trailing_var_arg = true, num_args = 1..)]
+    pub query: Vec<String>,
+    /// Maximum number of hits to return.
+    #[arg(long, default_value_t = 20, value_name = "N")]
+    pub limit: usize,
+    /// Optional percentile cap applied before pagination.
+    #[arg(long, value_name = "PERCENT")]
+    pub top: Option<u8>,
+    /// Render format (text/json/jsonl) and `--json` convenience flag.
+    #[command(flatten)]
+    pub format: FormatArg,
+    /// Show optional metadata columns alongside each hit.
+    #[arg(long = "show", value_enum, value_name = "COMPONENT")]
+    pub show: Vec<ShowComponent>,
+    /// Skip match summaries and show headings only.
+    #[arg(long)]
+    pub no_summary: bool,
+    /// Number of snippet lines to include per hit.
+    #[arg(long, default_value_t = 4, value_name = "LINES", hide = true)]
+    pub snippet_lines: u8,
+    /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
+    #[arg(long = "max-chars", value_name = "CHARS", value_parser = clap::value_parser!(usize))]
+    pub max_chars: Option<usize>,
+    /// Add surrounding context lines.
+    #[arg(long, value_name = "LINES")]
+    pub context: Option<usize>,
+    /// Emit contiguous paragraphs instead of discrete snippet blocks.
+    #[arg(long)]
+    pub block: bool,
+    /// Maximum number of lines when --block is used.
+    #[arg(long, value_name = "LINES")]
+    pub max_block_lines: Option<usize>,
+    /// Override default score precision.
+    #[arg(long, value_name = "DIGITS")]
+    pub score_precision: Option<u8>,
+    /// Copy results to the system clipboard when supported.
+    #[arg(long)]
+    pub copy: bool,
 }
 
 /// Arguments for `blz add`
@@ -581,6 +831,115 @@ pub struct AddArgs {
     /// Analyze source without adding it (outputs JSON analysis)
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Disable language filtering (keep all languages)
+    #[arg(long)]
+    pub no_language_filter: bool,
+}
+
+/// Context mode for result expansion
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ContextMode {
+    /// Symmetric context (same before and after)
+    Symmetric(usize),
+    /// Asymmetric context (different before and after)
+    Asymmetric { before: usize, after: usize },
+    /// Full section/block expansion
+    All,
+}
+
+impl ContextMode {
+    /// Get the before and after context line counts
+    ///
+    /// Returns (before, after) tuple. For All mode, returns None.
+    #[must_use]
+    pub const fn lines(&self) -> Option<(usize, usize)> {
+        match self {
+            Self::Symmetric(n) => Some((*n, *n)),
+            Self::Asymmetric { before, after } => Some((*before, *after)),
+            Self::All => None,
+        }
+    }
+
+    /// Merge two context modes, taking the maximum value for each direction
+    #[must_use]
+    pub fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            // All takes precedence over everything
+            (Self::All, _) | (_, Self::All) => Self::All,
+            // Extract line counts and compute maximum for each direction
+            (a, b) => {
+                let (a_before, a_after) = a.lines().unwrap_or((0, 0));
+                let (b_before, b_after) = b.lines().unwrap_or((0, 0));
+                let before = a_before.max(b_before);
+                let after = a_after.max(b_after);
+                if before == after {
+                    Self::Symmetric(before)
+                } else {
+                    Self::Asymmetric { before, after }
+                }
+            },
+        }
+    }
+}
+
+impl std::str::FromStr for ContextMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("all") {
+            Ok(Self::All)
+        } else {
+            s.parse::<usize>()
+                .map(Self::Symmetric)
+                .map_err(|_| format!("Invalid context value: '{s}'. Expected a number or 'all'"))
+        }
+    }
+}
+
+/// Merge context flags from CLI arguments into a single `ContextMode`
+///
+/// Implements grep-style merging logic:
+/// - `-C` takes precedence as symmetric context
+/// - `-A` and `-B` can be combined for asymmetric context
+/// - If multiple flags are provided, takes maximum value for each direction
+/// - Supports deprecated `-c` flag for backward compatibility
+#[must_use]
+pub fn merge_context_flags(
+    context: Option<ContextMode>,
+    context_deprecated: Option<ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+) -> Option<ContextMode> {
+    // Start with the primary context flag (or deprecated -c flag)
+    let mut result = context.or(context_deprecated);
+
+    // Merge in -A and -B flags if present
+    if let Some(after) = after_context {
+        let new_mode = before_context
+            .map_or(ContextMode::Asymmetric { before: 0, after }, |before| {
+                ContextMode::Asymmetric { before, after }
+            });
+
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    } else if let Some(before) = before_context {
+        // Only -B specified, create asymmetric mode with 0 after
+        let new_mode = ContextMode::Asymmetric { before, after: 0 };
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    }
+
+    result.map(|mode| match mode {
+        ContextMode::Asymmetric { before, after } if before == after => {
+            ContextMode::Symmetric(before)
+        },
+        other => other,
+    })
 }
 
 /// Additional columns that can be displayed in text search results
@@ -606,17 +965,14 @@ pub enum AnchorCommands {
         /// Source alias
         alias: String,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
         /// Show anchors remap mappings if available
         #[arg(long)]
         mappings: bool,
+        /// Maximum number of anchors to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
     },
     /// Get content by anchor
     Get {
@@ -628,14 +984,8 @@ pub enum AnchorCommands {
         #[arg(short = 'c', long)]
         context: Option<usize>,
         /// Output format
-        #[arg(
-            short = 'o',
-            long,
-            value_enum,
-            default_value = "text",
-            env = "BLZ_OUTPUT_FORMAT"
-        )]
-        output: OutputFormat,
+        #[command(flatten)]
+        format: FormatArg,
     },
 }
 
@@ -688,4 +1038,213 @@ pub enum RegistryCommands {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_context_mode_lines() {
+        assert_eq!(ContextMode::Symmetric(5).lines(), Some((5, 5)));
+        assert_eq!(
+            ContextMode::Asymmetric {
+                before: 3,
+                after: 7
+            }
+            .lines(),
+            Some((3, 7))
+        );
+        assert_eq!(ContextMode::All.lines(), None);
+    }
+
+    #[test]
+    fn test_context_mode_merge_symmetric() {
+        let mode1 = ContextMode::Symmetric(3);
+        let mode2 = ContextMode::Symmetric(5);
+        assert_eq!(mode1.merge(mode2), ContextMode::Symmetric(5));
+    }
+
+    #[test]
+    fn test_context_mode_merge_asymmetric() {
+        let mode1 = ContextMode::Asymmetric {
+            before: 3,
+            after: 5,
+        };
+        let mode2 = ContextMode::Asymmetric {
+            before: 7,
+            after: 2,
+        };
+        assert_eq!(
+            mode1.merge(mode2),
+            ContextMode::Asymmetric {
+                before: 7,
+                after: 5
+            }
+        );
+    }
+
+    #[test]
+    fn test_context_mode_merge_with_all() {
+        let mode1 = ContextMode::Symmetric(5);
+        let mode2 = ContextMode::All;
+        assert_eq!(mode1.clone().merge(mode2.clone()), ContextMode::All);
+        assert_eq!(mode2.merge(mode1), ContextMode::All);
+    }
+
+    #[test]
+    fn test_context_mode_merge_becomes_asymmetric() {
+        let mode1 = ContextMode::Symmetric(3);
+        let mode2 = ContextMode::Asymmetric {
+            before: 5,
+            after: 2,
+        };
+        assert_eq!(
+            mode1.merge(mode2),
+            ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            }
+        );
+    }
+
+    #[test]
+    fn test_context_mode_merge_becomes_symmetric() {
+        let mode1 = ContextMode::Asymmetric {
+            before: 5,
+            after: 3,
+        };
+        let mode2 = ContextMode::Asymmetric {
+            before: 3,
+            after: 5,
+        };
+        assert_eq!(mode1.merge(mode2), ContextMode::Symmetric(5));
+    }
+
+    #[test]
+    fn test_merge_context_flags_none() {
+        assert_eq!(merge_context_flags(None, None, None, None), None);
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_context() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(5)), None, None, None);
+        assert_eq!(result, Some(ContextMode::Symmetric(5)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_deprecated() {
+        let result = merge_context_flags(None, Some(ContextMode::Symmetric(3)), None, None);
+        assert_eq!(result, Some(ContextMode::Symmetric(3)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_wins_over_deprecated() {
+        let result = merge_context_flags(
+            Some(ContextMode::Symmetric(5)),
+            Some(ContextMode::Symmetric(3)),
+            None,
+            None,
+        );
+        assert_eq!(result, Some(ContextMode::Symmetric(5)));
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_after() {
+        let result = merge_context_flags(None, None, Some(3), None);
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 0,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_only_before() {
+        let result = merge_context_flags(None, None, None, Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_both_after_and_before() {
+        let result = merge_context_flags(None, None, Some(3), Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_after() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(5), None);
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 2,
+                after: 5
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_before() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, None, Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_context_plus_both() {
+        let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(3), Some(5));
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 5,
+                after: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_merge_context_flags_all_with_after_before() {
+        // All should take precedence even when -A/-B are present
+        let result = merge_context_flags(Some(ContextMode::All), None, Some(3), Some(5));
+        assert_eq!(result, Some(ContextMode::All));
+    }
+
+    #[test]
+    fn test_merge_context_flags_asymmetric_plus_after_before() {
+        let result = merge_context_flags(
+            Some(ContextMode::Asymmetric {
+                before: 2,
+                after: 4,
+            }),
+            None,
+            Some(6),
+            Some(3),
+        );
+        assert_eq!(
+            result,
+            Some(ContextMode::Asymmetric {
+                before: 3,
+                after: 6
+            })
+        );
+    }
 }

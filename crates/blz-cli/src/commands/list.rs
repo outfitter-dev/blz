@@ -112,7 +112,13 @@ pub fn render_list<W: Write>(
     format: OutputFormat,
     status: bool,
     details: bool,
+    limit: Option<usize>,
 ) -> Result<()> {
+    // Apply limit to sources slice
+    let sources = limit.map_or(sources, |limit_count| {
+        &sources[..sources.len().min(limit_count)]
+    });
+
     match format {
         OutputFormat::Text => render_text(writer, sources, status, details),
         OutputFormat::Json => render_json(writer, sources, status),
@@ -128,11 +134,16 @@ pub fn render_list<W: Write>(
 }
 
 /// Execute the list command using production storage and stdout.
-pub async fn execute(format: OutputFormat, status: bool, details: bool) -> Result<()> {
+pub async fn execute(
+    format: OutputFormat,
+    status: bool,
+    details: bool,
+    limit: Option<usize>,
+) -> Result<()> {
     let storage = Storage::new()?;
     let stdout = io::stdout();
     let mut handle = stdout.lock();
-    execute_with_writer(&storage, &mut handle, format, status, details)
+    execute_with_writer(&storage, &mut handle, format, status, details, limit)
 }
 
 /// Testable entry point allowing storage and writer injection.
@@ -142,6 +153,7 @@ pub fn execute_with_writer<S, W>(
     format: OutputFormat,
     status: bool,
     details: bool,
+    limit: Option<usize>,
 ) -> Result<()>
 where
     S: ListStorage,
@@ -166,7 +178,7 @@ where
         }
     }
 
-    render_list(writer, &summaries, format, status, details)
+    render_list(writer, &summaries, format, status, details, limit)
 }
 
 fn render_text<W: Write>(
@@ -421,7 +433,7 @@ mod tests {
     fn execute_with_writer_renders_empty_text() -> Result<()> {
         let storage = MockStorage::default();
         let mut buf = Cursor::new(Vec::new());
-        execute_with_writer(&storage, &mut buf, OutputFormat::Text, false, false)?;
+        execute_with_writer(&storage, &mut buf, OutputFormat::Text, false, false, None)?;
         let output = String::from_utf8(buf.into_inner())?;
         assert!(output.contains("No sources configured"));
         Ok(())
@@ -441,7 +453,7 @@ mod tests {
             fail_on_metadata: false,
         };
         let mut buf = Cursor::new(Vec::new());
-        execute_with_writer(&storage, &mut buf, OutputFormat::Json, true, false)?;
+        execute_with_writer(&storage, &mut buf, OutputFormat::Json, true, false, None)?;
         let output = String::from_utf8(buf.into_inner())?;
         let value: serde_json::Value = serde_json::from_str(&output)?;
         assert_eq!(value[0]["alias"], "alpha");
@@ -475,11 +487,239 @@ mod tests {
             descriptor: None,
         };
         let mut buf = Cursor::new(Vec::new());
-        render_text(&mut buf, &[summary], false, false)?;
+        render_list(&mut buf, &[summary], OutputFormat::Text, false, false, None)?;
         let output = String::from_utf8(buf.into_inner())?;
         assert!(output.contains("42 lines"));
         assert!(!output.contains("ETag"));
         assert!(!output.contains("Origin:"));
+        Ok(())
+    }
+
+    #[test]
+    fn list_with_limit_returns_exact_count() -> Result<()> {
+        let metadata = sample_source("https://example.com");
+        let storage = MockStorage {
+            aliases: vec!["alpha".into(), "beta".into(), "gamma".into()],
+            metadata: HashMap::from([
+                (String::from("alpha"), metadata.clone()),
+                (String::from("beta"), metadata.clone()),
+                (String::from("gamma"), metadata.clone()),
+            ]),
+            llms: HashMap::from([
+                (
+                    String::from("alpha"),
+                    sample_llms("alpha", metadata.clone(), 100, 10),
+                ),
+                (
+                    String::from("beta"),
+                    sample_llms("beta", metadata.clone(), 200, 20),
+                ),
+                (
+                    String::from("gamma"),
+                    sample_llms("gamma", metadata, 300, 30),
+                ),
+            ]),
+            descriptors: HashMap::new(),
+            fail_on_metadata: false,
+        };
+
+        // Test limit of 2 sources
+        let mut buf = Cursor::new(Vec::new());
+        execute_with_writer(
+            &storage,
+            &mut buf,
+            OutputFormat::Json,
+            false,
+            false,
+            Some(2),
+        )?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let value: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert!(value.is_array());
+        assert_eq!(
+            value.as_array().expect("should be array").len(),
+            2,
+            "Should return exactly 2 sources when limit=2"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_with_limit_greater_than_sources_returns_all() -> Result<()> {
+        let metadata = sample_source("https://example.com");
+        let storage = MockStorage {
+            aliases: vec!["alpha".into(), "beta".into()],
+            metadata: HashMap::from([
+                (String::from("alpha"), metadata.clone()),
+                (String::from("beta"), metadata.clone()),
+            ]),
+            llms: HashMap::from([
+                (
+                    String::from("alpha"),
+                    sample_llms("alpha", metadata.clone(), 100, 10),
+                ),
+                (String::from("beta"), sample_llms("beta", metadata, 200, 20)),
+            ]),
+            descriptors: HashMap::new(),
+            fail_on_metadata: false,
+        };
+
+        // Test limit greater than source count
+        let mut buf = Cursor::new(Vec::new());
+        execute_with_writer(
+            &storage,
+            &mut buf,
+            OutputFormat::Json,
+            false,
+            false,
+            Some(10),
+        )?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let value: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert!(value.is_array());
+        assert_eq!(
+            value.as_array().expect("should be array").len(),
+            2,
+            "Should return all sources when limit exceeds source count"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_with_limit_zero_returns_zero() -> Result<()> {
+        let metadata = sample_source("https://example.com");
+        let storage = MockStorage {
+            aliases: vec!["alpha".into()],
+            metadata: HashMap::from([(String::from("alpha"), metadata.clone())]),
+            llms: HashMap::from([(
+                String::from("alpha"),
+                sample_llms("alpha", metadata, 100, 10),
+            )]),
+            descriptors: HashMap::new(),
+            fail_on_metadata: false,
+        };
+
+        // Test limit of 0
+        let mut buf = Cursor::new(Vec::new());
+        execute_with_writer(
+            &storage,
+            &mut buf,
+            OutputFormat::Json,
+            false,
+            false,
+            Some(0),
+        )?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let value: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert!(value.is_array());
+        assert_eq!(
+            value.as_array().expect("should be array").len(),
+            0,
+            "Should return 0 sources when limit=0"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_with_limit_applies_to_text_output() -> Result<()> {
+        let metadata = sample_source("https://example.com");
+        let storage = MockStorage {
+            aliases: vec!["alpha".into(), "beta".into(), "gamma".into()],
+            metadata: HashMap::from([
+                (String::from("alpha"), metadata.clone()),
+                (String::from("beta"), metadata.clone()),
+                (String::from("gamma"), metadata.clone()),
+            ]),
+            llms: HashMap::from([
+                (
+                    String::from("alpha"),
+                    sample_llms("alpha", metadata.clone(), 100, 10),
+                ),
+                (
+                    String::from("beta"),
+                    sample_llms("beta", metadata.clone(), 200, 20),
+                ),
+                (
+                    String::from("gamma"),
+                    sample_llms("gamma", metadata, 300, 30),
+                ),
+            ]),
+            descriptors: HashMap::new(),
+            fail_on_metadata: false,
+        };
+
+        // Test limit with text output
+        let mut buf = Cursor::new(Vec::new());
+        execute_with_writer(
+            &storage,
+            &mut buf,
+            OutputFormat::Text,
+            false,
+            false,
+            Some(1),
+        )?;
+        let output = String::from_utf8(buf.into_inner())?;
+
+        // Count how many source blocks appear (each has a URL line)
+        let url_count = output.matches("https://example.com").count();
+        assert_eq!(url_count, 1, "Text output should respect limit");
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_with_limit_applies_to_jsonl_output() -> Result<()> {
+        let metadata = sample_source("https://example.com");
+        let storage = MockStorage {
+            aliases: vec!["alpha".into(), "beta".into(), "gamma".into()],
+            metadata: HashMap::from([
+                (String::from("alpha"), metadata.clone()),
+                (String::from("beta"), metadata.clone()),
+                (String::from("gamma"), metadata.clone()),
+            ]),
+            llms: HashMap::from([
+                (
+                    String::from("alpha"),
+                    sample_llms("alpha", metadata.clone(), 100, 10),
+                ),
+                (
+                    String::from("beta"),
+                    sample_llms("beta", metadata.clone(), 200, 20),
+                ),
+                (
+                    String::from("gamma"),
+                    sample_llms("gamma", metadata, 300, 30),
+                ),
+            ]),
+            descriptors: HashMap::new(),
+            fail_on_metadata: false,
+        };
+
+        // Test limit with JSONL output
+        let mut buf = Cursor::new(Vec::new());
+        execute_with_writer(
+            &storage,
+            &mut buf,
+            OutputFormat::Jsonl,
+            false,
+            false,
+            Some(2),
+        )?;
+        let output = String::from_utf8(buf.into_inner())?;
+
+        // Count JSON lines
+        let line_count = output
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count();
+        assert_eq!(line_count, 2, "JSONL output should respect limit");
+
         Ok(())
     }
 }

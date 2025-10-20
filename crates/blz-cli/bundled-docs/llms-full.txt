@@ -1,0 +1,101 @@
+# BLZ User Guide (llms-full)
+
+[[toc]]
+
+## Purpose
+- Provide an in-tool reference for learning and using `blz` without needing internet access.
+- Cover end-user and agent workflows only; development and contributor tooling live in `docs/development`.
+- Keep search results scoped by default: bundled docs sit behind the `blz-docs` alias and stay out of global search.
+
+## Getting Started
+### Installation Paths
+- `curl -fsSL https://get.blz.sh | bash` installs the latest tagged release in `/usr/local/bin`.
+- `cargo install blz-cli --locked` builds from crates.io when you already have Rust available.
+- `blz-dev` is the experimental profile binary for contributors; most users stick with `blz`.
+### First Run Checklist
+1. Run `blz list` to verify the cache is empty.
+2. Add at least one remote source (example: `blz add bun https://bun.sh/llms-full.txt`).
+3. Optional: run `blz doctor` to confirm disk paths and search index health.
+4. Use `blz docs sync` (or any docs search) once to hydrate this bundled manual into the cache.
+
+## Concepts
+### Sources
+- Each alias corresponds to a single llms.txt or llms-full.txt document kept under `~/.blz/sources/<alias>` (or XDG paths).
+- Remote sources include freshness metadata: `etag`, `last_modified`, and a base64 `sha256` checksum.
+- Local sources use `SourceType::LocalFile`; bundled docs use the `embedded` origin tag.
+### Search Index
+- Tantivy-backed, per-source indexes stored under `sources/<alias>/.index`.
+- Update pipelines rebuild indexes atomically to keep global search consistent.
+### Profiles
+- `blz` honors `BLZ_PROFILE` or `--profile` to isolate caches (e.g., `default`, `dev`).
+- Bundled docs follow the current profile so agents do not leak across environments.
+
+## Everyday Workflows
+### Default Search
+- `blz <query>` searches all sources except ones tagged `internal` or `index`.
+- Sort order uses BM25 relevance with heading-aware snippets and line spans.
+- `--limit` constrains hits per page; `--top` (percentile) combines with limit filters.
+### Targeted Search
+- `blz search "edge cache" --source cloudflare`
+- `--source` (or `-s`) accepts multiple aliases; comma separation is optional.
+- Add `--format json` for automation-friendly output.
+### Training Queries Against Bundled Docs
+- `blz docs search batching` runs a scoped search against the bundled guide only.
+- `blz docs top` shows a curated quick-start summary (no search required).
+- Provide natural-language prompts; the guide is optimized for headings like “Search Output Fields”.
+
+## Managing Sources
+### Listing
+- `blz list --format text` prints status, line counts, last update, and tags.
+- Use `--format json` to capture metadata for automations.
+### Adding & Updating
+- `blz add <alias> <url>` resolves llms-full vs llms.txt automatically.
+- `blz update <alias>` refreshes a single cache; `--all` fans out sequentially.
+- Add `--yes` (alias `-y`) to auto-accept upgrades when llms-full becomes available.
+### Removing
+- `blz remove <alias>` deletes cache data and descriptor metadata.
+- Removal keeps archive snapshots under `.archive/` for later inspection.
+
+## Search Output Reference
+### Fields
+- `source`: alias that produced the hit.
+- `heading_path`: `>`-delimited breadcrumb to the section.
+- `lines`: inclusive span of the snippet inside `llms.txt`.
+- `score`: normalized relevance (0-1, trimmed by `score_precision`).
+- `url`: original llms endpoint when provided.
+### Formatting Tips
+- `--show url --show lines` adds inline metadata to human-readable output.
+- `--copy` pipes results to the clipboard when supported (macOS pbcopy, Wayland etc.).
+- `--context N` surrounds hits with N extra lines; combine with `--block` to keep paragraphs together.
+
+## Anchors and Retrieval Helpers
+- `blz anchor list <alias>` prints all headings with anchor slugs.
+- `blz anchor get <alias> <anchor>` fetches the canonical snippet for the slug.
+- Aliases accept metadata-based shortcuts; `blz alias add react @react` enables social-style handles.
+- Bundled docs register two aliases by default: `blz-docs` and `@blz`.
+
+## JSON + Agent Workflows
+### Machine-Readable Docs
+- `blz docs export --format json` mirrors the Clap command tree for tool scaffolding.
+- `blz get <alias> section --format json` returns structured slices with headings + line numbers.
+### Prompt Builder Integration
+- Global `--prompt` flag (e.g., `blz --prompt search`) emits JSON describing arguments, outputs, and gotchas.
+- Agents can read `llms.json` for a normalized Table of Contents and anchor metadata.
+- Copy `sources/<alias>/anchors.json` to feed agent routers that map user phrases onto canonical anchors.
+
+## Keeping Bundled Docs Fresh
+- Run `blz docs sync` after upgrading BLZ to pull in the latest embedded guide revision.
+- The sync command compares base64 SHA-256 hashes to skip unnecessary reindexing.
+- `blz list --format json` surfaces `tags` that include `internal` and `blz` so you can filter quickly.
+
+## Troubleshooting
+- `blz doctor` scans for common issues (missing indices, unreadable directories, stale manifests).
+- `blz stats <alias>` shows heading counts and block sizes to diagnose index anomalies.
+- Re-run `blz docs sync --force` to rebuild the bundled docs if search output looks empty.
+- Ensure `tantivy`’s mmap access is allowed; on Linux with restricted tmpfs, export `BLZ_DATA_DIR` to a writable disk.
+
+## Additional Resources
+- GitHub issues: https://github.com/outfitter-dev/blz/issues
+- Registry catalog: `blz lookup <term>` or browse `registry.json`.
+- Release notes: `CHANGELOG.md` for feature deltas across versions.
+- MCP quickstart: read `docs/cli/howto.md#agents` for Multi-Command Program integration guidance.

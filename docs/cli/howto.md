@@ -112,13 +112,15 @@ After searching:
 blz get bun:41994-42009
 
 # Include ±5 lines of context without changing the span
-blz get bun:41994-42009 -c5
+blz get bun:41994-42009 -C 5
 
 # Merge multiple spans for the same source
-blz get bun --lines "41994-42009,42010-42020" --json
+blz get bun:41994-42009,42010-42020 --json
+
+blz get bun:41994-42009,42010-42020 turbo:2656-2729 --json
 
 # Pull the entire heading block (great for sections with tables or prose)
-blz get bun:41994-42009 --block --max-lines 80 --json
+blz get bun:41994-42009 --context all --max-lines 80 --json
 ```
 
 ### I want to limit search results
@@ -412,7 +414,7 @@ blz "query" --verbose
 ls ~/Library/Application\ Support/dev.outfitter.blz/
 
 # Linux
-ls ~/.local/share/dev.outfitter.blz/
+ls ~/.local/share/blz/
 
 # Or use custom location
 export BLZ_DATA_DIR=~/my-blz-cache

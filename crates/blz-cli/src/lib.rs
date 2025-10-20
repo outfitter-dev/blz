@@ -4,7 +4,7 @@
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
 use anyhow::{Result, anyhow};
-use blz_core::PerformanceMetrics;
+use blz_core::{PerformanceMetrics, Storage};
 use clap::{CommandFactory, Parser};
 use colored::control as color_control;
 use tracing::{Level, warn};
@@ -19,10 +19,15 @@ mod output;
 mod prompt;
 mod utils;
 
-use crate::commands::{AddRequest, DescriptorInput};
+use crate::commands::{
+    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, RequestSpec, print_full_content,
+    print_overview, sync_bundled_docs,
+};
 
 use crate::utils::preferences::{self, CliPreferences};
-use cli::{AliasCommands, AnchorCommands, Cli, Commands, RegistryCommands};
+use cli::{
+    AliasCommands, AnchorCommands, Cli, Commands, DocsCommands, DocsSearchArgs, RegistryCommands,
+};
 
 #[cfg(feature = "flamegraph")]
 use blz_core::profiling::{start_profiling, stop_profiling_and_report};
@@ -50,10 +55,15 @@ enum SearchFlagMatch {
         flag: &'static str,
         attached: Option<String>,
     },
+    OptionalValue {
+        flag: &'static str,
+        attached: Option<String>,
+    },
     NoValue(&'static str),
     FormatAlias(&'static str),
 }
 
+#[allow(clippy::too_many_lines)] // Flag normalization requires explicit tables for clarity
 fn preprocess_args_from(raw: &[String]) -> Vec<String> {
     if raw.len() <= 1 {
         return raw.to_vec();
@@ -142,8 +152,14 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
                 idx += 1;
             },
             SearchFlagMatch::FormatAlias(format) => {
-                result.push("--format".to_string());
-                result.push(format.to_string());
+                // Only convert format aliases to --format when injecting search.
+                // For explicit subcommands, preserve the original flag so Clap can parse it.
+                if should_inject_search {
+                    result.push("--format".to_string());
+                    result.push(format.to_string());
+                } else {
+                    result.push(raw[idx].clone());
+                }
                 idx += 1;
             },
             SearchFlagMatch::RequiresValue { flag, attached } => {
@@ -155,6 +171,20 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
                     result.push(raw[idx + 1].clone());
                     idx += 2;
                 } else {
+                    idx += 1;
+                }
+            },
+            SearchFlagMatch::OptionalValue { flag, attached } => {
+                result.push(flag.to_string());
+                if let Some(value) = attached {
+                    result.push(value);
+                    idx += 1;
+                } else if idx + 1 < raw.len() && !raw[idx + 1].starts_with('-') {
+                    // Only consume next argument if it doesn't look like a flag
+                    result.push(raw[idx + 1].clone());
+                    idx += 2;
+                } else {
+                    // No value provided and next arg is a flag, rely on clap's default_missing_value
                     idx += 1;
                 }
             },
@@ -206,12 +236,68 @@ fn classify_global_flag(arg: &str) -> Option<FlagKind> {
     }
 }
 
+/// Helper function to match flags with values (either required or optional)
+fn match_flag_with_value(
+    arg: &str,
+    flags: &[(&'static str, &'static str)],
+    optional: bool,
+) -> SearchFlagMatch {
+    for (flag, canonical) in flags {
+        if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
+            return if optional {
+                SearchFlagMatch::OptionalValue {
+                    flag: canonical,
+                    attached: Some(value.to_string()),
+                }
+            } else {
+                SearchFlagMatch::RequiresValue {
+                    flag: canonical,
+                    attached: Some(value.to_string()),
+                }
+            };
+        }
+        if arg == *flag {
+            return if optional {
+                SearchFlagMatch::OptionalValue {
+                    flag: canonical,
+                    attached: None,
+                }
+            } else {
+                SearchFlagMatch::RequiresValue {
+                    flag: canonical,
+                    attached: None,
+                }
+            };
+        }
+    }
+    SearchFlagMatch::None
+}
+
+/// Classify command-line arguments as search flags
+///
+/// Determines the type of search flag and how it should be processed during
+/// argument preprocessing for shorthand search syntax.
+///
+/// # Examples
+/// ```rust,ignore
+/// # use crate::SearchFlagMatch;
+/// # fn classify_search_flag(arg: &str) -> SearchFlagMatch { SearchFlagMatch::None }
+/// assert_eq!(classify_search_flag("--context"),
+///            SearchFlagMatch::OptionalValue { flag: "--context", attached: None });
+/// assert_eq!(classify_search_flag("-C5"),
+///            SearchFlagMatch::OptionalValue { flag: "-C", attached: Some("5".to_string()) });
+/// ```
+#[allow(clippy::too_many_lines)] // Exhaustive flag matching keeps clap preprocessing predictable
 fn classify_search_flag(arg: &str) -> SearchFlagMatch {
     match arg {
         "--last" => return SearchFlagMatch::NoValue("--last"),
         "--next" => return SearchFlagMatch::NoValue("--next"),
+        "--previous" => return SearchFlagMatch::NoValue("--previous"),
         "--all" => return SearchFlagMatch::NoValue("--all"),
         "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
+        "--block" => return SearchFlagMatch::NoValue("--block"),
+        "--no-history" => return SearchFlagMatch::NoValue("--no-history"),
+        "--copy" => return SearchFlagMatch::NoValue("--copy"),
         "--json" => return SearchFlagMatch::FormatAlias("json"),
         "--jsonl" => return SearchFlagMatch::FormatAlias("jsonl"),
         "--text" => return SearchFlagMatch::FormatAlias("text"),
@@ -234,7 +320,28 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
         }
     }
 
-    for (flag, canonical) in [
+    // Handle context flags with optional values
+    let context_flags = [
+        ("--context", "--context"),
+        ("--after-context", "--after-context"),
+        ("--before-context", "--before-context"),
+    ];
+    let result = match_flag_with_value(arg, &context_flags, true);
+    if !matches!(result, SearchFlagMatch::None) {
+        return result;
+    }
+
+    // Handle flags that require explicit values
+    let required_value_flags = [
+        ("--max-lines", "--max-lines"),
+        ("--max-chars", "--max-chars"),
+    ];
+    let result = match_flag_with_value(arg, &required_value_flags, false);
+    if !matches!(result, SearchFlagMatch::None) {
+        return result;
+    }
+
+    let search_flags = [
         ("--alias", "--alias"),
         ("--source", "--source"),
         ("--limit", "--limit"),
@@ -245,21 +352,29 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
         ("--show", "--show"),
         ("--score-precision", "--score-precision"),
         ("--snippet-lines", "--snippet-lines"),
-    ] {
-        if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
-            return SearchFlagMatch::RequiresValue {
-                flag: canonical,
-                attached: Some(value.to_string()),
-            };
-        }
-        if arg == flag {
-            return SearchFlagMatch::RequiresValue {
+    ];
+    let result = match_flag_with_value(arg, &search_flags, false);
+    if !matches!(result, SearchFlagMatch::None) {
+        return result;
+    }
+
+    // Handle short context flags with optional attached values (-C5, -A3, -B2, etc.)
+    for (prefix, canonical) in [("-C", "-C"), ("-c", "-c"), ("-A", "-A"), ("-B", "-B")] {
+        if arg == prefix {
+            return SearchFlagMatch::OptionalValue {
                 flag: canonical,
                 attached: None,
             };
         }
+        if arg.starts_with(prefix) && arg.len() > prefix.len() {
+            return SearchFlagMatch::OptionalValue {
+                flag: canonical,
+                attached: Some(arg[prefix.len()..].to_string()),
+            };
+        }
     }
 
+    // Handle other short flags that require values
     for (prefix, canonical) in [("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")] {
         if arg == prefix {
             return SearchFlagMatch::RequiresValue {
@@ -346,7 +461,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
             Some(
                 Commands::Search { format, .. }
                 | Commands::List { format, .. }
-                | Commands::Stats { format }
+                | Commands::Stats { format, .. }
                 | Commands::History { format, .. }
                 | Commands::Lookup { format, .. }
                 | Commands::Get { format, .. }
@@ -437,17 +552,17 @@ async fn execute_command(
                 commands::list_supported(resolved_format);
             }
         },
-        Some(Commands::Docs { format }) => handle_docs(format)?,
+        Some(Commands::Docs { command }) => {
+            handle_docs(command, cli.quiet, metrics.clone(), prefs).await?;
+        },
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Add(args)) => {
             if let Some(manifest) = &args.manifest {
                 commands::add_manifest(
                     manifest,
                     &args.only,
-                    args.yes,
-                    args.dry_run,
-                    cli.quiet,
                     metrics,
+                    commands::AddFlowOptions::new(args.dry_run, cli.quiet, args.no_language_filter),
                 )
                 .await?;
             } else {
@@ -475,13 +590,18 @@ async fn execute_command(
                     args.dry_run,
                     cli.quiet,
                     metrics,
+                    args.no_language_filter,
                 );
 
                 commands::add_source(request).await?;
             }
         },
-        Some(Commands::Lookup { query, format }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet))
+        Some(Commands::Lookup {
+            query,
+            format,
+            limit,
+        }) => {
+            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet), limit)
                 .await?;
         },
         Some(Commands::Registry { command }) => {
@@ -491,6 +611,7 @@ async fn execute_command(
             query,
             sources,
             next,
+            previous,
             last,
             limit,
             all,
@@ -501,17 +622,29 @@ async fn execute_command(
             no_summary,
             score_precision,
             snippet_lines,
+            max_chars,
             context,
+            context_deprecated,
+            after_context,
+            before_context,
             block,
             max_lines,
             no_history,
             copy,
         }) => {
             let resolved_format = format.resolve(cli.quiet);
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                context,
+                context_deprecated,
+                after_context,
+                before_context,
+            );
             handle_search(
                 query,
                 sources,
                 next,
+                previous,
                 last,
                 limit,
                 all,
@@ -522,11 +655,13 @@ async fn execute_command(
                 no_summary,
                 score_precision,
                 snippet_lines,
-                context,
+                max_chars,
+                merged_context,
                 block,
                 max_lines,
                 no_history,
                 copy,
+                cli.quiet,
                 metrics,
                 prefs,
             )
@@ -548,42 +683,88 @@ async fn execute_command(
         },
         // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
         Some(Commands::Get {
-            alias,
+            targets,
             lines,
+            source,
             context,
+            context_deprecated,
+            after_context,
+            before_context,
             block,
             max_lines,
             format,
             copy,
         }) => {
-            // Parse flexible syntax: "alias:lines" or "alias" with separate lines arg
-            let (parsed_alias, parsed_lines) = if let Some(colon_pos) = alias.find(':') {
-                // Colon syntax: "bun:1-3"
-                let (a, l) = alias.split_at(colon_pos);
-                let lines_part = &l[1..]; // Skip the colon
+            if targets.is_empty() {
+                anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
+            }
 
-                // If --lines flag was also provided, prefer it over colon syntax
-                let chosen_lines = lines.map_or_else(|| lines_part.to_string(), |l| l);
-                (a.to_string(), chosen_lines)
-            } else {
-                // No colon, must have --lines flag or error
-                match lines {
-                    Some(l) => (alias.clone(), l),
-                    None => {
-                        anyhow::bail!(
-                            "Missing line specification. Use one of:\n  \
-                             blz get {alias}:1-3\n  \
-                             blz get {alias} 1-3\n  \
-                             blz get {alias} --lines 1-3"
-                        );
-                    },
+            if lines.is_some() && targets.len() > 1 {
+                anyhow::bail!(
+                    "--lines can only be combined with a single alias. \
+                     Provide explicit ranges via colon syntax for each additional target."
+                );
+            }
+
+            let mut request_specs = Vec::with_capacity(targets.len());
+            for (idx, target) in targets.iter().enumerate() {
+                let trimmed = target.trim();
+                if trimmed.is_empty() {
+                    anyhow::bail!("Alias at position {} cannot be empty.", idx + 1);
                 }
-            };
+
+                if let Some((alias_part, range_part)) = trimmed.split_once(':') {
+                    let trimmed_alias = alias_part.trim();
+                    if trimmed_alias.is_empty() {
+                        anyhow::bail!(
+                            "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
+                            idx + 1
+                        );
+                    }
+                    if range_part.is_empty() {
+                        anyhow::bail!(
+                            "Alias '{trimmed_alias}' is missing a range. \
+                             Use syntax like '{trimmed_alias}:120-142'."
+                        );
+                    }
+                    request_specs.push(RequestSpec {
+                        alias: trimmed_alias.to_string(),
+                        line_expression: range_part.trim().to_string(),
+                    });
+                } else {
+                    let Some(line_expr) = lines.clone() else {
+                        anyhow::bail!(
+                            "Missing line specification for alias '{trimmed}'. \
+                             Use '{trimmed}:1-3' or provide --lines."
+                        );
+                    };
+                    request_specs.push(RequestSpec {
+                        alias: trimmed.to_string(),
+                        line_expression: line_expr,
+                    });
+                }
+            }
+
+            if let Some(explicit_source) = source {
+                if request_specs.len() > 1 {
+                    anyhow::bail!("--source cannot be combined with multiple alias targets.");
+                }
+                if let Some(first) = request_specs.first_mut() {
+                    first.alias = explicit_source;
+                }
+            }
+
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                context,
+                context_deprecated,
+                after_context,
+                before_context,
+            );
 
             commands::get_lines(
-                &parsed_alias,
-                &parsed_lines,
-                context,
+                &request_specs,
+                merged_context.as_ref(),
                 block,
                 max_lines,
                 format.resolve(cli.quiet),
@@ -598,11 +779,12 @@ async fn execute_command(
             format,
             status,
             details,
+            limit,
         }) => {
-            commands::list_sources(format.resolve(cli.quiet), status, details).await?;
+            commands::list_sources(format.resolve(cli.quiet), status, details, limit).await?;
         },
-        Some(Commands::Stats { format }) => {
-            commands::show_stats(format.resolve(cli.quiet))?;
+        Some(Commands::Stats { format, limit }) => {
+            commands::show_stats(format.resolve(cli.quiet), limit)?;
         },
         Some(Commands::Validate { alias, all, format }) => {
             commands::validate_source(alias.clone(), all, format.resolve(cli.quiet)).await?;
@@ -626,46 +808,209 @@ async fn execute_command(
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
+        Some(Commands::Mcp) => {
+            commands::mcp_server().await?;
+        },
         Some(Commands::Anchor { command }) => {
-            handle_anchor(command).await?;
+            handle_anchor(command, cli.quiet).await?;
         },
         Some(Commands::Anchors {
             alias,
-            output,
+            format,
             mappings,
         }) => {
-            commands::show_anchors(&alias, output, mappings).await?;
+            // Anchors command doesn't have a limit flag directly (only via subcommand)
+            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings, None).await?;
         },
-        None => commands::handle_default_search(&cli.query, metrics, None, prefs).await?,
+        None => {
+            commands::handle_default_search(&cli.query, metrics, None, prefs, cli.quiet).await?;
+        },
     }
 
     Ok(())
 }
 
-fn handle_docs(format: crate::commands::DocsFormat) -> Result<()> {
-    // If BLZ_OUTPUT_FORMAT=json and no explicit format set (markdown default), prefer JSON
-    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), format) {
+async fn handle_docs(
+    command: Option<DocsCommands>,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    _prefs: &mut CliPreferences,
+) -> Result<()> {
+    match command {
+        Some(DocsCommands::Search(args)) => docs_search(args, quiet, metrics.clone()).await?,
+        Some(DocsCommands::Sync {
+            force,
+            quiet: sync_quiet,
+        }) => docs_sync(force, sync_quiet, metrics.clone())?,
+        Some(DocsCommands::Overview) => {
+            docs_overview(quiet, metrics.clone())?;
+        },
+        Some(DocsCommands::Cat) => {
+            docs_cat(metrics.clone())?;
+        },
+        Some(DocsCommands::Export { format }) => {
+            docs_export(Some(format))?;
+        },
+        None => {
+            // When no subcommand is provided, show overview
+            docs_overview(quiet, metrics.clone())?;
+        },
+    }
+
+    Ok(())
+}
+
+async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, quiet, metrics.clone())?;
+    let query = args.query.join(" ").trim().to_string();
+    if query.is_empty() {
+        anyhow::bail!("Search query cannot be empty");
+    }
+
+    // Resolve format once before checking placeholder content
+    let format = args.format.resolve(quiet);
+
+    // Check if the bundled docs contain placeholder content
+    let storage = Storage::new()?;
+    if let Ok(content_path) = storage.llms_txt_path(BUNDLED_ALIAS) {
+        if let Ok(content) = std::fs::read_to_string(&content_path) {
+            if content.contains("# BLZ bundled docs (placeholder)") {
+                let error_msg = if matches!(format, crate::output::OutputFormat::Json) {
+                    // JSON output: structured error message
+                    let error_json = serde_json::json!({
+                        "error": "Bundled documentation content not yet available",
+                        "reason": "The blz-docs source currently contains placeholder content",
+                        "suggestions": [
+                            "Use 'blz docs overview' for quick-start information",
+                            "Use 'blz docs export' to view CLI documentation",
+                            "Full bundled documentation will be included in a future release"
+                        ]
+                    });
+                    return Err(anyhow!(serde_json::to_string_pretty(&error_json)?));
+                } else {
+                    // Text output: user-friendly message
+                    "Bundled documentation content not yet available.\n\
+                     \n\
+                     The blz-docs source currently contains placeholder content.\n\
+                     Full documentation will be included in a future release.\n\
+                     \n\
+                     Available alternatives:\n\
+                     • Run 'blz docs overview' for quick-start information\n\
+                     • Run 'blz docs export' to view CLI documentation\n\
+                     • Run 'blz docs cat' to view the current placeholder content"
+                };
+                anyhow::bail!("{}", error_msg);
+            }
+        }
+    }
+
+    let sources = vec![BUNDLED_ALIAS.to_string()];
+
+    // Convert docs search args context to ContextMode
+    let context_mode = args.context.map(crate::cli::ContextMode::Symmetric);
+
+    commands::search(
+        &query,
+        &sources,
+        false,
+        args.limit,
+        1,
+        args.top,
+        format,
+        &args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars.unwrap_or(commands::DEFAULT_MAX_CHARS),
+        context_mode.as_ref(),
+        args.block,
+        args.max_block_lines,
+        true,
+        args.copy,
+        quiet,
+        None,
+        metrics,
+        None,
+    )
+    .await
+}
+
+fn docs_sync(force: bool, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(force, quiet, metrics)?;
+    if !quiet && matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs stored at {}", llms_path.display());
+    }
+    Ok(())
+}
+
+fn docs_overview(quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(false, quiet, metrics)?;
+    if !quiet {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs status: {status:?}");
+        println!("Alias: {BUNDLED_ALIAS} (also @blz)");
+        println!("Stored at: {}", llms_path.display());
+    }
+    print_overview();
+    Ok(())
+}
+
+fn docs_cat(metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, true, metrics)?;
+    print_full_content();
+    Ok(())
+}
+
+fn docs_export(format: Option<crate::commands::DocsFormat>) -> Result<()> {
+    let requested = format.unwrap_or(crate::commands::DocsFormat::Markdown);
+    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), requested) {
         (Some(v), crate::commands::DocsFormat::Markdown) if v.eq_ignore_ascii_case("json") => {
             crate::commands::DocsFormat::Json
         },
-        _ => format,
+        _ => requested,
     };
     commands::generate_docs(effective)
 }
 
-async fn handle_anchor(command: AnchorCommands) -> Result<()> {
+fn sync_and_report(
+    force: bool,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<DocsSyncStatus> {
+    let status = sync_bundled_docs(force, metrics)?;
+    if !quiet {
+        match status {
+            DocsSyncStatus::UpToDate => {
+                println!("Bundled docs already up to date");
+            },
+            DocsSyncStatus::Installed => {
+                println!("Installed bundled docs source: {BUNDLED_ALIAS}");
+            },
+            DocsSyncStatus::Updated => {
+                println!("Updated bundled docs source: {BUNDLED_ALIAS}");
+            },
+        }
+    }
+    Ok(status)
+}
+
+async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
     match command {
         AnchorCommands::List {
             alias,
-            output,
+            format,
             mappings,
-        } => commands::show_anchors(&alias, output, mappings).await,
+            limit,
+        } => commands::show_anchors(&alias, format.resolve(quiet), mappings, limit).await,
         AnchorCommands::Get {
             alias,
             anchor,
             context,
-            output,
-        } => commands::get_by_anchor(&alias, &anchor, context, output).await,
+            format,
+        } => commands::get_by_anchor(&alias, &anchor, context, format.resolve(quiet)).await,
     }
 }
 
@@ -724,6 +1069,7 @@ async fn handle_search(
     mut query: Option<String>,
     sources: Vec<String>,
     next: bool,
+    previous: bool,
     last: bool,
     limit: Option<usize>,
     all: bool,
@@ -734,18 +1080,31 @@ async fn handle_search(
     no_summary: bool,
     score_precision: Option<u8>,
     snippet_lines: u8,
-    context: Option<usize>,
+    max_chars: Option<usize>,
+    context: Option<crate::cli::ContextMode>,
     block: bool,
     max_lines: Option<usize>,
     no_history: bool,
     copy: bool,
+    quiet: bool,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
     const DEFAULT_LIMIT: usize = 50;
     const ALL_RESULTS_LIMIT: usize = 10_000;
+    const DEFAULT_SNIPPET_LINES: u8 = 3;
+
     let provided_query = query.is_some();
     let limit_was_explicit = all || limit.is_some();
+
+    // Emit deprecation warning if --snippet-lines was explicitly set
+    if snippet_lines != DEFAULT_SNIPPET_LINES {
+        let args: Vec<String> = std::env::args().collect();
+        if flag_present(&args, "--snippet-lines") || std::env::var("BLZ_SNIPPET_LINES").is_ok() {
+            // Pass false for quiet - the deprecation function handles quiet mode internally
+            utils::cli_args::emit_snippet_lines_deprecation(false);
+        }
+    }
 
     if next {
         if provided_query {
@@ -768,7 +1127,30 @@ async fn handle_search(
         }
     }
 
-    let history_entry = if next || !provided_query {
+    if previous {
+        if provided_query {
+            anyhow::bail!(
+                "Cannot combine --previous with an explicit query. Remove the query to continue from the previous search."
+            );
+        }
+        if !sources.is_empty() {
+            anyhow::bail!(
+                "Cannot combine --previous with --source. Omit --source to reuse the last search context."
+            );
+        }
+        if page != 1 {
+            anyhow::bail!(
+                "Cannot combine --previous with --page. Use one pagination option at a time."
+            );
+        }
+        if last {
+            anyhow::bail!(
+                "Cannot combine --previous with --last. Choose a single continuation flag."
+            );
+        }
+    }
+
+    let history_entry = if next || previous || !provided_query {
         let mut records = utils::history_log::recent_for_active_scope(1);
         if records.is_empty() {
             anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
@@ -805,6 +1187,7 @@ async fn handle_search(
     } else {
         limit.unwrap_or(DEFAULT_LIMIT)
     };
+    let actual_max_chars = max_chars.map_or(commands::DEFAULT_MAX_CHARS, commands::clamp_max_chars);
     let mut actual_page = page;
 
     if let Some(entry) = history_entry.as_ref() {
@@ -848,6 +1231,42 @@ async fn handle_search(
             if !limit_was_explicit {
                 actual_limit = entry.limit.unwrap_or(actual_limit);
             }
+        } else if previous {
+            if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
+                anyhow::bail!(
+                    "Previous search returned 0 results. Rerun with a different query or source."
+                );
+            }
+
+            let history_limit = entry.limit;
+            let history_all = history_limit.is_some_and(|value| value >= ALL_RESULTS_LIMIT);
+            if all != history_all {
+                anyhow::bail!(
+                    "Cannot use --previous when changing page size or --all; rerun without --previous or reuse the previous pagination flags."
+                );
+            }
+            if limit_was_explicit {
+                if let Some(requested_limit) = limit {
+                    if history_limit != Some(requested_limit) {
+                        anyhow::bail!(
+                            "Cannot use --previous when changing page size; rerun without --previous or reuse the previous limit."
+                        );
+                    }
+                }
+            }
+
+            if let Some(prev_page) = entry.page {
+                if prev_page <= 1 {
+                    anyhow::bail!("Already on first page");
+                }
+                actual_page = prev_page - 1;
+            } else {
+                anyhow::bail!("No previous page found in search history");
+            }
+
+            if !limit_was_explicit {
+                actual_limit = entry.limit.unwrap_or(actual_limit);
+            }
         } else if !provided_query && !limit_was_explicit {
             actual_limit = entry.limit.unwrap_or(actual_limit);
         }
@@ -865,11 +1284,13 @@ async fn handle_search(
         no_summary,
         score_precision,
         snippet_lines,
-        context,
+        actual_max_chars,
+        context.as_ref(),
         block,
         max_lines,
         no_history,
         copy,
+        quiet,
         Some(prefs),
         metrics,
         None,
@@ -1384,10 +1805,9 @@ mod tests {
 
         let raw = to_string_vec(&["blz", "list", "--jsonl"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "list", "--format", "jsonl"]);
-        assert_eq!(processed, expected);
+        assert_eq!(processed, raw);
 
-        let cli = Cli::try_parse_from(processed).unwrap();
+        let cli = Cli::try_parse_from(raw).unwrap();
         match cli.command {
             Some(Commands::List { format, .. }) => {
                 assert_eq!(format.resolve(false), crate::output::OutputFormat::Jsonl);
@@ -1414,12 +1834,220 @@ mod tests {
     fn preprocess_retains_hidden_subcommand_with_search_flags() {
         let raw = to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--json"]);
         let processed = preprocess_args_from(&raw);
-        let expected =
-            to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--format", "json"]);
+        // Should preserve --json for explicit subcommands (even hidden ones)
         assert_eq!(
-            processed, expected,
-            "hidden subcommands must not trigger shorthand injection"
+            processed, raw,
+            "hidden subcommands must not trigger shorthand injection or format conversion"
         );
+    }
+
+    #[test]
+    fn preprocess_handles_context_flags() {
+        use clap::Parser;
+
+        // Test --context flag
+        let raw = to_string_vec(&["blz", "query", "--context", "all"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--context", "all"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { context, .. }) => {
+                assert!(context.is_some());
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_short_context_flags() {
+        use clap::Parser;
+
+        // Test -C flag with attached value
+        let raw = to_string_vec(&["blz", "hooks", "-C5"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "hooks", "-C", "5"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { context, .. }) => {
+                assert!(context.is_some());
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_after_context_flag() {
+        use clap::Parser;
+
+        // Test -A flag
+        let raw = to_string_vec(&["blz", "api", "-A3"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "api", "-A", "3"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { after_context, .. }) => {
+                assert_eq!(after_context, Some(3));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_before_context_flag() {
+        // Test -B flag
+        let raw = to_string_vec(&["blz", "documentation", "-B2"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "documentation", "-B", "2"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_deprecated_context_flag() {
+        // Test deprecated -c flag
+        let raw = to_string_vec(&["blz", "example", "-c5"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "-c", "5"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_block_flag() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "guide", "--block"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "guide", "--block"]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search { block, .. }) => {
+                assert!(block);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_max_lines_flag() {
+        let raw = to_string_vec(&["blz", "example", "--max-lines", "50"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "--max-lines", "50"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_max_chars_flag() {
+        let raw = to_string_vec(&["blz", "example", "--max-chars", "300"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "example", "--max-chars", "300"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_no_history_flag() {
+        let raw = to_string_vec(&["blz", "query", "--no-history"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--no-history"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_copy_flag() {
+        let raw = to_string_vec(&["blz", "query", "--copy"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "query", "--copy"]);
+        assert_eq!(processed, expected);
+    }
+
+    #[test]
+    fn preprocess_handles_multiple_context_flags() {
+        use clap::Parser;
+
+        // Test combination with other flags
+        let raw = to_string_vec(&[
+            "blz",
+            "test",
+            "--context",
+            "all",
+            "-s",
+            "react",
+            "--limit",
+            "10",
+        ]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&[
+            "blz",
+            "search",
+            "test",
+            "--context",
+            "all",
+            "-s",
+            "react",
+            "--limit",
+            "10",
+        ]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context,
+                sources,
+                limit,
+                ..
+            }) => {
+                assert!(context.is_some());
+                assert_eq!(sources, vec!["react"]);
+                assert_eq!(limit, Some(10));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_context_with_json_flag() {
+        use clap::Parser;
+
+        // Regression test for the original bug report
+        let raw = to_string_vec(&["blz", "test runner", "--context", "all", "--json"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&[
+            "blz",
+            "search",
+            "test runner",
+            "--context",
+            "all",
+            "--format",
+            "json",
+        ]);
+        assert_eq!(processed, expected);
+
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context, format, ..
+            }) => {
+                assert!(context.is_some());
+                assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_handles_combined_context_flags() {
+        // Test -A and -B together
+        let raw = to_string_vec(&["blz", "documentation", "-A3", "-B2"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "documentation", "-A", "3", "-B", "2"]);
+        assert_eq!(processed, expected);
     }
 
     #[test]
@@ -1566,18 +2194,21 @@ mod tests {
         .unwrap();
 
         if let Some(Commands::Get {
-            alias,
+            targets,
             lines,
+            source,
             context,
             block,
             max_lines,
             format,
             copy: _,
+            ..
         }) = cli.command
         {
-            assert_eq!(alias, "test");
+            assert_eq!(targets, vec!["test".to_string()]);
             assert_eq!(lines, Some("1-10".to_string()));
-            assert_eq!(context, Some(5));
+            assert!(source.is_none());
+            assert_eq!(context, Some(crate::cli::ContextMode::Symmetric(5)));
             assert!(!block);
             assert_eq!(max_lines, None);
             let _ = format; // ignore
@@ -2113,6 +2744,119 @@ mod tests {
             assert_eq!(sources, vec!["bun", "node", "deno"]);
         } else {
             panic!("Expected search command");
+        }
+    }
+
+    #[test]
+    fn test_get_command_with_source_flag() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec![
+            "blz", "get", "meta", "--lines", "1-3", "--source", "bun",
+        ])
+        .unwrap();
+
+        if let Some(Commands::Get {
+            targets,
+            source,
+            lines,
+            ..
+        }) = cli.command
+        {
+            assert_eq!(targets, vec!["meta".to_string()]);
+            assert_eq!(source.as_deref(), Some("bun"));
+            assert_eq!(lines.as_deref(), Some("1-3"));
+        } else {
+            panic!("Expected get command");
+        }
+    }
+
+    #[test]
+    fn test_get_command_with_source_shorthand() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec!["blz", "get", "meta:4-6", "-s", "canonical"]).unwrap();
+
+        if let Some(Commands::Get {
+            targets, source, ..
+        }) = cli.command
+        {
+            assert_eq!(targets, vec!["meta:4-6".to_string()]);
+            assert_eq!(source.as_deref(), Some("canonical"));
+        } else {
+            panic!("Expected get command");
+        }
+    }
+
+    #[test]
+    fn preprocess_preserves_following_flags_for_optional_context() {
+        use crate::output::OutputFormat;
+        use clap::Parser;
+
+        // Test that context flags without values don't consume following flags
+        let raw = to_string_vec(&["blz", "foo", "--context", "--json"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "foo", "--context", "--format", "json"]);
+        assert_eq!(processed, expected);
+
+        // Verify clap can parse it correctly
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context, format, ..
+            }) => {
+                assert!(context.is_some()); // Should get default value
+                assert_eq!(format.format, Some(OutputFormat::Json));
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_preserves_following_flags_for_short_context() {
+        use clap::Parser;
+
+        // Test that -C without value doesn't consume following flags
+        let raw = to_string_vec(&["blz", "hooks", "-C", "--source", "react"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "hooks", "-C", "--source", "react"]);
+        assert_eq!(processed, expected);
+
+        // Verify clap can parse it correctly
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                context, sources, ..
+            }) => {
+                assert!(context.is_some()); // Should get default value
+                assert_eq!(sources, vec!["react"]);
+            },
+            _ => panic!("expected search command"),
+        }
+    }
+
+    #[test]
+    fn preprocess_preserves_following_flags_for_after_context() {
+        use clap::Parser;
+
+        // Test that -A without value doesn't consume following flags
+        let raw = to_string_vec(&["blz", "api", "-A", "--limit", "5"]);
+        let processed = preprocess_args_from(&raw);
+        let expected = to_string_vec(&["blz", "search", "api", "-A", "--limit", "5"]);
+        assert_eq!(processed, expected);
+
+        // Verify clap can parse it correctly
+        let cli = Cli::try_parse_from(processed).unwrap();
+        match cli.command {
+            Some(Commands::Search {
+                after_context,
+                limit,
+                ..
+            }) => {
+                assert!(after_context.is_some()); // Should get default value
+                assert_eq!(limit, Some(5));
+            },
+            _ => panic!("expected search command"),
         }
     }
 }

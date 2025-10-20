@@ -3,7 +3,7 @@
   "summary": "Run built-in diagnostics across configuration, cache structure, and source health. Optionally auto-fix common issues.",
   "usage": [
     {
-      "command": "blz doctor --format json",
+      "command": "blz doctor --json",
       "description": "Emit structured results for agents (each check reports status, category, and remediation hints)."
     },
     {
@@ -13,7 +13,7 @@
   ],
   "agent_tips": [
     "Use before shipping a workspace snapshot or after manual filesystem edits.",
-    "Pair with `--format json` to create structured health dashboards.",
+    "Pair with `--json` to create structured health dashboards.",
     "If `--fix` repairs a source, consider following up with `blz validate <alias>` to confirm integrity."
   ]
 }

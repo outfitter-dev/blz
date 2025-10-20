@@ -285,6 +285,24 @@ For more task-oriented solutions, see the [CLI How-To Guide](cli/howto.md).
 - Set up [shell integration](cli/shell_integration.md) for better productivity
 - Understand the [architecture](architecture/README.md) for deeper knowledge
 
+## MCP Server Integration
+
+Use BLZ in your AI coding assistant:
+
+### Claude Code
+
+```bash
+# Install for all projects
+claude mcp add blz blz mcp --scope user
+
+# Verify
+claude mcp list
+```
+
+### Other Tools
+
+For Cursor, Windsurf, Codex, and other MCP-compatible tools, see the [MCP setup guide](mcp/SETUP.md).
+
 ## Getting Help
 
 - Run `blz --help` for command reference
