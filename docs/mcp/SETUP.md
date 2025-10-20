@@ -184,12 +184,14 @@ claude mcp add blz blz mcp --scope local
 After installation, verify BLZ is connected:
 
 ### Claude Code
+
 1. Restart Claude Code
 2. Open the MCP panel
 3. Verify "blz" server is connected
 4. Check available tools: `find`, `list-sources`, `source-add`, `run-command`, `learn-blz`
 
 ### Other Clients
+
 1. Restart your IDE
 2. Look for MCP server status indicator
 3. Try a search: "Can you search the Bun docs for information about the test runner?"
@@ -249,6 +251,7 @@ blz mcp | npx @modelcontextprotocol/inspector
 ```
 
 The inspector provides a web UI to:
+
 - View available tools and their schemas
 - Send test requests
 - Inspect responses
@@ -300,12 +303,14 @@ If these work, the MCP server should work too.
 **Fix:**
 
 1. Find BLZ installation:
+
    ```bash
    which blz
    # Example output: /Users/you/.cargo/bin/blz
    ```
 
 2. Use absolute path in config:
+
    ```json
    {
      "command": "/Users/you/.cargo/bin/blz",
@@ -314,6 +319,7 @@ If these work, the MCP server should work too.
    ```
 
 3. Or add to PATH permanently:
+
    ```bash
    # For Bash/Zsh
    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
@@ -344,6 +350,7 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}' | blz mcp | jq
 ```
 
 If capabilities are empty, this is a bug. Please file an issue with:
+
 - BLZ version: `blz --version`
 - OS and architecture
 - Output of the debug command above
@@ -357,17 +364,20 @@ If capabilities are empty, this is a bug. Please file an issue with:
 **Optimize:**
 
 1. **Reduce sources**: Only keep actively used documentation
+
    ```bash
    blz list
    blz remove unused-source
    ```
 
 2. **Warm cache**: Search once to load indices
+
    ```bash
    blz search "test" --source bun
    ```
 
 3. **Check stats**: Large indices take longer to load
+
    ```bash
    blz stats
    ```

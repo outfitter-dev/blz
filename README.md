@@ -274,6 +274,7 @@ blz mcp
 ```
 
 The MCP server exposes:
+
 - **`find` tool**: Search and retrieve documentation with exact line citations
 - **`list-sources` tool**: Discover installed and registry sources
 - **`source-add` tool**: Add documentation sources
@@ -298,6 +299,7 @@ find({
 ```
 
 **Performance:**
+
 - <1 KB handshake size
 - Sub-50ms search latency (warm cache)
 - Direct `blz-core` integration (no CLI shell-outs)
