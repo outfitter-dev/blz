@@ -194,7 +194,7 @@ summarize() {
 
 confirm_prune() {
   local prompt=$1
-  if "${auto_confirm}"; then
+  if [[ "${auto_confirm}" == "true" ]]; then
     return 0
   fi
 

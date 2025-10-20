@@ -105,18 +105,19 @@ if command -v numfmt >/dev/null 2>&1; then
     numfmt --to=iec --suffix=B --format="%.2f" "${bytes}"
   }
 else
+  # Fallback using pure Bash arithmetic (more portable, no bc dependency)
   human_size() {
     local size_kb=$1
     local units=("KB" "MB" "GB" "TB" "PB")
     local unit_index=0
-    local size=$size_kb
+    local size="${size_kb}"
 
-    while (( $(echo "$size >= 1024" | bc -l) )) && (( unit_index < 4 )); do
-      size=$(echo "scale=2; $size / 1024" | bc)
-      unit_index=$((unit_index + 1))
+    while (( size >= 1024 && unit_index < ${#units[@]} - 1 )); do
+      size=$(( size / 1024 ))
+      ((unit_index++))
     done
 
-    printf "%.2f %s" "$size" "${units[$unit_index]}"
+    printf "%d %s" "${size}" "${units[unit_index]}"
   }
 fi
 
@@ -338,6 +339,8 @@ run_cargo_sweep() {
 
   cd "${REPO_ROOT}"
   cargo sweep -s >/dev/null 2>&1 || true
+  # Use 30-day threshold (vs. 0 in prune-target.sh) since shared target
+  # is used by multiple worktrees; more conservative cleanup is safer
   cargo sweep -f -t 30
 
   echo "✓ Swept stale artifacts older than 30 days"

@@ -151,9 +151,14 @@ setup_shared_target() {
   # For conductor, persist to shell rc for convenience
   if [ "$AGENT_TYPE" = "conductor" ]; then
     local shell_rc=""
+    # Try shell-specific version variables first, then fall back to $SHELL
     if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
       shell_rc="$HOME/.bashrc"
     elif [ -n "${ZSH_VERSION:-}" ] && [ -f "$HOME/.zshrc" ]; then
+      shell_rc="$HOME/.zshrc"
+    elif [[ "${SHELL:-}" == *bash ]] && [ -f "$HOME/.bashrc" ]; then
+      shell_rc="$HOME/.bashrc"
+    elif [[ "${SHELL:-}" == *zsh ]] && [ -f "$HOME/.zshrc" ]; then
       shell_rc="$HOME/.zshrc"
     fi
 
