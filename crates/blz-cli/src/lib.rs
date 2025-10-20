@@ -11,7 +11,7 @@ use tracing::{Level, warn};
 use tracing_subscriber::FmtSubscriber;
 
 use std::collections::BTreeSet;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 mod cli;
 mod commands;
@@ -793,11 +793,11 @@ async fn execute_command(
             commands::run_doctor(format.resolve(cli.quiet), fix).await?;
         },
         Some(Commands::Update {
-            alias,
+            aliases,
             all,
             yes: _, // Ignored - kept for CLI backward compat
         }) => {
-            handle_update(alias, all, metrics, cli.quiet).await?;
+            handle_update(aliases, all, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -1299,18 +1299,28 @@ async fn handle_search(
 }
 
 async fn handle_update(
-    alias: Option<String>,
+    aliases: Vec<String>,
     all: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
 ) -> Result<()> {
-    if all || alias.is_none() {
-        commands::update_all(metrics, quiet).await
-    } else if let Some(alias) = alias {
-        commands::update_source(&alias, metrics, quiet).await
-    } else {
-        Ok(())
+    if all || aliases.is_empty() {
+        return commands::update_all(metrics, quiet).await;
     }
+
+    for alias in aliases {
+        let metrics_clone = PerformanceMetrics {
+            search_count: Arc::clone(&metrics.search_count),
+            total_search_time: Arc::clone(&metrics.total_search_time),
+            index_build_count: Arc::clone(&metrics.index_build_count),
+            total_index_time: Arc::clone(&metrics.total_index_time),
+            bytes_processed: Arc::clone(&metrics.bytes_processed),
+            lines_searched: Arc::clone(&metrics.lines_searched),
+        };
+        commands::update_source(&alias, metrics_clone, quiet).await?;
+    }
+
+    Ok(())
 }
 
 fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
@@ -1518,6 +1528,85 @@ mod tests {
                 "Valid combination should parse: {combination:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_cli_parse_update_multiple_aliases() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec!["blz", "update", "bun", "react"]).unwrap();
+        match cli.command {
+            Some(Commands::Update { aliases, all, .. }) => {
+                assert_eq!(aliases, vec!["bun", "react"]);
+                assert!(!all);
+            },
+            other => panic!("Expected update command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_update_all_conflict_with_aliases() {
+        use clap::Parser;
+
+        let result = Cli::try_parse_from(vec!["blz", "update", "bun", "--all"]);
+        assert!(
+            result.is_err(),
+            "--all should conflict with explicit aliases"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_shorthand_context_flags() {
+        fn assert_processed(input: &[&str], expected: &[&str]) {
+            let raw = to_string_vec(input);
+            let processed = preprocess_args_from(&raw);
+            assert_eq!(
+                processed,
+                to_string_vec(expected),
+                "unexpected preprocess result for {input:?}"
+            );
+        }
+
+        assert_processed(
+            &["blz", "hooks", "--context", "all"],
+            &["blz", "search", "hooks", "--context", "all"],
+        );
+        assert_processed(
+            &["blz", "hooks", "--context", "5"],
+            &["blz", "search", "hooks", "--context", "5"],
+        );
+        assert_processed(
+            &["blz", "hooks", "-C5"],
+            &["blz", "search", "hooks", "-C", "5"],
+        );
+        assert_processed(
+            &["blz", "hooks", "-A3"],
+            &["blz", "search", "hooks", "-A", "3"],
+        );
+        assert_processed(
+            &["blz", "hooks", "-B2"],
+            &["blz", "search", "hooks", "-B", "2"],
+        );
+        assert_processed(
+            &["blz", "hooks", "--after-context", "4"],
+            &["blz", "search", "hooks", "--after-context", "4"],
+        );
+        assert_processed(
+            &["blz", "hooks", "--before-context", "4"],
+            &["blz", "search", "hooks", "--before-context", "4"],
+        );
+        assert_processed(
+            &["blz", "hooks", "--context", "all", "--source", "ctx"],
+            &[
+                "blz",
+                "search",
+                "hooks",
+                "--context",
+                "all",
+                "--source",
+                "ctx",
+            ],
+        );
     }
 
     #[test]

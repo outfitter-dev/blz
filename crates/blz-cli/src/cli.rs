@@ -666,10 +666,15 @@ pub enum Commands {
     /// Update sources
     #[command(display_order = 10)]
     Update {
-        /// Source to update (updates all if not specified)
-        alias: Option<String>,
+        /// Source aliases to refresh (updates all if omitted)
+        #[arg(
+            value_name = "ALIAS",
+            num_args = 0..,
+            conflicts_with = "all"
+        )]
+        aliases: Vec<String>,
         /// Update all sources
-        #[arg(long)]
+        #[arg(long, conflicts_with = "aliases")]
         all: bool,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
         #[arg(short = 'y', long = "yes")]
