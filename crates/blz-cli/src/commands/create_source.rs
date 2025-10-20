@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use blz_core::PerformanceMetrics;
 use chrono::Utc;
 use colored::Colorize;
-use dialoguer::{Confirm, Input, MultiSelect};
+use inquire::{Confirm, MultiSelect, Select, Text};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -103,10 +103,9 @@ pub async fn execute(
             "⚠".yellow(),
             analysis.analysis.line_count
         );
-        let proceed = Confirm::new()
-            .with_prompt("Add it to the registry anyway?")
-            .default(false)
-            .interact()?;
+        let proceed = Confirm::new("Add it to the registry anyway?")
+            .with_default(false)
+            .prompt()?;
 
         if !proceed {
             println!("Skipping source.");
@@ -301,9 +300,7 @@ fn prompt_metadata(
     let description = if let Some(desc) = description {
         desc
     } else {
-        Input::<String>::new()
-            .with_prompt("Description")
-            .interact_text()?
+        Text::new("Description").prompt()?
     };
 
     // Category
@@ -321,13 +318,10 @@ fn prompt_metadata(
     let category = if let Some(cat) = category {
         cat
     } else {
-        let default_idx = 0;
-        let selection = dialoguer::Select::new()
-            .with_prompt("Category")
-            .items(&available_categories)
-            .default(default_idx)
-            .interact()?;
-        available_categories[selection].to_string()
+        let selection = Select::new("Category", available_categories.clone())
+            .with_starting_cursor(0)
+            .prompt()?;
+        selection.to_string()
     };
 
     // Tags
@@ -349,14 +343,10 @@ fn prompt_metadata(
             "cli",
         ];
 
-        let selections = MultiSelect::new()
-            .with_prompt("Tags (space to select, enter when done)")
-            .items(&suggested_tags)
-            .interact()?;
-
-        selections
-            .iter()
-            .map(|&i| suggested_tags[i].to_string())
+        MultiSelect::new("Tags (space to select, enter when done)", suggested_tags)
+            .prompt()?
+            .into_iter()
+            .map(std::string::ToString::to_string)
             .collect()
     } else {
         tags
@@ -364,10 +354,9 @@ fn prompt_metadata(
 
     // NPM packages
     let npm_packages = if npm_packages.is_empty() {
-        let input: String = Input::new()
-            .with_prompt("NPM packages (comma-separated, or leave empty)")
-            .allow_empty(true)
-            .interact_text()?;
+        let input = Text::new("NPM packages (comma-separated, or leave empty)")
+            .with_default("")
+            .prompt()?;
 
         if input.is_empty() {
             Vec::new()
@@ -380,10 +369,9 @@ fn prompt_metadata(
 
     // GitHub repos
     let github_repos = if github_repos.is_empty() {
-        let input: String = Input::new()
-            .with_prompt("GitHub repos (comma-separated, or leave empty)")
-            .allow_empty(true)
-            .interact_text()?;
+        let input = Text::new("GitHub repos (comma-separated, or leave empty)")
+            .with_default("")
+            .prompt()?;
 
         if input.is_empty() {
             Vec::new()
