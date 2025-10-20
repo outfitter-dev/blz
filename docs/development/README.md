@@ -88,6 +88,138 @@ Welcome to the BLZ development documentation. This guide covers our development 
 - **Git Hooks**: Lefthook for pre-commit checks (see "Local Hooks + Nextest" in docs/development/ci_cd.md; quick start: `just bootstrap-fast`)
 - **AI Assistance**: Claude for code reviews and development
 
+## ⚡ Build Performance Optimization
+
+### Compilation Speed
+
+BLZ uses several techniques to optimize build and test performance:
+
+#### Profile Optimizations
+
+The workspace is configured with optimized build profiles in `Cargo.toml`:
+
+- **Dev profile**: Incremental compilation enabled, dependencies optimized at level 2
+- **Test profile**: Incremental compilation with opt-level 1 for faster test execution
+- **Release profile**: Full LTO and single codegen unit for maximum runtime performance
+
+These settings significantly reduce compilation time while maintaining good runtime performance during development. Host/OS-specific tweaks (e.g., `target-cpu=native` on macOS) remain in `.cargo/config.toml`.
+
+#### Shared Compilation Cache (sccache)
+
+[sccache](https://github.com/mozilla/sccache) provides shared compilation caching to dramatically reduce rebuild times. **Optional but recommended:** builds work without sccache, but enabling it accelerates rebuilds significantly—especially on repeat clippy/test runs.
+
+**Installation (once):**
+
+```bash
+# macOS
+brew install sccache
+
+# Arch Linux
+pacman -S sccache
+
+# Cargo (universal)
+cargo install sccache
+```
+
+**Setup (per shell):**
+
+Add to your shell configuration file (`~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`):
+
+```bash
+# Bash/Zsh
+export RUSTC_WRAPPER=sccache
+
+# Fish
+set -gx RUSTC_WRAPPER sccache
+```
+
+**Verify it's working:**
+
+```bash
+sccache --show-stats
+```
+
+You should see cache hits increase as you rebuild the project.
+
+**Performance Impact:**
+
+- Cold compile of the entire workspace: ~8½ minutes (measured 2025-10-19 without cache)
+- With warm sccache: ~2-3 minutes (60-70% faster once cache is primed)
+- Incremental builds: typically <30 seconds
+
+#### Build Timings Analysis
+
+To identify slow dependencies and compilation bottlenecks:
+
+```bash
+# Generate HTML report of build times
+cargo build --timings
+
+# Open the generated report
+open target/cargo-timings/cargo-timing.html
+```
+
+This creates a detailed timeline showing:
+- Which crates take longest to compile
+- Dependency graph and parallel compilation opportunities
+- CPU utilization during the build
+
+Use this to identify optimization opportunities or problematic dependencies.
+
+### Parallel Test Execution
+
+Use [cargo-nextest](https://nexte.st/) for faster test runs:
+
+```bash
+# Install
+cargo install cargo-nextest
+
+# Run tests (automatically uses all CPU cores)
+cargo nextest run --workspace
+
+# Run with coverage
+cargo llvm-cov nextest --workspace
+```
+
+Nextest runs tests in parallel by default and provides better output formatting.
+
+### Reducing Target Directory Bloat
+
+The `target/` directory can grow quickly—on 2025-10-19 a long-lived checkout measured ~86 GB with the heaviest paths at `target/debug` (~43 GB), `target/llvm-cov-target` (~2.9 GB), and `target/tests` (~1.1 GB). Clean it periodically:
+
+Use the helper script to inspect and prune bloat:
+
+```bash
+# Summarize sizes and warn if they exceed 8 GB
+scripts/prune-target.sh --check
+
+# Drop incremental/debug caches (fast rebuild once sccache warms)
+scripts/prune-target.sh --prune-debug
+
+# Remove coverage + test artefacts (prompts before deleting)
+scripts/prune-target.sh --prune
+
+# Full reset (equivalent to cargo clean, but safer prompts)
+scripts/prune-target.sh --prune-all
+
+# Optional: pair any prune with cargo-sweep cleanup (requires cargo-sweep installed)
+scripts/prune-target.sh --prune-debug --sweep
+```
+
+Most integration tests already run in temporary directories via `tempfile::tempdir()`, so they clean up cleanly and keep `~/.blz` untouched. Large leftovers usually come from cached build artefacts rather than the tests themselves. The pruning script also powers automated warnings in local git hooks when the cache grows past the configured threshold.
+
+Consider using [cargo-sweep](https://github.com/holmgr/cargo-sweep) to automatically remove old artifacts:
+
+```bash
+cargo install cargo-sweep
+
+# Mark current files as used
+cargo sweep -s
+
+# Remove unused artifacts older than 30 days
+cargo sweep -f -t 30
+```
+
 ## 📋 Project Structure
 
 ```
@@ -110,6 +242,121 @@ blz/
 3. **Performance**: Zero-copy operations where possible, efficient caching
 4. **Security**: No unsafe code, comprehensive input validation
 5. **Testing**: Unit tests alongside code, integration tests in `tests/`
+
+## 🌳 Git Worktrees Support
+
+BLZ automatically optimizes build performance when using git worktrees by sharing compilation artifacts across all worktrees.
+
+### What Are Git Worktrees?
+
+Git worktrees let you check out multiple branches simultaneously in separate directories:
+
+```bash
+# Create a worktree for a new feature
+git worktree add ../blz-feature-x feature-branch
+
+# Work in both directories without switching branches
+cd ../blz-feature-x
+cargo build  # Uses shared target directory
+```
+
+### Automatic Shared Target Configuration
+
+When the setup scripts detect multiple worktrees, they automatically:
+
+1. **Set `CARGO_TARGET_DIR`** to `<repo-root>/target-shared/`
+2. **Share compilation artifacts** across all worktrees
+3. **Reduce disk usage** by 40-50% (from ~6.6GB to ~3-4GB)
+4. **Speed up builds** with shared incremental compilation
+
+**Example disk usage:**
+
+```
+Without shared target:
+  main/target/       4.2GB
+  feature-x/target/  2.4GB
+  Total:             6.6GB
+
+With shared target:
+  target-shared/     3.1GB  (shared across all worktrees)
+  main/target/       (empty, can be removed)
+  feature-x/target/  (empty, can be removed)
+  Total:             3.1GB (53% reduction)
+```
+
+### Manual Configuration
+
+The setup is automatic when using `scripts/setup-agent-conductor.sh` or `scripts/setup-agent-universal.sh`, but you can configure manually:
+
+```bash
+# Enable shared target for current shell
+export CARGO_TARGET_DIR="$(git rev-parse --show-toplevel)/target-shared"
+
+# Or add to your shell rc file (~/.bashrc, ~/.zshrc, etc.)
+echo 'export CARGO_TARGET_DIR="$HOME/Developer/outfitter/blz/target-shared"' >> ~/.zshrc
+```
+
+### Managing Shared Target Space
+
+Use the dedicated pruning script for shared targets:
+
+```bash
+# Check shared target size
+scripts/prune-shared-target.sh --check
+
+# Remove debug caches (safe, fast to rebuild with sccache)
+scripts/prune-shared-target.sh --prune-debug
+
+# Full clean (requires full rebuild)
+scripts/prune-shared-target.sh --prune-all
+```
+
+The regular `scripts/prune-target.sh` automatically detects shared targets and provides guidance:
+
+```bash
+scripts/prune-target.sh --check
+# Output:
+# ℹ️  Shared target detected for git worktrees
+#    Shared: /Users/you/blz/target-shared
+#    Local:  /Users/you/blz/target
+#
+#    Shared target size: 3.1GB
+#    Manage with: scripts/prune-shared-target.sh
+```
+
+### Cleanup After Worktree Removal
+
+When you remove worktrees and no longer need the shared target:
+
+```bash
+# Remove all worktrees
+git worktree remove feature-x
+
+# Clean up shared target
+rm -rf target-shared/
+
+# Unset environment variable
+unset CARGO_TARGET_DIR
+# (or remove from shell rc file)
+```
+
+### Best Practices with Worktrees
+
+1. **Use conductor agent**: `scripts/setup-agent-conductor.sh` handles everything automatically
+2. **Enable sccache**: Shared target + sccache = maximum speed with minimum disk usage
+3. **Monitor size**: Pre-push hooks check both local and shared targets for bloat
+4. **Clean old locals**: After switching to shared target, remove old per-worktree `target/` directories:
+   ```bash
+   cd path/to/worktree
+   scripts/prune-target.sh --prune-all
+   ```
+
+### Compatibility Notes
+
+- **Remote agents** (Factory, Codex, Devin): Automatically use per-workspace targets (no worktrees in containers)
+- **CI environments**: Use standard `target/` directory (no worktrees in CI)
+- **Manual override**: Set `CARGO_TARGET_DIR` to any path to override auto-detection
+- **Disable sharing**: `unset CARGO_TARGET_DIR` to revert to per-worktree targets
 
 ## 🔬 Local Development Setup
 

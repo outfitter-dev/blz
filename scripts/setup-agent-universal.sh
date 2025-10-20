@@ -116,12 +116,80 @@ ensure_rust_toolchain() {
 }
 
 # ============================================================================
+# Worktree Detection & Shared Target Setup
+# ============================================================================
+setup_shared_target() {
+  # Skip if CARGO_TARGET_DIR already explicitly set by user
+  if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+    log_success "CARGO_TARGET_DIR already set: ${CARGO_TARGET_DIR}"
+    return
+  fi
+
+  # Detect worktrees
+  if ! has_cmd git; then
+    return
+  fi
+
+  local worktree_count
+  worktree_count=$(git worktree list 2>/dev/null | wc -l)
+
+  if [ "$worktree_count" -le 1 ]; then
+    # Single worktree or not a git repo - use default behavior
+    return
+  fi
+
+  # Multiple worktrees detected - set up shared target
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$REPO_ROOT")
+  local shared_target="${repo_root}/target-shared"
+
+  log_step "Git worktrees detected (${worktree_count} total)"
+  log_success "Configuring shared target directory: ${shared_target}"
+
+  export CARGO_TARGET_DIR="${shared_target}"
+
+  # For conductor, persist to shell rc for convenience
+  if [ "$AGENT_TYPE" = "conductor" ]; then
+    local shell_rc=""
+    # Try shell-specific version variables first, then fall back to $SHELL
+    if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
+      shell_rc="$HOME/.bashrc"
+    elif [ -n "${ZSH_VERSION:-}" ] && [ -f "$HOME/.zshrc" ]; then
+      shell_rc="$HOME/.zshrc"
+    elif [[ "${SHELL:-}" == *bash ]] && [ -f "$HOME/.bashrc" ]; then
+      shell_rc="$HOME/.bashrc"
+    elif [[ "${SHELL:-}" == *zsh ]] && [ -f "$HOME/.zshrc" ]; then
+      shell_rc="$HOME/.zshrc"
+    fi
+
+    if [ -n "$shell_rc" ]; then
+      if ! grep -q "CARGO_TARGET_DIR.*target-shared" "$shell_rc" 2>/dev/null; then
+        log "Adding CARGO_TARGET_DIR to ${shell_rc}"
+        cat >> "$shell_rc" << EOF
+
+# blz worktree shared target (added by setup-agent-conductor.sh)
+export CARGO_TARGET_DIR="${shared_target}"
+EOF
+        log_success "Shell configuration updated"
+      fi
+    fi
+  fi
+
+  log_success "Shared target enabled: ${CARGO_TARGET_DIR}"
+  echo "         This saves disk space by sharing compilation artifacts across worktrees."
+  echo "         To disable: unset CARGO_TARGET_DIR"
+}
+
+# ============================================================================
 # Cargo Bootstrap
 # ============================================================================
 cargo_bootstrap() {
   if ! has_cmd cargo; then
     fail "cargo missing after rustup install"
   fi
+
+  # Configure shared target if worktrees detected
+  setup_shared_target
 
   log "Fetching cargo dependencies (${AGENT_CARGO_FETCH_ARGS})"
   if ! cargo fetch ${AGENT_CARGO_FETCH_ARGS}; then
