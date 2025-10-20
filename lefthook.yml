@@ -128,8 +128,14 @@ pre-push:
             echo "⏭  Strict bypass enabled (.hooks/allow-strict-bypass). Skipping tests."
             exit 0
           fi
-          if [ -z "${CI:-}" ] && [ -x scripts/prune-target.sh ]; then
-            scripts/prune-target.sh --check --threshold 60 || true
+          if [ -z "${CI:-}" ]; then
+            # Check both local and shared targets for bloat
+            if [ -x scripts/prune-target.sh ]; then
+              scripts/prune-target.sh --check --threshold 60 || true
+            fi
+            if [ -x scripts/prune-shared-target.sh ] && [ -d target-shared ]; then
+              scripts/prune-shared-target.sh --check --threshold 60 || true
+            fi
           fi
           # Enable sccache if available for faster compilation
           if command -v sccache >/dev/null 2>&1; then

@@ -80,11 +80,34 @@ done
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TARGET_DIR="${REPO_ROOT}/target"
+SHARED_TARGET_DIR="${REPO_ROOT}/target-shared"
 run_sweep=${run_sweep:-false}
 
+# Detect if shared target is in use
+shared_target_active=false
+if [[ -n "${CARGO_TARGET_DIR:-}" ]] && [[ "${CARGO_TARGET_DIR}" == *"target-shared"* ]]; then
+  shared_target_active=true
+elif [[ -d "${SHARED_TARGET_DIR}" ]]; then
+  # Check if worktrees exist
+  if command -v git >/dev/null 2>&1; then
+    worktree_count=$(git worktree list 2>/dev/null | wc -l)
+    if [[ $worktree_count -gt 1 ]]; then
+      shared_target_active=true
+    fi
+  fi
+fi
+
 if [[ ! -d "${TARGET_DIR}" ]]; then
-  echo "Target directory not found at ${TARGET_DIR}"
-  exit 0
+  if [[ "${shared_target_active}" == "true" ]]; then
+    echo "Local target directory not found at ${TARGET_DIR}"
+    echo ""
+    echo "ℹ️  Shared target is active: ${CARGO_TARGET_DIR:-${SHARED_TARGET_DIR}}"
+    echo "   Use: scripts/prune-shared-target.sh to manage the shared target"
+    exit 0
+  else
+    echo "Target directory not found at ${TARGET_DIR}"
+    exit 0
+  fi
 fi
 
 if command -v numfmt >/dev/null 2>&1; then
@@ -119,6 +142,21 @@ dir_size_kb() {
 }
 
 summarize() {
+  # Show shared target info if active
+  if [[ "${shared_target_active}" == "true" ]]; then
+    echo "ℹ️  Shared target detected for git worktrees"
+    echo "   Shared: ${CARGO_TARGET_DIR:-${SHARED_TARGET_DIR}}"
+    echo "   Local:  ${TARGET_DIR}"
+    echo ""
+    if [[ -d "${SHARED_TARGET_DIR}" ]]; then
+      local shared_kb
+      shared_kb=$(dir_size_kb "${SHARED_TARGET_DIR}")
+      echo "   Shared target size: $(human_size "${shared_kb}")"
+      echo "   Manage with: scripts/prune-shared-target.sh"
+      echo ""
+    fi
+  fi
+
   local total_kb debug_kb deps_kb incremental_kb tests_kb cov_kb nextest_kb tmp_kb
   total_kb=$(dir_size_kb "${TARGET_DIR}")
   debug_kb=$(dir_size_kb "${TARGET_DIR}/debug")
@@ -129,7 +167,7 @@ summarize() {
   nextest_kb=$(dir_size_kb "${TARGET_DIR}/nextest")
   tmp_kb=$(dir_size_kb "${TARGET_DIR}/tmp")
 
-  printf "Target directory summary (%s):\n" "${TARGET_DIR}"
+  printf "Local target directory summary (%s):\n" "${TARGET_DIR}"
   printf "  total:    %s\n" "$(human_size "${total_kb}")"
   printf "  debug:    %s\n" "$(human_size "${debug_kb}")"
   printf "    deps:   %s\n" "$(human_size "${deps_kb}")"
@@ -145,6 +183,12 @@ summarize() {
     echo "    scripts/prune-target.sh --prune-debug     # Drop incremental + deps caches"
     echo "    scripts/prune-target.sh --prune           # Drop coverage/test artefacts"
     echo "    scripts/prune-target.sh --prune-all       # Full reset"
+  fi
+
+  if [[ "${shared_target_active}" == "true" ]]; then
+    echo ""
+    echo "💡 Tip: With shared target active, this local target/ may be stale."
+    echo "   Consider: scripts/prune-target.sh --prune-all to reclaim disk space"
   fi
 }
 

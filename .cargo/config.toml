@@ -5,6 +5,14 @@
 # Number of parallel jobs, defaults to # of CPUs
 jobs = 8
 
+# Shared target directory for git worktrees (auto-configured by setup scripts)
+# Uncomment to manually override:
+# target-dir = "target-shared"
+#
+# When multiple worktrees exist, setup-agent-universal.sh automatically sets
+# CARGO_TARGET_DIR to share compilation artifacts, reducing disk usage by ~40-50%.
+# To disable: unset CARGO_TARGET_DIR
+
 [target.'cfg(target_os = "macos")']
 # Optimize for the local CPU architecture when building on macOS hosts.
 # GitHub Actions runners report inconsistent CPU capabilities under Linux

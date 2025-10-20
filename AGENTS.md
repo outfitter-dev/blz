@@ -36,7 +36,8 @@ This file provides comprehensive guidance to AI agents when working with Rust co
 3. **Review unsafe code policy**: See `.agents/rules/conventions/rust/unsafe-policy.md` if working with unsafe blocks
 4. **Prime the build cache**:
    - Export `RUSTC_WRAPPER=sccache` in your shell (or run the bootstrap script) so rebuilds stay fast.
-   - Run `scripts/prune-target.sh --check` to confirm the shared `target/` directory isn’t bloated; use `--prune-debug` (and optionally `--sweep`) when debug caches climb past the threshold.
+   - **Git worktrees**: If using worktrees, setup scripts automatically configure shared `target-shared/` to save 40-50% disk space. Check with `scripts/prune-shared-target.sh --check`.
+   - **Single worktree**: Run `scripts/prune-target.sh --check` to confirm the `target/` directory isn't bloated; use `--prune-debug` (and optionally `--sweep`) when debug caches climb past the threshold.
 
 ### Common Agent Pain Points & Solutions
 
