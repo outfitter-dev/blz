@@ -1,11 +1,53 @@
+# CodeRabbit Configuration
+# Reference: https://docs.coderabbit.ai/reference/configuration
+# Last updated: 2025-10-20
+
+language: en-US
+early_access: true
+
 reviews:
-  # Stop posting "Review skipped" status comments on non-default branches
-  review_status: false
+  profile: chill
+  review_status: false  # Stop posting "Review skipped" status comments
+  poem: false
+  in_progress_fortune: false
+  collapse_walkthrough: true
+  auto_title_instructions: "Conventional commit style"
 
   auto_review:
     enabled: true
-    # Base branches to review (accepts regex patterns)
+    drafts: false
+    labels:
+      - "!wip"  # Don't review PRs with 'wip' label
     base_branches:
-      - "main"         # Default branch
-      - "^gt/.*$"      # Matches Graphite branches like gt/feature-name
-      - "^gt-.+/.+$"   # Matches Graphite stacks like gt-v0.3/branch-name
+      - "main"
+      - "fix/.*"
+      - "feat/.*"
+      - "gt/.*"      # Graphite stacked branches with slash prefix
+      - "gt-.*"      # Graphite stacked branches with dash prefix
+      - ".*-blz-[0-9]+"  # Linear-generated branches like feature-blz-123
+
+  tools:
+    clippy:
+      enabled: true
+    gitleaks:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "/**/AGENTS.md"
+      - "/**/CLAUDE.md"
+      - "/.agents/rules/**/*.md"
+
+  linear:
+    usage: enabled
+    team_keys:
+      - "BLZ"   # BLZ project team
+      - "ID"    # Outfitter team
+      - "MONO"  # Outfitter Monorepo team
+
+chat:
+  integrations:
+    linear:
+      usage: enabled

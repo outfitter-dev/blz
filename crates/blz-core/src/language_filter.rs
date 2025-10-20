@@ -46,6 +46,107 @@ const NON_ENGLISH_LOCALES: &[&str] = &[
     "zh-cn", "zh-tw", "pt-br", "pt-pt", "es-mx", "es-es",
 ];
 
+/// Strong non-English indicator words that rarely appear in English text.
+/// A single match from this list is enough to flag a heading as non-English.
+const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
+    // Italian
+    "flussi",
+    "lavoro",
+    "comuni",
+    "risoluzione",
+    "validazione",
+    "esempi",
+    "pratici",
+    "comandi",
+    "creazione",
+    "personalizzati",
+    "valutazioni",
+    "empiriche",
+    "solide",
+    "costruire",
+    "problemi",
+    "situazioni",
+    "specifiche",
+    "evitare",
+    "concentrarsi",
+    "superare",
+    "subagenti",
+    "subagentes",
+    "gestione",
+    "definizione",
+    "programmatica",
+    "raccomandato",
+    "miglioratore",
+    "ottimizzare",
+    "migliori",
+    "guida",
+    "documentazione",
+    // German
+    "befehle",
+    "benutzerdefinierte",
+    "dokumentation",
+    "anleitung",
+    "erstellen",
+    "praktische",
+    "marktplätze",
+    "troubleshooten",
+    "validierung",
+    "testen",
+    // French
+    "utilisez",
+    "générer",
+    "améliorateur",
+    "évaluations",
+    "construire",
+    "principes",
+    "conception",
+    // Spanish
+    "documentación",
+    "documentacion",
+    "introducción",
+    "introduccion",
+    "mejores",
+    "desarrolladores",
+    "usuarios",
+    "agentes",
+    // Portuguese
+    "documentação",
+    "documentacao",
+    "gerenciando",
+    "gerenciamento",
+    "arquivos",
+    // Indonesian
+    "perintah",
+    "membuat",
+    "contoh",
+    "kustom",
+    // Polish
+    "dokumentacja",
+    // Russian (romanized)
+    "rukovodstvo",
+    "dokumentatsiya",
+];
+
+/// Weak indicator words that are common stop words in other languages and more ambiguous.
+/// We require a combination of at least two weak indicators to flag text.
+const WEAK_NON_ENGLISH_INDICATORS: &[&str] = &[
+    // Italian function words
+    "della", "degli", "nelle", "nella", "nell", // German function words
+    "und", "der", "die", "das", "für", "mit", "von", "zur", "im",
+    // French function words
+    "le", "la", "les", "pour", "avec", "des", // Spanish function words
+    "del", "los", "las", "para", // Portuguese function words
+    "dos", "das", // Dutch function words
+    "het", "van", "een", "voor", "met", // Polish
+    "dla",
+];
+
+#[derive(Default)]
+struct IndicatorCounts {
+    strong: usize,
+    weak: usize,
+}
+
 /// Statistics about language filtering operations
 #[derive(Debug, Default, Clone)]
 pub struct FilterStats {
@@ -268,11 +369,174 @@ impl LanguageFilter {
     pub const fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
+
+    /// Check if text contains non-Latin scripts (CJK, Cyrillic, Arabic, etc.)
+    fn has_non_latin_script(text: &str) -> bool {
+        text.chars().any(|c| {
+            matches!(
+                c as u32,
+                // CJK Unified Ideographs
+                0x4E00..=0x9FFF |
+                // Hiragana
+                0x3040..=0x309F |
+                // Katakana
+                0x30A0..=0x30FF |
+                // Hangul
+                0xAC00..=0xD7AF |
+                // Cyrillic
+                0x0400..=0x04FF |
+                // Arabic
+                0x0600..=0x06FF |
+                // Hebrew
+                0x0590..=0x05FF |
+                // Thai
+                0x0E00..=0x0E7F |
+                // Devanagari (Hindi)
+                0x0900..=0x097F
+            )
+        })
+    }
+
+    /// Count non-English indicator words in text
+    fn count_non_english_indicators(lower_text: &str) -> IndicatorCounts {
+        // Split on ALL non-alphabetic characters (spaces, punctuation, etc.)
+        // This handles various delimiters: hyphens, apostrophes, periods, commas, etc.
+        // Examples:
+        // - "example.della" → ["example", "della"] (period delimiter)
+        // - "Slash-Befehle" → ["Slash", "Befehle"] (hyphen delimiter)
+        // - "l'esempio" → ["l", "esempio"] (apostrophe delimiter)
+        let mut counts = IndicatorCounts::default();
+
+        for word in lower_text.split(|c: char| !c.is_alphabetic()) {
+            if word.is_empty() {
+                continue;
+            }
+
+            if STRONG_NON_ENGLISH_INDICATORS.contains(&word) {
+                counts.strong += 1;
+            } else if WEAK_NON_ENGLISH_INDICATORS.contains(&word) {
+                counts.weak += 1;
+            }
+        }
+
+        counts
+    }
+
+    /// Detect extended Latin characters with diacritics (Ã, É, ç, ñ, etc.)
+    fn has_extended_latin(text: &str) -> bool {
+        text.chars()
+            .any(|c| ('\u{00C0}'..='\u{017F}').contains(&c) && c.is_alphabetic())
+    }
+
+    /// Check if text appears to be in English
+    ///
+    /// Uses heuristics to detect non-English text:
+    /// - Checks for common non-English words
+    /// - Detects non-Latin scripts (Cyrillic, CJK, Arabic, etc.)
+    /// - Case-insensitive matching
+    ///
+    /// # Arguments
+    /// * `text` - The text to check
+    ///
+    /// # Examples
+    /// ```rust
+    /// use blz_core::LanguageFilter;
+    ///
+    /// let filter = LanguageFilter::new(true);
+    ///
+    /// // English text (accepted)
+    /// assert!(filter.is_english_text("Getting Started Guide"));
+    /// assert!(filter.is_english_text("API Documentation"));
+    ///
+    /// // Non-English text (rejected)
+    /// assert!(!filter.is_english_text("Flussi di lavoro comuni")); // Italian
+    /// assert!(!filter.is_english_text("Dokumentation")); // German
+    /// assert!(!filter.is_english_text("ドキュメント")); // Japanese
+    /// ```
+    pub fn is_english_text(&self, text: &str) -> bool {
+        if !self.enabled {
+            return true;
+        }
+
+        // Check for non-Latin scripts first (fast rejection)
+        if Self::has_non_latin_script(text) {
+            return false;
+        }
+
+        // Check for common extended Latin diacritics (é, ñ, ç, etc.)
+        if Self::has_extended_latin(text) {
+            return false;
+        }
+
+        // Check for non-English indicator words using weighted heuristics
+        let lower_text = text.to_lowercase();
+        let indicator_counts = Self::count_non_english_indicators(&lower_text);
+
+        if indicator_counts.strong >= 1 {
+            return false;
+        }
+
+        (indicator_counts.strong + indicator_counts.weak) < 2
+    }
+
+    /// Check if a heading path is in English
+    ///
+    /// Checks all parts of the heading path for non-English content.
+    ///
+    /// # Arguments
+    /// * `heading_path` - The hierarchical heading path (e.g., `["Section", "Subsection"]`)
+    ///
+    /// # Examples
+    /// ```rust
+    /// use blz_core::LanguageFilter;
+    ///
+    /// let filter = LanguageFilter::new(true);
+    ///
+    /// // English headings (accepted)
+    /// assert!(filter.is_english_heading_path(&[
+    ///     "Getting Started".to_string(),
+    ///     "Installation".to_string()
+    /// ]));
+    ///
+    /// // Non-English headings (rejected)
+    /// assert!(!filter.is_english_heading_path(&[
+    ///     "Flussi di lavoro comuni".to_string(),
+    ///     "Test".to_string()
+    /// ]));
+    /// ```
+    pub fn is_english_heading_path(&self, heading_path: &[String]) -> bool {
+        if !self.enabled {
+            return true;
+        }
+
+        // Check each part of the heading path
+        heading_path
+            .iter()
+            .all(|heading| self.is_english_text(heading))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_all_english(filter: &LanguageFilter, samples: &[&str]) {
+        for text in samples {
+            assert!(
+                filter.is_english_text(text),
+                "expected English text `{text}` to be accepted"
+            );
+        }
+    }
+
+    fn assert_all_non_english(filter: &LanguageFilter, samples: &[&str]) {
+        for text in samples {
+            assert!(
+                !filter.is_english_text(text),
+                "expected non-English text `{text}` to be rejected"
+            );
+        }
+    }
 
     #[test]
     fn test_english_urls_accepted() {
@@ -470,5 +734,127 @@ mod tests {
         filter.set_enabled(true);
         assert!(filter.is_enabled());
         assert!(!filter.is_english_url("https://docs.example.com/fr/guide"));
+    }
+
+    #[test]
+    fn test_is_english_text() {
+        let filter = LanguageFilter::new(true);
+
+        assert_all_english(
+            &filter,
+            &[
+                "Getting Started Guide",
+                "API Documentation",
+                "Installation Instructions",
+                "Common Workflows",
+                "Test Runner",
+                "USA per-region quotas",
+                "Documentation pour", // Only 1 French word
+            ],
+        );
+
+        assert_all_non_english(
+            &filter,
+            &[
+                // Italian
+                "Flussi di lavoro comuni",
+                "Risoluzione dei problemi",
+                "Comandi Slash nell'SDK",
+                "Esempi Pratici",
+                "Creare valutazioni empiriche solide",
+                "Costruire valutazioni e casi di test",
+                // German
+                "Dokumentation für Entwickler",
+                "Anleitung zur Installation",
+                "Slash-Befehle im SDK",
+                "Benutzerdefinierte Slash-Befehle erstellen",
+                "Praktische Beispiele",
+                // French (needs 2 indicators to reject)
+                "Documentation pour les",
+                "Utilisez notre améliorateur de prompts",
+                "Générer des exemples de test",
+                // Spanish
+                "Documentación para desarrolladores",
+                "Documentación",
+                "Documentación: Guía rápida",
+                "Documentacao de usuario",
+                "Documentacion, guia rapida",
+                "Los mejores agentes de soporte",
+                // Indonesian
+                "Perintah Slash dalam SDK",
+                "Membuat Perintah Slash Kustom",
+                // Non-Latin scripts
+                "ドキュメント", // Japanese
+                "文档",         // Chinese
+                "Документация", // Russian
+                "مستندات",      // Arabic
+                "תיעוד",        // Hebrew
+            ],
+        );
+    }
+
+    #[test]
+    fn test_is_english_heading_path() {
+        let filter = LanguageFilter::new(true);
+
+        // English heading paths should be accepted
+        assert!(
+            filter.is_english_heading_path(&[
+                "Getting Started".to_string(),
+                "Installation".to_string()
+            ])
+        );
+        assert!(
+            filter
+                .is_english_heading_path(&["Agent Skills".to_string(), "Test a Skill".to_string()])
+        );
+
+        // Non-English heading paths should be rejected
+        assert!(!filter.is_english_heading_path(&[
+            "Flussi di lavoro comuni".to_string(),
+            "Lavorare con i test".to_string()
+        ]));
+        assert!(!filter.is_english_heading_path(&[
+            "Marketplace dei plugin".to_string(),
+            "Risoluzione dei problemi".to_string()
+        ]));
+
+        // Mixed paths (any non-English should reject the whole path)
+        assert!(!filter.is_english_heading_path(&[
+            "Getting Started".to_string(),
+            "Flussi di lavoro comuni".to_string()
+        ]));
+    }
+
+    #[test]
+    fn test_disabled_filter_accepts_all_text() {
+        let filter = LanguageFilter::new(false);
+
+        // All text should be accepted when filtering is disabled
+        assert!(filter.is_english_text("Flussi di lavoro comuni"));
+        assert!(filter.is_english_text("ドキュメント"));
+        assert!(filter.is_english_text("Документация"));
+
+        assert!(filter.is_english_heading_path(&["Flussi di lavoro comuni".to_string()]));
+    }
+
+    #[test]
+    fn test_no_false_positives_on_english() {
+        let filter = LanguageFilter::new(true);
+
+        // These English phrases should NOT be flagged as non-English
+        // Testing words that exist in other languages but are also valid English
+        assert!(filter.is_english_text("API Documentation")); // "documentation" exists in French
+        assert!(filter.is_english_text("Configuration Guide")); // "con" prefix common
+        assert!(filter.is_english_text("IDE Setup")); // "de" in IDE
+        assert!(filter.is_english_text("Installation and Setup")); // "and" similar to "und"
+        assert!(filter.is_english_text("User Manual")); // "manual" similar to other languages
+        assert!(filter.is_english_text("Command Line Interface")); // "command" vs "comandi"
+
+        // Real-world English documentation headings
+        assert!(filter.is_english_text("Getting Started"));
+        assert!(filter.is_english_text("Quick Start Guide"));
+        assert!(filter.is_english_text("Troubleshooting Common Issues"));
+        assert!(filter.is_english_text("Advanced Configuration"));
     }
 }
