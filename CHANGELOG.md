@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     }
     ```
 
+### Added
+- **Claude Code Plugin**: Official plugin for integrating BLZ documentation search into Claude Code workflows
+  - **Commands**: `/blz-add`, `/blz-quick-search`, `/blz-retrieve`, `/blz-manage`, `/add-source`, `/search-docs-with-blz`
+  - **Agents**: `@blz-docs-searcher` for complex research and synthesis, `@blz-source-manager` for intelligent source management
+  - **Skills**: `blz-search` for core search patterns, `add-blz-source` for source validation workflows
+  - **Dependency Scanning**: Automatic discovery of documentation candidates from Cargo.toml and package.json
+  - **Local Installation**: Support for local development with `/plugin install /path/to/claude-plugin`
+  - **Documentation**: Comprehensive guides in `docs/agents/claude-code.md` and plugin README
+- **Table of contents enhancements**: New filtering and navigation controls for `blz toc`
+  - `--limit <N>`: Trim output to first N headings
+  - `--max-depth <1-6>`: Restrict results to headings at or above specified depth
+  - `--filter <expr>`: Search heading paths with boolean expressions (e.g., `+api -deprecated`)
+  - Improved agent workflows for hierarchical document navigation
+
 ### Changed
 - **CLI prompts migration** ([BLZ-240](https://linear.app/outfitter/issue/BLZ-240)): Replaced `dialoguer` with `inquire` for interactive CLI prompts
   - Better API ergonomics with cleaner configuration chaining
@@ -40,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatibility: `blz anchors` and `--mappings` remain as hidden aliases
   - No breaking changes for existing users
 - CLI: Rename `update` command to `refresh` ([BLZ-262](https://linear.app/outfitter/issue/BLZ-262))
+- **Plugin Structure**: Reorganized from `.claude-plugin/` to `claude-plugin/` for better clarity
+- **Agent References**: Updated plugin commands to use `@blz:trailblazer` for unified documentation operations
 
 ### Added
 - **Unified `find` command** ([BLZ-229](https://linear.app/outfitter/issue/BLZ-229)): New command consolidating `search` and `get` with automatic pattern-based dispatch
