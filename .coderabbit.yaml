@@ -1,6 +1,6 @@
 # CodeRabbit Configuration
 # Reference: https://docs.coderabbit.ai/reference/configuration
-# Last updated: 2025-10-16
+# Last updated: 2025-10-20
 
 language: en-US
 early_access: true
@@ -19,7 +19,12 @@ reviews:
     labels:
       - "!wip"  # Don't review PRs with 'wip' label
     base_branches:
-      - ".*"    # Review all branches
+      - "main"
+      - "fix/.*"
+      - "feat/.*"
+      - "gt/.*"      # Graphite stacked branches with slash prefix
+      - "gt-.*"      # Graphite stacked branches with dash prefix
+      - ".*-blz-[0-9]+"  # Linear-generated branches like feature-blz-123
 
   tools:
     clippy:
@@ -32,15 +37,15 @@ knowledge_base:
     enabled: true
     filePatterns:
       - "/**/AGENTS.md"
+      - "/**/CLAUDE.md"
       - "/.agents/rules/**/*.md"
-      - "/crates/*/AGENTS.md"
 
   linear:
     usage: enabled
     team_keys:
-      - "BLZ"
-      - "ID"
-      - "MONO"
+      - "BLZ"   # BLZ project team
+      - "ID"    # Outfitter team
+      - "MONO"  # Outfitter Monorepo team
 
 chat:
   integrations:
