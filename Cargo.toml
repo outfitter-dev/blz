@@ -95,6 +95,23 @@ panic = "warn"
 unimplemented = "warn"
 todo = { level = "warn", priority = 1 }
 
+[profile.dev]
+# Shared defaults for contributors; host-specific overrides live in `.cargo/config.toml`.
+# Enables incremental builds for fast rebuilds while matching the per-host config.
+incremental = true
+
+[profile.dev.package."*"]
+# Keep dependencies reasonably optimized without slowing down compile times.
+opt-level = 2
+
+[profile.test]
+# Align test builds with dev performance expectations.
+opt-level = 1
+incremental = true
+
 [profile.release]
+# Primary release tuning for the workspace; `.cargo/config.toml` handles host-specific tweaks like rustflags/jobs.
 lto = true
 codegen-units = 1
+opt-level = "z"
+strip = true
