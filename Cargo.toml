@@ -110,7 +110,7 @@ opt-level = 1
 incremental = true
 
 [profile.release]
-# Mirrors the release tuning in `.cargo/config.toml`; see that file for host-specific flags.
+# Primary release tuning for the workspace; `.cargo/config.toml` handles host-specific tweaks like rustflags/jobs.
 lto = true
 codegen-units = 1
 opt-level = "z"
