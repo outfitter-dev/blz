@@ -153,8 +153,8 @@ context: Option<ContextMode>,
 
 ## Implementation Plan
 
-1. **Fix 1**: Migrate Anchors commands to FormatArg
-   - Update `Anchors` command struct
+1. **Fix 1**: Migrate TOC commands to FormatArg
+   - Update `Toc` command struct
    - Update `AnchorCommands::List` struct
    - Update `AnchorCommands::Get` struct
    - Update corresponding handler code in `commands/toc.rs`
