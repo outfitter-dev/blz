@@ -270,13 +270,25 @@ impl SearchIndex {
             |metrics| OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone()),
         );
 
+        let trimmed_prefix = query_str.trim_start();
+        let (query_body_input, heading_boost) = if trimmed_prefix.starts_with('#') {
+            let stripped = trimmed_prefix.trim_start_matches('#').trim();
+            if stripped.is_empty() {
+                (query_str.trim(), None)
+            } else {
+                (stripped, Some(3.0f32))
+            }
+        } else {
+            (query_str.trim(), None)
+        };
+
         let mut timings = ComponentTimings::new();
         let mut lines_searched = 0usize;
         let snippet_limit = clamp_snippet_chars(snippet_max_chars);
 
         let searcher = timings.time("searcher_creation", || self.reader.searcher());
 
-        let query_parser = timings.time("query_parser_creation", || {
+        let mut query_parser = timings.time("query_parser_creation", || {
             let mut fields = vec![self.content_field, self.heading_path_field];
             if let Some(field) = self.heading_path_display_field {
                 fields.push(field);
@@ -287,20 +299,30 @@ impl SearchIndex {
             QueryParser::for_index(&self.index, fields)
         });
 
+        if let Some(boost) = heading_boost {
+            query_parser.set_field_boost(self.heading_path_field, boost);
+            if let Some(field) = self.heading_path_display_field {
+                query_parser.set_field_boost(field, boost);
+            }
+            if let Some(field) = self.heading_path_normalized_field {
+                query_parser.set_field_boost(field, boost);
+            }
+        }
+
         // Sanitize query more efficiently with a single allocation
         let mut filter_clauses = Vec::new();
         if let Some(alias) = alias {
             filter_clauses.push(format!("alias:{alias}"));
         }
 
-        let sanitized_query = Self::escape_query(query_str);
+        let sanitized_query = Self::escape_query(query_body_input);
 
         // Check if the original query is a phrase query (quoted)
-        let trimmed = query_str.trim();
+        let trimmed = query_body_input.trim();
         let is_phrase_query =
             trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2;
 
-        let normalized_query_raw = normalize_text_for_search(query_str);
+        let normalized_query_raw = normalize_text_for_search(query_body_input);
         let normalized_query = if normalized_query_raw.is_empty() {
             String::new()
         } else {
@@ -989,6 +1011,82 @@ mod tests {
             }),
             "Should find the accent heading"
         );
+    }
+
+    #[test]
+    fn test_heading_prefix_prioritizes_heading_matches() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("heading_boost_index");
+
+        let index = SearchIndex::create(&index_path).expect("Should create index");
+
+        let blocks = vec![
+            HeadingBlock::new(
+                vec!["Skip tests with the Bun test runner".to_string()],
+                "Step-by-step details unrelated to the exact phrase.".to_string(),
+                1,
+                10,
+            ),
+            HeadingBlock::new(
+                vec!["General Advice".to_string()],
+                "Skip tests with the Bun test runner whenever possible. Skip tests with the Bun test runner to speed things up. When in doubt, skip tests with the Bun test runner. Teams should routinely skip tests with the Bun test runner during hotfixes."
+                    .to_string(),
+                11,
+                40,
+            ),
+        ];
+
+        index
+            .index_blocks("test", &blocks)
+            .expect("Should index blocks");
+
+        let plain_hits = index
+            .search("Skip tests with the Bun test runner", Some("test"), 5)
+            .expect("Should search without heading boost");
+        assert!(!plain_hits.is_empty(), "Expected matches without prefix");
+
+        let boosted_hits = index
+            .search("# Skip tests with the Bun test runner", Some("test"), 5)
+            .expect("Should search with heading boost");
+        assert!(
+            !boosted_hits.is_empty(),
+            "Expected matches when using heading prefix"
+        );
+
+        let plain_heading = plain_hits
+            .iter()
+            .find(|hit| {
+                hit.heading_path
+                    .first()
+                    .is_some_and(|segment| segment == "Skip tests with the Bun test runner")
+            })
+            .expect("Heading block should be present without boost");
+        let boosted_heading = boosted_hits
+            .iter()
+            .find(|hit| {
+                hit.heading_path
+                    .first()
+                    .is_some_and(|segment| segment == "Skip tests with the Bun test runner")
+            })
+            .expect("Heading block should be present with boost");
+
+        // The heading score should increase when using the prefix.
+        assert!(
+            boosted_heading.score > plain_heading.score,
+            "Heading boost should raise the heading match score"
+        );
+
+        // And the boosted heading should outrank the content-heavy match.
+        if let Some(content_hit) = boosted_hits.iter().find(|hit| {
+            hit.heading_path
+                .first()
+                .is_some_and(|segment| segment == "General Advice")
+        }) {
+            assert!(
+                boosted_heading.score >= content_hit.score,
+                "Boosted heading should rank at least as high as content match"
+            );
+        }
     }
 
     #[test]
