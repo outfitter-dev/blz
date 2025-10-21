@@ -820,6 +820,7 @@ async fn execute_command(
             alias,
             format,
             limit,
+            filter,
             max_depth,
             mappings,
         }) => {
@@ -829,6 +830,7 @@ async fn execute_command(
                 mappings,
                 limit,
                 max_depth.map(usize::from),
+                filter.as_deref(),
             )
             .await?;
         },
@@ -1016,6 +1018,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             mappings,
             limit,
             max_depth,
+            filter,
         } => {
             commands::show_toc(
                 &alias,
@@ -1023,6 +1026,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
                 mappings,
                 limit,
                 max_depth.map(usize::from),
+                filter.as_deref(),
             )
             .await
         },
