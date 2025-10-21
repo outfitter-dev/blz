@@ -288,6 +288,17 @@ fn format_content_type(content_type: &str) -> String {
     }
 }
 
+/// Parse comma-separated input into a vector of trimmed non-empty strings
+fn parse_comma_separated(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .filter_map(|s| {
+            let trimmed = s.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
+        .collect()
+}
+
 /// Prompt user for metadata
 fn prompt_metadata(
     description: Option<String>,
@@ -360,11 +371,7 @@ fn prompt_metadata(
             .with_default("")
             .prompt()?;
 
-        if input.is_empty() {
-            Vec::new()
-        } else {
-            input.split(',').map(|s| s.trim().to_string()).collect()
-        }
+        parse_comma_separated(&input)
     } else {
         npm_packages
     };
@@ -375,11 +382,7 @@ fn prompt_metadata(
             .with_default("")
             .prompt()?;
 
-        if input.is_empty() {
-            Vec::new()
-        } else {
-            input.split(',').map(|s| s.trim().to_string()).collect()
-        }
+        parse_comma_separated(&input)
     } else {
         github_repos
     };

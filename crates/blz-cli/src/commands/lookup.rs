@@ -5,12 +5,25 @@ use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
 use inquire::{Select, Text};
 use serde_json::json;
+use std::fmt;
 use std::io::IsTerminal;
 
 use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
 use crate::prompt::{NoteChannel, emit_registry_note};
 use crate::utils::validation::validate_alias;
+
+#[derive(Clone)]
+struct SelectionItem {
+    index: usize,
+    label: String,
+}
+
+impl fmt::Display for SelectionItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
+    }
+}
 
 /// Execute the lookup command to search registries
 #[allow(clippy::too_many_lines)]
@@ -234,27 +247,19 @@ fn try_interactive_selection(
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
 
-    let display_items: Vec<String> = results
+    let options: Vec<SelectionItem> = results
         .iter()
         .enumerate()
-        .map(|(i, result)| format!("{}. {}", i + 1, result.entry))
+        .map(|(i, result)| SelectionItem {
+            index: i,
+            label: format!("{}. {}", i + 1, result.entry),
+        })
         .collect();
 
-    let selection = Select::new(
-        "Select documentation to add (↑/↓ to navigate)",
-        display_items,
-    )
-    .prompt()?;
+    let selection =
+        Select::new("Select documentation to add (↑/↓ to navigate)", options).prompt()?;
 
-    // Parse the selection to get the index
-    let idx = selection
-        .split('.')
-        .next()
-        .and_then(|s| s.parse::<usize>().ok())
-        .and_then(|i| i.checked_sub(1))
-        .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
-
-    Ok(&results[idx].entry)
+    Ok(&results[selection.index].entry)
 }
 
 fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
