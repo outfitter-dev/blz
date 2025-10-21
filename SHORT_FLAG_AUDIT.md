@@ -157,7 +157,7 @@ context: Option<ContextMode>,
    - Update `Anchors` command struct
    - Update `AnchorCommands::List` struct
    - Update `AnchorCommands::Get` struct
-   - Update corresponding handler code in `commands/anchors.rs`
+   - Update corresponding handler code in `commands/toc.rs`
    - Update tests
 
 2. **Fix 2**: Add `-c` to Search context flag

@@ -12,7 +12,7 @@
     }
   ],
   "agent_tips": [
-    "For dynamic completions (aliases, anchors) consider sourcing the helper scripts in `scripts/blz-*-init` after installing static completions.",
+    "For dynamic completions (aliases, headings via `blz toc`) consider sourcing the helper scripts in `scripts/blz-*-init` after installing static completions.",
     "When automating environment setup, pair this command with `install-dev.sh` or `cargo install` in a bootstrap script."
   ]
 }

@@ -30,13 +30,13 @@ except Exception:
 " 2>/dev/null
 end
 
-# Complete anchors for a given alias
+# Complete headings/anchors for a given alias
 function __fish_blz_complete_anchors_for_alias
     set -l alias $argv[1]
     if test -z "$alias"
         return
     end
-    blz anchors $alias --format json 2>/dev/null | python3 -c "
+    blz toc $alias --format json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -88,8 +88,8 @@ complete -c blz -n "__fish_seen_subcommand_from diff" -xa "(__fish_blz_complete_
 # Complete for remove command
 complete -c blz -n "__fish_seen_subcommand_from remove" -xa "(__fish_blz_complete_aliases)"
 
-# Complete for anchors command
-complete -c blz -n "__fish_seen_subcommand_from anchors" -xa "(__fish_blz_complete_aliases)"
+# Complete for toc command (alias: anchors)
+complete -c blz -n "__fish_seen_subcommand_from toc; or __fish_seen_subcommand_from anchors" -xa "(__fish_blz_complete_aliases)"
 
 # Complete for anchor list|get (nested subcommands)
 complete -c blz -n "__fish_seen_subcommand_from anchor; and __fish_seen_subcommand_from list" -xa "(__fish_blz_complete_aliases)"
@@ -105,4 +105,5 @@ complete -c blz -n "__fish_blz_needs_command" -a get -d "Get exact line ranges"
 complete -c blz -n "__fish_blz_needs_command" -a sources -d "List blzd sources"
 complete -c blz -n "__fish_blz_needs_command" -a update -d "Update sources with ETag"
 complete -c blz -n "__fish_blz_needs_command" -a diff -d "View changes"
+complete -c blz -n "__fish_blz_needs_command" -a toc -d "Show table of contents for a source"
 complete -c blz -n "__fish_blz_needs_command" -a completions -d "Generate shell completions"
