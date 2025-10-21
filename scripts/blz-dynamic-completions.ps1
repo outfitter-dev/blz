@@ -1,7 +1,7 @@
 # Dynamic completions for blz (PowerShell)
 %
 # Provides runtime completions for:
-# - Aliases: `search --alias/-s/--source`, positional for `get`, `update`, `remove`, `anchors`, and `anchor list|get`
+# - Aliases: `search --alias/-s/--source`, positional for `get`, `update`, `remove`, `toc`, and `anchor list|get` (alias: `anchors`)
 # - Anchors: `anchor get <alias> <anchor>` values
 #
 # Usage (PowerShell profile):
@@ -37,7 +37,7 @@ function Get-BlzAnchors {
     param([string]$Alias)
     if (-not $Alias) { return @() }
     try {
-        $json = blz anchors $Alias --format json 2>$null | ConvertFrom-Json
+        $json = blz toc $Alias --format json 2>$null | ConvertFrom-Json
     } catch {
         return @()
     }
@@ -78,7 +78,7 @@ Register-ArgumentCompleter -CommandName blz -ScriptBlock {
     }
 
     # Positional alias for common subcommands
-    if (@('get','update','remove','anchors') -contains $sub) {
+    if (@('get','update','remove','toc','anchors') -contains $sub) {
         # tokens: 0=blz 1=sub 2=<alias>
         if ($tokens.Count -le 2) {
             foreach ($a in $aliases) {
