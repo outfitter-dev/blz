@@ -13,11 +13,21 @@ pub async fn execute(
     mappings: bool,
     limit: Option<usize>,
     max_depth: Option<usize>,
+    filter_expr: Option<&str>,
 ) -> Result<()> {
     let storage = Storage::new()?;
     // Resolve metadata alias to canonical if needed
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
+
+    if mappings && filter_expr.is_some() {
+        return Err(anyhow!("--filter cannot be combined with --mappings"));
+    }
+
+    let filter = filter_expr
+        .map(HeadingFilter::parse)
+        .transpose()
+        .context("Failed to parse filter expression")?;
 
     if mappings {
         let path = storage.anchors_map_path(&canonical)?;
@@ -67,7 +77,7 @@ pub async fn execute(
         .load_llms_json(&canonical)
         .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
     let mut entries = Vec::new();
-    collect_entries(&mut entries, &llms.toc, max_depth, 0);
+    collect_entries(&mut entries, &llms.toc, max_depth, 0, filter.as_ref());
 
     // Apply limit to entries
     if let Some(limit_count) = limit {
@@ -117,9 +127,15 @@ pub async fn execute(
                     if count >= limit_count {
                         break;
                     }
-                    count += print_text_with_limit(e, 0, limit_count - count, max_depth);
+                    count += print_text_with_limit(
+                        e,
+                        0,
+                        limit_count - count,
+                        max_depth,
+                        filter.as_ref(),
+                    );
                 } else {
-                    print_text(e, 0, max_depth);
+                    print_text(e, 0, max_depth, filter.as_ref());
                 }
             }
         },
@@ -138,29 +154,37 @@ fn print_text_with_limit(
     depth: usize,
     remaining: usize,
     max_depth: Option<usize>,
+    filter: Option<&HeadingFilter>,
 ) -> usize {
     if remaining == 0 || exceeds_depth(depth, max_depth) {
         return 0;
     }
 
-    let indent = "  ".repeat(depth);
-    let name = display_path(e).last().cloned().unwrap_or_default();
+    let display_path = display_path(e);
+    let name = display_path.last().cloned().unwrap_or_default();
     let anchor = e.anchor.clone().unwrap_or_default();
-    println!(
-        "{}- {}  {}  {}",
-        indent,
-        name,
-        e.lines,
-        anchor.bright_black()
-    );
+    let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
-    let mut printed = 1;
+    let mut printed = if matches {
+        let indent = "  ".repeat(depth);
+        println!(
+            "{}- {}  {}  {}",
+            indent,
+            name,
+            e.lines,
+            anchor.bright_black()
+        );
+
+        1
+    } else {
+        0
+    };
     if can_descend(depth, max_depth) {
         for c in &e.children {
             if printed >= remaining {
                 break;
             }
-            printed += print_text_with_limit(c, depth + 1, remaining - printed, max_depth);
+            printed += print_text_with_limit(c, depth + 1, remaining - printed, max_depth, filter);
         }
     }
     printed
@@ -172,45 +196,59 @@ fn collect_entries(
     list: &[blz_core::TocEntry],
     max_depth: Option<usize>,
     depth: usize,
+    filter: Option<&HeadingFilter>,
 ) {
     for e in list {
         if exceeds_depth(depth, max_depth) {
             continue;
         }
         let display_path = display_path(e);
-        entries.push(serde_json::json!({
-            "source": "__ALIAS__", // placeholder, replaced by caller
-            "headingPath": display_path,
-            "rawHeadingPath": e.heading_path,
-            "headingPathNormalized": e.heading_path_normalized,
-            "headingLevel": depth + 1,
-            "lines": e.lines,
-            "anchor": e.anchor,
-        }));
+        let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+
+        if matches {
+            entries.push(serde_json::json!({
+                "source": "__ALIAS__", // placeholder, replaced by caller
+                "headingPath": display_path,
+                "rawHeadingPath": e.heading_path,
+                "headingPathNormalized": e.heading_path_normalized,
+                "headingLevel": depth + 1,
+                "lines": e.lines,
+                "anchor": e.anchor,
+            }));
+        }
         if !e.children.is_empty() && can_descend(depth, max_depth) {
-            collect_entries(entries, &e.children, max_depth, depth + 1);
+            collect_entries(entries, &e.children, max_depth, depth + 1, filter);
         }
     }
 }
 
 #[allow(dead_code)]
-fn print_text(e: &blz_core::TocEntry, depth: usize, max_depth: Option<usize>) {
+fn print_text(
+    e: &blz_core::TocEntry,
+    depth: usize,
+    max_depth: Option<usize>,
+    filter: Option<&HeadingFilter>,
+) {
     if exceeds_depth(depth, max_depth) {
         return;
     }
-    let indent = "  ".repeat(depth);
-    let name = display_path(e).last().cloned().unwrap_or_default();
+    let display_path = display_path(e);
+    let name = display_path.last().cloned().unwrap_or_default();
     let anchor = e.anchor.clone().unwrap_or_default();
-    println!(
-        "{}- {}  {}  {}",
-        indent,
-        name,
-        e.lines,
-        anchor.bright_black()
-    );
+    let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+    if matches {
+        let indent = "  ".repeat(depth);
+        println!(
+            "{}- {}  {}  {}",
+            indent,
+            name,
+            e.lines,
+            anchor.bright_black()
+        );
+    }
     if can_descend(depth, max_depth) {
         for c in &e.children {
-            print_text(c, depth + 1, max_depth);
+            print_text(c, depth + 1, max_depth, filter);
         }
     }
 }
@@ -228,6 +266,168 @@ fn exceeds_depth(depth: usize, max_depth: Option<usize>) -> bool {
 
 fn can_descend(depth: usize, max_depth: Option<usize>) -> bool {
     max_depth.is_none_or(|max| depth + 1 < max)
+}
+
+#[derive(Debug, Default)]
+struct HeadingFilter {
+    must: Vec<String>,
+    any: Vec<String>,
+    not: Vec<String>,
+}
+
+impl HeadingFilter {
+    fn parse(expr: &str) -> Result<Self> {
+        let tokens = tokenize_filter(expr)?;
+        let mut terms: Vec<(TokenKind, String)> = Vec::new();
+        let mut pending: Option<TokenKind> = None;
+
+        for token in tokens {
+            if token.trim().is_empty() {
+                continue;
+            }
+
+            let lower = token.to_ascii_lowercase();
+            match lower.as_str() {
+                "and" | "&&" => {
+                    pending = Some(TokenKind::Must);
+                    if let Some(last) = terms.last_mut() {
+                        if matches!(last.0, TokenKind::Any) {
+                            last.0 = TokenKind::Must;
+                        }
+                    }
+                    continue;
+                },
+                "or" | "||" => {
+                    pending = Some(TokenKind::Any);
+                    continue;
+                },
+                "not" | "!" => {
+                    pending = Some(TokenKind::Not);
+                    continue;
+                },
+                _ => {},
+            }
+
+            let (kind, value) = classify_token(&token, pending)?;
+            terms.push((kind, value.to_ascii_lowercase()));
+            pending = None;
+        }
+
+        if let Some(kind) = pending {
+            return Err(anyhow!(
+                "Filter expression ended with operator {}; expected another term",
+                match kind {
+                    TokenKind::Must => "AND",
+                    TokenKind::Any => "OR",
+                    TokenKind::Not => "NOT",
+                }
+            ));
+        }
+
+        if terms.is_empty() {
+            return Err(anyhow!("Filter expression must include at least one term"));
+        }
+
+        let mut filter = Self::default();
+        for (kind, value) in terms {
+            match kind {
+                TokenKind::Must => filter.must.push(value),
+                TokenKind::Any => filter.any.push(value),
+                TokenKind::Not => filter.not.push(value),
+            }
+        }
+        Ok(filter)
+    }
+
+    fn matches(&self, display_path: &[String], anchor: Option<&str>) -> bool {
+        let mut haystack = display_path.join(" ").to_ascii_lowercase();
+        if let Some(anchor) = anchor {
+            if !anchor.is_empty() {
+                haystack.push(' ');
+                haystack.push_str(&anchor.to_ascii_lowercase());
+            }
+        }
+
+        if self.must.iter().any(|term| !haystack.contains(term)) {
+            return false;
+        }
+        if !self.any.is_empty() && !self.any.iter().any(|term| haystack.contains(term)) {
+            return false;
+        }
+        if self.not.iter().any(|term| haystack.contains(term)) {
+            return false;
+        }
+        // If the user only provided negative terms, matched entries survive by default.
+        true
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum TokenKind {
+    Must,
+    Any,
+    Not,
+}
+
+fn tokenize_filter(expr: &str) -> Result<Vec<String>> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quote = false;
+    let mut quote_char = '\0';
+
+    for ch in expr.chars() {
+        match ch {
+            '"' | '\'' => {
+                if in_quote {
+                    if ch == quote_char {
+                        in_quote = false;
+                    } else {
+                        current.push(ch);
+                    }
+                } else {
+                    in_quote = true;
+                    quote_char = ch;
+                }
+            },
+            c if c.is_whitespace() && !in_quote => {
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+            },
+            _ => current.push(ch),
+        }
+    }
+
+    if in_quote {
+        return Err(anyhow!("Unterminated quote in filter expression"));
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    Ok(tokens)
+}
+
+fn classify_token(token: &str, pending: Option<TokenKind>) -> Result<(TokenKind, String)> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!("Encountered empty term in filter expression"));
+    }
+    let mut chars = trimmed.chars();
+    let Some(first) = chars.next() else {
+        return Err(anyhow!("Encountered empty term in filter expression"));
+    };
+    let (kind, value) = match first {
+        '+' => (TokenKind::Must, trimmed[1..].trim()),
+        '-' | '!' => (TokenKind::Not, trimmed[1..].trim()),
+        _ => (pending.unwrap_or(TokenKind::Any), trimmed),
+    };
+    if value.is_empty() {
+        return Err(anyhow!("Filter term '{trimmed}' is missing a value"));
+    }
+    Ok((kind, value.to_string()))
 }
 
 /// Get lines by anchor

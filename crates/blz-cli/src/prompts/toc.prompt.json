@@ -30,6 +30,10 @@
       "impact": "Trim output to the first N headings. Useful while exploring large docs."
     },
     {
+      "flag": "--filter <expr>",
+      "impact": "Search heading paths with search-style boolean snippets (e.g., '+api -deprecated')."
+    },
+    {
       "flag": "--max-depth <1-6>",
       "impact": "Restrict results to headings at or above the specified depth. Great for zooming out to higher-level sections."
     },
@@ -50,6 +54,10 @@
     {
       "command": "blz toc bun --format json | jq '.[] | {path: .headingPath, anchor: .anchor}'",
       "why": "Generate a terse map of headings to anchors for downstream tooling."
+    },
+    {
+      "command": "blz toc react --filter \"+api -deprecated\" --format json",
+      "why": "Fetch headings that mention API while excluding deprecated sections."
     },
     {
       "command": "blz toc react --max-depth 2 --format json",
