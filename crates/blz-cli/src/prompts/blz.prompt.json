@@ -14,6 +14,7 @@
       "name": "Retrieval loop",
       "steps": [
         "Default: `blz search \"<query>\" -C all --json` to gather ranked spans with full sections ready for prompts.",
+        "Heading anchored: `blz search \"# <exact heading text>\" --headings-only --context all --json` to lock onto stable headings and expand nested content in one call.",
         "Fallback for tight payloads: call `blz search \"<query>\" --json`, capture the alias and lines (e.g. `bun:1853-1858`), then fetch more context as needed.",
         "For multiple spans on the same source use `blz get bun:1853-1858,1900-1905 -C 2 --json` (or combine with other aliases) and merge snippets client-side."
       ]
@@ -56,6 +57,7 @@
   "agent_tips": [
     "Set `BLZ_OUTPUT_FORMAT=json` to avoid sprinkling `--json` across every call.",
     "Default to one-shot search via `blz search \"<query>\" -C all --json`; fall back to manual span stitching only when payload limits demand it.",
+    "Use `--headings-only` (optionally with a leading `#`) when you need stable section anchors that survive line shifts.",
     "Treat aliases as canonical ids (directory names and resolver lookups rely on them).",
     "Surface `checksum` fields in tool outputs so downstream steps can verify span freshness.",
     "Keep spans short (2-5 snippets) and derive broader context by chaining `get` calls instead of dumping whole documents."

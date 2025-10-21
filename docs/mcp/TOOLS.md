@@ -113,6 +113,21 @@ snippets, the source is inferred from each citation string.
 **Tip:** To search multiple sources, call the tool repeatedly with different
 `source` values.
 
+#### `headingsOnly` (boolean, optional)
+
+Restrict search matches to heading text. Defaults to `false`.
+
+When set to `true`, the search ignores body content and only considers heading
+paths. Pair with heading-based queries (optionally prefixed with `#`) to create
+stable anchors that survive line shifts. Works with any `contextMode`, and is
+ignored when only retrieving `snippets`.
+
+**Examples:**
+```javascript
+{query: "# Skip tests with the Bun test runner", source: "bun", headingsOnly: true, contextMode: "all"}
+{query: "Deploy on Cloudflare", source: "astro", headingsOnly: true}
+```
+
 #### `contextMode` (enum, optional)
 
 Controls snippet expansion. Default: `"none"`.

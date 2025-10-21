@@ -19,10 +19,12 @@
     "Terms separated by spaces are OR'd (match any term by default).",
     "Exact phrase: wrap in double quotes, escape with single quotes: `blz '\"background fetch\"'`.",
     "Require terms: prefix with `+` for AND logic: `blz '+api +key rotation'` (requires 'api' AND 'key', 'rotation' optional).",
-    "Scores are BM25\u2014higher scores indicate stronger matches."
+    "Scores are BM25\u2014higher scores indicate stronger matches.",
+    "Prefix the query with '#' to boost heading matches; combine with --headings-only for heading-centric searches."
   ],
   "workflow_for_agents": [
     "Ensure output is JSON (set `BLZ_OUTPUT_FORMAT=json`).",
+    "Heading-focused retrieval: `blz search \"# <exact heading text>\" --headings-only --context all --json` locks onto stable headings before expanding nested content.",
     "One-shot retrieval (recommended): Use `blz search \"<query>\" -C all --json` to get full sections immediately.",
     "Two-step approach (precise control): Select the top hit's alias and lines string (example: `react:220-228`), then fetch with `blz get react:220-228 -C 3 --text`.",
     "When multiple spans from the same alias are needed, call `blz get react:220-228,260-264 -C 2 --json`.",
@@ -36,6 +38,10 @@
     {
       "flag": "--top <percent>",
       "impact": "Keep only top percentile of hits (post-pagination) to reduce noise."
+    },
+    {
+      "flag": "--headings-only",
+      "impact": "Restrict search to heading fields. Pair with the `#` prefix or `--context all` when you want whole sections anchored to specific headings."
     },
     {
       "flag": "--show <components>",
@@ -79,6 +85,10 @@
     {
       "command": "blz \"hooks\" --top 10 --json",
       "why": "Keep only top 10% of results to eliminate noise from weak matches."
+    },
+    {
+      "command": "blz \"# Skip tests with the Bun test runner\" --headings-only --context all --json",
+      "why": "Heading-anchored section retrieval in one call\u2014resilient to line shifts and perfect for follow-up `blz get`."
     }
   ]
 }

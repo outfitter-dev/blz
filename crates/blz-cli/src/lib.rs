@@ -629,6 +629,7 @@ async fn execute_command(
             before_context,
             block,
             max_lines,
+            headings_only,
             no_history,
             copy,
         }) => {
@@ -659,6 +660,7 @@ async fn execute_command(
                 merged_context,
                 block,
                 max_lines,
+                headings_only,
                 no_history,
                 copy,
                 cli.quiet,
@@ -925,6 +927,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         context_mode.as_ref(),
         args.block,
         args.max_block_lines,
+        false,
         true,
         args.copy,
         quiet,
@@ -1084,6 +1087,7 @@ async fn handle_search(
     context: Option<crate::cli::ContextMode>,
     block: bool,
     max_lines: Option<usize>,
+    headings_only: bool,
     no_history: bool,
     copy: bool,
     quiet: bool,
@@ -1096,6 +1100,7 @@ async fn handle_search(
 
     let provided_query = query.is_some();
     let limit_was_explicit = all || limit.is_some();
+    let mut use_headings_only = headings_only;
 
     // Emit deprecation warning if --snippet-lines was explicitly set
     if snippet_lines != DEFAULT_SNIPPET_LINES {
@@ -1159,6 +1164,17 @@ async fn handle_search(
     } else {
         None
     };
+
+    if let Some(entry) = history_entry.as_ref() {
+        if (next || previous) && headings_only != entry.headings_only {
+            anyhow::bail!(
+                "Cannot change --headings-only while using --next/--previous. Rerun without continuation flags."
+            );
+        }
+        if !headings_only {
+            use_headings_only = entry.headings_only;
+        }
+    }
 
     let actual_query = if let Some(value) = query.take() {
         value
@@ -1284,6 +1300,7 @@ async fn handle_search(
         context.as_ref(),
         block,
         max_lines,
+        use_headings_only,
         no_history,
         copy,
         quiet,

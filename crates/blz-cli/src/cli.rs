@@ -469,6 +469,9 @@ pub enum Commands {
             display_order = 34
         )]
         max_lines: Option<usize>,
+        /// Restrict matches to heading text only
+        #[arg(long = "headings-only", display_order = 35)]
+        headings_only: bool,
         /// Don't save this search to history
         #[arg(long = "no-history")]
         no_history: bool,
