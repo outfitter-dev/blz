@@ -55,6 +55,7 @@ once_cell = "1"
 # CLI utilities
 is-terminal = "0.4"
 fs2 = "0.4"
+inquire = "0.9"
 
 # Internal crates (ensure version is set for crates.io publish of dependents)
 blz-core = { path = "crates/blz-core", version = "1.3.0" }
