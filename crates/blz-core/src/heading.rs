@@ -81,7 +81,24 @@ pub fn path_variants(path: &[String]) -> HeadingPathVariants {
 
         display_segments.push(display_segment.clone());
         normalized_segments.push(normalized_segment);
-        tokens.extend(seg_tokens);
+
+        for token in &seg_tokens {
+            if !tokens.contains(token) {
+                tokens.push(token.clone());
+            }
+        }
+
+        if let Some(transliterated) = transliterate_latin_extensions(&display_segment) {
+            let transliterated_tokens: Vec<String> = normalize_for_search(&transliterated)
+                .split_whitespace()
+                .map(std::string::ToString::to_string)
+                .collect();
+            for token in transliterated_tokens {
+                if !token.is_empty() && !tokens.contains(&token) {
+                    tokens.push(token);
+                }
+            }
+        }
     }
 
     HeadingPathVariants {
@@ -89,6 +106,35 @@ pub fn path_variants(path: &[String]) -> HeadingPathVariants {
         normalized_segments,
         tokens,
     }
+}
+
+fn transliterate_latin_extensions(input: &str) -> Option<String> {
+    let mut output = String::with_capacity(input.len());
+    let mut changed = false;
+
+    for ch in input.chars() {
+        match ch {
+            'Ä' | 'ä' => {
+                output.push_str("ae");
+                changed = true;
+            },
+            'Ö' | 'ö' => {
+                output.push_str("oe");
+                changed = true;
+            },
+            'Ü' | 'ü' => {
+                output.push_str("ue");
+                changed = true;
+            },
+            'ẞ' | 'ß' => {
+                output.push_str("ss");
+                changed = true;
+            },
+            _ => output.push(ch),
+        }
+    }
+
+    if changed { Some(output) } else { None }
 }
 
 fn strip_links_and_anchors(input: &str) -> String {
@@ -125,8 +171,12 @@ fn strip_links_and_anchors(input: &str) -> String {
                 i += 1;
             },
             _ => {
-                output.push(bytes[i] as char);
-                i += 1;
+                if let Some(ch) = input[i..].chars().next() {
+                    output.push(ch);
+                    i += ch.len_utf8();
+                } else {
+                    i += 1;
+                }
             },
         }
     }

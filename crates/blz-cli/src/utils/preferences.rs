@@ -40,6 +40,8 @@ pub struct SearchHistoryEntry {
     pub total_pages: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_results: Option<usize>,
+    #[serde(default)]
+    pub headings_only: bool,
 }
 
 const fn default_precision() -> u8 {
@@ -136,6 +138,7 @@ pub struct HistoryEntryBuilder<'a> {
     snippet_lines: u8,
     score_precision: u8,
     pagination: PaginationInfo,
+    headings_only: bool,
 }
 
 /// Pagination information for search history
@@ -162,6 +165,7 @@ impl<'a> HistoryEntryBuilder<'a> {
             snippet_lines: default_snippet(),
             score_precision: default_precision(),
             pagination: PaginationInfo::default(),
+            headings_only: false,
         }
     }
 
@@ -180,6 +184,11 @@ impl<'a> HistoryEntryBuilder<'a> {
         self
     }
 
+    pub const fn with_headings_only(mut self, headings_only: bool) -> Self {
+        self.headings_only = headings_only;
+        self
+    }
+
     pub fn build(self) -> SearchHistoryEntry {
         let timestamp = Utc::now().to_rfc3339();
         SearchHistoryEntry {
@@ -194,6 +203,7 @@ impl<'a> HistoryEntryBuilder<'a> {
             limit: self.pagination.limit,
             total_pages: self.pagination.total_pages,
             total_results: self.pagination.total_results,
+            headings_only: self.headings_only,
         }
     }
 }

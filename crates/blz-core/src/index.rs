@@ -29,6 +29,12 @@ pub(crate) const fn clamp_snippet_chars(chars: usize) -> usize {
     }
 }
 
+#[derive(Clone, Copy)]
+enum SearchMode {
+    Combined,
+    HeadingsOnly,
+}
+
 /// Tantivy-based search index for llms.txt documentation
 pub struct SearchIndex {
     index: Index,
@@ -268,6 +274,41 @@ impl SearchIndex {
         limit: usize,
         snippet_max_chars: usize,
     ) -> Result<Vec<SearchHit>> {
+        self.search_internal(
+            query_str,
+            alias,
+            limit,
+            snippet_max_chars,
+            SearchMode::Combined,
+        )
+    }
+
+    /// Searches only heading-related fields, ignoring body content.
+    pub fn search_headings_only(
+        &self,
+        query_str: &str,
+        alias: Option<&str>,
+        limit: usize,
+        snippet_max_chars: usize,
+    ) -> Result<Vec<SearchHit>> {
+        self.search_internal(
+            query_str,
+            alias,
+            limit,
+            snippet_max_chars,
+            SearchMode::HeadingsOnly,
+        )
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn search_internal(
+        &self,
+        query_str: &str,
+        alias: Option<&str>,
+        limit: usize,
+        snippet_max_chars: usize,
+        mode: SearchMode,
+    ) -> Result<Vec<SearchHit>> {
         let timer = self.metrics.as_ref().map_or_else(
             || OperationTimer::new(&format!("search_{query_str}")),
             |metrics| OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone()),
@@ -295,7 +336,10 @@ impl SearchIndex {
         let searcher = timings.time("searcher_creation", || self.reader.searcher());
 
         let mut query_parser = timings.time("query_parser_creation", || {
-            let mut fields = vec![self.content_field, self.heading_path_field];
+            let mut fields = match mode {
+                SearchMode::Combined => vec![self.content_field, self.heading_path_field],
+                SearchMode::HeadingsOnly => vec![self.heading_path_field],
+            };
             if let Some(field) = self.heading_path_display_field {
                 fields.push(field);
             }
@@ -321,6 +365,7 @@ impl SearchIndex {
             filter_clauses.push(format!("alias:{alias}"));
         }
 
+        let trimmed_query = query_body_input.trim();
         let sanitized_query = Self::escape_query(query_body_input);
 
         // Check if the original query is a phrase query (quoted)
@@ -495,6 +540,11 @@ impl SearchIndex {
             }
         }
         escaped
+    }
+
+    fn is_wrapped_phrase(query: &str) -> bool {
+        let trimmed = query.trim();
+        trimmed.len() > 1 && trimmed.starts_with('"') && trimmed.ends_with('"')
     }
 
     /// Compute exact match line(s) within a block's content relative to its stored line range.
@@ -984,7 +1034,6 @@ mod tests {
                 10,
             ),
         ];
-
         index
             .index_blocks("test", &blocks)
             .expect("Should index normalized blocks");
@@ -1094,6 +1143,68 @@ mod tests {
         assert_eq!(
             boosted_heading_pos, 0,
             "With heading boost, the heading match should rank first"
+        );
+    }
+
+    #[test]
+    fn test_headings_only_filters_content_matches() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let index_path = temp_dir.path().join("heading_only_index");
+
+        let index = SearchIndex::create(&index_path).expect("Should create index");
+
+        let blocks = vec![
+            HeadingBlock::new(
+                vec!["Skip tests with the Bun test runner".to_string()],
+                "Exact heading content.".to_string(),
+                1,
+                5,
+            ),
+            HeadingBlock::new(
+                vec!["General Advice".to_string()],
+                "Skip tests with the Bun test runner whenever possible to keep CI fast."
+                    .to_string(),
+                6,
+                20,
+            ),
+        ];
+
+        index
+            .index_blocks("test", &blocks)
+            .expect("Should index blocks");
+
+        let default_hits = index
+            .search("Skip tests with the Bun test runner", Some("test"), 10)
+            .expect("Default search should succeed");
+        assert!(
+            default_hits.len() >= 2,
+            "Combined search should surface both heading and body matches"
+        );
+
+        let heading_hits = index
+            .search_headings_only(
+                "Skip tests with the Bun test runner",
+                Some("test"),
+                10,
+                DEFAULT_SNIPPET_CHAR_LIMIT,
+            )
+            .expect("Headings-only search should succeed");
+
+        assert!(
+            heading_hits.iter().all(|hit| {
+                hit.heading_path
+                    .first()
+                    .is_some_and(|segment| segment != "General Advice")
+            }),
+            "Body-only matches should be excluded when using headings-only search"
+        );
+        assert!(
+            heading_hits.iter().any(|hit| {
+                hit.heading_path
+                    .first()
+                    .is_some_and(|segment| segment == "Skip tests with the Bun test runner")
+            }),
+            "Exact heading match should still be returned"
         );
     }
 

@@ -55,6 +55,7 @@ pub struct SearchOptions {
     pub max_block_lines: Option<usize>,
     pub max_chars: usize,
     pub quiet: bool,
+    pub headings_only: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -105,6 +106,7 @@ pub async fn execute(
     context_mode: Option<&crate::cli::ContextMode>,
     block: bool,
     max_block_lines: Option<usize>,
+    headings_only: bool,
     no_history: bool,
     copy: bool,
     quiet: bool,
@@ -144,6 +146,7 @@ pub async fn execute(
         max_block_lines,
         max_chars: clamp_max_chars(max_chars),
         quiet,
+        headings_only,
     };
 
     let results = perform_search(&options, metrics.clone()).await?;
@@ -190,6 +193,7 @@ pub async fn execute(
             total_pages: Some(total_pages),
             total_results: Some(total_results),
         })
+        .with_headings_only(options.headings_only)
         .build();
         if !options.no_history {
             if let Err(err) = history_log::append(&history_entry) {
@@ -292,6 +296,7 @@ pub async fn handle_default(
         None,
         false,
         None,
+        false,
         false, // no_history: false for default search
         false, // copy: false for default search
         quiet,
@@ -436,12 +441,14 @@ async fn perform_search(
     // Create futures that spawn blocking tasks for parallel search across sources
     // This ensures bounded concurrency by only spawning tasks when polled
     let snippet_limit = options.max_chars;
+    let headings_only = options.headings_only;
     let storage_for_tasks = Arc::clone(&storage);
     let search_tasks = sources.into_iter().map(move |source| {
         let storage = Arc::clone(&storage_for_tasks);
         let metrics = metrics.clone();
         let query = options.query.clone();
         let snippet_limit = snippet_limit;
+        let headings_only = headings_only;
 
         async move {
             tokio::task::spawn_blocking(
@@ -461,14 +468,22 @@ async fn perform_search(
                         })?
                         .with_metrics(metrics);
 
-                    let hits = index
-                        .search_with_snippet_limit(
+                    let hits = if headings_only {
+                        index.search_headings_only(
                             &query,
                             Some(&source),
                             effective_limit,
                             snippet_limit,
                         )
-                        .with_context(|| format!("search failed for source={source}"))?;
+                    } else {
+                        index.search_with_snippet_limit(
+                            &query,
+                            Some(&source),
+                            effective_limit,
+                            snippet_limit,
+                        )
+                    }
+                    .with_context(|| format!("search failed for source={source}"))?;
 
                     // Count total lines for stats
                     let total_lines = storage
@@ -1117,6 +1132,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         // Should not panic even with empty results
@@ -1159,6 +1175,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1194,6 +1211,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         // This should NOT panic even with empty results
@@ -1226,6 +1244,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -1263,6 +1282,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1299,6 +1319,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1329,6 +1350,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let test_results = create_test_results(10);
@@ -1366,6 +1388,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let results1 = create_test_results(8);
@@ -1401,6 +1424,7 @@ mod tests {
             max_block_lines: None,
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
+            headings_only: false,
         };
 
         let results2 = create_test_results(0);
