@@ -46,10 +46,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         .map_or_else(|| alias.to_string(), |c| c);
 
     if !storage.exists(&canonical) {
-        anyhow::bail!(
-            "Source '{}' not found. Run `blz list` to see available sources.",
-            alias
-        );
+        anyhow::bail!("Source '{alias}' not found. Run `blz list` to see available sources.");
     }
 
     let llms = storage

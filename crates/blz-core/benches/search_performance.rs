@@ -47,12 +47,12 @@ fn create_test_blocks(count: usize, content_size: usize) -> Vec<HeadingBlock> {
         }
         content.truncate(content_size);
 
-        blocks.push(HeadingBlock {
-            path: vec![section_name, subsection],
+        blocks.push(HeadingBlock::new(
+            vec![section_name, subsection],
             content,
-            start_line: i * 20 + 1,
-            end_line: i * 20 + 15,
-        });
+            i * 20 + 1,
+            i * 20 + 15,
+        ));
     }
 
     blocks

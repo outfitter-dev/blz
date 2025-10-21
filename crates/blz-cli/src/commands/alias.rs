@@ -23,7 +23,7 @@ pub async fn execute(cmd: AliasCommand) -> Result<()> {
 fn add_alias(source: &str, new_alias: &str) -> Result<()> {
     let storage = Storage::new()?;
     if !storage.exists(source) {
-        return Err(anyhow!("Source '{}' not found", source));
+        return Err(anyhow!("Source '{source}' not found"));
     }
 
     validate_relaxed_alias(new_alias)?;
@@ -31,8 +31,7 @@ fn add_alias(source: &str, new_alias: &str) -> Result<()> {
     // Prevent adding the canonical as an alias
     if source.eq_ignore_ascii_case(new_alias) {
         return Err(anyhow!(
-            "Alias '{}' matches the canonical source name; nothing to add",
-            new_alias
+            "Alias '{new_alias}' matches the canonical source name; nothing to add"
         ));
     }
 
@@ -40,9 +39,7 @@ fn add_alias(source: &str, new_alias: &str) -> Result<()> {
     if let Some(owner) = find_alias_owner(&storage, new_alias) {
         if owner != source {
             return Err(anyhow!(
-                "Alias '{}' is already used by source '{}'",
-                new_alias,
-                owner
+                "Alias '{new_alias}' is already used by source '{owner}'"
             ));
         }
     }
@@ -77,7 +74,7 @@ fn add_alias(source: &str, new_alias: &str) -> Result<()> {
 fn remove_alias(source: &str, alias: &str) -> Result<()> {
     let storage = Storage::new()?;
     if !storage.exists(source) {
-        return Err(anyhow!("Source '{}' not found", source));
+        return Err(anyhow!("Source '{source}' not found"));
     }
 
     let mut llms = storage

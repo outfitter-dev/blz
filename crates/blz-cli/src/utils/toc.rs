@@ -164,14 +164,28 @@ mod tests {
     fn counts_nested_headings() {
         let toc = vec![TocEntry {
             heading_path: vec!["Root".into()],
+            heading_path_display: Some(vec!["Root".into()]),
+            heading_path_normalized: Some(vec!["root".into()]),
             lines: "1-10".into(),
             anchor: None,
             children: vec![TocEntry {
                 heading_path: vec!["Root".into(), "Child".into()],
+                heading_path_display: Some(vec!["Root".into(), "Child".into()]),
+                heading_path_normalized: Some(vec!["root".into(), "child".into()]),
                 lines: "2-5".into(),
                 anchor: None,
                 children: vec![TocEntry {
                     heading_path: vec!["Root".into(), "Child".into(), "Grandchild".into()],
+                    heading_path_display: Some(vec![
+                        "Root".into(),
+                        "Child".into(),
+                        "Grandchild".into(),
+                    ]),
+                    heading_path_normalized: Some(vec![
+                        "root".into(),
+                        "child".into(),
+                        "grandchild".into(),
+                    ]),
                     lines: "3-4".into(),
                     anchor: None,
                     children: Vec::new(),

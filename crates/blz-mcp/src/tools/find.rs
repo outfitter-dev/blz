@@ -1375,12 +1375,16 @@ mod block_detection_tests {
         vec![
             TocEntry {
                 heading_path: vec!["Introduction".to_string()],
+                heading_path_display: Some(vec!["Introduction".to_string()]),
+                heading_path_normalized: Some(vec!["introduction".to_string()]),
                 lines: "1-10".to_string(),
                 anchor: None,
                 children: vec![],
             },
             TocEntry {
                 heading_path: vec!["Getting Started".to_string()],
+                heading_path_display: Some(vec!["Getting Started".to_string()]),
+                heading_path_normalized: Some(vec!["getting started".to_string()]),
                 lines: "11-50".to_string(),
                 anchor: None,
                 children: vec![
@@ -1389,6 +1393,14 @@ mod block_detection_tests {
                             "Getting Started".to_string(),
                             "Installation".to_string(),
                         ],
+                        heading_path_display: Some(vec![
+                            "Getting Started".to_string(),
+                            "Installation".to_string(),
+                        ]),
+                        heading_path_normalized: Some(vec![
+                            "getting started".to_string(),
+                            "installation".to_string(),
+                        ]),
                         lines: "12-25".to_string(),
                         anchor: None,
                         children: vec![],
@@ -1398,6 +1410,14 @@ mod block_detection_tests {
                             "Getting Started".to_string(),
                             "Configuration".to_string(),
                         ],
+                        heading_path_display: Some(vec![
+                            "Getting Started".to_string(),
+                            "Configuration".to_string(),
+                        ]),
+                        heading_path_normalized: Some(vec![
+                            "getting started".to_string(),
+                            "configuration".to_string(),
+                        ]),
                         lines: "26-50".to_string(),
                         anchor: None,
                         children: vec![],
@@ -1406,6 +1426,8 @@ mod block_detection_tests {
             },
             TocEntry {
                 heading_path: vec!["API Reference".to_string()],
+                heading_path_display: Some(vec!["API Reference".to_string()]),
+                heading_path_normalized: Some(vec!["api reference".to_string()]),
                 lines: "51-100".to_string(),
                 anchor: None,
                 children: vec![],
@@ -1494,12 +1516,16 @@ mod block_detection_tests {
         let toc = vec![
             TocEntry {
                 heading_path: vec!["Bad Entry".to_string()],
+                heading_path_display: Some(vec!["Bad Entry".to_string()]),
+                heading_path_normalized: Some(vec!["bad entry".to_string()]),
                 lines: "invalid".to_string(), // Bad format
                 anchor: None,
                 children: vec![],
             },
             TocEntry {
                 heading_path: vec!["Good Entry".to_string()],
+                heading_path_display: Some(vec!["Good Entry".to_string()]),
+                heading_path_normalized: Some(vec!["good entry".to_string()]),
                 lines: "10-20".to_string(),
                 anchor: None,
                 children: vec![],
@@ -1611,18 +1637,24 @@ Line 12";
             toc: vec![
                 TocEntry {
                     heading_path: vec!["Documentation".to_string()],
+                    heading_path_display: Some(vec!["Documentation".to_string()]),
+                    heading_path_normalized: Some(vec!["documentation".to_string()]),
                     lines: "1-3".to_string(),
                     anchor: None,
                     children: vec![],
                 },
                 TocEntry {
                     heading_path: vec!["Section A".to_string()],
+                    heading_path_display: Some(vec!["Section A".to_string()]),
+                    heading_path_normalized: Some(vec!["section a".to_string()]),
                     lines: "4-8".to_string(),
                     anchor: None,
                     children: vec![],
                 },
                 TocEntry {
                     heading_path: vec!["Section B".to_string()],
+                    heading_path_display: Some(vec!["Section B".to_string()]),
+                    heading_path_normalized: Some(vec!["section b".to_string()]),
                     lines: "9-12".to_string(),
                     anchor: None,
                     children: vec![],
@@ -1726,6 +1758,8 @@ Line 12";
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Overflow".to_string()],
+                heading_path_display: Some(vec!["Overflow".to_string()]),
+                heading_path_normalized: Some(vec!["overflow".to_string()]),
                 lines: "1-10".to_string(),
                 anchor: None,
                 children: vec![],
@@ -1752,6 +1786,7 @@ Line 12";
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn test_context_mode_all_preserves_requested_range_across_sections() {
         let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
         let storage =
@@ -1810,12 +1845,16 @@ B line 3
             toc: vec![
                 TocEntry {
                     heading_path: vec!["Section A".to_string()],
+                    heading_path_display: Some(vec!["Section A".to_string()]),
+                    heading_path_normalized: Some(vec!["section a".to_string()]),
                     lines: "4-7".to_string(),
                     anchor: None,
                     children: vec![],
                 },
                 TocEntry {
                     heading_path: vec!["Section B".to_string()],
+                    heading_path_display: Some(vec!["Section B".to_string()]),
+                    heading_path_normalized: Some(vec!["section b".to_string()]),
                     lines: "9-11".to_string(),
                     anchor: None,
                     children: vec![],
