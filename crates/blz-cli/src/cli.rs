@@ -239,8 +239,8 @@ pub enum Commands {
         command: Option<DocsCommands>,
     },
 
-    /// Anchor utilities
-    #[command(display_order = 53)]
+    /// Legacy anchor utilities (use `toc` instead)
+    #[command(display_order = 53, hide = true)]
     Anchor {
         #[command(subcommand)]
         command: AnchorCommands,
