@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Changed
+- **CLI prompts migration** ([BLZ-240](https://linear.app/outfitter/issue/BLZ-240)): Replaced `dialoguer` with `inquire` for interactive CLI prompts
+  - Better API ergonomics with cleaner configuration chaining
+  - Improved type safety for prompt handling
+  - Enhanced features including built-in validators and autocompletion support
+  - Zero breaking changes - CLI behavior remains identical for users
+  - Affected commands: `blz remove`, `blz lookup`, `blz registry create-source`
 
 ## [1.3.0] - 2025-10-18
 

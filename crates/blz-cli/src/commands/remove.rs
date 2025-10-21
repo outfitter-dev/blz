@@ -6,7 +6,7 @@ use std::io::{self, IsTerminal, Write};
 use anyhow::Result;
 use blz_core::{LlmsJson, Storage};
 use colored::Colorize;
-use dialoguer::Confirm;
+use inquire::Confirm;
 use serde::Serialize;
 
 /// Abstraction over the storage interactions needed by the remove command.
@@ -149,10 +149,7 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
             if quiet {
                 return Ok(true);
             }
-            let confirmed = Confirm::new()
-                .with_prompt(prompt)
-                .default(false)
-                .interact()?;
+            let confirmed = Confirm::new(&prompt).with_default(false).prompt()?;
             if !confirmed {
                 writeln!(prompt_lock)?;
             }

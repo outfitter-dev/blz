@@ -3,7 +3,7 @@
 use anyhow::Result;
 use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
-use dialoguer::{Input, Select};
+use inquire::{Select, Text};
 use serde_json::json;
 use std::io::IsTerminal;
 
@@ -240,12 +240,21 @@ fn try_interactive_selection(
         .map(|(i, result)| format!("{}. {}", i + 1, result.entry))
         .collect();
 
-    let selection = Select::new()
-        .with_prompt("Select documentation to add (↑/↓ to navigate)")
-        .items(&display_items)
-        .interact()?;
+    let selection = Select::new(
+        "Select documentation to add (↑/↓ to navigate)",
+        display_items,
+    )
+    .prompt()?;
 
-    Ok(&results[selection].entry)
+    // Parse the selection to get the index
+    let idx = selection
+        .split('.')
+        .next()
+        .and_then(|s| s.parse::<usize>().ok())
+        .and_then(|i| i.checked_sub(1))
+        .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
+
+    Ok(&results[idx].entry)
 }
 
 fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
@@ -253,10 +262,9 @@ fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
 
-    let alias: String = Input::new()
-        .with_prompt("Enter alias")
-        .default(default_alias.to_string())
-        .interact_text()?;
+    let alias = Text::new("Enter alias")
+        .with_default(default_alias)
+        .prompt()?;
 
     if alias.trim().is_empty() {
         return Err(anyhow::anyhow!("Alias cannot be empty"));
