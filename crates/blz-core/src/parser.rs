@@ -136,7 +136,9 @@
 //! }
 //! ```
 
-use crate::{Diagnostic, DiagnosticSeverity, Error, HeadingBlock, Result, TocEntry};
+use crate::{
+    Diagnostic, DiagnosticSeverity, Error, HeadingBlock, Result, TocEntry, heading::path_variants,
+};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use sha2::{Digest, Sha256};
 /// Lines per window used when falling back to windowed segmentation
@@ -332,8 +334,12 @@ impl MarkdownParser {
             // Splits the document into fixed-size windows to improve search fidelity
             let total_lines = text.lines().count();
             if total_lines <= FALLBACK_WINDOW_LINES {
+                let path = vec!["Document".into()];
+                let variants = path_variants(&path);
                 heading_blocks.push(HeadingBlock {
-                    path: vec!["Document".into()],
+                    path,
+                    display_path: variants.display_segments,
+                    normalized_tokens: variants.tokens,
                     content: text.to_string(),
                     start_line: 1,
                     end_line: total_lines,
@@ -350,8 +356,12 @@ impl MarkdownParser {
                     count += 1;
                     if count == FALLBACK_WINDOW_LINES {
                         let end_line = start + count - 1;
+                        let path = vec!["Document".into()];
+                        let variants = path_variants(&path);
                         heading_blocks.push(HeadingBlock {
-                            path: vec!["Document".into()],
+                            path,
+                            display_path: variants.display_segments,
+                            normalized_tokens: variants.tokens,
                             content: std::mem::take(&mut current),
                             start_line: start,
                             end_line,
@@ -362,8 +372,12 @@ impl MarkdownParser {
                 }
                 if !current.is_empty() {
                     let end_line = start + count - 1;
+                    let path = vec!["Document".into()];
+                    let variants = path_variants(&path);
                     heading_blocks.push(HeadingBlock {
-                        path: vec!["Document".into()],
+                        path,
+                        display_path: variants.display_segments,
+                        normalized_tokens: variants.tokens,
                         content: current,
                         start_line: start,
                         end_line,
@@ -475,9 +489,16 @@ impl MarkdownParser {
                 text.lines().count()
             };
 
+            let variants = path_variants(&current_path);
+            let display_path = variants.display_segments.clone();
+            let normalized_segments = variants.normalized_segments.clone();
+            let normalized_tokens = variants.tokens.clone();
+
             // Create heading block
             blocks.push(HeadingBlock {
                 path: current_path.clone(),
+                display_path: display_path.clone(),
+                normalized_tokens: normalized_tokens.clone(),
                 content: content.to_string(),
                 start_line,
                 end_line,
@@ -489,6 +510,8 @@ impl MarkdownParser {
             // Create TOC entry
             let entry = TocEntry {
                 heading_path: current_path.clone(),
+                heading_path_display: Some(display_path),
+                heading_path_normalized: Some(normalized_segments),
                 lines: if end_line > start_line {
                     format!("{start_line}-{end_line}")
                 } else {

@@ -55,6 +55,8 @@ struct IndexFields {
     heading_path: Field,
     lines: Field,
     alias: Field,
+    /// Optional flavor field for multi-flavor indexes
+    flavor: Option<Field>,
 }
 
 /// Reader pool for managing concurrent search operations
@@ -161,20 +163,20 @@ impl OptimizedSearchIndex {
         let fields = IndexFields {
             content: schema
                 .get_field("content")
-                .map_err(|_| Error::Index("Missing content field".into()))?,
+                .ok_or_else(|| Error::Index("Missing content field".into()))?,
             path: schema
                 .get_field("path")
-                .map_err(|_| Error::Index("Missing path field".into()))?,
+                .ok_or_else(|| Error::Index("Missing path field".into()))?,
             heading_path: schema
                 .get_field("heading_path")
-                .map_err(|_| Error::Index("Missing heading_path field".into()))?,
+                .ok_or_else(|| Error::Index("Missing heading_path field".into()))?,
             lines: schema
                 .get_field("lines")
-                .map_err(|_| Error::Index("Missing lines field".into()))?,
+                .ok_or_else(|| Error::Index("Missing lines field".into()))?,
             alias: schema
                 .get_field("alias")
-                .map_err(|_| Error::Index("Missing alias field".into()))?,
-            flavor: schema.get_field("flavor").ok(),
+                .ok_or_else(|| Error::Index("Missing alias field".into()))?,
+            flavor: schema.get_field("flavor"),
         };
 
         Self::new_with_index(index, fields).await
@@ -387,6 +389,7 @@ impl OptimizedSearchIndex {
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
+                raw_heading_path: None,
                 lines,
                 line_numbers,
                 snippet: snippet_buffer.as_str().to_string(),
@@ -864,6 +867,32 @@ impl OptimizedSearchIndex {
     }
 }
 
+fn normalize_flavor_filters(raw: &str) -> Vec<String> {
+    let mut values = Vec::new();
+
+    for candidate in raw.split(',') {
+        let trimmed = candidate.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let normalized = trimmed.to_ascii_lowercase();
+        let is_valid = normalized
+            .chars()
+            .all(|ch| matches!(ch, 'a'..='z' | '0'..='9' | '-' | '_' ));
+
+        if is_valid {
+            values.push(normalized);
+        } else {
+            tracing::debug!(filter = trimmed, "Ignoring invalid flavor filter token");
+        }
+    }
+
+    values.sort_unstable();
+    values.dedup();
+    values
+}
+
 impl ReaderPool {
     fn new<F>(max_readers: usize, reader_factory: F) -> Self
     where
@@ -1016,18 +1045,18 @@ mod tests {
 
     fn create_test_blocks() -> Vec<HeadingBlock> {
         vec![
-            HeadingBlock {
-                path: vec!["React".to_string(), "Hooks".to_string()],
-                content: "useState is a React hook for state management".to_string(),
-                start_line: 100,
-                end_line: 120,
-            },
-            HeadingBlock {
-                path: vec!["React".to_string(), "Components".to_string()],
-                content: "Components are the building blocks of React applications".to_string(),
-                start_line: 50,
-                end_line: 75,
-            },
+            HeadingBlock::new(
+                vec!["React".to_string(), "Hooks".to_string()],
+                "useState is a React hook for state management".to_string(),
+                100,
+                120,
+            ),
+            HeadingBlock::new(
+                vec!["React".to_string(), "Components".to_string()],
+                "Components are the building blocks of React applications".to_string(),
+                50,
+                75,
+            ),
         ]
     }
 
@@ -1192,12 +1221,12 @@ mod tests {
         // Create blocks with repeated alias values
         let mut blocks = Vec::new();
         for i in 0..10 {
-            blocks.push(HeadingBlock {
-                path: vec!["Section".to_string()],
-                content: format!("Content {}", i),
-                start_line: i,
-                end_line: i + 1,
-            });
+            blocks.push(HeadingBlock::new(
+                vec!["Section".to_string()],
+                format!("Content {}", i),
+                i,
+                i + 1,
+            ));
         }
 
         index

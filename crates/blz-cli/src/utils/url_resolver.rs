@@ -130,9 +130,8 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
 
     // None of the variants worked
     anyhow::bail!(
-        "Failed to resolve any llms.txt variant for '{}'. \
-         Tried: llms-full.txt, exact URL, and llms.txt fallback.",
-        base_url
+        "Failed to resolve any llms.txt variant for '{base_url}'. \
+         Tried: llms-full.txt, exact URL, and llms.txt fallback."
     )
 }
 

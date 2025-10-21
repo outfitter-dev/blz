@@ -205,7 +205,7 @@ fn parse_plus_range(part: &str, plus_pos: usize) -> Result<LineRange> {
     let start = parse_line_number(start_str, "start")?;
     let count: usize = count_str
         .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid count: {}", count_str))?;
+        .map_err(|_| anyhow::anyhow!("Invalid count: {count_str}"))?;
 
     if count == 0 {
         return Err(anyhow::anyhow!("Count must be at least 1"));
@@ -222,7 +222,7 @@ fn parse_single_line(part: &str) -> Result<LineRange> {
 fn parse_line_number(s: &str, context: &str) -> Result<usize> {
     let line: usize = s
         .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid {} line: {}", context, s))?;
+        .map_err(|_| anyhow::anyhow!("Invalid {context} line: {s}"))?;
 
     if line == 0 {
         return Err(anyhow::anyhow!("Line numbers must be >= 1"));
@@ -233,7 +233,7 @@ fn parse_line_number(s: &str, context: &str) -> Result<usize> {
 
 fn validate_range(start: usize, end: usize) -> Result<()> {
     if start > end {
-        return Err(anyhow::anyhow!("Invalid range: {}-{}", start, end));
+        return Err(anyhow::anyhow!("Invalid range: {start}-{end}"));
     }
     Ok(())
 }

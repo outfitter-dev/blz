@@ -133,7 +133,7 @@ fn print_text_with_limit(e: &blz_core::TocEntry, depth: usize, remaining: usize)
     }
 
     let indent = "  ".repeat(depth);
-    let name = e.heading_path.last().cloned().unwrap_or_default();
+    let name = display_path(e).last().cloned().unwrap_or_default();
     let anchor = e.anchor.clone().unwrap_or_default();
     println!(
         "{}- {}  {}  {}",
@@ -156,9 +156,12 @@ fn print_text_with_limit(e: &blz_core::TocEntry, depth: usize, remaining: usize)
 #[allow(dead_code, clippy::items_after_statements)]
 fn collect_entries(entries: &mut Vec<serde_json::Value>, list: &[blz_core::TocEntry]) {
     for e in list {
+        let display_path = display_path(e);
         entries.push(serde_json::json!({
             "source": "__ALIAS__", // placeholder, replaced by caller
-            "headingPath": e.heading_path,
+            "headingPath": display_path,
+            "rawHeadingPath": e.heading_path,
+            "headingPathNormalized": e.heading_path_normalized,
             "lines": e.lines,
             "anchor": e.anchor,
         }));
@@ -171,7 +174,7 @@ fn collect_entries(entries: &mut Vec<serde_json::Value>, list: &[blz_core::TocEn
 #[allow(dead_code)]
 fn print_text(e: &blz_core::TocEntry, depth: usize) {
     let indent = "  ".repeat(depth);
-    let name = e.heading_path.last().cloned().unwrap_or_default();
+    let name = display_path(e).last().cloned().unwrap_or_default();
     let anchor = e.anchor.clone().unwrap_or_default();
     println!(
         "{}- {}  {}  {}",
@@ -183,6 +186,13 @@ fn print_text(e: &blz_core::TocEntry, depth: usize) {
     for c in &e.children {
         print_text(c, depth + 1);
     }
+}
+
+fn display_path(entry: &blz_core::TocEntry) -> Vec<String> {
+    entry
+        .heading_path_display
+        .clone()
+        .unwrap_or_else(|| entry.heading_path.clone())
 }
 
 /// Get lines by anchor
@@ -249,11 +259,14 @@ pub async fn get_by_anchor(
             })?;
             let all_lines: Vec<&str> = file_content.lines().collect();
             let (body, line_numbers) = extract_content(&entry.lines, context, &all_lines)?;
+            let display_path = display_path(entry);
             let obj = serde_json::json!({
                 "alias": alias,
                 "source": canonical,
                 "anchor": anchor,
-                "headingPath": entry.heading_path,
+                "headingPath": display_path,
+                "rawHeadingPath": entry.heading_path,
+                "headingPathNormalized": entry.heading_path_normalized,
                 "lines": entry.lines,
                 "lineNumbers": line_numbers,
                 "content": body,
@@ -284,7 +297,7 @@ fn extract_content(
     all_lines: &[&str],
 ) -> Result<(String, Vec<usize>)> {
     let ranges = parse_line_ranges(lines_spec)
-        .map_err(|_| anyhow::anyhow!("Invalid lines format in anchor entry: {}", lines_spec))?;
+        .map_err(|_| anyhow::anyhow!("Invalid lines format in anchor entry: {lines_spec}"))?;
     let ctx = context.unwrap_or(0);
     let mut selected: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for r in ranges {

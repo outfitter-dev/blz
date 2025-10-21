@@ -691,6 +691,8 @@ mod tests {
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],
+                heading_path_display: Some(vec!["Getting Started".to_string()]),
+                heading_path_normalized: Some(vec!["getting started".to_string()]),
                 lines: "1-50".to_string(),
                 anchor: None,
                 children: vec![],

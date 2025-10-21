@@ -480,7 +480,7 @@ async fn perform_search(
                 },
             )
             .await
-            .map_err(|e| anyhow::anyhow!("search task panicked: {}", e))?
+            .map_err(|e| anyhow::anyhow!("search task panicked: {e}"))?
         }
     });
 
@@ -976,7 +976,8 @@ fn collect_suggestions_from_toc(
         out: &mut Vec<(f32, String, String, String)>,
     ) {
         for e in list {
-            if let Some(name) = e.heading_path.last() {
+            let display_path = e.heading_path_display.as_ref().unwrap_or(&e.heading_path);
+            if let Some(name) = display_path.last() {
                 let score = score_tokens(&tokenize(name), qtokens);
                 if score > 0.2 {
                     out.push((score, alias.to_string(), name.clone(), e.lines.clone()));
@@ -1066,6 +1067,7 @@ mod tests {
                 source: format!("test-{i}"),
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
+                raw_heading_path: Some(vec![format!("heading-{i}")]),
                 lines: format!("{start}-{end}", start = i * 10, end = i * 10 + 5),
                 line_numbers: Some(vec![i * 10, i * 10 + 5]),
                 snippet: format!("test content {i}"),
