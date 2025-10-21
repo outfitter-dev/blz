@@ -12,6 +12,7 @@ pub async fn execute(
     output: OutputFormat,
     mappings: bool,
     limit: Option<usize>,
+    max_depth: Option<usize>,
 ) -> Result<()> {
     let storage = Storage::new()?;
     // Resolve metadata alias to canonical if needed
@@ -21,7 +22,7 @@ pub async fn execute(
     if mappings {
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
-            println!("No anchor remap metadata found for '{canonical}'");
+            println!("No heading remap metadata found for '{canonical}'");
             return Ok(());
         }
         let txt = std::fs::read_to_string(&path)?;
@@ -37,7 +38,7 @@ pub async fn execute(
             },
             OutputFormat::Text => {
                 println!(
-                    "Anchor remap metadata for {} (updated {})\n",
+                    "Remap metadata for {} (updated {})\n",
                     canonical.green(),
                     map.updated_at
                 );
@@ -66,7 +67,7 @@ pub async fn execute(
         .load_llms_json(&canonical)
         .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
     let mut entries = Vec::new();
-    collect_entries(&mut entries, &llms.toc);
+    collect_entries(&mut entries, &llms.toc, max_depth, 0);
 
     // Apply limit to entries
     if let Some(limit_count) = limit {
@@ -116,9 +117,9 @@ pub async fn execute(
                     if count >= limit_count {
                         break;
                     }
-                    count += print_text_with_limit(e, 0, limit_count - count);
+                    count += print_text_with_limit(e, 0, limit_count - count, max_depth);
                 } else {
-                    print_text(e, 0);
+                    print_text(e, 0, max_depth);
                 }
             }
         },
@@ -132,8 +133,13 @@ pub async fn execute(
 }
 
 #[allow(dead_code)]
-fn print_text_with_limit(e: &blz_core::TocEntry, depth: usize, remaining: usize) -> usize {
-    if remaining == 0 {
+fn print_text_with_limit(
+    e: &blz_core::TocEntry,
+    depth: usize,
+    remaining: usize,
+    max_depth: Option<usize>,
+) -> usize {
+    if remaining == 0 || exceeds_depth(depth, max_depth) {
         return 0;
     }
 
@@ -149,35 +155,49 @@ fn print_text_with_limit(e: &blz_core::TocEntry, depth: usize, remaining: usize)
     );
 
     let mut printed = 1;
-    for c in &e.children {
-        if printed >= remaining {
-            break;
+    if can_descend(depth, max_depth) {
+        for c in &e.children {
+            if printed >= remaining {
+                break;
+            }
+            printed += print_text_with_limit(c, depth + 1, remaining - printed, max_depth);
         }
-        printed += print_text_with_limit(c, depth + 1, remaining - printed);
     }
     printed
 }
 
 #[allow(dead_code, clippy::items_after_statements)]
-fn collect_entries(entries: &mut Vec<serde_json::Value>, list: &[blz_core::TocEntry]) {
+fn collect_entries(
+    entries: &mut Vec<serde_json::Value>,
+    list: &[blz_core::TocEntry],
+    max_depth: Option<usize>,
+    depth: usize,
+) {
     for e in list {
+        if exceeds_depth(depth, max_depth) {
+            continue;
+        }
         let display_path = display_path(e);
         entries.push(serde_json::json!({
             "source": "__ALIAS__", // placeholder, replaced by caller
             "headingPath": display_path,
             "rawHeadingPath": e.heading_path,
             "headingPathNormalized": e.heading_path_normalized,
+            "headingLevel": depth + 1,
             "lines": e.lines,
             "anchor": e.anchor,
         }));
-        if !e.children.is_empty() {
-            collect_entries(entries, &e.children);
+        if !e.children.is_empty() && can_descend(depth, max_depth) {
+            collect_entries(entries, &e.children, max_depth, depth + 1);
         }
     }
 }
 
 #[allow(dead_code)]
-fn print_text(e: &blz_core::TocEntry, depth: usize) {
+fn print_text(e: &blz_core::TocEntry, depth: usize, max_depth: Option<usize>) {
+    if exceeds_depth(depth, max_depth) {
+        return;
+    }
     let indent = "  ".repeat(depth);
     let name = display_path(e).last().cloned().unwrap_or_default();
     let anchor = e.anchor.clone().unwrap_or_default();
@@ -188,8 +208,10 @@ fn print_text(e: &blz_core::TocEntry, depth: usize) {
         e.lines,
         anchor.bright_black()
     );
-    for c in &e.children {
-        print_text(c, depth + 1);
+    if can_descend(depth, max_depth) {
+        for c in &e.children {
+            print_text(c, depth + 1, max_depth);
+        }
     }
 }
 
@@ -198,6 +220,14 @@ fn display_path(entry: &blz_core::TocEntry) -> Vec<String> {
         .heading_path_display
         .clone()
         .unwrap_or_else(|| entry.heading_path.clone())
+}
+
+fn exceeds_depth(depth: usize, max_depth: Option<usize>) -> bool {
+    max_depth.is_some_and(|max| depth + 1 > max)
+}
+
+fn can_descend(depth: usize, max_depth: Option<usize>) -> bool {
+    max_depth.is_none_or(|max| depth + 1 < max)
 }
 
 /// Get lines by anchor

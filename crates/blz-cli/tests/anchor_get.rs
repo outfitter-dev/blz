@@ -82,3 +82,80 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
+    let tmp = tempdir()?;
+    let server = MockServer::start().await;
+    let url = format!("{}/llms.txt", server.uri());
+
+    let doc = "# Title\n\n## A\nalpha line\n\n### A.1\nnested\n\n## B\nbravo\n";
+    Mock::given(method("HEAD"))
+        .and(path("/llms.txt"))
+        .respond_with(
+            ResponseTemplate::new(200).insert_header("content-length", doc.len().to_string()),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/llms.txt"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(doc))
+        .mount(&server)
+        .await;
+
+    let mut cmd = blz_cmd();
+    cmd.env("BLZ_DATA_DIR", tmp.path())
+        .args(["add", "e2e", &url, "-y"])
+        .assert()
+        .success();
+
+    // JSON output respects both limit and max depth
+    let mut cmd = blz_cmd();
+    let toc_json = cmd
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args([
+            "toc",
+            "e2e",
+            "--max-depth",
+            "1",
+            "--limit",
+            "1",
+            "-f",
+            "json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let entries: Value = serde_json::from_slice(&toc_json)?;
+    let arr = entries.as_array().cloned().unwrap_or_default();
+    assert_eq!(arr.len(), 1, "expected only top-level heading with limit 1");
+    assert!(
+        arr.iter()
+            .all(|e| e.get("headingLevel").and_then(Value::as_u64) == Some(1)),
+        "expected headingLevel 1 entries only"
+    );
+
+    // Text output omits deeper headings when max depth is set
+    let mut cmd = blz_cmd();
+    let toc_text = cmd
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args(["toc", "e2e", "--max-depth", "1"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8(toc_text)?;
+    assert!(
+        !s.contains("A.1"),
+        "expected nested heading to be omitted when max depth is 1"
+    );
+    assert!(
+        s.contains("Title"),
+        "expected top-level heading to remain visible"
+    );
+
+    Ok(())
+}

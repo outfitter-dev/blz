@@ -819,10 +819,18 @@ async fn execute_command(
         Some(Commands::Toc {
             alias,
             format,
+            limit,
+            max_depth,
             mappings,
         }) => {
-            // TOC command doesn't have a limit flag directly (only via subcommand)
-            commands::show_toc(&alias, format.resolve(cli.quiet), mappings, None).await?;
+            commands::show_toc(
+                &alias,
+                format.resolve(cli.quiet),
+                mappings,
+                limit,
+                max_depth.map(usize::from),
+            )
+            .await?;
         },
         None => {
             commands::handle_default_search(&cli.query, metrics, None, prefs, cli.quiet).await?;
@@ -1007,7 +1015,17 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             format,
             mappings,
             limit,
-        } => commands::show_toc(&alias, format.resolve(quiet), mappings, limit).await,
+            max_depth,
+        } => {
+            commands::show_toc(
+                &alias,
+                format.resolve(quiet),
+                mappings,
+                limit,
+                max_depth.map(usize::from),
+            )
+            .await
+        },
         AnchorCommands::Get {
             alias,
             anchor,

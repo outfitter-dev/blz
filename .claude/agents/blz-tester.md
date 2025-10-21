@@ -43,7 +43,7 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - `blz lookup`: Test registry search, format shortcuts, `--limit`
    - `blz registry`: Test registry management commands
    - `blz alias`: Test alias management (add, rm subcommands)
-   - `blz anchor` / `blz toc`: Test anchor utilities and remap mappings
+   - `blz toc` (legacy alias: `blz anchor`): Test heading utilities and remap mappings
    - `blz completions`: Test shell completion generation for different shells
    - Any other commands discovered via `--help`
    - Other `--flags` that are typical in CLI tools that an agent might expect to be available
