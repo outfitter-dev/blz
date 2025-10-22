@@ -344,6 +344,7 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 source: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
+                level: 2,
                 lines: format!("{}-{}", i * 10, i * 10 + 5),
                 line_numbers: None,
                 snippet: format!("This is test content for result {}", i),
