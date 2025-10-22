@@ -33,6 +33,7 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
 | `completions` | | Generate shell completions |
 | `docs` | | Generate CLI docs (Markdown/JSON) |
 | `alias` | | Manage aliases for a source |
+| `toc` | `anchors` | Inspect headings / anchor mappings for a source |
 | `--prompt` | | Emit agent-focused JSON guidance for the CLI or specific commands |
 | `history` | | Show recent searches and CLI defaults |
 | `config` | | Manage configuration (global/local/project scopes) |
@@ -57,6 +58,7 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
   - [blz history](#blz-history)
   - [blz config](#blz-config)
   - [blz alias](#blz-alias)
+  - [blz toc](#blz-toc)
   - [blz --prompt](#blz---prompt)
 - [Output Formats](#output-formats)
 
@@ -575,6 +577,45 @@ blz docs --format json  # Equivalent to: blz docs export --json
 - The `blz-docs` alias (also `@blz`) is internal and hidden from default search
 - Use `blz docs search` to query this source specifically
 - Legacy `blz docs --format <FORMAT>` is mapped to `blz docs export --format <FORMAT>`
+
+### `blz toc`
+
+Inspect the table of contents (headings) for a cached source. The legacy `blz anchors` subcommand remains as a hidden alias for backward compatibility.
+
+```bash
+blz toc <ALIAS> [OPTIONS]
+```
+
+**Arguments:**
+
+- `<ALIAS>` – Source alias (canonical or metadata alias)
+
+**Options:**
+
+- `-f, --format <FORMAT>` – Output format: `text` (default), `json`, or `jsonl`
+- `-n, --limit <COUNT>` – Show only the first N headings
+- `--filter <EXPR>` – Boolean expression for heading text/anchors:
+  - Default OR semantics between terms
+  - Prefix with `+` (or use `and`) to require a term
+  - Prefix with `-`/`!` (or use `not`) to exclude a term
+- `--max-depth <1-6>` – Restrict results to headings at or above the specified level
+- `--mappings` – Show anchor remap metadata captured during updates (ignores other filters)
+
+**Examples:**
+
+```bash
+# Preview nested headings for a source
+blz toc bun --limit 20
+
+# Filter headings that mention API but exclude deprecated sections
+blz toc react --filter "+API -deprecated" --format json
+
+# Show only top-level headings
+blz toc astro --max-depth 1
+
+# Inspect stored anchor remap metadata
+blz toc bun --mappings --format json
+```
 
 ## Default Behavior
 
