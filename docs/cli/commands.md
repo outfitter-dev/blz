@@ -599,7 +599,7 @@ blz toc <ALIAS> [OPTIONS]
   - Prefix with `+` (or use `and`) to require a term
   - Prefix with `-`/`!` (or use `not`) to exclude a term
 - `--max-depth <1-6>` – Restrict results to headings at or above the specified level
-- `--mappings` – Show anchor remap metadata captured during updates (ignores other filters)
+- `--anchors` – Show anchor metadata and remap history (ignores other filters)
 
 **Examples:**
 
@@ -614,7 +614,7 @@ blz toc react --filter "+API -deprecated" --format json
 blz toc astro --max-depth 1
 
 # Inspect stored anchor remap metadata
-blz toc bun --mappings --format json
+blz toc bun --anchors --format json
 ```
 
 ## Default Behavior
