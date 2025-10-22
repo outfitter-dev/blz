@@ -274,7 +274,7 @@ fn print_text_with_limit(
                 anchor.bright_black()
             );
         } else {
-            println!("{}- {} {}", indent, name, lines_display);
+            println!("{indent}- {name} {lines_display}");
         }
 
         1
@@ -378,7 +378,7 @@ fn print_text(
                 anchor.bright_black()
             );
         } else {
-            println!("{}- {} {}", indent, name, lines_display);
+            println!("{indent}- {name} {lines_display}");
         }
     }
     if can_descend(depth, max_depth) {
@@ -420,24 +420,21 @@ fn print_tree(
     let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
     if text_matches && level_matches {
-        // Add blank line when jumping up levels (but not between adjacent H1s)
+        // Add blank line when jumping up levels (but not to H1 - H1 handles its own spacing)
         if let Some(prev) = *prev_depth {
-            if depth < prev {
-                // Jumping up levels - add blank line
+            if depth < prev && depth > 0 {
+                // Jumping up levels within H2+
                 if depth > 1 {
                     // H3+ has continuation pipes
                     let pipe_prefix = prefix.trim_end();
-                    println!("{}", pipe_prefix);
+                    println!("{pipe_prefix}");
                 } else if depth == 1 {
                     // H2 level: show pipe if not last sibling
-                    if !is_last {
-                        println!("│");
-                    } else {
+                    if is_last {
                         println!();
+                    } else {
+                        println!("│");
                     }
-                } else if depth == 0 {
-                    // Jumping back to H1 from deeper level
-                    println!();
                 }
             }
         }
@@ -454,7 +451,7 @@ fn print_tree(
                 let anchor = e.anchor.clone().unwrap_or_default();
                 println!("{} {} {}", name, lines_display, anchor.bright_black());
             } else {
-                println!("{} {}", name, lines_display);
+                println!("{name} {lines_display}");
             }
         } else {
             // H2+ use tree structure
@@ -470,7 +467,7 @@ fn print_tree(
                     anchor.bright_black()
                 );
             } else {
-                println!("{}{}{} {}", prefix, branch, name, lines_display);
+                println!("{prefix}{branch}{name} {lines_display}");
             }
         }
         *count += 1;
