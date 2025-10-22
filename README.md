@@ -22,13 +22,15 @@ curl -fsSL https://blz.run/install.sh | sh
 blz add bun https://bun.sh/llms.txt
 
 # Search (results in 6ms)
-blz "test runner"
+blz find "test runner"
+# Or just: blz "test runner"
 
 # Browse documentation structure
 blz toc bun --tree -H 1-2
 
-# Pull exact lines (matches the search citation format)
-blz get bun:304-324 --json
+# Pull exact lines (citations auto-detected)
+blz find bun:304-324 --json
+# Or: blz bun:304-324 --json
 ```
 
 ### MCP Server Setup
@@ -111,6 +113,8 @@ See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for det
 
 ## Features
 
+- **Unified find command**: Smart pattern detection automatically routes queries to search or retrieval
+- **Heading level filtering**: Search within specific heading depths with `-H` flag (e.g., `-H <=2` for top-level sections)
 - **One-line installation**: Install script with SHA-256 verification and platform detection
 - **Fast search**: 6ms typical search latency with exact line citations
 - **Offline-first**: Works offline after initial download, smart updates with HTTP caching

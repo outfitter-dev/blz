@@ -385,11 +385,16 @@ impl OptimizedSearchIndex {
                 }
             };
 
+            // Calculate heading level from heading_path length
+            #[allow(clippy::cast_possible_truncation)]
+            let level = heading_path.len().clamp(1, 6) as u8;
+
             results.push(SearchHit {
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
                 raw_heading_path: None,
+                level,
                 lines,
                 line_numbers,
                 snippet: snippet_buffer.as_str().to_string(),

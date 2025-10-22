@@ -345,6 +345,7 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
                 raw_heading_path: Some(vec![format!("Section_{}", i), format!("Subsection_{}", i)]),
+                level: 2,
                 lines: format!("{}-{}", i * 10, i * 10 + 5),
                 line_numbers: None,
                 snippet: format!("This is test content for result {}", i),

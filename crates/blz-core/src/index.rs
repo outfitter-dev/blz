@@ -458,11 +458,16 @@ impl SearchIndex {
                 // Parse numeric line range for convenience
                 let line_numbers = Self::parse_lines_range(&exact_lines);
 
+                // Calculate heading level from heading_path length
+                #[allow(clippy::cast_possible_truncation)]
+                let level = heading_path.len().clamp(1, 6) as u8;
+
                 hits.push(SearchHit {
                     source: alias,
                     file,
                     heading_path,
                     raw_heading_path,
+                    level,
                     lines: exact_lines,
                     line_numbers,
                     snippet,

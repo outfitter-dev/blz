@@ -497,6 +497,11 @@ fn process_single_request(
 }
 
 /// Execute the get command to retrieve specific lines from a source
+///
+/// **Deprecated**: Use `blz find` instead. The `get` command will be removed in a future release.
+///
+/// Note: The `find` command handles both search and retrieval with the same options.
+/// Use `blz find bun:120-142` instead of `blz get bun:120-142`.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cognitive_complexity)]
 pub async fn execute(
@@ -507,6 +512,9 @@ pub async fn execute(
     format: OutputFormat,
     copy: bool,
 ) -> Result<()> {
+    // Emit deprecation warning to stderr (doesn't interfere with JSON output)
+    eprintln!("warning: `blz get` is deprecated, use `blz find` instead");
+
     if specs.is_empty() {
         anyhow::bail!("At least one alias is required.");
     }

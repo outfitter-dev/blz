@@ -113,14 +113,19 @@ fn validate_limit(s: &str) -> Result<usize, String> {
 #[command(version)]
 #[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
 #[command(
-    override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]"
+    override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]\n       blz [CITATION] [OPTIONS]"
 )]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Positional query arguments used when no explicit command is provided
+    /// Positional query or citation arguments used when no explicit command is provided
+    ///
+    /// Can be either a search query or a citation in the format alias:start-end
+    /// Examples:
+    ///   blz "async patterns"    # Search query
+    ///   blz bun:120-142         # Citation retrieval
     #[arg(value_name = "QUERY", trailing_var_arg = true)]
     pub query: Vec<String>,
 
@@ -376,7 +381,7 @@ pub enum Commands {
         command: RegistryCommands,
     },
 
-    /// Search across cached docs
+    /// Search across cached docs (deprecated: use `find` instead)
     ///
     /// Query Syntax:
     ///   "exact phrase"      Match exact phrase (use single quotes: blz '"exact phrase"')
@@ -385,11 +390,9 @@ pub enum Commands {
     ///   +api +key           Require both terms
     ///
     /// Examples:
-    ///   blz "react hooks"              # Search all sources
-    ///   blz '+api +key'                # Require both terms
-    ///   blz '"exact phrase"'           # Exact phrase match
-    ///   blz search "async" -s bun      # Search specific source
-    #[command(display_order = 2)]
+    ///   blz find "react hooks"         # Preferred: use find
+    ///   blz "react hooks"              # Default command still works
+    #[command(display_order = 2, hide = true)]
     Search {
         /// Search query (required unless --next, --previous, or --last)
         #[arg(required_unless_present_any = ["next", "previous", "last"])]
@@ -456,6 +459,17 @@ pub enum Commands {
         /// Show only top N percentile of results (1-100). Applied after paging is calculated.
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
         top: Option<u8>,
+        /// Filter results by heading level
+        ///
+        /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+        ///
+        /// Examples:
+        ///   -H <=2       # Level 1 and 2 headings only
+        ///   -H >2        # Level 3+ headings only
+        ///   -H 1,2,3     # Levels 1, 2, and 3 only
+        ///   -H 2-4       # Levels 2, 3, and 4 only
+        #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+        heading_level: Option<String>,
         /// Output format (text, json, jsonl)
         #[command(flatten)]
         format: FormatArg,
@@ -593,15 +607,13 @@ pub enum Commands {
         clear_before: Option<String>,
     },
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
-    /// Get exact lines from a source
+    /// Get exact lines from a source (deprecated: use `find` instead)
     ///
-    /// Preferred syntax matches search output: `blz get bun:120-142`
+    /// Preferred syntax: `blz find bun:120-142`
     ///
-    /// Multiple spans from the same source can be comma-separated:
-    /// `blz get bun:120-142,200-210`
-    ///
-    /// `--lines` remains available for compatibility: `blz get bun --lines 120-142`
-    #[command(display_order = 3)]
+    /// Multiple spans can be comma-separated:
+    /// `blz find bun:120-142,200-210`
+    #[command(display_order = 3, hide = true)]
     Get {
         /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
@@ -842,15 +854,183 @@ pub enum Commands {
         since: Option<String>,
     },
 
-    /// Launch MCP server for AI agent integration
-    ///
-    /// Starts the BLZ MCP (Model Context Protocol) server over stdio transport.
-    /// This enables AI agents like Claude Desktop to use BLZ for documentation search
-    /// via the standardized MCP protocol.
-    ///
-    /// The server runs until interrupted with SIGINT (Ctrl+C) or SIGTERM.
     #[command(name = "mcp-server")]
     McpServer,
+
+    /// Unified find command (search or retrieve based on input pattern)
+    ///
+    /// Smart pattern detection:
+    /// - If input matches `alias:digits-digits` format → retrieve mode (like get)
+    /// - Otherwise → search mode (like search)
+    ///
+    /// Examples:
+    ///   blz find "async patterns"        # Search mode
+    ///   blz find bun:120-142             # Retrieve mode
+    ///   blz find bun:120-142,200-210     # Multiple ranges
+    #[command(display_order = 5)]
+    Find {
+        /// Query string or citation (e.g., "query" or "alias:123-456")
+        #[arg(value_name = "INPUT", required = true)]
+        input: String,
+
+        /// Filter by source(s) for search mode - comma-separated for multiple
+        #[arg(
+            long = "source",
+            short = 's',
+            visible_alias = "alias",
+            visible_alias = "sources",
+            value_name = "SOURCE",
+            value_delimiter = ',',
+            num_args = 0..
+        )]
+        sources: Vec<String>,
+
+        /// Maximum number of results per page (search mode only)
+        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+        limit: Option<usize>,
+
+        /// Show all results - no limit (search mode only)
+        #[arg(long, conflicts_with = "limit")]
+        all: bool,
+
+        /// Page number for pagination (search mode only)
+        #[arg(long, default_value = "1")]
+        page: usize,
+
+        /// Show only top N percentile of results (1-100, search mode only)
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+        top: Option<u8>,
+
+        /// Filter results by heading level (search mode only)
+        ///
+        /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+        ///
+        /// Examples:
+        ///   -H <=2       # Level 1 and 2 headings only
+        ///   -H >2        # Level 3+ headings only
+        ///   -H 1,2,3     # Levels 1, 2, and 3 only
+        ///   -H 2-4       # Levels 2, 3, and 4 only
+        #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+        heading_level: Option<String>,
+
+        /// Output format (text, json, jsonl)
+        #[command(flatten)]
+        format: FormatArg,
+
+        /// Additional columns to include in text output (search mode only)
+        #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+        show: Vec<ShowComponent>,
+
+        /// Hide the summary/footer line (search mode only)
+        #[arg(long = "no-summary")]
+        no_summary: bool,
+
+        /// Number of decimal places to show for scores (0-4, search mode only)
+        #[arg(
+            long = "score-precision",
+            value_name = "PLACES",
+            value_parser = clap::value_parser!(u8).range(0..=4),
+            env = "BLZ_SCORE_PRECISION"
+        )]
+        score_precision: Option<u8>,
+
+        /// Maximum snippet lines to display around a hit (1-10, search mode only)
+        #[arg(
+            long = "snippet-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(u8).range(1..=10),
+            env = "BLZ_SNIPPET_LINES",
+            default_value_t = 3,
+            hide = true
+        )]
+        snippet_lines: u8,
+
+        /// Maximum total characters in snippet (search mode, range: 50-1000, default: 200)
+        #[arg(
+            long = "max-chars",
+            value_name = "CHARS",
+            env = "BLZ_MAX_CHARS",
+            value_parser = clap::value_parser!(usize)
+        )]
+        max_chars: Option<usize>,
+
+        /// Print LINES lines of context (both before and after match). Same as -C.
+        #[arg(
+            short = 'C',
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
+        )]
+        context: Option<ContextMode>,
+
+        /// Deprecated: use -C or --context instead
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true,
+            display_order = 100
+        )]
+        context_deprecated: Option<ContextMode>,
+
+        /// Print LINES lines of context after each match
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 31
+        )]
+        after_context: Option<usize>,
+
+        /// Print LINES lines of context before each match
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 32
+        )]
+        before_context: Option<usize>,
+
+        /// Return the full heading block containing each hit (legacy alias for --context all)
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
+        block: bool,
+
+        /// Maximum number of lines to include when using block expansion
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            display_order = 34
+        )]
+        max_lines: Option<usize>,
+
+        /// Restrict matches to heading text only (search mode only)
+        #[arg(long = "headings-only", display_order = 35)]
+        headings_only: bool,
+
+        /// Don't save this search to history (search mode only)
+        #[arg(long = "no-history")]
+        no_history: bool,
+
+        /// Copy results to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
+    },
 }
 
 /// Subcommands for `blz docs`.

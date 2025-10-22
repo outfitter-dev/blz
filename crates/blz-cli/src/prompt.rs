@@ -88,6 +88,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Refresh { .. } | Commands::Update { .. } => "refresh".into(),
                 Commands::Remove { .. } => "remove".into(),
                 Commands::List { .. } => "list".into(),
+                Commands::Find { .. } => "find".into(),
                 Commands::Get { .. } => "get".into(),
                 Commands::Lookup { .. } => "lookup".into(),
                 Commands::History { .. } => "history".into(),
