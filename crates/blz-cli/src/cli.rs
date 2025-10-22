@@ -267,9 +267,9 @@ pub enum Commands {
             value_parser = clap::value_parser!(u8).range(1..=6)
         )]
         max_depth: Option<u8>,
-        /// Show anchor remap mappings if available
-        #[arg(long)]
-        mappings: bool,
+        /// Show anchor metadata and remap history
+        #[arg(long, alias = "mappings")]
+        anchors: bool,
     },
     /// Add a new source
     #[command(display_order = 1)]
@@ -988,9 +988,9 @@ pub enum AnchorCommands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Show anchor remap mappings if available
-        #[arg(long)]
-        mappings: bool,
+        /// Show anchor metadata and remap history
+        #[arg(long, alias = "mappings")]
+        anchors: bool,
         /// Maximum number of headings to display
         #[arg(short = 'n', long, value_name = "COUNT")]
         limit: Option<usize>,

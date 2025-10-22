@@ -10,7 +10,7 @@ use crate::utils::parsing::{LineRange, parse_line_ranges};
 pub async fn execute(
     alias: &str,
     output: OutputFormat,
-    mappings: bool,
+    anchors: bool,
     limit: Option<usize>,
     max_depth: Option<usize>,
     filter_expr: Option<&str>,
@@ -20,8 +20,8 @@ pub async fn execute(
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
         .map_or_else(|| alias.to_string(), |c| c);
 
-    if mappings && filter_expr.is_some() {
-        return Err(anyhow!("--filter cannot be combined with --mappings"));
+    if anchors && filter_expr.is_some() {
+        return Err(anyhow!("--filter cannot be combined with --anchors"));
     }
 
     let filter = filter_expr
@@ -29,7 +29,7 @@ pub async fn execute(
         .transpose()
         .context("Failed to parse filter expression")?;
 
-    if mappings {
+    if anchors {
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
             println!("No heading remap metadata found for '{canonical}'");
