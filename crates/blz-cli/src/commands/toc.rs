@@ -6,30 +6,67 @@ use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 
-#[allow(dead_code, clippy::unused_async, clippy::too_many_lines)]
+#[allow(
+    dead_code,
+    clippy::unused_async,
+    clippy::too_many_lines,
+    clippy::too_many_arguments
+)]
 pub async fn execute(
-    alias: &str,
+    alias: Option<&str>,
+    sources: &[String],
+    all: bool,
     output: OutputFormat,
     anchors: bool,
     limit: Option<usize>,
-    max_depth: Option<usize>,
+    max_depth: Option<u8>,
+    heading_level: Option<&str>,
     filter_expr: Option<&str>,
+    tree: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
-    // Resolve metadata alias to canonical if needed
-    let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
-        .map_or_else(|| alias.to_string(), |c| c);
 
     if anchors && filter_expr.is_some() {
         return Err(anyhow!("--filter cannot be combined with --anchors"));
     }
 
+    // Parse text filter
     let filter = filter_expr
         .map(HeadingFilter::parse)
         .transpose()
         .context("Failed to parse filter expression")?;
 
+    // Convert --max-depth to heading level filter for backward compat
+    let level_filter = if let Some(filter_str) = heading_level {
+        Some(
+            filter_str
+                .parse::<crate::utils::heading_filter::HeadingLevelFilter>()
+                .map_err(|e| anyhow!("Invalid heading level filter: {e}"))?,
+        )
+    } else {
+        max_depth.map(crate::utils::heading_filter::HeadingLevelFilter::LessThanOrEqual)
+    };
+
+    // Determine which sources to process
+    let source_list: Vec<String> = if all {
+        storage.list_sources()
+    } else if !sources.is_empty() {
+        sources.to_vec()
+    } else if let Some(single) = alias {
+        vec![single.to_string()]
+    } else {
+        return Err(anyhow!(
+            "No source specified. Use an alias, --source, or --all"
+        ));
+    };
+
+    // Handle anchors mode (only works with single source)
     if anchors {
+        if source_list.len() > 1 {
+            return Err(anyhow!("--anchors can only be used with a single source"));
+        }
+        let canonical = crate::utils::resolver::resolve_source(&storage, &source_list[0])?
+            .map_or_else(|| source_list[0].to_string(), |c| c);
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
             println!("No heading remap metadata found for '{canonical}'");
@@ -72,46 +109,45 @@ pub async fn execute(
         return Ok(());
     }
 
-    // Load JSON metadata (Phase 3: always llms.txt)
-    let llms: LlmsJson = storage
-        .load_llms_json(&canonical)
-        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
-    let mut entries = Vec::new();
-    collect_entries(&mut entries, &llms.toc, max_depth, 0, filter.as_ref());
+    // Process each source
+    let mut all_entries = Vec::new();
+
+    for source_alias in &source_list {
+        let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
+            .map_or_else(|| source_alias.to_string(), |c| c);
+
+        // Load JSON metadata (Phase 3: always llms.txt)
+        let llms: LlmsJson = storage
+            .load_llms_json(&canonical)
+            .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+
+        collect_entries(
+            &mut all_entries,
+            &llms.toc,
+            max_depth.map(usize::from),
+            0,
+            filter.as_ref(),
+            level_filter.as_ref(),
+            source_alias,
+            &canonical,
+        );
+    }
 
     // Apply limit to entries
     if let Some(limit_count) = limit {
-        entries.truncate(limit_count);
-    }
-
-    // Replace placeholder with actual alias/source for each entry in JSON/JSONL output
-    for e in &mut entries {
-        if let Some(obj) = e.as_object_mut() {
-            // Add alias field (what the user typed)
-            obj.insert(
-                "alias".to_string(),
-                serde_json::Value::String(alias.to_string()),
-            );
-            // Update source to canonical (the resolved source name)
-            if obj.get("source").is_some() {
-                obj.insert(
-                    "source".to_string(),
-                    serde_json::Value::String(canonical.clone()),
-                );
-            }
-        }
+        all_entries.truncate(limit_count);
     }
 
     match output {
         OutputFormat::Json => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&entries)
+                serde_json::to_string_pretty(&all_entries)
                     .context("Failed to serialize table of contents to JSON")?
             );
         },
         OutputFormat::Jsonl => {
-            for e in entries {
+            for e in all_entries {
                 println!(
                     "{}",
                     serde_json::to_string(&e)
@@ -120,22 +156,78 @@ pub async fn execute(
             }
         },
         OutputFormat::Text => {
-            println!("Table of contents for {}\n", canonical.green());
-            let mut count = 0;
-            for e in &llms.toc {
-                if let Some(limit_count) = limit {
-                    if count >= limit_count {
-                        break;
-                    }
-                    count += print_text_with_limit(
-                        e,
-                        0,
-                        limit_count - count,
-                        max_depth,
-                        filter.as_ref(),
-                    );
+            // For text output with multiple sources, show each source separately
+            for source_alias in &source_list {
+                let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
+                    .map_or_else(|| source_alias.to_string(), |c| c);
+
+                // Load JSON metadata again for text rendering
+                let llms: LlmsJson = storage
+                    .load_llms_json(&canonical)
+                    .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+
+                if source_list.len() > 1 {
+                    println!("\n{}:", canonical.green());
                 } else {
-                    print_text(e, 0, max_depth, filter.as_ref());
+                    println!("Table of contents for {}\n", canonical.green());
+                }
+
+                #[allow(clippy::branches_sharing_code)]
+                if tree {
+                    // Tree rendering
+                    let mut count = 0;
+                    let mut prev_depth: Option<usize> = None;
+                    let mut prev_h1_had_children = false;
+                    for (i, e) in llms.toc.iter().enumerate() {
+                        if let Some(limit_count) = limit {
+                            if count >= limit_count {
+                                break;
+                            }
+                        }
+                        let is_last = i == llms.toc.len() - 1;
+                        print_tree(
+                            e,
+                            0,
+                            is_last,
+                            "",
+                            max_depth.map(usize::from),
+                            filter.as_ref(),
+                            level_filter.as_ref(),
+                            &mut count,
+                            limit,
+                            anchors,
+                            &mut prev_depth,
+                            &mut prev_h1_had_children,
+                        );
+                    }
+                } else {
+                    // Standard list rendering
+                    let mut count = 0;
+                    for e in &llms.toc {
+                        if let Some(limit_count) = limit {
+                            if count >= limit_count {
+                                break;
+                            }
+                            count += print_text_with_limit(
+                                e,
+                                0,
+                                limit_count - count,
+                                max_depth.map(usize::from),
+                                filter.as_ref(),
+                                level_filter.as_ref(),
+                                anchors,
+                            );
+                        } else {
+                            print_text(
+                                e,
+                                0,
+                                max_depth.map(usize::from),
+                                filter.as_ref(),
+                                level_filter.as_ref(),
+                                anchors,
+                            );
+                        }
+                    }
                 }
             }
         },
@@ -155,6 +247,8 @@ fn print_text_with_limit(
     remaining: usize,
     max_depth: Option<usize>,
     filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    show_anchors: bool,
 ) -> usize {
     if remaining == 0 || exceeds_depth(depth, max_depth) {
         return 0;
@@ -162,18 +256,26 @@ fn print_text_with_limit(
 
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    let anchor = e.anchor.clone().unwrap_or_default();
-    let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
+    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
-    let mut printed = if matches {
+    let mut printed = if text_matches && level_matches {
         let indent = "  ".repeat(depth);
-        println!(
-            "{}- {}  {}  {}",
-            indent,
-            name,
-            e.lines,
-            anchor.bright_black()
-        );
+        let lines_display = format!("[{}]", e.lines).dimmed();
+
+        if show_anchors {
+            let anchor = e.anchor.clone().unwrap_or_default();
+            println!(
+                "{}- {} {} {}",
+                indent,
+                name,
+                lines_display,
+                anchor.bright_black()
+            );
+        } else {
+            println!("{}- {} {}", indent, name, lines_display);
+        }
 
         1
     } else {
@@ -184,30 +286,44 @@ fn print_text_with_limit(
             if printed >= remaining {
                 break;
             }
-            printed += print_text_with_limit(c, depth + 1, remaining - printed, max_depth, filter);
+            printed += print_text_with_limit(
+                c,
+                depth + 1,
+                remaining - printed,
+                max_depth,
+                filter,
+                level_filter,
+                show_anchors,
+            );
         }
     }
     printed
 }
 
-#[allow(dead_code, clippy::items_after_statements)]
+#[allow(dead_code, clippy::items_after_statements, clippy::too_many_arguments)]
 fn collect_entries(
     entries: &mut Vec<serde_json::Value>,
     list: &[blz_core::TocEntry],
     max_depth: Option<usize>,
     depth: usize,
     filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    alias: &str,
+    canonical: &str,
 ) {
     for e in list {
         if exceeds_depth(depth, max_depth) {
             continue;
         }
         let display_path = display_path(e);
-        let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+        #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
+        let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+        let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
-        if matches {
+        if text_matches && level_matches {
             entries.push(serde_json::json!({
-                "source": "__ALIAS__", // placeholder, replaced by caller
+                "alias": alias,
+                "source": canonical,
                 "headingPath": display_path,
                 "rawHeadingPath": e.heading_path,
                 "headingPathNormalized": e.heading_path_normalized,
@@ -217,7 +333,16 @@ fn collect_entries(
             }));
         }
         if !e.children.is_empty() && can_descend(depth, max_depth) {
-            collect_entries(entries, &e.children, max_depth, depth + 1, filter);
+            collect_entries(
+                entries,
+                &e.children,
+                max_depth,
+                depth + 1,
+                filter,
+                level_filter,
+                alias,
+                canonical,
+            );
         }
     }
 }
@@ -228,29 +353,173 @@ fn print_text(
     depth: usize,
     max_depth: Option<usize>,
     filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    show_anchors: bool,
 ) {
     if exceeds_depth(depth, max_depth) {
         return;
     }
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    let anchor = e.anchor.clone().unwrap_or_default();
-    let matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
-    if matches {
+    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
+    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+    if text_matches && level_matches {
         let indent = "  ".repeat(depth);
-        println!(
-            "{}- {}  {}  {}",
-            indent,
-            name,
-            e.lines,
-            anchor.bright_black()
-        );
+        let lines_display = format!("[{}]", e.lines).dimmed();
+
+        if show_anchors {
+            let anchor = e.anchor.clone().unwrap_or_default();
+            println!(
+                "{}- {} {} {}",
+                indent,
+                name,
+                lines_display,
+                anchor.bright_black()
+            );
+        } else {
+            println!("{}- {} {}", indent, name, lines_display);
+        }
     }
     if can_descend(depth, max_depth) {
         for c in &e.children {
-            print_text(c, depth + 1, max_depth, filter);
+            print_text(c, depth + 1, max_depth, filter, level_filter, show_anchors);
         }
     }
+}
+
+#[allow(dead_code, clippy::too_many_arguments)]
+fn print_tree(
+    e: &blz_core::TocEntry,
+    depth: usize,
+    is_last: bool,
+    prefix: &str,
+    max_depth: Option<usize>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    count: &mut usize,
+    limit: Option<usize>,
+    show_anchors: bool,
+    prev_depth: &mut Option<usize>,
+    prev_h1_had_children: &mut bool,
+) -> bool {
+    if let Some(limit_count) = limit {
+        if *count >= limit_count {
+            return false;
+        }
+    }
+
+    if exceeds_depth(depth, max_depth) {
+        return false;
+    }
+
+    let display_path = display_path(e);
+    let name = display_path.last().cloned().unwrap_or_default();
+    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
+    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+
+    if text_matches && level_matches {
+        // Add blank line when jumping up levels (but not between adjacent H1s)
+        if let Some(prev) = *prev_depth {
+            if depth < prev {
+                // Jumping up levels - add blank line
+                if depth > 1 {
+                    // H3+ has continuation pipes
+                    let pipe_prefix = prefix.trim_end();
+                    println!("{}", pipe_prefix);
+                } else if depth == 1 {
+                    // H2 level: show pipe if not last sibling
+                    if !is_last {
+                        println!("│");
+                    } else {
+                        println!();
+                    }
+                } else if depth == 0 {
+                    // Jumping back to H1 from deeper level
+                    println!();
+                }
+            }
+        }
+
+        let lines_display = format!("[{}]", e.lines).dimmed();
+
+        // H1s (depth 0) are left-aligned with no branch characters
+        if depth == 0 {
+            // Add blank line before H1 if previous H1 had visible children
+            if *prev_h1_had_children {
+                println!();
+            }
+            if show_anchors {
+                let anchor = e.anchor.clone().unwrap_or_default();
+                println!("{} {} {}", name, lines_display, anchor.bright_black());
+            } else {
+                println!("{} {}", name, lines_display);
+            }
+        } else {
+            // H2+ use tree structure
+            let branch = if is_last { "└─ " } else { "├─ " };
+            if show_anchors {
+                let anchor = e.anchor.clone().unwrap_or_default();
+                println!(
+                    "{}{}{} {} {}",
+                    prefix,
+                    branch,
+                    name,
+                    lines_display,
+                    anchor.bright_black()
+                );
+            } else {
+                println!("{}{}{} {}", prefix, branch, name, lines_display);
+            }
+        }
+        *count += 1;
+        *prev_depth = Some(depth);
+    }
+
+    let mut had_visible_children = false;
+
+    if can_descend(depth, max_depth) {
+        let new_prefix = if depth == 0 {
+            // For H1s, children don't get additional prefix since H1 is left-aligned
+            String::new()
+        } else {
+            format!("{}{}  ", prefix, if is_last { " " } else { "│" })
+        };
+
+        for (i, c) in e.children.iter().enumerate() {
+            if let Some(limit_count) = limit {
+                if *count >= limit_count {
+                    break;
+                }
+            }
+            let child_is_last = i == e.children.len() - 1;
+            let child_printed = print_tree(
+                c,
+                depth + 1,
+                child_is_last,
+                &new_prefix,
+                max_depth,
+                filter,
+                level_filter,
+                count,
+                limit,
+                show_anchors,
+                prev_depth,
+                prev_h1_had_children,
+            );
+            if child_printed {
+                had_visible_children = true;
+            }
+        }
+    }
+
+    // If this is an H1, update the flag for next H1
+    if depth == 0 && text_matches && level_matches {
+        *prev_h1_had_children = had_visible_children;
+    }
+
+    text_matches && level_matches
 }
 
 fn display_path(entry: &blz_core::TocEntry) -> Vec<String> {

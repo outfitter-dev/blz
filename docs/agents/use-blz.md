@@ -97,6 +97,43 @@ blz get bun:41994-42009 --context all --max-lines 80 --json
 # Note: -c<N> is legacy syntax; prefer -C <N> (grep-style)
 ```
 
+## Table of Contents Navigation
+
+```bash
+# Browse all headings
+blz toc bun --json
+
+# Filter by heading level - exact match
+blz toc bun -H 1              # Only H1s
+blz toc bun -H 2              # Only H2s
+
+# Filter by level - range
+blz toc bun -H 1-2            # H1 and H2 (outline mode)
+blz toc bun -H 2-4            # H2 through H4
+
+# Filter by level - comparison operators
+blz toc bun -H <=2            # Levels 1-2 (alternative to 1-2)
+blz toc bun -H >2             # Levels 3+ (details only)
+
+# Filter by level - list
+blz toc bun -H 1,3,5          # Specific levels only
+
+# Tree view with hierarchical visualization
+blz toc bun --tree
+
+# Tree view with level filter
+blz toc bun --tree -H 1-3
+
+# Combine level and text filters
+blz toc bun -H 1-2 --filter "api"
+
+# Multi-source TOC
+blz toc --source bun,node,deno --tree -H 1-2
+
+# All sources
+blz toc --all -H 1-2 --json
+```
+
 ## Keep Sources Fresh
 
 ```bash

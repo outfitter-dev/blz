@@ -24,6 +24,9 @@ blz add bun https://bun.sh/llms.txt
 # Search (results in 6ms)
 blz "test runner"
 
+# Browse documentation structure
+blz toc bun --tree -H 1-2
+
 # Pull exact lines (matches the search citation format)
 blz get bun:304-324 --json
 ```
@@ -42,7 +45,7 @@ claude mcp add blz blz mcp --scope user
 
 **What you'll see:**
 
-```
+```text
 ✓ Added bun (1,926 headings, 43,150 lines) in 890ms
 
 Search results for 'test runner' (6ms):
@@ -113,6 +116,11 @@ See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for det
 - **Offline-first**: Works offline after initial download, smart updates with HTTP caching
 - **Clipboard support**: Copy search results directly with `--copy` flag
 - **Source insights**: Commands for visibility (`blz stats`, `blz info`, `blz history`)
+- **Enhanced TOC Navigation**
+  - Heading level filtering (`-H 1`, `-H 2-3`, `-H <=2`, `-H >3`)
+  - Tree view visualization with box-drawing characters (`--tree`)
+  - Multi-source TOC browsing (`--source bun,react` or `--all`)
+  - Backward compatible with `--max-depth`
 - **Direct CLI integration**: IDE agents run commands directly for instant JSON results
 - **MCP server** (coming soon): stdio-based integration via official Rust SDK
 
