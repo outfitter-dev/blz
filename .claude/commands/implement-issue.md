@@ -168,7 +168,8 @@ Before considering the work complete, verify:
 ## Example Subagent Instructions
 
 ### For Investigation (systematic-debugger):
-```
+
+```text
 You are investigating [ISSUE-ID]: [title]
 
 Problem: [describe the bug or inconsistency]
@@ -183,7 +184,8 @@ Do NOT make changes - only investigate and report back.
 ```
 
 ### For Implementation (senior-engineer):
-```
+
+```text
 You are implementing the fix for [ISSUE-ID]: [title]
 
 Root cause: [explanation from investigation]
@@ -198,7 +200,8 @@ Begin implementation now.
 ```
 
 ### For Testing (test-driven-developer):
-```
+
+```text
 You are adding tests for [ISSUE-ID]: [title]
 
 What was implemented: [summary]

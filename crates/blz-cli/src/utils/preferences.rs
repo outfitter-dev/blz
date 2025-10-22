@@ -44,6 +44,22 @@ pub struct SearchHistoryEntry {
     pub headings_only: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TocHistoryEntry {
+    pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    pub format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_pages: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_results: Option<usize>,
+}
+
 const fn default_precision() -> u8 {
     1
 }
@@ -362,6 +378,46 @@ fn clamp_precision(value: u8) -> u8 {
     value.min(4)
 }
 
+/// Load the last TOC entry from a dedicated TOC history store
+/// This uses the same scope-based storage as preferences but with a dedicated key
+pub fn load_last_toc_entry() -> Option<TocHistoryEntry> {
+    let store = store::load_store();
+    let key = active_scope_key();
+
+    store.scopes.get(&key).and_then(|record| {
+        if record.user_settings.is_null() {
+            return None;
+        }
+
+        // Look for toc_history in user_settings
+        record
+            .user_settings
+            .get("toc_last_entry")
+            .and_then(|value| serde_json::from_value::<TocHistoryEntry>(value.clone()).ok())
+    })
+}
+
+/// Save TOC history entry for pagination state persistence
+pub fn save_toc_history(entry: &TocHistoryEntry) -> std::io::Result<()> {
+    let mut store = store::load_store();
+    let key = active_scope_key();
+    let record = store.scopes.entry(key).or_default();
+
+    // Store in user_settings under toc_last_entry key
+    if record.user_settings.is_null() {
+        record.user_settings = serde_json::json!({});
+    }
+
+    if let Some(obj) = record.user_settings.as_object_mut() {
+        obj.insert(
+            "toc_last_entry".to_string(),
+            serde_json::to_value(entry).unwrap_or(serde_json::Value::Null),
+        );
+    }
+
+    store::save_store(&store)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,5 +469,31 @@ mod tests {
             .filter_map(|s| component_from_str(s))
             .collect::<Vec<_>>();
         assert_eq!(parsed, components);
+    }
+
+    #[test]
+    fn toc_history_entry_round_trip() {
+        let entry = TocHistoryEntry {
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            source: Some("test-source".to_string()),
+            format: "json".to_string(),
+            page: Some(2),
+            limit: Some(25),
+            total_pages: Some(5),
+            total_results: Some(100),
+        };
+
+        // Serialize and deserialize
+        let json = serde_json::to_value(&entry).expect("serialization should not fail in tests");
+        let restored: TocHistoryEntry =
+            serde_json::from_value(json).expect("deserialization should not fail in tests");
+
+        assert_eq!(restored.timestamp, entry.timestamp);
+        assert_eq!(restored.source, entry.source);
+        assert_eq!(restored.format, entry.format);
+        assert_eq!(restored.page, Some(2));
+        assert_eq!(restored.limit, Some(25));
+        assert_eq!(restored.total_pages, Some(5));
+        assert_eq!(restored.total_results, Some(100));
     }
 }
