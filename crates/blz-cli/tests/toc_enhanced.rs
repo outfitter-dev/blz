@@ -681,3 +681,81 @@ async fn test_tree_view_with_filters() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_tree_spacing_h1_to_h1_with_children() -> anyhow::Result<()> {
+    let tmp = tempdir()?;
+    let server = MockServer::start().await;
+
+    // Create a document with H1 sections, some with children, some without
+    let doc = r#"# H1 No Children 1
+
+# H1 With Children
+## H2 Child 1
+## H2 Child 2
+
+# H1 No Children 2
+
+# H1 No Children 3
+"#;
+
+    seed_source(&tmp, &server, "docs", doc).await?;
+
+    let output = blz_cmd()
+        .env("BLZ_DATA_DIR", tmp.path())
+        .env("NO_COLOR", "1")
+        .args(["toc", "docs", "--tree", "-H", "1-2", "-f", "text"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let text = String::from_utf8(output)?;
+    let lines: Vec<&str> = text.lines().collect();
+
+    // Find the line with "H2 Child 2"
+    let child2_idx = lines
+        .iter()
+        .position(|l| l.contains("H2 Child 2"))
+        .expect("Should find H2 Child 2");
+
+    // The next non-empty line should be an H1
+    let mut next_h1_idx = child2_idx + 1;
+    while next_h1_idx < lines.len() && lines[next_h1_idx].trim().is_empty() {
+        next_h1_idx += 1;
+    }
+
+    // Count blank lines between the last child and next H1
+    let blank_count = next_h1_idx - child2_idx - 1;
+
+    // There should be exactly ONE blank line when transitioning from H2 to H1
+    // (when the previous H1 had children)
+    assert_eq!(
+        blank_count,
+        1,
+        "Expected exactly 1 blank line between H2 child and next H1, found {}\nLines around transition:\n{:?}",
+        blank_count,
+        &lines[child2_idx..child2_idx.saturating_add(4).min(lines.len())]
+    );
+
+    // Verify the next H1 is "H1 No Children 2"
+    assert!(
+        lines[next_h1_idx].contains("H1 No Children 2"),
+        "Expected next line to be 'H1 No Children 2', got: {}",
+        lines[next_h1_idx]
+    );
+
+    // Also verify no double spacing: look for consecutive blank lines
+    for (i, window) in lines.windows(2).enumerate() {
+        assert!(
+            !(window[0].trim().is_empty() && window[1].trim().is_empty()),
+            "Found consecutive blank lines at positions {} and {}\nContext:\n{:?}",
+            i,
+            i + 1,
+            &lines[i.saturating_sub(2)..i.saturating_add(4).min(lines.len())]
+        );
+    }
+
+    Ok(())
+}
