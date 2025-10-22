@@ -254,9 +254,6 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Maximum number of headings to display
-        #[arg(short = 'n', long, value_name = "COUNT")]
-        limit: Option<usize>,
         /// Filter headings by boolean expression (use +term for AND, -term for NOT)
         #[arg(long = "filter", value_name = "EXPR")]
         filter: Option<String>,
@@ -292,6 +289,45 @@ pub enum Commands {
         /// Show anchor slugs in normal TOC output
         #[arg(short = 'a', long)]
         show_anchors: bool,
+        /// Continue from previous toc (next page)
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "previous",
+            display_order = 50
+        )]
+        next: bool,
+        /// Go back to previous page
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "next",
+            display_order = 51
+        )]
+        previous: bool,
+        /// Jump to last page of results
+        #[arg(
+            long,
+            conflicts_with = "next",
+            conflicts_with = "page",
+            conflicts_with = "previous",
+            display_order = 52
+        )]
+        last: bool,
+        /// Maximum number of headings per page
+        #[arg(short = 'n', long, value_name = "COUNT", display_order = 53)]
+        limit: Option<usize>,
+        /// Page number for pagination
+        #[arg(
+            long,
+            default_value = "1",
+            conflicts_with = "next",
+            conflicts_with = "last",
+            display_order = 55
+        )]
+        page: usize,
     },
     /// Add a new source
     #[command(display_order = 1)]

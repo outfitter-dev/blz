@@ -1,17 +1,20 @@
 use anyhow::{Context, Result, anyhow};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
+use chrono::Utc;
 use colored::Colorize;
 
 use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
+use crate::utils::preferences::{self, TocHistoryEntry};
 
 #[allow(
     dead_code,
     clippy::unused_async,
     clippy::too_many_lines,
     clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools
+    clippy::fn_params_excessive_bools,
+    clippy::cognitive_complexity
 )]
 pub async fn execute(
     alias: Option<&str>,
@@ -20,19 +23,63 @@ pub async fn execute(
     output: OutputFormat,
     anchors: bool,
     show_anchors: bool,
-    limit: Option<usize>,
+    mut limit: Option<usize>,
     max_depth: Option<u8>,
     heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
     filter_expr: Option<&str>,
     tree: bool,
+    next: bool,
+    previous: bool,
+    last: bool,
+    mut page: usize,
 ) -> Result<()> {
     let storage = Storage::new()?;
+    let all_sources_mode = all && alias.is_none() && sources.is_empty();
+
+    let last_entry = if next || previous || last {
+        preferences::load_last_toc_entry()
+    } else {
+        None
+    };
+
+    if last_entry.is_none() && ((next || previous) || (last && limit.is_none())) {
+        return Err(anyhow!(
+            "No saved pagination state found. Run `blz toc <alias> --limit <COUNT>` first."
+        ));
+    }
+
+    if (next || previous || last) && limit.is_none() {
+        if let Some(entry) = &last_entry {
+            limit = entry.limit;
+        }
+        if limit.is_none() {
+            return Err(anyhow!(
+                "No saved page size found. Run `blz toc <alias> --limit <COUNT>` first."
+            ));
+        }
+    }
+
+    if next {
+        page = last_entry
+            .as_ref()
+            .and_then(|entry| entry.page)
+            .unwrap_or(1)
+            .saturating_add(1);
+    } else if previous {
+        page = last_entry
+            .as_ref()
+            .and_then(|entry| entry.page)
+            .unwrap_or(2)
+            .saturating_sub(1)
+            .max(1);
+    } else if last {
+        page = usize::MAX;
+    }
 
     if anchors && filter_expr.is_some() {
         return Err(anyhow!("--filter cannot be combined with --anchors"));
     }
 
-    // Parse text filter
     let filter = filter_expr
         .map(HeadingFilter::parse)
         .transpose()
@@ -43,20 +90,39 @@ pub async fn execute(
         max_depth.map(crate::utils::heading_filter::HeadingLevelFilter::LessThanOrEqual)
     });
 
-    // Determine which sources to process
-    let source_list: Vec<String> = if all {
-        storage.list_sources()
-    } else if !sources.is_empty() {
+    let mut source_list = if !sources.is_empty() {
         sources.to_vec()
     } else if let Some(single) = alias {
         vec![single.to_string()]
+    } else if all_sources_mode {
+        storage.list_sources()
     } else {
-        return Err(anyhow!(
-            "No source specified. Use an alias, --source, or --all"
-        ));
+        Vec::new()
     };
 
-    // Handle anchors mode (only works with single source)
+    if source_list.is_empty() && (next || previous || last) {
+        if let Some(entry) = &last_entry {
+            if let Some(saved_sources) = &entry.source {
+                source_list = saved_sources
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+            }
+        }
+    }
+
+    if source_list.is_empty() {
+        if all_sources_mode {
+            return Err(anyhow!(
+                "No sources configured. Add one with `blz add <alias> <url>` before running `blz toc --all`."
+            ));
+        }
+        return Err(anyhow!(
+            "No source specified. Provide an alias, --source <alias>, or run with --all."
+        ));
+    }
+
     if anchors {
         if source_list.len() > 1 {
             return Err(anyhow!("--anchors can only be used with a single source"));
@@ -81,14 +147,17 @@ pub async fn execute(
             },
             OutputFormat::Text => {
                 println!(
-                    "Remap metadata for {} (updated {})\n",
+                    "Remap metadata for {} (updated {})
+",
                     canonical.green(),
                     map.updated_at
                 );
                 for m in map.mappings {
                     let path_str = m.heading_path.join(" > ");
                     println!(
-                        "  {}\n    {} → {}\n    {}",
+                        "  {}
+    {} → {}
+    {}",
                         path_str,
                         m.old_lines,
                         m.new_lines,
@@ -105,14 +174,12 @@ pub async fn execute(
         return Ok(());
     }
 
-    // Process each source
     let mut all_entries = Vec::new();
 
     for source_alias in &source_list {
         let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
             .map_or_else(|| source_alias.to_string(), |c| c);
 
-        // Load JSON metadata (Phase 3: always llms.txt)
         let llms: LlmsJson = storage
             .load_llms_json(&canonical)
             .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
@@ -129,21 +196,89 @@ pub async fn execute(
         );
     }
 
-    // Apply limit to entries
-    if let Some(limit_count) = limit {
-        all_entries.truncate(limit_count);
+    let pagination_limit = if all && !all_sources_mode {
+        None
+    } else {
+        limit
+    };
+
+    let total_results = all_entries.len();
+    let (page_entries, actual_page, total_pages) = pagination_limit.map_or_else(
+        || (all_entries.clone(), 1, 1),
+        |lim| {
+            let total_pages = if total_results == 0 {
+                0
+            } else {
+                total_results.div_ceil(lim)
+            };
+
+            let actual_page = if page == usize::MAX {
+                total_pages.max(1)
+            } else {
+                page.clamp(1, total_pages.max(1))
+            };
+
+            let start = (actual_page - 1) * lim;
+            let end = start.saturating_add(lim).min(total_results);
+
+            let page_entries = if start < total_results {
+                all_entries[start..end].to_vec()
+            } else {
+                Vec::new()
+            };
+
+            (page_entries, actual_page, total_pages)
+        },
+    );
+
+    if pagination_limit.is_some() {
+        let source_str = if source_list.len() == 1 {
+            Some(source_list[0].clone())
+        } else if !source_list.is_empty() {
+            Some(source_list.join(","))
+        } else {
+            None
+        };
+
+        let history_entry = TocHistoryEntry {
+            timestamp: Utc::now().to_rfc3339(),
+            source: source_str,
+            format: preferences::format_to_string(output),
+            page: Some(actual_page),
+            limit: pagination_limit,
+            total_pages: Some(total_pages),
+            total_results: Some(total_results),
+        };
+
+        if let Err(err) = preferences::save_toc_history(&history_entry) {
+            tracing::warn!("failed to save TOC history: {err}");
+        }
     }
 
     match output {
         OutputFormat::Json => {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&all_entries)
-                    .context("Failed to serialize table of contents to JSON")?
-            );
+            if limit.is_some() {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&page_entries)
+                        .context("Failed to serialize table of contents to JSON")?
+                );
+            } else {
+                let payload = serde_json::json!({
+                    "entries": page_entries,
+                    "page": actual_page,
+                    "total_pages": total_pages.max(1),
+                    "total_results": total_results,
+                });
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&payload)
+                        .context("Failed to serialize table of contents to JSON")?
+                );
+            }
         },
         OutputFormat::Jsonl => {
-            for e in all_entries {
+            for e in page_entries {
                 println!(
                     "{}",
                     serde_json::to_string(&e)
@@ -158,7 +293,7 @@ pub async fn execute(
 
             for source_alias in &source_list {
                 // Check if we've hit the global limit
-                if let Some(limit_count) = limit {
+                if let Some(limit_count) = pagination_limit {
                     if global_count >= limit_count {
                         break;
                     }
@@ -167,15 +302,22 @@ pub async fn execute(
                 let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
                     .map_or_else(|| source_alias.to_string(), |c| c);
 
-                // Load JSON metadata again for text rendering
                 let llms: LlmsJson = storage
                     .load_llms_json(&canonical)
                     .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
 
                 if source_list.len() > 1 {
-                    println!("\n{}:", canonical.green());
+                    println!(
+                        "
+{}:",
+                        canonical.green()
+                    );
                 } else {
-                    println!("Table of contents for {}\n", canonical.green());
+                    println!(
+                        "Table of contents for {}
+",
+                        canonical.green()
+                    );
                 }
 
                 #[allow(clippy::branches_sharing_code)]
@@ -184,7 +326,7 @@ pub async fn execute(
                     let mut prev_depth: Option<usize> = None;
                     let mut prev_h1_had_children = false;
                     for (i, e) in llms.toc.iter().enumerate() {
-                        if let Some(limit_count) = limit {
+                        if let Some(limit_count) = pagination_limit {
                             if global_count >= limit_count {
                                 break;
                             }
@@ -199,7 +341,7 @@ pub async fn execute(
                             filter.as_ref(),
                             level_filter.as_ref(),
                             &mut global_count,
-                            limit,
+                            pagination_limit,
                             show_anchors,
                             &mut prev_depth,
                             &mut prev_h1_had_children,
@@ -208,7 +350,7 @@ pub async fn execute(
                 } else {
                     // Standard list rendering with global limit
                     for e in &llms.toc {
-                        if let Some(limit_count) = limit {
+                        if let Some(limit_count) = pagination_limit {
                             if global_count >= limit_count {
                                 break;
                             }
@@ -454,7 +596,7 @@ fn print_tree(
             }
             if show_anchors {
                 let anchor = e.anchor.clone().unwrap_or_default();
-                println!("{} {} {}", name, lines_display, anchor.bright_black());
+                println!("{name} {lines_display} {}", anchor.bright_black());
             } else {
                 println!("{name} {lines_display}");
             }
@@ -464,11 +606,7 @@ fn print_tree(
             if show_anchors {
                 let anchor = e.anchor.clone().unwrap_or_default();
                 println!(
-                    "{}{}{} {} {}",
-                    prefix,
-                    branch,
-                    name,
-                    lines_display,
+                    "{prefix}{branch}{name} {lines_display} {}",
                     anchor.bright_black()
                 );
             } else {

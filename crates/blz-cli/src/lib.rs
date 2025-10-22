@@ -819,7 +819,6 @@ async fn execute_command(
         Some(Commands::Toc {
             alias,
             format,
-            limit,
             filter,
             max_depth,
             heading_level,
@@ -828,6 +827,11 @@ async fn execute_command(
             tree,
             anchors,
             show_anchors,
+            next,
+            previous,
+            last,
+            limit,
+            page,
         }) => {
             commands::show_toc(
                 alias.as_deref(),
@@ -841,6 +845,10 @@ async fn execute_command(
                 heading_level.as_ref(),
                 filter.as_deref(),
                 tree,
+                next,
+                previous,
+                last,
+                page,
             )
             .await?;
         },
@@ -1042,6 +1050,10 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
                 None,
                 filter.as_deref(),
                 false,
+                false, // next
+                false, // previous
+                false, // last
+                1,     // page
             )
             .await
         },
