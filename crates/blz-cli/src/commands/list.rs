@@ -392,6 +392,7 @@ mod tests {
                     url: url.to_string(),
                 }),
             },
+            filter_non_english: None,
         }
     }
 
@@ -407,6 +408,7 @@ mod tests {
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         }
     }
 

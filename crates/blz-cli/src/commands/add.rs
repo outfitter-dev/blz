@@ -704,6 +704,7 @@ fn finalize_add(
         npm_aliases: npm_aliases.clone(),
         github_aliases: github_aliases.clone(),
         origin: origin.clone(),
+        filter_non_english: None,
     };
     storage.save_source_metadata(alias, &metadata)?;
 
