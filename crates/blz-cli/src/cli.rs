@@ -752,7 +752,8 @@ pub enum Commands {
     /// via the standardized MCP protocol.
     ///
     /// The server runs until interrupted with SIGINT (Ctrl+C) or SIGTERM.
-    Mcp,
+    #[command(name = "mcp-server")]
+    McpServer,
 }
 
 /// Subcommands for `blz docs`.
