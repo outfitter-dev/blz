@@ -801,7 +801,16 @@ async fn execute_command(
             filter,
             no_filter,
         }) => {
-            handle_refresh(aliases, all, reindex, filter, no_filter, metrics, cli.quiet).await?;
+            handle_refresh(
+                aliases,
+                all,
+                reindex,
+                filter.as_ref(),
+                no_filter,
+                metrics,
+                cli.quiet,
+            )
+            .await?;
         },
         #[allow(deprecated)]
         Some(Commands::Update {
@@ -813,7 +822,7 @@ async fn execute_command(
                 "{}",
                 "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
             );
-            handle_refresh(aliases, all, false, false, false, metrics, cli.quiet).await?;
+            handle_refresh(aliases, all, false, None, false, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -1319,7 +1328,7 @@ async fn handle_refresh(
     aliases: Vec<String>,
     all: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
     metrics: PerformanceMetrics,
     quiet: bool,

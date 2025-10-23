@@ -263,7 +263,7 @@ fn execute_reindex(
     alias: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let spinner = if quiet {
@@ -277,11 +277,12 @@ fn execute_reindex(
     // Load existing metadata to determine filter preference
     let existing_metadata = storage.load_metadata(alias)?;
 
-    // Determine filter preference
-    let filter_preference = if filter {
-        true
-    } else if no_filter {
+    // Parse filter flags and determine filter preference
+    let filter_flags = crate::utils::filter_flags::parse_filter_flags(filter);
+    let filter_preference = if no_filter {
         false
+    } else if filter_flags.any_enabled() {
+        filter_flags.language
     } else {
         // Use stored preference or default
         existing_metadata.filter_non_english.unwrap_or(true)
@@ -346,13 +347,12 @@ fn execute_reindex(
 
 /// Execute update for a specific source.
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
     alias: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
@@ -510,12 +510,11 @@ pub async fn execute(
 
 /// Execute update for all sources.
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute_all(
     metrics: PerformanceMetrics,
     quiet: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
