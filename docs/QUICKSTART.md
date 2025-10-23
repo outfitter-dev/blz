@@ -293,7 +293,7 @@ Use BLZ in your AI coding assistant:
 
 ```bash
 # Install for all projects
-claude mcp add blz blz mcp --scope user
+claude mcp add blz blz mcp-server --scope user
 
 # Verify
 claude mcp list

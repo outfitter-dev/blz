@@ -6,7 +6,7 @@
     },
     "blz": {
       "command": "blz",
-      "args": ["mcp"],
+      "args": ["mcp-server"],
       "env": {
         "RUST_LOG": "blz_mcp=debug,blz_core=info"
       }

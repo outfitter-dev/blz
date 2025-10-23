@@ -37,7 +37,7 @@ Enable BLZ in your AI coding assistant with one command:
 
 ```bash
 # Claude Code
-claude mcp add blz blz mcp --scope user
+claude mcp add blz blz mcp-server --scope user
 
 # Cursor, Windsurf, and others
 # See detailed setup: docs/mcp/SETUP.md
@@ -299,7 +299,7 @@ BLZ provides a Model Context Protocol server for deep integration with AI coding
 **Launch the server:**
 
 ```bash
-blz mcp
+blz mcp-server
 ```
 
 The MCP server exposes:

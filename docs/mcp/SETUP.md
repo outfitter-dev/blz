@@ -18,7 +18,7 @@ Install globally for use across all your projects:
 <summary><strong>Claude Code CLI</strong></summary>
 
 ```bash
-claude mcp add blz blz mcp --scope user
+claude mcp add blz blz mcp-server --scope user
 ```
 
 The `--scope user` flag installs BLZ for all your projects. Verify installation:
@@ -58,7 +58,7 @@ Add to `~/.windsurf/.mcp_config.json`:
 {
   "mcpServers": {
     "blz": {
-      "serverUrl": "blz mcp",
+      "serverUrl": "blz mcp-server",
       "transport": "stdio"
     }
   }
@@ -116,7 +116,7 @@ Add to your Codex configuration:
 <summary><strong>Factory CLI</strong></summary>
 
 ```bash
-/mcp add blz blz mcp
+/mcp add blz blz mcp-server
 ```
 
 Verify with `/mcp list`
@@ -170,13 +170,13 @@ When using `claude mcp add`, choose the appropriate scope:
 
 ```bash
 # Personal use across all projects
-claude mcp add blz blz mcp --scope user
+claude mcp add blz blz mcp-server --scope user
 
 # Team-shared configuration
-claude mcp add blz blz mcp --scope project
+claude mcp add blz blz mcp-server --scope project
 
 # Project-specific, not shared
-claude mcp add blz blz mcp --scope local
+claude mcp add blz blz mcp-server --scope local
 ```
 
 ## Verification
@@ -247,7 +247,7 @@ Use the official MCP Inspector:
 npm install -g @modelcontextprotocol/inspector
 
 # Run BLZ MCP server through inspector
-blz mcp | npx @modelcontextprotocol/inspector
+blz mcp-server | npx @modelcontextprotocol/inspector
 ```
 
 The inspector provides a web UI to:
@@ -263,7 +263,7 @@ Test with direct JSON-RPC calls:
 
 ```bash
 # Start the server
-blz mcp
+blz mcp-server
 
 # Send initialize request (paste this and press Enter)
 {"jsonrpc":"2.0","method":"initialize","params":{},"id":1}
@@ -336,7 +336,7 @@ If these work, the MCP server should work too.
 
 ```bash
 # Check handshake
-echo '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}' | blz mcp | jq '.result.capabilities'
+echo '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}' | blz mcp-server | jq '.result.capabilities'
 ```
 
 **Expected output:**
