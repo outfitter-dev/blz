@@ -1,7 +1,4 @@
-//! Update command implementation (deprecated - use refresh module instead)
-//!
-//! This module is deprecated and will be removed in a future release.
-//! Use the `refresh` module instead.
+//! Refresh command implementation
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -19,8 +16,8 @@ use crate::utils::json_builder::build_llms_json;
 use crate::utils::resolver;
 use crate::utils::url_resolver;
 
-/// Abstraction over storage interactions used by the update command.
-pub trait UpdateStorage {
+/// Abstraction over storage interactions used by the refresh command.
+pub trait RefreshStorage {
     fn load_metadata(&self, alias: &str) -> Result<Source>;
     fn load_llms_aliases(&self, alias: &str) -> Result<Vec<String>>;
     fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()>;
@@ -30,7 +27,7 @@ pub trait UpdateStorage {
 }
 
 #[allow(clippy::use_self)]
-impl UpdateStorage for Storage {
+impl RefreshStorage for Storage {
     fn load_metadata(&self, alias: &str) -> Result<Source> {
         Storage::load_source_metadata(self, alias)
             .map_err(anyhow::Error::from)?
@@ -61,8 +58,8 @@ impl UpdateStorage for Storage {
     }
 }
 
-/// Interface for indexing updated content.
-pub trait UpdateIndexer {
+/// Interface for indexing refreshed content.
+pub trait RefreshIndexer {
     fn index(
         &self,
         alias: &str,
@@ -75,7 +72,7 @@ pub trait UpdateIndexer {
 #[derive(Default)]
 struct DefaultIndexer;
 
-impl UpdateIndexer for DefaultIndexer {
+impl RefreshIndexer for DefaultIndexer {
     fn index(
         &self,
         alias: &str,
@@ -90,10 +87,10 @@ impl UpdateIndexer for DefaultIndexer {
     }
 }
 
-/// Result summary for an update.
+/// Result summary for a refresh operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UpdateOutcome {
-    Updated {
+pub enum RefreshOutcome {
+    Refreshed {
         alias: String,
         headings: usize,
         lines: usize,
@@ -105,26 +102,26 @@ pub enum UpdateOutcome {
 
 /// Data describing remote changes.
 #[derive(Debug, Clone)]
-pub struct UpdatePayload {
+pub struct RefreshPayload {
     pub content: String,
     pub sha256: String,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
 }
 
-/// Apply an update given fetched content and existing metadata.
-pub fn apply_update<S, I>(
+/// Apply a refresh: persist content and re-index the source.
+pub fn apply_refresh<S, I>(
     storage: &S,
     alias: &str,
     existing_metadata: Source,
     existing_aliases: Vec<String>,
-    payload: UpdatePayload,
+    payload: RefreshPayload,
     metrics: PerformanceMetrics,
     indexer: &I,
-) -> Result<UpdateOutcome>
+) -> Result<RefreshOutcome>
 where
-    S: UpdateStorage,
-    I: UpdateIndexer,
+    S: RefreshStorage,
+    I: RefreshIndexer,
 {
     let mut parser = MarkdownParser::new()?;
     let parse_result = parser.parse(&payload.content)?;
@@ -210,7 +207,7 @@ where
         &parse_result.heading_blocks,
     )?;
 
-    Ok(UpdateOutcome::Updated {
+    Ok(RefreshOutcome::Refreshed {
         alias: alias.to_string(),
         headings: count_headings(&llms_json.toc),
         lines: llms_json.line_index.total_lines,
@@ -228,8 +225,7 @@ fn create_spinner(message: &str) -> ProgressBar {
     pb
 }
 
-/// Execute update for a specific source.
-#[deprecated(since = "1.4.0", note = "use refresh::execute instead")]
+/// Execute refresh for a specific source.
 #[allow(clippy::too_many_lines)]
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
@@ -256,18 +252,20 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     {
         // Try to resolve a better variant
         match url_resolver::resolve_best_url(&fetcher, &existing_metadata.url).await {
-            Ok(resolved) if resolved.variant == blz_core::SourceVariant::LlmsFull && !quiet => {
-                spinner.finish_and_clear();
-                println!(
-                    "{} llms-full.txt is now available for {}",
-                    "✨".green(),
-                    canonical_alias.green()
-                );
-                println!(
-                    "  Upgrading from {} to {}",
-                    "llms.txt".yellow(),
-                    "llms-full.txt".green()
-                );
+            Ok(resolved) if resolved.variant == blz_core::SourceVariant::LlmsFull => {
+                if !quiet {
+                    spinner.finish_and_clear();
+                    println!(
+                        "{} llms-full.txt is now available for {}",
+                        "✨".green(),
+                        canonical_alias.green()
+                    );
+                    println!(
+                        "  Upgrading from {} to {}",
+                        "llms.txt".yellow(),
+                        "llms-full.txt".green()
+                    );
+                }
                 (resolved.final_url, resolved.variant)
             },
             Ok(_resolved) => {
@@ -307,7 +305,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
             if !quiet {
                 println!("{} {} (unchanged)", "✓".green(), canonical_alias.green());
             }
-            UpdateOutcome::Unchanged {
+            RefreshOutcome::Unchanged {
                 alias: canonical_alias.clone(),
             }
         },
@@ -318,7 +316,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
             last_modified,
         } => {
             spinner.set_message(format!("Parsing {canonical_alias}..."));
-            let payload = UpdatePayload {
+            let payload = RefreshPayload {
                 content,
                 sha256,
                 etag,
@@ -326,12 +324,12 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
             };
             let indexer = DefaultIndexer;
 
-            // Update metadata with new URL and variant if upgraded
+            // Refresh metadata with new URL and variant if upgraded
             let mut updated_metadata = existing_metadata.clone();
             updated_metadata.url = final_url;
             updated_metadata.variant = updated_variant;
 
-            let outcome = apply_update(
+            let outcome = apply_refresh(
                 &storage,
                 &canonical_alias,
                 updated_metadata,
@@ -348,19 +346,19 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     if !quiet {
         let elapsed = start.elapsed();
         match outcome {
-            UpdateOutcome::Updated {
+            RefreshOutcome::Refreshed {
                 alias,
                 headings,
                 lines,
             } => println!(
                 "{} {} ({} headings, {} lines) in {:?}",
-                "✓ Updated".green(),
+                "✓ Refreshed".green(),
                 alias.green(),
                 headings,
                 lines,
                 elapsed
             ),
-            UpdateOutcome::Unchanged { alias } => println!(
+            RefreshOutcome::Unchanged { alias } => println!(
                 "{} {} (unchanged in {:?})",
                 "✓".green(),
                 alias.green(),
@@ -372,9 +370,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     Ok(())
 }
 
-/// Execute update for all sources.
-#[deprecated(since = "1.4.0", note = "use refresh::execute_all instead")]
-#[allow(dead_code)]
+/// Execute refresh for all sources.
 pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
@@ -384,7 +380,7 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
     }
 
     let fetcher = Fetcher::new()?;
-    let mut updated_count = 0;
+    let mut refreshed_count = 0;
     let mut skipped_count = 0;
     let mut error_count = 0;
     let indexer = DefaultIndexer;
@@ -421,12 +417,12 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
                 last_modified,
             } => {
                 spinner.set_message(format!("Parsing {alias}..."));
-                match apply_update(
+                match apply_refresh(
                     &storage,
                     &alias,
                     metadata,
                     aliases,
-                    UpdatePayload {
+                    RefreshPayload {
                         content,
                         sha256,
                         etag,
@@ -435,14 +431,14 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
                     metrics.clone(),
                     &indexer,
                 ) {
-                    Ok(UpdateOutcome::Updated { .. }) => {
-                        updated_count += 1;
+                    Ok(RefreshOutcome::Refreshed { .. }) => {
+                        refreshed_count += 1;
                         spinner.finish_and_clear();
                         if !quiet {
-                            println!("{} {}", "✓ Updated".green(), alias.green());
+                            println!("{} {}", "✓ Refreshed".green(), alias.green());
                         }
                     },
-                    Ok(UpdateOutcome::Unchanged { .. }) => {
+                    Ok(RefreshOutcome::Unchanged { .. }) => {
                         skipped_count += 1;
                         spinner.finish_and_clear();
                     },
@@ -460,8 +456,8 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
 
     if !quiet {
         println!(
-            "\nSummary: {} updated, {} unchanged, {} errors",
-            updated_count.to_string().green(),
+            "\nSummary: {} refreshed, {} unchanged, {} errors",
+            refreshed_count.to_string().green(),
             skipped_count,
             if error_count > 0 {
                 error_count.to_string().red()
@@ -492,7 +488,7 @@ mod tests {
         index_paths: HashMap<String, PathBuf>,
     }
 
-    impl UpdateStorage for MockStorage {
+    impl RefreshStorage for MockStorage {
         fn load_metadata(&self, alias: &str) -> Result<Source> {
             self.metadata
                 .get(alias)
@@ -532,7 +528,7 @@ mod tests {
         indexed: RefCell<Vec<String>>,
     }
 
-    impl UpdateIndexer for MockIndexer {
+    impl RefreshIndexer for MockIndexer {
         fn index(
             &self,
             alias: &str,
@@ -568,8 +564,8 @@ mod tests {
         }
     }
 
-    fn sample_payload() -> UpdatePayload {
-        UpdatePayload {
+    fn sample_payload() -> RefreshPayload {
+        RefreshPayload {
             content: "# Title\n\nContent".into(),
             sha256: "new-sha".into(),
             etag: Some("new-etag".into()),
@@ -578,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_update_persists_changes() -> Result<()> {
+    fn apply_refresh_persists_changes() -> Result<()> {
         let mut storage = MockStorage::default();
         storage.metadata.insert("alpha".into(), sample_source());
         storage
@@ -586,7 +582,7 @@ mod tests {
             .insert("alpha".into(), PathBuf::from("index"));
 
         let indexer = MockIndexer::default();
-        let outcome = apply_update(
+        let outcome = apply_refresh(
             &storage,
             "alpha",
             sample_source(),
@@ -596,7 +592,7 @@ mod tests {
             &indexer,
         )?;
 
-        assert!(matches!(outcome, UpdateOutcome::Updated { .. }));
+        assert!(matches!(outcome, RefreshOutcome::Refreshed { .. }));
         assert_eq!(storage.saved_txt.borrow().as_slice(), ["alpha"]);
         assert_eq!(storage.saved_json.borrow().as_slice(), ["alpha"]);
         assert_eq!(indexer.indexed.borrow().as_slice(), ["alpha"]);

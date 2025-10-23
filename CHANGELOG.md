@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Changed
+- CLI: Rename `update` command to `refresh` ([BLZ-262])
+
+### Deprecated
+- `blz update` is now hidden and emits a warning. Use `blz refresh` instead.
+
+### Fixed
+- **Language filtering consistency** ([BLZ-261](https://linear.app/outfitter/issue/BLZ-261)): Improved locale detection and fallback behavior
+  - Moved default language setting from `Fetcher` to `AddRequest` for consistent application
+  - Consolidated language filter logic to ensure `--no-language-filter` flag properly disables filtering
+  - Added `apply_language_filter` method to centralize URL validation before downloads
+  - Improved test coverage with dedicated language filtering test suite
 
 ## [1.3.0] - 2025-10-18
 
