@@ -467,6 +467,7 @@ async fn fetch_and_index(
         &parse_result,
         &spinner,
         metrics,
+        no_language_filter,
     )?;
 
     spinner.finish_and_clear();
@@ -579,6 +580,7 @@ async fn add_local_source(
         &parse_result,
         &spinner,
         metrics,
+        no_language_filter,
     )?;
 
     spinner.finish_and_clear();
@@ -624,6 +626,7 @@ fn format_size(bytes: usize) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn finalize_add(
     storage: &Storage,
     alias: &str,
@@ -632,6 +635,7 @@ fn finalize_add(
     parse_result: &blz_core::ParseResult,
     spinner: &ProgressBar,
     metrics: PerformanceMetrics,
+    no_language_filter: bool,
 ) -> Result<blz_core::LlmsJson> {
     spinner.set_message("Saving content...");
     storage.save_llms_txt(alias, &resolved.content)?;
@@ -700,6 +704,7 @@ fn finalize_add(
         npm_aliases: npm_aliases.clone(),
         github_aliases: github_aliases.clone(),
         origin: origin.clone(),
+        filter_non_english: Some(!no_language_filter),
     };
     storage.save_source_metadata(alias, &metadata)?;
 

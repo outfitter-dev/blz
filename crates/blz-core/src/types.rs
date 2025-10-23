@@ -94,6 +94,24 @@ pub enum ContentType {
     Mixed,
 }
 
+/// Statistics about heading-level language filtering operations.
+///
+/// Tracks how many headings were filtered and why, providing transparency
+/// about the filtering process and its impact on the documentation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeadingFilterStats {
+    /// Whether filtering was enabled for this operation.
+    pub enabled: bool,
+    /// Total number of headings before filtering.
+    pub headings_total: usize,
+    /// Number of headings that passed the filter.
+    pub headings_accepted: usize,
+    /// Number of headings that were rejected by the filter.
+    pub headings_rejected: usize,
+    /// Human-readable reason for filtering (e.g., "non-English content removed").
+    pub reason: String,
+}
+
 /// Information about a documentation source.
 ///
 /// Represents metadata about a fetched llms.txt source, including caching headers
@@ -189,6 +207,14 @@ pub struct Source {
     /// Provenance information describing how the source was added.
     #[serde(default)]
     pub origin: SourceOrigin,
+
+    /// Whether language filtering was applied (None = default behavior).
+    ///
+    /// When `Some(true)`, non-English content was filtered during processing.
+    /// When `Some(false)`, all content was retained regardless of language.
+    /// When `None`, uses the system default (typically true for backward compatibility).
+    #[serde(default)]
+    pub filter_non_english: Option<bool>,
 }
 
 impl Source {
@@ -556,6 +582,14 @@ pub struct LlmsJson {
     /// how the document was segmented and which parser version produced it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parse_meta: Option<ParseMeta>,
+
+    /// Statistics about language filtering applied during processing.
+    ///
+    /// When present, indicates how many headings were filtered and provides
+    /// context about the filtering operation. Optional for backward compatibility
+    /// with sources processed before filtering was implemented.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_stats: Option<HeadingFilterStats>,
 }
 
 /// Metadata about how parsing/segmentation was performed.
@@ -904,6 +938,7 @@ mod tests {
                     url: "https://example.com/llms.txt".to_string(),
                 }),
             },
+            filter_non_english: None,
         };
 
         assert_eq!(source.url, "https://example.com/llms.txt");
@@ -988,6 +1023,7 @@ mod tests {
                         url: "https://example.com".to_string(),
                     }),
                 },
+                filter_non_english: None,
             },
             toc: vec![],
             files: vec![FileInfo {
@@ -1000,6 +1036,7 @@ mod tests {
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         };
 
         assert_eq!(llms_json.source, "test");
@@ -1022,5 +1059,165 @@ mod tests {
         assert!(block.content.starts_with("This is the API"));
         assert_eq!(block.display_path.len(), 2);
         assert!(!block.normalized_tokens.is_empty());
+    }
+
+    #[test]
+    fn test_heading_filter_stats_serialization() {
+        let stats = HeadingFilterStats {
+            enabled: true,
+            headings_total: 100,
+            headings_accepted: 64,
+            headings_rejected: 36,
+            reason: "non-English content removed".to_string(),
+        };
+
+        // Test serialization/deserialization
+        let json = serde_json::to_string(&stats).expect("Should serialize");
+        let deserialized: HeadingFilterStats =
+            serde_json::from_str(&json).expect("Should deserialize");
+
+        assert!(deserialized.enabled);
+        assert_eq!(deserialized.headings_total, 100);
+        assert_eq!(deserialized.headings_accepted, 64);
+        assert_eq!(deserialized.headings_rejected, 36);
+        assert_eq!(deserialized.reason, "non-English content removed");
+    }
+
+    #[test]
+    fn test_source_backward_compatibility_filter_non_english() {
+        // Test that Source can be deserialized without filter_non_english field (backward compatibility)
+        let json = r#"{
+            "url": "https://example.com/llms.txt",
+            "etag": "abc123",
+            "last_modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+            "fetched_at": "2024-01-01T00:00:00Z",
+            "sha256": "deadbeef",
+            "variant": "llms",
+            "aliases": [],
+            "tags": [],
+            "origin": {}
+        }"#;
+
+        let source: Source =
+            serde_json::from_str(json).expect("Should deserialize without filter_non_english");
+
+        // Should default to None
+        assert_eq!(source.filter_non_english, None);
+    }
+
+    #[test]
+    fn test_source_serialization_with_filter_non_english() {
+        let now = Utc::now();
+        let source = Source {
+            url: "https://example.com/llms.txt".to_string(),
+            etag: Some("abc123".to_string()),
+            last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
+            fetched_at: now,
+            sha256: "deadbeef".to_string(),
+            variant: SourceVariant::Llms,
+            aliases: Vec::new(),
+            tags: Vec::new(),
+            description: None,
+            category: None,
+            npm_aliases: Vec::new(),
+            github_aliases: Vec::new(),
+            origin: SourceOrigin {
+                manifest: None,
+                source_type: Some(SourceType::Remote {
+                    url: "https://example.com/llms.txt".to_string(),
+                }),
+            },
+            filter_non_english: Some(true),
+        };
+
+        // Test serialization/deserialization
+        let json = serde_json::to_string(&source).expect("Should serialize");
+        let deserialized: Source = serde_json::from_str(&json).expect("Should deserialize");
+
+        assert_eq!(deserialized.filter_non_english, Some(true));
+        assert_eq!(deserialized.url, "https://example.com/llms.txt");
+    }
+
+    #[test]
+    fn test_llms_json_backward_compatibility_filter_stats() {
+        // Test that LlmsJson can be deserialized without filter_stats field (backward compatibility)
+        let json = r#"{
+            "source": "test",
+            "metadata": {
+                "url": "https://example.com",
+                "fetched_at": "2024-01-01T00:00:00Z",
+                "sha256": "hash",
+                "variant": "llms",
+                "origin": {}
+            },
+            "toc": [],
+            "files": [{"path": "llms.txt", "sha256": "hash"}],
+            "line_index": {"total_lines": 100, "byte_offsets": false},
+            "diagnostics": []
+        }"#;
+
+        let llms_json: LlmsJson =
+            serde_json::from_str(json).expect("Should deserialize without filter_stats");
+
+        // Should default to None
+        assert_eq!(llms_json.filter_stats, None);
+        assert_eq!(llms_json.source, "test");
+    }
+
+    #[test]
+    fn test_llms_json_with_filter_stats() {
+        let llms_json = LlmsJson {
+            source: "test".to_string(),
+            metadata: Source {
+                url: "https://example.com".to_string(),
+                etag: None,
+                last_modified: None,
+                fetched_at: Utc::now(),
+                sha256: "hash".to_string(),
+                variant: SourceVariant::Llms,
+                aliases: Vec::new(),
+                tags: Vec::new(),
+                description: None,
+                category: None,
+                npm_aliases: Vec::new(),
+                github_aliases: Vec::new(),
+                origin: SourceOrigin {
+                    manifest: None,
+                    source_type: Some(SourceType::Remote {
+                        url: "https://example.com".to_string(),
+                    }),
+                },
+                filter_non_english: Some(true),
+            },
+            toc: vec![],
+            files: vec![FileInfo {
+                path: "llms.txt".to_string(),
+                sha256: "hash".to_string(),
+            }],
+            line_index: LineIndex {
+                total_lines: 100,
+                byte_offsets: false,
+            },
+            diagnostics: vec![],
+            parse_meta: None,
+            filter_stats: Some(HeadingFilterStats {
+                enabled: true,
+                headings_total: 100,
+                headings_accepted: 64,
+                headings_rejected: 36,
+                reason: "non-English content removed".to_string(),
+            }),
+        };
+
+        // Test serialization/deserialization
+        let json = serde_json::to_string(&llms_json).expect("Should serialize");
+        let deserialized: LlmsJson = serde_json::from_str(&json).expect("Should deserialize");
+
+        assert!(deserialized.filter_stats.is_some());
+        if let Some(stats) = deserialized.filter_stats {
+            assert!(stats.enabled);
+            assert_eq!(stats.headings_total, 100);
+            assert_eq!(stats.headings_accepted, 64);
+        }
     }
 }

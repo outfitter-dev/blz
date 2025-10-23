@@ -688,6 +688,7 @@ mod tests {
                         url: format!("https://example.com/{source_name}/llms.txt"),
                     }),
                 },
+                filter_non_english: None,
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Getting Started".to_string()],
@@ -707,6 +708,7 @@ mod tests {
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         }
     }
 

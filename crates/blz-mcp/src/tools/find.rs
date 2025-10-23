@@ -1670,6 +1670,7 @@ Line 12";
                     manifest: None,
                     source_type: None,
                 },
+                filter_non_english: None,
             },
             toc: vec![
                 TocEntry {
@@ -1704,6 +1705,7 @@ Line 12";
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         };
 
         let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
@@ -1792,6 +1794,7 @@ Line 12";
                     manifest: None,
                     source_type: None,
                 },
+                filter_non_english: None,
             },
             toc: vec![TocEntry {
                 heading_path: vec!["Overflow".to_string()],
@@ -1808,6 +1811,7 @@ Line 12";
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         };
 
         let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
@@ -1878,6 +1882,7 @@ B line 3
                     manifest: None,
                     source_type: None,
                 },
+                filter_non_english: None,
             },
             toc: vec![
                 TocEntry {
@@ -1904,6 +1909,7 @@ B line 3
             },
             diagnostics: vec![],
             parse_meta: None,
+            filter_stats: None,
         };
 
         let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
