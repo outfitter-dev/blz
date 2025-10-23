@@ -776,6 +776,15 @@ pub enum Commands {
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
         #[arg(short = 'y', long = "yes")]
         yes: bool,
+        /// Force re-parse and re-index even if content unchanged
+        #[arg(long)]
+        reindex: bool,
+        /// Override filter preference for this refresh
+        #[arg(long, conflicts_with = "no_filter")]
+        filter: bool,
+        /// Disable filtering for this refresh
+        #[arg(long, conflicts_with = "filter")]
+        no_filter: bool,
     },
 
     /// Update sources (deprecated: use 'refresh' instead)
