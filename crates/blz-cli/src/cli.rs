@@ -25,7 +25,7 @@
 //! # Source management
 //! blz add react https://react.dev/llms.txt
 //! blz list
-//! blz update --all
+//! blz refresh --all
 //!
 //! # Content retrieval
 //! blz get react --lines 120-142
@@ -207,7 +207,7 @@ pub struct Cli {
 /// # Source management
 /// blz add react https://react.dev/llms.txt
 /// blz sources --format json
-/// blz update react
+/// blz refresh react
 /// blz rm react
 ///
 /// # Content access
@@ -760,17 +760,36 @@ pub enum Commands {
         fix: bool,
     },
 
-    /// Update sources
+    /// Refresh sources by fetching latest content
     #[command(display_order = 10)]
-    Update {
-        /// Source aliases to refresh (updates all if omitted)
+    Refresh {
+        /// Source aliases to refresh (refreshes all if omitted)
         #[arg(
             value_name = "ALIAS",
             num_args = 0..,
             conflicts_with = "all"
         )]
         aliases: Vec<String>,
-        /// Update all sources
+        /// Refresh all sources
+        #[arg(long, conflicts_with = "aliases")]
+        all: bool,
+        /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
+
+    /// Update sources (deprecated: use 'refresh' instead)
+    #[command(hide = true)]
+    #[deprecated(since = "1.4.0", note = "use 'refresh' command instead")]
+    Update {
+        /// Source aliases to refresh (refreshes all if omitted)
+        #[arg(
+            value_name = "ALIAS",
+            num_args = 0..,
+            conflicts_with = "all"
+        )]
+        aliases: Vec<String>,
+        /// Refresh all sources
         #[arg(long, conflicts_with = "aliases")]
         all: bool,
         /// Apply changes without prompting (e.g., auto-upgrade to llms-full)

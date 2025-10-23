@@ -301,6 +301,7 @@ async fn apply_fixes(storage: &Storage, report: &mut HealthReport) -> Result<()>
         println!("  Updating stale sources...");
         let metrics = blz_core::PerformanceMetrics::default();
         for alias in &report.source_health.stale_sources {
+            #[allow(deprecated)]
             match crate::commands::update::execute(alias, metrics.clone(), true).await {
                 Ok(()) => println!("    ✓ Updated {alias}"),
                 Err(e) => eprintln!("    ✗ Failed to update {alias}: {e}"),

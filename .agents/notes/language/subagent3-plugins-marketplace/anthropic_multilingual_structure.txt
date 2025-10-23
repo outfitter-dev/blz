@@ -1,0 +1,110 @@
+LANGUAGE DETECTION AND VERB PATTERNS IN ANTHROPIC LLMS.TXT
+============================================================
+
+ENGLISH
+-------
+- Plugins (heading)
+  - Install and manage plugins
+    - Install plugins
+    - Add marketplaces
+  - Develop more complex plugins
+    - Organize complex plugins
+    - Share your plugins
+    - Test your plugins locally
+
+- Plugin marketplaces
+  - Manage marketplace operations
+    - Remove a marketplace
+    - Update marketplace metadata
+
+FRENCH (Français)
+-----------------
+- Plugins
+  - Installez et gérez les plugins
+    - Installez les plugins
+    - Ajoutez des marketplaces
+  - Développez des plugins plus complexes
+    - Organisez les plugins complexes
+    - Partagez vos plugins
+    - Testez vos plugins localement
+  - Prochaines étapes
+    - Pour les utilisateurs de plugins
+    - Pour les développeurs de plugins
+
+- Marketplaces de plugins
+  (implied from structure)
+
+GERMAN (Deutsch)
+----------------
+- Plugins
+  - Plugins installieren und verwalten
+    - Plugins installieren
+    - Installation überprüfen
+    - Marketplaces hinzufügen
+  - Komplexere Plugins entwickeln
+    - Komplexe Plugins organisieren
+    - Ihre Plugins teilen
+    - Ihre Plugins lokal testen
+
+PORTUGUESE/BRAZILIAN (Português)
+---------------------------------
+- Plugins
+  - Instale e gerencie plugins
+    - Instale plugins
+    - Adicione marketplaces
+  - Desenvolva plugins mais complexos
+    - Organize plugins complexos
+    - Compartilhe seus plugins
+    - Teste seus plugins localmente
+  - Próximos passos
+    - Para usuários de plugins
+    - Para desenvolvedores de plugins
+
+- Mercados de plugins (Spanish variant or mixed)
+  - Ver también
+  - Veja também
+
+ITALIAN (Italiano)
+------------------
+- Marketplace dei plugin
+  - Aggiungere e utilizzare marketplace
+    - Aggiungere marketplace GitHub
+    - Aggiungere marketplace locali per lo sviluppo
+    - Installare plugin dai marketplace
+    - Verificare l'installazione del marketplace
+  - Configurare marketplace del team
+  - Creare il tuo marketplace
+    - Creare il file marketplace
+    - Schema del marketplace
+  - Gestire le operazioni del marketplace
+    - Aggiornare i metadati del marketplace
+    - Elencare marketplace conosciuti
+    - Rimuovere un marketplace
+  - Ospitare e distribuire marketplace
+  - Prossimi passi
+    - Per gli utenti del marketplace
+    - Per i creatori di marketplace
+  - Risoluzione dei problemi dei marketplace
+
+INDONESIAN (Bahasa Indonesia)
+-----------------------------
+- Marketplace plugin
+  - Menambahkan dan menggunakan marketplace
+    - Menambahkan marketplace GitHub
+    - Menambahkan marketplace lokal untuk pengembangan
+    - Menginstal plugin dari marketplace
+    - Memverifikasi instalasi marketplace
+  - Mengonfigurasi marketplace tim
+  - Membuat marketplace Anda sendiri
+    - Membuat file marketplace
+    - Skema marketplace
+  - Mengelola operasi marketplace
+    - Daftar marketplace yang dikenal
+    - Memperbarui metadata marketplace
+    - Menghapus marketplace
+  - Hosting dan mendistribusikan marketplace
+  - Pemecahan masalah marketplace
+  - Langkah selanjutnya
+    - Untuk pengguna marketplace
+    - Untuk pembuat marketplace
+
