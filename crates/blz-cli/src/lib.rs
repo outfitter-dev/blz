@@ -803,7 +803,16 @@ async fn execute_command(
             filter,
             no_filter,
         }) => {
-            handle_refresh(aliases, all, reindex, filter, no_filter, metrics, cli.quiet).await?;
+            handle_refresh(
+                aliases,
+                all,
+                reindex,
+                filter.clone(),
+                no_filter,
+                metrics,
+                cli.quiet,
+            )
+            .await?;
         },
         #[allow(deprecated)]
         #[allow(deprecated)]
@@ -818,7 +827,7 @@ async fn execute_command(
                     "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
                 );
             }
-            handle_refresh(aliases, all, false, false, false, metrics, cli.quiet).await?;
+            handle_refresh(aliases, all, false, None, false, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -1384,13 +1393,27 @@ async fn handle_refresh(
     aliases: Vec<String>,
     all: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<String>,
     no_filter: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
 ) -> Result<()> {
+    let mut aliases = aliases;
+    let mut filter = filter;
+
+    if !all && aliases.is_empty() {
+        if let Some(raw_value) = filter.take() {
+            if crate::utils::filter_flags::is_known_filter_expression(&raw_value) {
+                filter = Some(raw_value);
+            } else {
+                aliases.push(raw_value);
+                filter = Some(String::from("all"));
+            }
+        }
+    }
+
     if all || aliases.is_empty() {
-        return commands::refresh_all(metrics, quiet, reindex, filter, no_filter).await;
+        return commands::refresh_all(metrics, quiet, reindex, filter.as_ref(), no_filter).await;
     }
 
     for alias in aliases {
@@ -1402,7 +1425,15 @@ async fn handle_refresh(
             bytes_processed: Arc::clone(&metrics.bytes_processed),
             lines_searched: Arc::clone(&metrics.lines_searched),
         };
-        commands::refresh_source(&alias, metrics_clone, quiet, reindex, filter, no_filter).await?;
+        commands::refresh_source(
+            &alias,
+            metrics_clone,
+            quiet,
+            reindex,
+            filter.as_ref(),
+            no_filter,
+        )
+        .await?;
     }
 
     Ok(())
