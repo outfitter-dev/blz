@@ -544,9 +544,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_no_limit: Value = serde_json::from_slice(&output_no_limit)?;
-    let entries_no_limit = json_no_limit["entries"]
-        .as_array()
-        .expect("entries should be an array");
+    let entries_no_limit = json_no_limit.as_array().expect("output should be an array");
     let no_limit_count = count_all_entries(entries_no_limit);
 
     // Get results with explicit --all flag
@@ -561,9 +559,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let entries_all = json_all["entries"]
-        .as_array()
-        .expect("entries should be an array");
+    let entries_all = json_all.as_array().expect("output should be an array");
     let all_count = count_all_entries(entries_all);
 
     // Both should return the same number of results
@@ -572,14 +568,6 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         "Default (no limit) should return same count as --all: {} vs {}",
         no_limit_count, all_count
     );
-
-    // Neither should have pagination (or both should show page 1 of 1)
-    if let Some(page) = json_no_limit["page"].as_u64() {
-        assert_eq!(page, 1, "No limit should show page 1");
-    }
-    if let Some(total_pages) = json_no_limit["total_pages"].as_u64() {
-        assert_eq!(total_pages, 1, "No limit should have 1 total page");
-    }
 
     Ok(())
 }
