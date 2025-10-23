@@ -116,6 +116,27 @@ See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for det
 - **Direct CLI integration**: IDE agents run commands directly for instant JSON results
 - **MCP server** (coming soon): stdio-based integration via official Rust SDK
 
+### Language Filtering
+
+BLZ automatically filters non-English content from multilingual documentation sources:
+
+- **Enabled by default**: Reduces storage by 60-90% for multilingual sources
+- **Opt-out available**: Use `--no-language-filter` to keep all languages
+- **Retroactive**: Use `blz refresh <source> --reindex --filter` on existing sources
+
+```bash
+# Add source with filtering (default)
+blz add anthropic https://docs.anthropic.com/llms-full.txt
+
+# Add without filtering
+blz add anthropic https://docs.anthropic.com/llms-full.txt --no-language-filter
+
+# Fix existing source
+blz refresh anthropic --reindex --filter
+```
+
+See [Language Filtering Migration Guide](docs/migration/language-filtering.md) for details.
+
 ## Installation
 
 ### Quick Install (macOS/Linux)
