@@ -170,4 +170,13 @@ mod tests {
         assert!(validate_alias("react").is_ok());
         assert!(validate_alias("bun").is_ok());
     }
+
+    #[test]
+    fn test_validate_alias_mcp_allowed() {
+        // "mcp" should now be allowed as an alias (BLZ-258)
+        // The MCP server command was renamed to "mcp-server" to free up "mcp" for use as a source alias
+        assert!(validate_alias("mcp").is_ok());
+        assert!(validate_alias("MCP").is_ok());
+        assert!(validate_alias("Mcp").is_ok());
+    }
 }

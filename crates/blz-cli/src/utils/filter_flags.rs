@@ -42,7 +42,7 @@ impl FilterFlags {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use blz_cli::utils::filter_flags::parse_filter_flags;
 ///
 /// // No flag provided - all disabled

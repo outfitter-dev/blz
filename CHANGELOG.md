@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **MCP Server Command Renamed** ([BLZ-258](https://linear.app/outfitter/issue/BLZ-258)): The command to launch the MCP server has been renamed from `blz mcp` to `blz mcp-server`
+  - This change allows users to add Model Context Protocol documentation as a source using the natural alias `mcp`
+  - **Action Required**: Update MCP server configurations in Claude Code, Cursor, Windsurf, and other AI coding assistants
+  - **Before**: `blz mcp` or `"args": ["mcp"]`
+  - **After**: `blz mcp-server` or `"args": ["mcp-server"]`
+  - Example configuration update:
+    ```json
+    {
+      "mcpServers": {
+        "blz": {
+          "command": "blz",
+          "args": ["mcp-server"]
+        }
+      }
+    }
+    ```
+
 ### Fixed
 - **Language filtering consistency** ([BLZ-261](https://linear.app/outfitter/issue/BLZ-261)): Improved locale detection and fallback behavior
   - Moved default language setting from `Fetcher` to `AddRequest` for consistent application
