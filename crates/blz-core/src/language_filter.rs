@@ -81,6 +81,13 @@ const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
     "migliori",
     "guida",
     "documentazione",
+    "configurare",
+    "aggiornare",
+    "aggiornamenti",
+    "automatici",
+    "disabilitare",
+    "imposta",
+    "variabile",
     // German
     "befehle",
     "benutzerdefinierte",
@@ -92,6 +99,34 @@ const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
     "troubleshooten",
     "validierung",
     "testen",
+    "kontextfenster",
+    "umgebung",
+    "warum",
+    "umbenennung",
+    "anfrage",
+    "anfragen",
+    "wann",
+    "verwenden",
+    "verwendet",
+    "wiederverwenden",
+    "erzwingen",
+    "abrufen",
+    "verstehen",
+    "funktioniert",
+    "implementieren",
+    "nutzung",
+    "richtlinie",
+    "netzwerkrichtlinie",
+    "netzwerk",
+    "zweite",
+    "ausgabe",
+    "kontrolle",
+    "wie",
+    "klar",
+    "direkt",
+    "detailliert",
+    "spezifisch",
+    "kontextbezogen",
     // French
     "utilisez",
     "générer",
@@ -109,17 +144,45 @@ const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
     "desarrolladores",
     "usuarios",
     "agentes",
+    "actualizar",
+    "actualizaciones",
+    "deshabilitar",
+    "establece",
     // Portuguese
     "documentação",
     "documentacao",
     "gerenciando",
     "gerenciamento",
     "arquivos",
+    "gerencie",
+    "adicione",
+    "desenvolva",
+    "configure",
+    "configurar",
+    "fornece",
+    "poderosa",
+    "trabalha",
+    "permite",
+    "execute",
+    "construir",
+    "qualquer",
+    "fluxo",
+    "mantém",
+    "automaticamente",
+    "atualizado",
+    "fazer",
     // Indonesian
     "perintah",
     "membuat",
     "contoh",
     "kustom",
+    "dapat",
+    "dilakukan",
+    "menyediakan",
+    "memungkinkan",
+    "menjalankan",
+    "alur",
+    "kerja",
     // Polish
     "dokumentacja",
     // Russian (romanized)
@@ -132,11 +195,11 @@ const STRONG_NON_ENGLISH_INDICATORS: &[&str] = &[
 const WEAK_NON_ENGLISH_INDICATORS: &[&str] = &[
     // Italian function words
     "della", "degli", "nelle", "nella", "nell", // German function words
-    "und", "der", "die", "das", "für", "mit", "von", "zur", "im",
+    "und", "der", "die", "das", "für", "mit", "von", "zur", "im", "man", "sei",
     // French function words
     "le", "la", "les", "pour", "avec", "des", // Spanish function words
-    "del", "los", "las", "para", // Portuguese function words
-    "dos", "das", // Dutch function words
+    "del", "los", "las", "para", "que", // Portuguese/Spanish function words
+    "dos", "das", "pode", "você", // Dutch function words
     "het", "van", "een", "voor", "met", // Polish
     "dla",
 ];
@@ -763,12 +826,28 @@ mod tests {
                 "Esempi Pratici",
                 "Creare valutazioni empiriche solide",
                 "Costruire valutazioni e casi di test",
+                "Configurare Claude Code",
+                "Aggiornare Claude Code",
+                "Aggiornamenti automatici",
+                "Disabilitare gli aggiornamenti automatici",
+                "Imposta la variabile d'ambiente",
                 // German
                 "Dokumentation für Entwickler",
                 "Anleitung zur Installation",
                 "Slash-Befehle im SDK",
                 "Benutzerdefinierte Slash-Befehle erstellen",
                 "Praktische Beispiele",
+                "Das Kontextfenster verstehen",
+                "Die Computer-Umgebung",
+                "Wie man klar, kontextbezogen und spezifisch ist",
+                "Warum die Umbenennung?",
+                "Das Text-Editor-Tool implementieren",
+                "Wie die Message Batches API funktioniert",
+                "Wann das Text-Editor-Tool zu verwenden ist",
+                "Abrufen von Batch-Ergebnissen",
+                "Sei klar, direkt und detailliert",
+                "Wie man Computer-Nutzung implementiert",
+                "Netzwerkrichtlinie",
                 // French (needs 2 indicators to reject)
                 "Documentation pour les",
                 "Utilisez notre améliorateur de prompts",
@@ -780,9 +859,28 @@ mod tests {
                 "Documentacao de usuario",
                 "Documentacion, guia rapida",
                 "Los mejores agentes de soporte",
+                "Deshabilitar auto-actualizaciones",
+                "Establece la variable de entorno",
+                // Portuguese
+                "Instale e gerencie plugins",
+                "Adicione marketplaces em equipe",
+                "Desenvolva plugins mais complexos",
+                "Configure marketplaces em equipe",
+                "Claude Code fornece uma poderosa GitHub Action",
+                "Esta GitHub Action permite que você execute",
+                "Você pode usar isso para construir qualquer fluxo",
+                "Claude Code se mantém automaticamente atualizado",
+                "Configurar Claude Code",
+                "Actualizar Claude Code",
+                "Auto actualizações",
+                "O que Claude pode fazer?",
                 // Indonesian
                 "Perintah Slash dalam SDK",
                 "Membuat Perintah Slash Kustom",
+                "Apa yang dapat dilakukan Claude?",
+                "Claude Code menyediakan GitHub Action yang kuat",
+                "GitHub Action ini memungkinkan Anda menjalankan",
+                "Anda dapat menggunakan ini untuk membangun alur kerja",
                 // Non-Latin scripts
                 "ドキュメント", // Japanese
                 "文档",         // Chinese
@@ -856,5 +954,13 @@ mod tests {
         assert!(filter.is_english_text("Quick Start Guide"));
         assert!(filter.is_english_text("Troubleshooting Common Issues"));
         assert!(filter.is_english_text("Advanced Configuration"));
+
+        // Headings that might contain words similar to German indicators
+        assert!(filter.is_english_text("Container Management")); // "container" not in German list
+        assert!(filter.is_english_text("File Operations")); // "file" not "datei"
+        assert!(filter.is_english_text("Reading Configuration Files")); // "reading" not "lesen"
+        assert!(filter.is_english_text("Direct API Access")); // "direct" not "direkt"
+        assert!(filter.is_english_text("Clear and Concise Error Messages")); // "clear" not "klar"
+        assert!(filter.is_english_text("Network Policy")); // "network" not "netzwerk"
     }
 }

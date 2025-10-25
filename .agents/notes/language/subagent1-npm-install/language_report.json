@@ -1,0 +1,619 @@
+{
+  "report": {
+    "title": "NPM Install Language Variants - Anthropic Source Analysis",
+    "total_results": 50,
+    "languages_detected": 10,
+    "execution_context": "blz search 'npm install' --source anthropic --json"
+  },
+  "languages": {
+    "English": {
+      "count": 23,
+      "percentage": 46.0,
+      "indicator_words": [
+        {
+          "word": "Install",
+          "frequency": 12
+        },
+        {
+          "word": "Claude",
+          "frequency": 9
+        },
+        {
+          "word": "Code",
+          "frequency": 9
+        },
+        {
+          "word": "plugins",
+          "frequency": 7
+        },
+        {
+          "word": "installation",
+          "frequency": 5
+        },
+        {
+          "word": "NPM",
+          "frequency": 4
+        },
+        {
+          "word": "Installation",
+          "frequency": 4
+        },
+        {
+          "word": "Plugins",
+          "frequency": 4
+        },
+        {
+          "word": "manage",
+          "frequency": 4
+        },
+        {
+          "word": "marketplaces",
+          "frequency": 4
+        },
+        {
+          "word": "Agent",
+          "frequency": 4
+        },
+        {
+          "word": "SDK",
+          "frequency": 4
+        },
+        {
+          "word": "Quickstart",
+          "frequency": 3
+        },
+        {
+          "word": "Step",
+          "frequency": 3
+        },
+        {
+          "word": "Alternative",
+          "frequency": 3
+        }
+      ],
+      "example_headings": [
+        "Quickstart > Step 1: Install Claude Code > NPM Install",
+        "Schnellstart > Schritt 1: Claude Code installieren > NPM-Installation",
+        "Guida rapida > Passaggio 1: Installa Claude Code > Installazione NPM"
+      ]
+    },
+    "Chinese (Simplified)": {
+      "count": 7,
+      "percentage": 14.0,
+      "indicator_words": [
+        {
+          "word": "Claude",
+          "frequency": 4
+        },
+        {
+          "word": "Code",
+          "frequency": 4
+        },
+        {
+          "word": "安装",
+          "frequency": 3
+        },
+        {
+          "word": "Bash",
+          "frequency": 2
+        },
+        {
+          "word": "工具",
+          "frequency": 2
+        },
+        {
+          "word": "on",
+          "frequency": 2
+        },
+        {
+          "word": "the",
+          "frequency": 2
+        },
+        {
+          "word": "web",
+          "frequency": 2
+        },
+        {
+          "word": "快速入门",
+          "frequency": 1
+        },
+        {
+          "word": "步骤",
+          "frequency": 1
+        },
+        {
+          "word": "1：安装",
+          "frequency": 1
+        },
+        {
+          "word": "NPM",
+          "frequency": 1
+        },
+        {
+          "word": "设置",
+          "frequency": 1
+        },
+        {
+          "word": "替代安装方法",
+          "frequency": 1
+        },
+        {
+          "word": "全局",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "快速入门 > 步骤 1：安装 Claude Code > NPM 安装",
+        "设置 Claude Code > 替代安装方法 > 全局 npm 安装",
+        "Bash 工具 > 常见模式 > 开发工作流程"
+      ]
+    },
+    "Spanish": {
+      "count": 4,
+      "percentage": 8.0,
+      "indicator_words": [
+        {
+          "word": "Instalar",
+          "frequency": 2
+        },
+        {
+          "word": "Claude",
+          "frequency": 2
+        },
+        {
+          "word": "Code",
+          "frequency": 2
+        },
+        {
+          "word": "Instalación",
+          "frequency": 2
+        },
+        {
+          "word": "NPM",
+          "frequency": 2
+        },
+        {
+          "word": "Guía",
+          "frequency": 1
+        },
+        {
+          "word": "inicio",
+          "frequency": 1
+        },
+        {
+          "word": "rápido",
+          "frequency": 1
+        },
+        {
+          "word": "Paso",
+          "frequency": 1
+        },
+        {
+          "word": "Guia",
+          "frequency": 1
+        },
+        {
+          "word": "Início",
+          "frequency": 1
+        },
+        {
+          "word": "Rápido",
+          "frequency": 1
+        },
+        {
+          "word": "Etapa",
+          "frequency": 1
+        },
+        {
+          "word": "Instalação",
+          "frequency": 1
+        },
+        {
+          "word": "via",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Guía de inicio rápido > Paso 1: Instalar Claude Code > Instalación con NPM",
+        "Guia de Início Rápido > Etapa 1: Instalar Claude Code > Instalação via NPM",
+        "Descripción general del SDK de Agente > Instalación"
+      ]
+    },
+    "Portuguese": {
+      "count": 3,
+      "percentage": 6.0,
+      "indicator_words": [
+        {
+          "word": "SDK",
+          "frequency": 2
+        },
+        {
+          "word": "Aperçu",
+          "frequency": 1
+        },
+        {
+          "word": "Agent",
+          "frequency": 1
+        },
+        {
+          "word": "Installation",
+          "frequency": 1
+        },
+        {
+          "word": "Visão",
+          "frequency": 1
+        },
+        {
+          "word": "geral",
+          "frequency": 1
+        },
+        {
+          "word": "Agente",
+          "frequency": 1
+        },
+        {
+          "word": "Instalação",
+          "frequency": 1
+        },
+        {
+          "word": "Ferramenta",
+          "frequency": 1
+        },
+        {
+          "word": "bash",
+          "frequency": 1
+        },
+        {
+          "word": "Padrões",
+          "frequency": 1
+        },
+        {
+          "word": "comuns",
+          "frequency": 1
+        },
+        {
+          "word": "Fluxos",
+          "frequency": 1
+        },
+        {
+          "word": "trabalho",
+          "frequency": 1
+        },
+        {
+          "word": "desenvolvimento",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Aperçu du SDK Agent > Installation",
+        "Visão geral do SDK do Agente > Instalação",
+        "Ferramenta bash > Padrões comuns > Fluxos de trabalho de desenvolvimento"
+      ]
+    },
+    "Chinese (Traditional)": {
+      "count": 3,
+      "percentage": 6.0,
+      "indicator_words": [
+        {
+          "word": "安裝",
+          "frequency": 3
+        },
+        {
+          "word": "Claude",
+          "frequency": 2
+        },
+        {
+          "word": "Code",
+          "frequency": 2
+        },
+        {
+          "word": "快速入門",
+          "frequency": 1
+        },
+        {
+          "word": "步驟",
+          "frequency": 1
+        },
+        {
+          "word": "1：安裝",
+          "frequency": 1
+        },
+        {
+          "word": "NPM",
+          "frequency": 1
+        },
+        {
+          "word": "設定",
+          "frequency": 1
+        },
+        {
+          "word": "替代安裝方法",
+          "frequency": 1
+        },
+        {
+          "word": "全域",
+          "frequency": 1
+        },
+        {
+          "word": "npm",
+          "frequency": 1
+        },
+        {
+          "word": "Agent",
+          "frequency": 1
+        },
+        {
+          "word": "SDK",
+          "frequency": 1
+        },
+        {
+          "word": "概述",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "快速入門 > 步驟 1：安裝 Claude Code > NPM 安裝",
+        "設定 Claude Code > 替代安裝方法 > 全域 npm 安裝",
+        "Agent SDK 概述 > 安裝"
+      ]
+    },
+    "Japanese": {
+      "count": 3,
+      "percentage": 6.0,
+      "indicator_words": [
+        {
+          "word": "Bashツール",
+          "frequency": 1
+        },
+        {
+          "word": "一般的なパターン",
+          "frequency": 1
+        },
+        {
+          "word": "開発ワークフロー",
+          "frequency": 1
+        },
+        {
+          "word": "Agent",
+          "frequency": 1
+        },
+        {
+          "word": "SDK概要",
+          "frequency": 1
+        },
+        {
+          "word": "インストール",
+          "frequency": 1
+        },
+        {
+          "word": "Claude",
+          "frequency": 1
+        },
+        {
+          "word": "Code",
+          "frequency": 1
+        },
+        {
+          "word": "on",
+          "frequency": 1
+        },
+        {
+          "word": "the",
+          "frequency": 1
+        },
+        {
+          "word": "web",
+          "frequency": 1
+        },
+        {
+          "word": "クラウド環境",
+          "frequency": 1
+        },
+        {
+          "word": "依存関係管理",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Bashツール > 一般的なパターン > 開発ワークフロー",
+        "Agent SDK概要 > インストール",
+        "Claude Code on the web > クラウド環境 > 依存関係管理"
+      ]
+    },
+    "Korean": {
+      "count": 3,
+      "percentage": 6.0,
+      "indicator_words": [
+        {
+          "word": "설치",
+          "frequency": 3
+        },
+        {
+          "word": "빠른",
+          "frequency": 1
+        },
+        {
+          "word": "시작",
+          "frequency": 1
+        },
+        {
+          "word": "단계",
+          "frequency": 1
+        },
+        {
+          "word": "1:",
+          "frequency": 1
+        },
+        {
+          "word": "Claude",
+          "frequency": 1
+        },
+        {
+          "word": "Code",
+          "frequency": 1
+        },
+        {
+          "word": "NPM",
+          "frequency": 1
+        },
+        {
+          "word": "Bash",
+          "frequency": 1
+        },
+        {
+          "word": "도구",
+          "frequency": 1
+        },
+        {
+          "word": "일반적인",
+          "frequency": 1
+        },
+        {
+          "word": "패턴",
+          "frequency": 1
+        },
+        {
+          "word": "개발",
+          "frequency": 1
+        },
+        {
+          "word": "워크플로",
+          "frequency": 1
+        },
+        {
+          "word": "Agent",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "빠른 시작 > 단계 1: Claude Code 설치 > NPM 설치",
+        "Bash 도구 > 일반적인 패턴 > 개발 워크플로",
+        "Agent SDK 개요 > 설치"
+      ]
+    },
+    "Indonesian": {
+      "count": 2,
+      "percentage": 4.0,
+      "indicator_words": [
+        {
+          "word": "Instalasi",
+          "frequency": 2
+        },
+        {
+          "word": "Panduan",
+          "frequency": 1
+        },
+        {
+          "word": "Memulai",
+          "frequency": 1
+        },
+        {
+          "word": "Langkah",
+          "frequency": 1
+        },
+        {
+          "word": "Instal",
+          "frequency": 1
+        },
+        {
+          "word": "Claude",
+          "frequency": 1
+        },
+        {
+          "word": "Code",
+          "frequency": 1
+        },
+        {
+          "word": "NPM",
+          "frequency": 1
+        },
+        {
+          "word": "Ikhtisar",
+          "frequency": 1
+        },
+        {
+          "word": "Agent",
+          "frequency": 1
+        },
+        {
+          "word": "SDK",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Panduan Memulai > Langkah 1: Instal Claude Code > Instalasi NPM",
+        "Ikhtisar Agent SDK > Instalasi"
+      ]
+    },
+    "German": {
+      "count": 1,
+      "percentage": 2.0,
+      "indicator_words": [
+        {
+          "word": "Bash",
+          "frequency": 1
+        },
+        {
+          "word": "Tool",
+          "frequency": 1
+        },
+        {
+          "word": "Häufige",
+          "frequency": 1
+        },
+        {
+          "word": "Muster",
+          "frequency": 1
+        },
+        {
+          "word": "Entwicklungsworkflows",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Bash-Tool > Häufige Muster > Entwicklungsworkflows"
+      ]
+    },
+    "French": {
+      "count": 1,
+      "percentage": 2.0,
+      "indicator_words": [
+        {
+          "word": "Démarrage",
+          "frequency": 1
+        },
+        {
+          "word": "rapide",
+          "frequency": 1
+        },
+        {
+          "word": "Étape",
+          "frequency": 1
+        },
+        {
+          "word": "Installer",
+          "frequency": 1
+        },
+        {
+          "word": "Claude",
+          "frequency": 1
+        },
+        {
+          "word": "Code",
+          "frequency": 1
+        },
+        {
+          "word": "Installation",
+          "frequency": 1
+        },
+        {
+          "word": "NPM",
+          "frequency": 1
+        }
+      ],
+      "example_headings": [
+        "Démarrage rapide > Étape 1 : Installer Claude Code > Installation NPM"
+      ]
+    }
+  }
+}
