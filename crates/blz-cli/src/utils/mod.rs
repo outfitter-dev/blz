@@ -54,6 +54,7 @@
 pub mod cli_args;
 pub mod clipboard;
 pub mod constants;
+pub mod filter_flags;
 pub mod formatting;
 pub mod history_log;
 pub mod json_builder;
