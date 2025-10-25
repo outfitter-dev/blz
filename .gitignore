@@ -72,6 +72,7 @@ coverage.json
 *.log
 test_output.txt
 test_output-*.txt
+.trail/logs
 
 # Claude
 !.claude/commands/log
