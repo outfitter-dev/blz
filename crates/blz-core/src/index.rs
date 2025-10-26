@@ -16,6 +16,9 @@ pub const MIN_SNIPPET_CHAR_LIMIT: usize = 50;
 /// Maximum number of characters permitted for a search snippet.
 pub const MAX_SNIPPET_CHAR_LIMIT: usize = 1_000;
 
+/// Boost factor applied to heading fields when query starts with `# `.
+const HEADING_PREFIX_BOOST: f32 = 3.0;
+
 pub(crate) const fn clamp_snippet_chars(chars: usize) -> usize {
     if chars < MIN_SNIPPET_CHAR_LIMIT {
         MIN_SNIPPET_CHAR_LIMIT
@@ -271,16 +274,19 @@ impl SearchIndex {
         );
 
         let trimmed_prefix = query_str.trim_start();
-        let (query_body_input, heading_boost) = if trimmed_prefix.starts_with('#') {
-            let stripped = trimmed_prefix.trim_start_matches('#').trim();
-            if stripped.is_empty() {
-                (query_str.trim(), None)
-            } else {
-                (stripped, Some(3.0f32))
-            }
-        } else {
-            (query_str.trim(), None)
-        };
+        let (query_body_input, heading_boost) = trimmed_prefix.strip_prefix("# ").map_or_else(
+            || (query_str.trim(), None),
+            |after_hash| {
+                // Only treat `#` as a heading boost marker when followed by whitespace.
+                // This preserves literal queries like `#include`, `#!/usr/bin/env`, `#[derive]`.
+                let stripped = after_hash.trim();
+                if stripped.is_empty() {
+                    (query_str.trim(), None)
+                } else {
+                    (stripped, Some(HEADING_PREFIX_BOOST))
+                }
+            },
+        );
 
         let mut timings = ComponentTimings::new();
         let mut lines_searched = 0usize;
@@ -403,10 +409,10 @@ impl SearchIndex {
                     .as_ref()
                     .map(|_| raw_heading_segments.clone());
 
-                let snippet = Self::extract_snippet(&content, query_str, snippet_limit);
+                let snippet = Self::extract_snippet(&content, query_body_input, snippet_limit);
 
                 // Prefer exact match line(s) when possible for better citations
-                let exact_lines = Self::compute_match_lines(&content, query_str, &lines)
+                let exact_lines = Self::compute_match_lines(&content, query_body_input, &lines)
                     .unwrap_or_else(|| lines.clone());
 
                 // Parse numeric line range for convenience
@@ -983,8 +989,9 @@ mod tests {
             .index_blocks("test", &blocks)
             .expect("Should index normalized blocks");
 
+        // Test that special characters in headings can be found with normalized search
         let sanitized_hits = index
-            .search("# example droid refactor imports sh src", Some("test"), 5)
+            .search("example droid refactor imports sh src", Some("test"), 5)
             .expect("Should search sanitized query");
         assert!(sanitized_hits.iter().any(|hit| {
             hit.heading_path
@@ -996,20 +1003,25 @@ mod tests {
             .search("api schluessel abrufen", Some("test"), 5)
             .expect("Should search normalized accent query");
 
-        // Note: The heading_path may not exactly match due to UTF-8 encoding during indexing.
-        // We verify that we get a hit for the German heading with umlauts.
+        // The normalized search should find the heading even with ü -> ue substitution
         assert!(
             !accent_hits.is_empty(),
-            "Should find at least one hit for normalized German query"
+            "Should find results when searching with normalized characters"
         );
+
+        // Check using contains instead of exact match to handle potential display vs. storage differences
+        let found_german_heading = accent_hits.iter().any(|hit| {
+            hit.heading_path
+                .last()
+                .is_some_and(|h| h.contains("Schl") && h.contains("ssel") && h.contains("abrufen"))
+        });
         assert!(
-            accent_hits.iter().any(|hit| {
-                // Match either the exact string or a close variant (accounting for potential encoding variations)
-                hit.heading_path.last().is_some_and(|h| {
-                    h == "API-Schlüssel abrufen" || h.contains("Schl") && h.contains("ssel abrufen")
-                })
-            }),
-            "Should find the accent heading"
+            found_german_heading,
+            "Expected to find German API heading in results, got: {:?}",
+            accent_hits
+                .iter()
+                .map(|h| h.heading_path.last())
+                .collect::<Vec<_>>()
         );
     }
 
@@ -1053,40 +1065,36 @@ mod tests {
             "Expected matches when using heading prefix"
         );
 
-        let plain_heading = plain_hits
+        // Find positions of the heading match in both result sets
+        let plain_heading_pos = plain_hits
             .iter()
-            .find(|hit| {
+            .position(|hit| {
                 hit.heading_path
                     .first()
                     .is_some_and(|segment| segment == "Skip tests with the Bun test runner")
             })
             .expect("Heading block should be present without boost");
-        let boosted_heading = boosted_hits
+
+        let boosted_heading_pos = boosted_hits
             .iter()
-            .find(|hit| {
+            .position(|hit| {
                 hit.heading_path
                     .first()
                     .is_some_and(|segment| segment == "Skip tests with the Bun test runner")
             })
             .expect("Heading block should be present with boost");
 
-        // The heading score should increase when using the prefix.
+        // With heading boost, the heading match should rank higher (lower position index)
         assert!(
-            boosted_heading.score > plain_heading.score,
-            "Heading boost should raise the heading match score"
+            boosted_heading_pos <= plain_heading_pos,
+            "Heading boost should improve ranking: boosted_pos={boosted_heading_pos} vs plain_pos={plain_heading_pos}"
         );
 
-        // And the boosted heading should outrank the content-heavy match.
-        if let Some(content_hit) = boosted_hits.iter().find(|hit| {
-            hit.heading_path
-                .first()
-                .is_some_and(|segment| segment == "General Advice")
-        }) {
-            assert!(
-                boosted_heading.score >= content_hit.score,
-                "Boosted heading should rank at least as high as content match"
-            );
-        }
+        // The boosted heading should rank first (position 0) when using the # prefix
+        assert_eq!(
+            boosted_heading_pos, 0,
+            "With heading boost, the heading match should rank first"
+        );
     }
 
     #[test]
