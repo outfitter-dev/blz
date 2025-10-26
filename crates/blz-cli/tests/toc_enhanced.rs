@@ -82,7 +82,7 @@ Deep content
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", "<=2", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     // Collect all entries including nested ones
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
@@ -128,7 +128,7 @@ async fn test_heading_level_filter_gt() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", ">2", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -172,7 +172,7 @@ async fn test_heading_level_filter_gte() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", ">=3", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -216,7 +216,7 @@ async fn test_heading_level_filter_lt() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", "<4", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -259,7 +259,7 @@ async fn test_heading_level_filter_eq() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", "=2", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -302,7 +302,7 @@ async fn test_heading_level_filter_range() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", "2-3", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -346,7 +346,7 @@ async fn test_heading_level_filter_list() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs", doc).await?;
 
     let json = run_toc_json(&tmp, &["toc", "docs", "-H", "1,3", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_levels(entries: &[Value]) -> Vec<u64> {
         let mut levels = Vec::new();
@@ -466,7 +466,7 @@ async fn test_multi_source_with_source_flag() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs2", doc2).await?;
 
     let json = run_toc_json(&tmp, &["toc", "--source", "docs1,docs2", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     // Collect aliases from all entries
     fn collect_aliases(entries: &[Value]) -> Vec<String> {
@@ -510,7 +510,7 @@ async fn test_multi_source_with_all_flag() -> anyhow::Result<()> {
     seed_source(&tmp, &server, "docs2", doc2).await?;
 
     let json = run_toc_json(&tmp, &["toc", "--all", "-f", "json"])?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     // Collect aliases from all entries
     fn collect_aliases(entries: &[Value]) -> Vec<String> {
@@ -563,7 +563,7 @@ async fn test_combining_heading_level_and_text_filter() -> anyhow::Result<()> {
         &tmp,
         &["toc", "docs", "-H", "<=2", "--filter", "+API", "-f", "json"],
     )?;
-    let entries = json.as_array().expect("expected array");
+    let entries = json["entries"].as_array().expect("expected entries array");
 
     fn collect_entries(entries: &[Value]) -> Vec<(u64, String, Vec<String>)> {
         let mut result = Vec::new();

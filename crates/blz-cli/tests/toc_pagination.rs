@@ -159,14 +159,30 @@ async fn test_toc_pagination_basic() -> anyhow::Result<()> {
 
     let json: Value = serde_json::from_slice(&output)?;
 
-    // JSON output is just an array of entries, not wrapped in an object
-    let entries = json.as_array().expect("output should be an array");
+    // JSON output is now always an object with pagination metadata
+    assert!(json.is_object(), "output should be an object");
+
+    let entries = json["entries"]
+        .as_array()
+        .expect("output should have 'entries' array");
 
     // With a limit of 5, we should get exactly 5 entries
     assert_eq!(
         entries.len(),
         5,
         "Should return exactly 5 entries with --limit 5"
+    );
+
+    // Verify pagination metadata
+    assert_eq!(json["page"].as_u64(), Some(1), "Should be on page 1");
+    assert_eq!(json["page_size"].as_u64(), Some(5), "Page size should be 5");
+    assert!(
+        json["total_pages"].as_u64().unwrap() >= 1,
+        "Should have at least 1 page"
+    );
+    assert!(
+        json["total_results"].as_u64().unwrap() >= 5,
+        "Should have at least 5 results"
     );
 
     // Verify entries have expected structure
@@ -202,7 +218,9 @@ async fn test_toc_pagination_next() -> anyhow::Result<()> {
         .clone();
 
     let json1: Value = serde_json::from_slice(&output1)?;
-    let entries1 = json1.as_array().expect("output should be an array");
+    let entries1 = json1["entries"]
+        .as_array()
+        .expect("output should have entries array");
 
     // Get first entry's lines from page 1
     let first_lines_page1 = entries1[0]["lines"].as_str().expect("should have lines");
@@ -219,7 +237,12 @@ async fn test_toc_pagination_next() -> anyhow::Result<()> {
         .clone();
 
     let json2: Value = serde_json::from_slice(&output2)?;
-    let entries2 = json2.as_array().expect("output should be an array");
+    let entries2 = json2["entries"]
+        .as_array()
+        .expect("output should have entries array");
+
+    // Verify page number changed
+    assert_eq!(json2["page"].as_u64(), Some(2), "Should be on page 2");
 
     // Verify results are different (page 2 should have different entries)
     if !entries2.is_empty() {
@@ -253,7 +276,9 @@ async fn test_toc_pagination_previous() -> anyhow::Result<()> {
         .clone();
 
     let json1: Value = serde_json::from_slice(&output1)?;
-    let entries1 = json1.as_array().expect("output should be an array");
+    let entries1 = json1["entries"]
+        .as_array()
+        .expect("output should have entries array");
     let first_lines_page1 = entries1[0]["lines"].as_str().expect("should have lines");
 
     // Go to page 2
@@ -276,7 +301,16 @@ async fn test_toc_pagination_previous() -> anyhow::Result<()> {
         .clone();
 
     let json_prev: Value = serde_json::from_slice(&output_prev)?;
-    let entries_prev = json_prev.as_array().expect("output should be an array");
+    let entries_prev = json_prev["entries"]
+        .as_array()
+        .expect("output should have entries array");
+
+    // Verify we're back on page 1
+    assert_eq!(
+        json_prev["page"].as_u64(),
+        Some(1),
+        "Should be back on page 1"
+    );
 
     // Should have same entries as original page 1
     let first_lines_after_prev = entries_prev[0]["lines"]
@@ -327,13 +361,20 @@ async fn test_toc_pagination_last() -> anyhow::Result<()> {
         .clone();
 
     let json_last: Value = serde_json::from_slice(&output_last)?;
-    let entries_last = json_last.as_array().expect("output should be an array");
+    let entries_last = json_last["entries"]
+        .as_array()
+        .expect("output should have entries array");
 
     // The last page should have entries
     assert!(
         !entries_last.is_empty(),
         "Last page should have at least one entry"
     );
+
+    // Verify we're on the last page
+    let last_page_num = json_last["page"].as_u64().unwrap() as usize;
+    let total_pages = json_last["total_pages"].as_u64().unwrap() as usize;
+    assert_eq!(last_page_num, total_pages, "Should be on last page");
 
     // The last page might have fewer than 5 entries (if total isn't divisible by 5)
     let expected_on_last_page = if total_count % 5 == 0 {
@@ -372,7 +413,9 @@ async fn test_toc_pagination_page_jump() -> anyhow::Result<()> {
         .clone();
 
     let json1: Value = serde_json::from_slice(&output1)?;
-    let entries1 = json1.as_array().expect("output should be an array");
+    let entries1 = json1["entries"]
+        .as_array()
+        .expect("output should have entries array");
 
     // Jump to page 3
     let output3 = blz_cmd()
@@ -386,7 +429,12 @@ async fn test_toc_pagination_page_jump() -> anyhow::Result<()> {
         .clone();
 
     let json3: Value = serde_json::from_slice(&output3)?;
-    let entries3 = json3.as_array().expect("output should be an array");
+    let entries3 = json3["entries"]
+        .as_array()
+        .expect("output should have entries array");
+
+    // Verify we're on page 3
+    assert_eq!(json3["page"].as_u64(), Some(3), "Should be on page 3");
 
     // Page 3 should have entries (sample doc has enough headings)
     assert!(!entries3.is_empty(), "Page 3 should have entries");
@@ -422,7 +470,9 @@ async fn test_toc_pagination_all_overrides_limit() -> anyhow::Result<()> {
         .clone();
 
     let json_limited: Value = serde_json::from_slice(&output_limited)?;
-    let entries_limited = json_limited.as_array().expect("output should be an array");
+    let entries_limited = json_limited["entries"]
+        .as_array()
+        .expect("output should have entries array");
     let limited_count = entries_limited.len();
 
     // Now get all results with --all (should override the limit)
@@ -437,7 +487,9 @@ async fn test_toc_pagination_all_overrides_limit() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let entries_all = json_all.as_array().expect("output should be an array");
+    let entries_all = json_all["entries"]
+        .as_array()
+        .expect("output should have entries array");
     let all_count = entries_all.len();
 
     // --all should return more results than the limited query
