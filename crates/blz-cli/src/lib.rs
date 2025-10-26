@@ -823,25 +823,22 @@ async fn execute_command(
             filter,
             max_depth,
             heading_level,
-            source,
+            sources,
             all,
             tree,
             anchors,
+            show_anchors,
         }) => {
-            let sources: Vec<String> = source
-                .as_ref()
-                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-                .unwrap_or_default();
-
             commands::show_toc(
                 alias.as_deref(),
                 &sources,
                 all,
                 format.resolve(cli.quiet),
                 anchors,
+                show_anchors,
                 limit,
                 max_depth,
-                heading_level.as_deref(),
+                heading_level.as_ref(),
                 filter.as_deref(),
                 tree,
             )
@@ -1039,6 +1036,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
                 false,
                 format.resolve(quiet),
                 anchors,
+                false, // show_anchors - not applicable in anchor list mode
                 limit,
                 max_depth,
                 None,
