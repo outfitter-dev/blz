@@ -541,12 +541,6 @@ impl SearchIndex {
         escaped
     }
 
-    #[allow(dead_code)]
-    fn is_wrapped_phrase(query: &str) -> bool {
-        let trimmed = query.trim();
-        trimmed.len() > 1 && trimmed.starts_with('"') && trimmed.ends_with('"')
-    }
-
     /// Compute exact match line(s) within a block's content relative to its stored line range.
     /// Returns a "start-end" string (typically a single line) falling back to the original range on failure.
     fn compute_match_lines(content: &str, query: &str, block_lines: &str) -> Option<String> {

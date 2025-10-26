@@ -332,7 +332,9 @@ async fn test_toc_pagination_last() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let all_entries = json_all.as_array().expect("output should be an array");
+    let all_entries = json_all["entries"]
+        .as_array()
+        .expect("entries should be an array");
     let total_count = all_entries.len();
 
     // Jump directly to last page with limit of 5
@@ -358,7 +360,9 @@ async fn test_toc_pagination_last() -> anyhow::Result<()> {
     );
 
     // Verify we're on the last page
+    #[allow(clippy::cast_possible_truncation)] // page numbers are reasonably small
     let last_page_num = json_last["page"].as_u64().unwrap() as usize;
+    #[allow(clippy::cast_possible_truncation)] // page numbers are reasonably small
     let total_pages = json_last["total_pages"].as_u64().unwrap() as usize;
     assert_eq!(last_page_num, total_pages, "Should be on last page");
 
@@ -518,7 +522,9 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_no_limit: Value = serde_json::from_slice(&output_no_limit)?;
-    let entries_no_limit = json_no_limit.as_array().expect("output should be an array");
+    let entries_no_limit = json_no_limit["entries"]
+        .as_array()
+        .expect("entries should be an array");
     let no_limit_count = entries_no_limit.len();
 
     // Get results with explicit --all flag
@@ -533,7 +539,9 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let entries_all = json_all.as_array().expect("output should be an array");
+    let entries_all = json_all["entries"]
+        .as_array()
+        .expect("entries should be an array");
     let all_count = entries_all.len();
 
     // Both should return the same number of results

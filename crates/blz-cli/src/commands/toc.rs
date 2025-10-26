@@ -8,7 +8,7 @@ use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::preferences::{self, TocHistoryEntry};
 
-/// Serialize a HeadingLevelFilter back to its string representation
+/// Serialize a `HeadingLevelFilter` back to its string representation
 fn serialize_heading_level_filter(
     filter: &crate::utils::heading_filter::HeadingLevelFilter,
 ) -> String {
@@ -47,7 +47,7 @@ pub async fn execute(
     max_depth: Option<u8>,
     heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
     filter_expr: Option<&str>,
-    _tree: bool,
+    tree: bool,
     next: bool,
     previous: bool,
     last: bool,
@@ -92,18 +92,19 @@ pub async fn execute(
     };
 
     // Handle heading_level separately - parse from history string if needed
-    let heading_level_parsed: Option<crate::utils::heading_filter::HeadingLevelFilter>;
+    let mut heading_level_parsed: Option<crate::utils::heading_filter::HeadingLevelFilter> = None;
     let heading_level = if heading_level.is_some() {
         // Use provided heading_level
         heading_level
     } else if next || previous || last {
         // Try to restore from history
-        if let Some(saved_str) = last_entry.as_ref().and_then(|e| e.heading_level.as_deref()) {
-            heading_level_parsed = saved_str.parse().ok();
-            heading_level_parsed.as_ref()
-        } else {
-            None
-        }
+        last_entry
+            .as_ref()
+            .and_then(|e| e.heading_level.as_deref())
+            .and_then(|saved_str| {
+                heading_level_parsed = saved_str.parse().ok();
+                heading_level_parsed.as_ref()
+            })
     } else {
         None
     };
@@ -334,7 +335,7 @@ pub async fn execute(
         },
         OutputFormat::Text => {
             // For paginated text output with flat list rendering
-            if pagination_limit.is_some() && !_tree {
+            if pagination_limit.is_some() && !tree {
                 // Print header
                 if source_list.len() > 1 {
                     println!("Table of contents (showing {} sources)", source_list.len());
@@ -353,23 +354,18 @@ pub async fn execute(
                         .unwrap_or_default();
                     let name = heading_path.last().unwrap_or(&"");
                     let lines = entry["lines"].as_str().unwrap_or("");
+                    #[allow(clippy::cast_possible_truncation)] // heading levels are 1-6 in markdown
                     let heading_level = entry["headingLevel"].as_u64().unwrap_or(1) as usize;
 
                     // Print with proper indentation
                     let indent = "  ".repeat(heading_level.saturating_sub(1));
-                    let lines_display = format!("[{}]", lines).dimmed();
+                    let lines_display = format!("[{lines}]").dimmed();
 
                     if show_anchors {
                         let anchor = entry["anchor"].as_str().unwrap_or("");
-                        println!(
-                            "{}- {} {} {}",
-                            indent,
-                            name,
-                            lines_display,
-                            anchor.bright_black()
-                        );
+                        println!("{indent}- {name} {lines_display} {}", anchor.bright_black());
                     } else {
-                        println!("{}- {} {}", indent, name, lines_display);
+                        println!("{indent}- {name} {lines_display}");
                     }
                 }
 
@@ -404,7 +400,7 @@ pub async fn execute(
                         );
                     }
 
-                    if _tree {
+                    if tree {
                         let mut count = 0;
                         let mut prev_depth: Option<usize> = None;
                         let mut prev_h1_had_children = false;
