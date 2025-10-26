@@ -365,7 +365,6 @@ impl SearchIndex {
             filter_clauses.push(format!("alias:{alias}"));
         }
 
-        let trimmed_query = query_body_input.trim();
         let sanitized_query = Self::escape_query(query_body_input);
 
         // Check if the original query is a phrase query (quoted)
@@ -542,6 +541,7 @@ impl SearchIndex {
         escaped
     }
 
+    #[allow(dead_code)]
     fn is_wrapped_phrase(query: &str) -> bool {
         let trimmed = query.trim();
         trimmed.len() > 1 && trimmed.starts_with('"') && trimmed.ends_with('"')
