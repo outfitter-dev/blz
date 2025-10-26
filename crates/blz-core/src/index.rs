@@ -540,6 +540,7 @@ impl SearchIndex {
         }
         escaped
     }
+
     /// Compute exact match line(s) within a block's content relative to its stored line range.
     /// Returns a "start-end" string (typically a single line) falling back to the original range on failure.
     fn compute_match_lines(content: &str, query: &str, block_lines: &str) -> Option<String> {
