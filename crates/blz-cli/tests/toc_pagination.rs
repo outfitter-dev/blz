@@ -128,18 +128,6 @@ async fn seed_source(
     Ok(())
 }
 
-/// Helper: Count total entries including nested children
-fn count_all_entries(entries: &[Value]) -> usize {
-    let mut count = 0;
-    for entry in entries {
-        count += 1;
-        if let Some(children) = entry["children"].as_array() {
-            count += count_all_entries(children);
-        }
-    }
-    count
-}
-
 /// Test 1: Basic pagination with limit
 #[tokio::test]
 async fn test_toc_pagination_basic() -> anyhow::Result<()> {
@@ -545,7 +533,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
 
     let json_no_limit: Value = serde_json::from_slice(&output_no_limit)?;
     let entries_no_limit = json_no_limit.as_array().expect("output should be an array");
-    let no_limit_count = count_all_entries(entries_no_limit);
+    let no_limit_count = entries_no_limit.len();
 
     // Get results with explicit --all flag
     let output_all = blz_cmd()
@@ -560,7 +548,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
     let entries_all = json_all.as_array().expect("output should be an array");
-    let all_count = count_all_entries(entries_all);
+    let all_count = entries_all.len();
 
     // Both should return the same number of results
     assert_eq!(
