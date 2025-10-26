@@ -27,7 +27,7 @@ pub async fn execute(
     max_depth: Option<u8>,
     heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
     filter_expr: Option<&str>,
-    tree: bool,
+    _tree: bool,
     next: bool,
     previous: bool,
     last: bool,
@@ -48,6 +48,7 @@ pub async fn execute(
         ));
     }
 
+    // Restore limit from history if navigating
     if (next || previous || last) && limit.is_none() {
         if let Some(entry) = &last_entry {
             limit = entry.limit;
@@ -58,6 +59,21 @@ pub async fn execute(
             ));
         }
     }
+
+    // Restore filter parameters from history if navigating and not explicitly provided
+    let (filter_expr, max_depth, heading_level) = if next || previous || last {
+        let saved_filter = last_entry.as_ref().and_then(|e| e.filter.as_deref());
+        let saved_max_depth = last_entry.as_ref().and_then(|e| e.max_depth);
+        let saved_heading_level = last_entry.as_ref().and_then(|e| e.heading_level.as_deref());
+
+        (
+            filter_expr.or(saved_filter),
+            max_depth.or(saved_max_depth),
+            heading_level.or(saved_heading_level),
+        )
+    } else {
+        (filter_expr, max_depth, heading_level)
+    };
 
     if next {
         page = last_entry
@@ -248,6 +264,9 @@ pub async fn execute(
             limit: pagination_limit,
             total_pages: Some(total_pages),
             total_results: Some(total_results),
+            filter: filter_expr.map(str::to_string),
+            max_depth,
+            heading_level: heading_level.map(str::to_string),
         };
 
         if let Err(err) = preferences::save_toc_history(&history_entry) {
@@ -257,25 +276,19 @@ pub async fn execute(
 
     match output {
         OutputFormat::Json => {
-            if limit.is_some() {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&page_entries)
-                        .context("Failed to serialize table of contents to JSON")?
-                );
-            } else {
-                let payload = serde_json::json!({
-                    "entries": page_entries,
-                    "page": actual_page,
-                    "total_pages": total_pages.max(1),
-                    "total_results": total_results,
-                });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&payload)
-                        .context("Failed to serialize table of contents to JSON")?
-                );
-            }
+            // Always return object with pagination metadata for consistency
+            let payload = serde_json::json!({
+                "entries": page_entries,
+                "page": actual_page,
+                "total_pages": total_pages.max(1),
+                "total_results": total_results,
+                "page_size": pagination_limit,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&payload)
+                    .context("Failed to serialize table of contents to JSON")?
+            );
         },
         OutputFormat::Jsonl => {
             for e in page_entries {
@@ -287,84 +300,100 @@ pub async fn execute(
             }
         },
         OutputFormat::Text => {
-            // For text output with multiple sources, show each source separately
-            // Apply limit globally across all sources (not per-source)
-            let mut global_count: usize = 0;
+            // For paginated text output with flat list rendering
+            if pagination_limit.is_some() && !_tree {
+                // Print header
+                if source_list.len() > 1 {
+                    println!("Table of contents (showing {} sources)", source_list.len());
+                } else if let Some(first) = source_list.first() {
+                    let canonical = crate::utils::resolver::resolve_source(&storage, first)?
+                        .map_or_else(|| first.to_string(), |c| c);
+                    println!("Table of contents for {}\n", canonical.green());
+                }
 
-            for source_alias in &source_list {
-                // Check if we've hit the global limit
-                if let Some(limit_count) = pagination_limit {
-                    if global_count >= limit_count {
-                        break;
+                // Print entries from page_entries (which already has pagination applied)
+                for entry in &page_entries {
+                    // Extract values from JSON
+                    let heading_path = entry["headingPath"]
+                        .as_array()
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                        .unwrap_or_default();
+                    let name = heading_path.last().unwrap_or(&"");
+                    let lines = entry["lines"].as_str().unwrap_or("");
+                    let heading_level = entry["headingLevel"].as_u64().unwrap_or(1) as usize;
+
+                    // Print with proper indentation
+                    let indent = "  ".repeat(heading_level.saturating_sub(1));
+                    let lines_display = format!("[{}]", lines).dimmed();
+
+                    if show_anchors {
+                        let anchor = entry["anchor"].as_str().unwrap_or("");
+                        println!(
+                            "{}- {} {} {}",
+                            indent,
+                            name,
+                            lines_display,
+                            anchor.bright_black()
+                        );
+                    } else {
+                        println!("{}- {} {}", indent, name, lines_display);
                     }
                 }
 
-                let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-                    .map_or_else(|| source_alias.to_string(), |c| c);
+                // Print footer with pagination info
+                println!(
+                    "\nPage {} of {} ({} total results)",
+                    actual_page,
+                    total_pages.max(1),
+                    total_results
+                );
+            } else {
+                // Use original tree/hierarchical rendering for non-paginated or tree mode
+                for source_alias in &source_list {
+                    let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
+                        .map_or_else(|| source_alias.to_string(), |c| c);
 
-                let llms: LlmsJson = storage
-                    .load_llms_json(&canonical)
-                    .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+                    let llms: LlmsJson = storage
+                        .load_llms_json(&canonical)
+                        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
 
-                if source_list.len() > 1 {
-                    println!(
-                        "
+                    if source_list.len() > 1 {
+                        println!(
+                            "
 {}:",
-                        canonical.green()
-                    );
-                } else {
-                    println!(
-                        "Table of contents for {}
+                            canonical.green()
+                        );
+                    } else {
+                        println!(
+                            "Table of contents for {}
 ",
-                        canonical.green()
-                    );
-                }
-
-                #[allow(clippy::branches_sharing_code)]
-                if tree {
-                    // Tree rendering with global limit
-                    let mut prev_depth: Option<usize> = None;
-                    let mut prev_h1_had_children = false;
-                    for (i, e) in llms.toc.iter().enumerate() {
-                        if let Some(limit_count) = pagination_limit {
-                            if global_count >= limit_count {
-                                break;
-                            }
-                        }
-                        let is_last = i == llms.toc.len() - 1;
-                        print_tree(
-                            e,
-                            0,
-                            is_last,
-                            "",
-                            max_depth.map(usize::from),
-                            filter.as_ref(),
-                            level_filter.as_ref(),
-                            &mut global_count,
-                            pagination_limit,
-                            show_anchors,
-                            &mut prev_depth,
-                            &mut prev_h1_had_children,
+                            canonical.green()
                         );
                     }
-                } else {
-                    // Standard list rendering with global limit
-                    for e in &llms.toc {
-                        if let Some(limit_count) = pagination_limit {
-                            if global_count >= limit_count {
-                                break;
-                            }
-                            let remaining = limit_count.saturating_sub(global_count);
-                            global_count += print_text_with_limit(
+
+                    if _tree {
+                        let mut count = 0;
+                        let mut prev_depth: Option<usize> = None;
+                        let mut prev_h1_had_children = false;
+                        for (i, e) in llms.toc.iter().enumerate() {
+                            let is_last = i == llms.toc.len() - 1;
+                            print_tree(
                                 e,
                                 0,
-                                remaining,
+                                is_last,
+                                "",
                                 max_depth.map(usize::from),
                                 filter.as_ref(),
                                 level_filter.as_ref(),
+                                &mut count,
+                                None, // No limit for tree mode
                                 show_anchors,
+                                &mut prev_depth,
+                                &mut prev_h1_had_children,
                             );
-                        } else {
+                        }
+                    } else {
+                        for e in &llms.toc {
                             print_text(
                                 e,
                                 0,

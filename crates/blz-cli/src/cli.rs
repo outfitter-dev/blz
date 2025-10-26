@@ -60,6 +60,18 @@ use clap::{Args, Parser, Subcommand};
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
+/// Validates that limit is at least 1
+fn validate_limit(s: &str) -> Result<usize, String> {
+    let value: usize = s
+        .parse()
+        .map_err(|_| format!("'{s}' is not a valid number"))?;
+    if value == 0 {
+        Err("limit must be at least 1".to_string())
+    } else {
+        Ok(value)
+    }
+}
+
 /// Main CLI structure for the `blz` command
 ///
 /// This structure defines the top-level CLI interface using clap's derive macros.
@@ -295,6 +307,7 @@ pub enum Commands {
             conflicts_with = "page",
             conflicts_with = "last",
             conflicts_with = "previous",
+            conflicts_with = "all",
             display_order = 50
         )]
         next: bool,
@@ -304,6 +317,7 @@ pub enum Commands {
             conflicts_with = "page",
             conflicts_with = "last",
             conflicts_with = "next",
+            conflicts_with = "all",
             display_order = 51
         )]
         previous: bool,
@@ -313,11 +327,18 @@ pub enum Commands {
             conflicts_with = "next",
             conflicts_with = "page",
             conflicts_with = "previous",
+            conflicts_with = "all",
             display_order = 52
         )]
         last: bool,
-        /// Maximum number of headings per page
-        #[arg(short = 'n', long, value_name = "COUNT", display_order = 53)]
+        /// Maximum number of headings per page (must be at least 1)
+        #[arg(
+            short = 'n',
+            long,
+            value_name = "COUNT",
+            value_parser = validate_limit,
+            display_order = 53
+        )]
         limit: Option<usize>,
         /// Page number for pagination
         #[arg(
@@ -325,6 +346,8 @@ pub enum Commands {
             default_value = "1",
             conflicts_with = "next",
             conflicts_with = "last",
+            conflicts_with = "previous",
+            conflicts_with = "all",
             display_order = 55
         )]
         page: usize,

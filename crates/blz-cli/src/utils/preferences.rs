@@ -58,6 +58,12 @@ pub struct TocHistoryEntry {
     pub total_pages: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_results: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading_level: Option<String>,
 }
 
 const fn default_precision() -> u8 {
@@ -481,6 +487,9 @@ mod tests {
             limit: Some(25),
             total_pages: Some(5),
             total_results: Some(100),
+            filter: Some("test AND filter".to_string()),
+            max_depth: Some(3),
+            heading_level: Some("<=2".to_string()),
         };
 
         // Serialize and deserialize
@@ -495,5 +504,8 @@ mod tests {
         assert_eq!(restored.limit, Some(25));
         assert_eq!(restored.total_pages, Some(5));
         assert_eq!(restored.total_results, Some(100));
+        assert_eq!(restored.filter, Some("test AND filter".to_string()));
+        assert_eq!(restored.max_depth, Some(3));
+        assert_eq!(restored.heading_level, Some("<=2".to_string()));
     }
 }
