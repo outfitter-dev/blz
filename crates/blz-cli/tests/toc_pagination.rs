@@ -27,6 +27,11 @@ use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// Helper to count entries from JSON array (for pagination tests)
+const fn count_all_entries(entries: &[Value]) -> usize {
+    entries.len()
+}
+
 /// Sample document with 25 headings for comprehensive pagination testing
 const SAMPLE_DOC: &str = r#"# Section 1
 Content for section 1
@@ -532,7 +537,9 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_no_limit: Value = serde_json::from_slice(&output_no_limit)?;
-    let entries_no_limit = json_no_limit.as_array().expect("output should be an array");
+    let entries_no_limit = json_no_limit["entries"]
+        .as_array()
+        .expect("entries should be an array");
     let no_limit_count = entries_no_limit.len();
 
     // Get results with explicit --all flag
@@ -547,7 +554,9 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let entries_all = json_all.as_array().expect("output should be an array");
+    let entries_all = json_all["entries"]
+        .as_array()
+        .expect("entries should be an array");
     let all_count = entries_all.len();
 
     // Both should return the same number of results

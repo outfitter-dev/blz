@@ -38,8 +38,6 @@ enum SearchMode {
 /// Tantivy-based search index for llms.txt documentation
 pub struct SearchIndex {
     index: Index,
-    #[allow(dead_code)]
-    schema: Schema,
     content_field: Field,
     path_field: Field,
     heading_path_field: Field,
@@ -85,7 +83,7 @@ impl SearchIndex {
         std::fs::create_dir_all(index_path)
             .map_err(|e| Error::Index(format!("Failed to create index directory: {e}")))?;
 
-        let index = Index::create_in_dir(index_path, schema.clone())
+        let index = Index::create_in_dir(index_path, schema)
             .map_err(|e| Error::Index(format!("Failed to create index: {e}")))?;
 
         let reader = index
@@ -96,7 +94,6 @@ impl SearchIndex {
 
         Ok(Self {
             index,
-            schema,
             content_field,
             path_field,
             heading_path_field,
@@ -155,7 +152,6 @@ impl SearchIndex {
 
         Ok(Self {
             index,
-            schema,
             content_field,
             path_field,
             heading_path_field,

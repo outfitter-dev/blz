@@ -181,7 +181,7 @@ pub async fn execute(
             return Err(anyhow!("--anchors can only be used with a single source"));
         }
         let canonical = crate::utils::resolver::resolve_source(&storage, &source_list[0])?
-            .map_or_else(|| source_list[0].to_string(), |c| c);
+            .map_or_else(|| source_list[0].clone(), |c| c);
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
             println!("No heading remap metadata found for '{canonical}'");
@@ -231,7 +231,7 @@ pub async fn execute(
 
     for source_alias in &source_list {
         let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-            .map_or_else(|| source_alias.to_string(), |c| c);
+            .map_or_else(|| source_alias.clone(), |c| c);
 
         let llms: LlmsJson = storage
             .load_llms_json(&canonical)
@@ -356,7 +356,7 @@ pub async fn execute(
                     println!("Table of contents (showing {} sources)", source_list.len());
                 } else if let Some(first) = source_list.first() {
                     let canonical = crate::utils::resolver::resolve_source(&storage, first)?
-                        .map_or_else(|| first.to_string(), |c| c);
+                        .map_or_else(|| first.clone(), |c| c);
                     println!("Table of contents for {}\n", canonical.green());
                 }
 
@@ -380,13 +380,7 @@ pub async fn execute(
 
                     if show_anchors {
                         let anchor = entry["anchor"].as_str().unwrap_or("");
-                        println!(
-                            "{}- {} {} {}",
-                            indent,
-                            name,
-                            lines_display,
-                            anchor.bright_black()
-                        );
+                        println!("{indent}- {name} {lines_display} {}", anchor.bright_black());
                     } else {
                         println!("{indent}- {name} {lines_display}");
                     }
@@ -403,7 +397,7 @@ pub async fn execute(
                 // Use original tree/hierarchical rendering for non-paginated or tree mode
                 for source_alias in &source_list {
                     let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-                        .map_or_else(|| source_alias.to_string(), |c| c);
+                        .map_or_else(|| source_alias.clone(), |c| c);
 
                     let llms: LlmsJson = storage
                         .load_llms_json(&canonical)
