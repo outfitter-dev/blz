@@ -122,7 +122,7 @@ See [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) for det
   - Multi-source TOC browsing (`--source bun,react` or `--all`)
   - Backward compatible with `--max-depth`
 - **Direct CLI integration**: IDE agents run commands directly for instant JSON results
-- **MCP server** (coming soon): stdio-based integration via official Rust SDK
+- **MCP server**: stdio-based integration via official Rust SDK for deep AI assistant integration
 
 ## Installation
 
@@ -374,7 +374,7 @@ cargo install --path .
 - [tree-sitter-md](https://github.com/tree-sitter-grammars/tree-sitter-markdown) - Markdown parsing
 - [ripgrep](https://github.com/BurntSushi/ripgrep) - Line-level search (optional)
 - [similar](https://github.com/mitsuhiko/similar) - Unified diffs
-- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK (coming soon)
+- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - MCP server SDK
 
 ## Security & Privacy
 

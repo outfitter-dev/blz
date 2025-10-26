@@ -269,17 +269,19 @@ pub enum Commands {
         max_depth: Option<u8>,
         /// Filter by heading level with comparison operators (e.g., <=2, >3, 1-3, 1,2,3)
         #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
-        heading_level: Option<String>,
+        heading_level: Option<crate::utils::heading_filter::HeadingLevelFilter>,
         /// Search specific sources (comma-separated aliases)
         #[arg(
             short = 's',
             long = "source",
             value_name = "ALIASES",
+            value_delimiter = ',',
+            num_args = 1..,
             conflicts_with = "alias"
         )]
-        source: Option<String>,
+        sources: Vec<String>,
         /// Include all sources
-        #[arg(long, conflicts_with_all = ["alias", "source"])]
+        #[arg(long, conflicts_with_all = ["alias", "sources"])]
         all: bool,
         /// Display as hierarchical tree with box-drawing characters
         #[arg(long)]
@@ -287,6 +289,9 @@ pub enum Commands {
         /// Show anchor metadata and remap history
         #[arg(long, alias = "mappings")]
         anchors: bool,
+        /// Show anchor slugs in normal TOC output
+        #[arg(short = 'a', long)]
+        show_anchors: bool,
     },
     /// Add a new source
     #[command(display_order = 1)]

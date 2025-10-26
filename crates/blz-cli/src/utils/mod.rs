@@ -73,4 +73,7 @@ pub mod validation;
 pub mod test_support;
 
 // Re-export commonly used utilities
+#[allow(unused_imports)]
+// Re-exported for ergonomics, used via crate::utils::HeadingLevelFilter
+pub use heading_filter::HeadingLevelFilter;
 pub use toc::count_headings;

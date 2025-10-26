@@ -10,7 +10,8 @@ use crate::utils::parsing::{LineRange, parse_line_ranges};
     dead_code,
     clippy::unused_async,
     clippy::too_many_lines,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools
 )]
 pub async fn execute(
     alias: Option<&str>,
@@ -18,9 +19,10 @@ pub async fn execute(
     all: bool,
     output: OutputFormat,
     anchors: bool,
+    show_anchors: bool,
     limit: Option<usize>,
     max_depth: Option<u8>,
-    heading_level: Option<&str>,
+    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
     filter_expr: Option<&str>,
     tree: bool,
 ) -> Result<()> {
@@ -36,16 +38,10 @@ pub async fn execute(
         .transpose()
         .context("Failed to parse filter expression")?;
 
-    // Convert --max-depth to heading level filter for backward compat
-    let level_filter = if let Some(filter_str) = heading_level {
-        Some(
-            filter_str
-                .parse::<crate::utils::heading_filter::HeadingLevelFilter>()
-                .map_err(|e| anyhow!("Invalid heading level filter: {e}"))?,
-        )
-    } else {
+    // Use provided heading level filter, or convert --max-depth for backward compat
+    let level_filter = heading_level.cloned().or_else(|| {
         max_depth.map(crate::utils::heading_filter::HeadingLevelFilter::LessThanOrEqual)
-    };
+    });
 
     // Determine which sources to process
     let source_list: Vec<String> = if all {
@@ -157,7 +153,17 @@ pub async fn execute(
         },
         OutputFormat::Text => {
             // For text output with multiple sources, show each source separately
+            // Apply limit globally across all sources (not per-source)
+            let mut global_count: usize = 0;
+
             for source_alias in &source_list {
+                // Check if we've hit the global limit
+                if let Some(limit_count) = limit {
+                    if global_count >= limit_count {
+                        break;
+                    }
+                }
+
                 let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
                     .map_or_else(|| source_alias.to_string(), |c| c);
 
@@ -174,13 +180,12 @@ pub async fn execute(
 
                 #[allow(clippy::branches_sharing_code)]
                 if tree {
-                    // Tree rendering
-                    let mut count = 0;
+                    // Tree rendering with global limit
                     let mut prev_depth: Option<usize> = None;
                     let mut prev_h1_had_children = false;
                     for (i, e) in llms.toc.iter().enumerate() {
                         if let Some(limit_count) = limit {
-                            if count >= limit_count {
+                            if global_count >= limit_count {
                                 break;
                             }
                         }
@@ -193,29 +198,29 @@ pub async fn execute(
                             max_depth.map(usize::from),
                             filter.as_ref(),
                             level_filter.as_ref(),
-                            &mut count,
+                            &mut global_count,
                             limit,
-                            anchors,
+                            show_anchors,
                             &mut prev_depth,
                             &mut prev_h1_had_children,
                         );
                     }
                 } else {
-                    // Standard list rendering
-                    let mut count = 0;
+                    // Standard list rendering with global limit
                     for e in &llms.toc {
                         if let Some(limit_count) = limit {
-                            if count >= limit_count {
+                            if global_count >= limit_count {
                                 break;
                             }
-                            count += print_text_with_limit(
+                            let remaining = limit_count.saturating_sub(global_count);
+                            global_count += print_text_with_limit(
                                 e,
                                 0,
-                                limit_count - count,
+                                remaining,
                                 max_depth.map(usize::from),
                                 filter.as_ref(),
                                 level_filter.as_ref(),
-                                anchors,
+                                show_anchors,
                             );
                         } else {
                             print_text(
@@ -224,7 +229,7 @@ pub async fn execute(
                                 max_depth.map(usize::from),
                                 filter.as_ref(),
                                 level_filter.as_ref(),
-                                anchors,
+                                show_anchors,
                             );
                         }
                     }

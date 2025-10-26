@@ -116,11 +116,15 @@ impl FromStr for HeadingLevelFilter {
         if s.contains(',') {
             let levels: Result<Vec<u8>, String> =
                 s.split(',').map(|part| parse_level(part.trim())).collect();
-            let levels = levels?;
+            let mut levels = levels?;
 
             if levels.is_empty() {
                 return Err("List cannot be empty".to_string());
             }
+
+            // Sort and deduplicate to ensure stable behavior
+            levels.sort_unstable();
+            levels.dedup();
 
             return Ok(Self::List(levels));
         }
@@ -319,5 +323,22 @@ mod tests {
         assert!(!filter.matches(4));
         assert!(filter.matches(5));
         assert!(!filter.matches(6));
+    }
+
+    #[test]
+    fn test_list_deduplication_and_sorting() {
+        // Test that duplicates are removed and list is sorted
+        let filter: HeadingLevelFilter = "3,1,2,3,1".parse().unwrap();
+        assert_eq!(filter, HeadingLevelFilter::List(vec![1, 2, 3]));
+
+        // Verify behavior is correct
+        assert!(filter.matches(1));
+        assert!(filter.matches(2));
+        assert!(filter.matches(3));
+        assert!(!filter.matches(4));
+
+        // Test unsorted input gets sorted
+        let filter: HeadingLevelFilter = "5,1,3".parse().unwrap();
+        assert_eq!(filter, HeadingLevelFilter::List(vec![1, 3, 5]));
     }
 }
