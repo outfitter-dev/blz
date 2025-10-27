@@ -35,13 +35,13 @@ PY
 }
 
 # Print anchors for a given alias as newline-separated list by calling
-# `blz anchors <alias> --format json` and extracting the `anchor` field.
+# `blz toc <alias> --format json` and extracting the `anchor` field.
 __blz_anchors_for_alias() {
   local alias="$1"
   if [[ -z "$alias" ]]; then
     return
   fi
-  blz anchors "$alias" --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
+  blz toc "$alias" --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
 import json, sys
 try:
   data = json.load(sys.stdin)
@@ -77,7 +77,7 @@ _blz_dynamic() {
   # positional alias for common subcommands
   if (( ret )); then
     case $sub in
-      get|update|remove|anchors)
+      get|update|remove|toc|anchors)
         if (( CURRENT == 3 )); then
           local -a aliases
           aliases=(${(f)$(__blz_aliases)})

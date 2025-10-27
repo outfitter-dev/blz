@@ -208,7 +208,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.zsh
 What it adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz toc`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
@@ -427,7 +427,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.fish
 Adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz diff`, `blz anchors`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz diff`, `blz toc`
 - `blz anchor list <alias>` alias completion
 - `blz anchor get <alias> <anchor>` anchor completion (after alias is provided)
 
@@ -617,7 +617,7 @@ For live alias suggestions (canonical + metadata aliases) when typing `blz` comm
 This adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz anchors`, and `blz anchor list|get`
+- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz toc`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases.

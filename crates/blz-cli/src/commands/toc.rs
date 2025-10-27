@@ -21,7 +21,7 @@ pub async fn execute(
     if mappings {
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
-            println!("No anchors mappings found for '{canonical}'");
+            println!("No anchor remap metadata found for '{canonical}'");
             return Ok(());
         }
         let txt = std::fs::read_to_string(&path)?;
@@ -37,7 +37,7 @@ pub async fn execute(
             },
             OutputFormat::Text => {
                 println!(
-                    "Anchors remap for {} (updated {})\n",
+                    "Anchor remap metadata for {} (updated {})\n",
                     canonical.green(),
                     map.updated_at
                 );
@@ -53,7 +53,9 @@ pub async fn execute(
                 }
             },
             OutputFormat::Raw => {
-                return Err(anyhow!("Raw output is not supported for anchors"));
+                return Err(anyhow!(
+                    "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+                ));
             },
         }
         return Ok(());
@@ -94,19 +96,20 @@ pub async fn execute(
             println!(
                 "{}",
                 serde_json::to_string_pretty(&entries)
-                    .context("Failed to serialize anchors to JSON")?
+                    .context("Failed to serialize table of contents to JSON")?
             );
         },
         OutputFormat::Jsonl => {
             for e in entries {
                 println!(
                     "{}",
-                    serde_json::to_string(&e).context("Failed to serialize anchors to JSONL")?
+                    serde_json::to_string(&e)
+                        .context("Failed to serialize table of contents to JSONL")?
                 );
             }
         },
         OutputFormat::Text => {
-            println!("Anchors for {}\n", canonical.green());
+            println!("Table of contents for {}\n", canonical.green());
             let mut count = 0;
             for e in &llms.toc {
                 if let Some(limit_count) = limit {
@@ -120,7 +123,9 @@ pub async fn execute(
             }
         },
         OutputFormat::Raw => {
-            return Err(anyhow!("Raw output is not supported for anchors"));
+            return Err(anyhow!(
+                "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+            ));
         },
     }
     Ok(())
@@ -226,7 +231,7 @@ pub async fn get_by_anchor(
 
     let Some(entry) = find(&llms.toc, anchor) else {
         println!("Anchor not found for '{anchor}' in '{canonical}'");
-        println!("Hint: run 'blz anchor list {canonical}' to see available anchors");
+        println!("Hint: run 'blz toc {canonical}' to inspect available headings");
         return Ok(());
     };
 
@@ -286,7 +291,9 @@ pub async fn get_by_anchor(
             }
             Ok(())
         },
-        OutputFormat::Raw => Err(anyhow!("Raw output is not supported for anchors")),
+        OutputFormat::Raw => Err(anyhow!(
+            "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+        )),
     }
 }
 

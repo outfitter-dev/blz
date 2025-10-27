@@ -21,6 +21,7 @@ const STATS_PROMPT: &str = include_str!("prompts/stats.prompt.json");
 const VALIDATE_PROMPT: &str = include_str!("prompts/validate.prompt.json");
 const DOCTOR_PROMPT: &str = include_str!("prompts/doctor.prompt.json");
 const DIFF_PROMPT: &str = include_str!("prompts/diff.prompt.json");
+const TOC_PROMPT: &str = include_str!("prompts/toc.prompt.json");
 
 #[derive(Clone, Copy)]
 pub enum NoteChannel {
@@ -50,6 +51,7 @@ pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
         "validate" => Some(VALIDATE_PROMPT),
         "doctor" => Some(DOCTOR_PROMPT),
         "diff" => Some(DIFF_PROMPT),
+        "toc" => Some(TOC_PROMPT),
         _ => None,
     };
 
@@ -95,17 +97,23 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Clear { .. } => "clear".into(),
                 Commands::Diff { .. } => "diff".into(),
                 Commands::Mcp => "mcp".into(),
-                Commands::Anchor { .. } | Commands::Anchors { .. } => "anchor".into(),
+                Commands::Anchor { .. } => "anchor".into(),
+                Commands::Toc { .. } => "toc".into(),
             };
         }
         return "blz".into();
     }
 
-    target
+    let normalized = target
         .trim()
         .trim_matches('"')
         .replace(['/', ':'], ".")
-        .to_ascii_lowercase()
+        .to_ascii_lowercase();
+
+    match normalized.as_str() {
+        "anchors" => "toc".into(),
+        other => other.into(),
+    }
 }
 
 fn available_targets() -> Vec<&'static str> {
@@ -120,6 +128,7 @@ fn available_targets() -> Vec<&'static str> {
         "lookup",
         "docs",
         "history",
+        "toc",
         "anchor",
         "completions",
         "alias",

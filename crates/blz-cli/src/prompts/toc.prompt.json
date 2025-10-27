@@ -1,0 +1,51 @@
+{
+  "target": "toc",
+  "summary": "Inspect the table of contents (headings) for a cached source, optionally drilling into anchor remap metadata.",
+  "primary_usage": [
+    {
+      "command": "blz toc <alias>",
+      "description": "Pretty-print the heading hierarchy with line ranges and anchors when available."
+    },
+    {
+      "command": "blz toc <alias> --format json",
+      "description": "Machine-readable output suitable for agents; includes raw and normalized heading paths plus anchors."
+    },
+    {
+      "command": "blz toc <alias> --mappings",
+      "description": "Show anchor remap metadata (old/new line spans) captured during updates."
+    }
+  ],
+  "workflow_for_agents": [
+    "Use this before `blz get` to anchor requests to stable headings rather than line numbers.",
+    "Pair with `--format json` to feed heading paths into automatic prompt builders.",
+    "When a section moved between updates, call `--mappings` to translate older anchor references."
+  ],
+  "helpful_flags": [
+    {
+      "flag": "--limit <N>",
+      "impact": "Trim output to the first N headings. Useful while exploring large docs."
+    },
+    {
+      "flag": "--mappings",
+      "impact": "Switch to anchor remap report instead of the live table of contents."
+    },
+    {
+      "flag": "--format <text|json|jsonl>",
+      "impact": "Choose the output style best suited to human review or automation."
+    }
+  ],
+  "try_this": [
+    {
+      "command": "blz toc bun --limit 20",
+      "why": "Quick scan of top-level headings before issuing targeted searches."
+    },
+    {
+      "command": "blz toc bun --format json | jq '.[] | {path: .headingPath, anchor: .anchor}'",
+      "why": "Generate a terse map of headings to anchors for downstream tooling."
+    },
+    {
+      "command": "blz toc react --mappings --format json",
+      "why": "Inspect how section anchors shifted between updates so agents can refresh citations."
+    }
+  ]
+}

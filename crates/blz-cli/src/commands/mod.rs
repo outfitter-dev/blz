@@ -5,9 +5,9 @@
 
 mod add;
 mod alias;
-mod anchors;
 mod clear;
 mod completions;
+mod toc;
 // config module removed in v1.0.0-beta.1 - flavor preferences eliminated
 mod create_source;
 mod diff;
@@ -31,10 +31,10 @@ pub use add::{
     execute_manifest as add_manifest,
 };
 pub use alias::{AliasCommand, execute as manage_alias};
-pub use anchors::{execute as show_anchors, get_by_anchor};
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
+pub use toc::{execute as show_toc, get_by_anchor};
 // config command removed in v1.0.0-beta.1 - flavor preferences eliminated
 pub use create_source::execute as create_registry_source;
 pub use diff::show as show_diff;
