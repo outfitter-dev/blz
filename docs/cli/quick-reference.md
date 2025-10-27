@@ -88,6 +88,16 @@ blz update --all
 blz remove bun
 ```
 
+### Exploring Headings
+
+```bash
+# Inspect heading hierarchy
+blz toc bun --limit 20
+
+# Boolean filter (require +API, exclude deprecated)
+blz toc react --filter "+API -deprecated" --format json
+```
+
 ### History
 
 ```bash
