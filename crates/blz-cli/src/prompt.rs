@@ -97,8 +97,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Clear { .. } => "clear".into(),
                 Commands::Diff { .. } => "diff".into(),
                 Commands::Mcp => "mcp".into(),
-                Commands::Anchor { .. } => "anchor".into(),
-                Commands::Toc { .. } => "toc".into(),
+                Commands::Anchor { .. } | Commands::Toc { .. } => "toc".into(),
             };
         }
         return "blz".into();
@@ -111,7 +110,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
         .to_ascii_lowercase();
 
     match normalized.as_str() {
-        "anchors" => "toc".into(),
+        "anchor" | "anchors" => "toc".into(),
         other => other.into(),
     }
 }
@@ -129,7 +128,6 @@ fn available_targets() -> Vec<&'static str> {
         "docs",
         "history",
         "toc",
-        "anchor",
         "completions",
         "alias",
         "registry",
