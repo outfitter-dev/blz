@@ -26,6 +26,8 @@
 //!
 //! let toc_entry = TocEntry {
 //!     heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
+//!     heading_path_display: None,
+//!     heading_path_normalized: None,
 //!     lines: "15-42".to_string(),
 //!     anchor: None,
 //!     children: vec![],
@@ -45,6 +47,7 @@
 //!     source: "react".to_string(),
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
+//!     raw_heading_path: None,
 //!     lines: "120-145".to_string(),
 //!     line_numbers: Some(vec![120, 145]),
 //!     snippet: "useState returns an array with two elements...".to_string(),
