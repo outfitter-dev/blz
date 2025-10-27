@@ -497,6 +497,10 @@ fn process_single_request(
 }
 
 /// Execute the get command to retrieve specific lines from a source
+///
+/// Note: This command maintains its own implementation because it supports
+/// multiple citations in a single request with unified JSON output.
+/// The `find` command's retrieve mode handles single citations only.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cognitive_complexity)]
 pub async fn execute(

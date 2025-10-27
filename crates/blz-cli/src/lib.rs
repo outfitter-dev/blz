@@ -460,6 +460,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
         let command_format = match &cli.command {
             Some(
                 Commands::Search { format, .. }
+                | Commands::Find { format, .. }
                 | Commands::List { format, .. }
                 | Commands::Stats { format, .. }
                 | Commands::History { format, .. }
@@ -617,6 +618,7 @@ async fn execute_command(
             all,
             page,
             top,
+            heading_level,
             format,
             show,
             no_summary,
@@ -650,6 +652,7 @@ async fn execute_command(
                 all,
                 page,
                 top,
+                heading_level,
                 resolved_format,
                 show,
                 no_summary,
@@ -769,6 +772,67 @@ async fn execute_command(
                 max_lines,
                 format.resolve(cli.quiet),
                 copy,
+            )
+            .await?;
+        },
+        Some(Commands::Find {
+            input,
+            sources,
+            limit,
+            all,
+            page,
+            top,
+            heading_level,
+            format,
+            show,
+            no_summary,
+            score_precision,
+            snippet_lines,
+            max_chars,
+            context,
+            context_deprecated,
+            after_context,
+            before_context,
+            block,
+            max_lines,
+            no_history,
+            copy,
+        }) => {
+            let resolved_format = format.resolve(cli.quiet);
+
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                context,
+                context_deprecated,
+                after_context,
+                before_context,
+            );
+
+            // Execute find with smart dispatch
+            commands::find(
+                &input,
+                &sources,
+                limit,
+                all,
+                page,
+                false, // last - find command doesn't support --last flag
+                top,
+                heading_level.clone(),
+                resolved_format,
+                &show,
+                no_summary,
+                score_precision,
+                snippet_lines,
+                max_chars,
+                merged_context.as_ref(),
+                block,
+                max_lines,
+                no_history,
+                copy,
+                cli.quiet,
+                Some(prefs),
+                metrics.clone(),
+                None, // resource_monitor
             )
             .await?;
         },
@@ -916,6 +980,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         args.limit,
         1,
         args.top,
+        None, // heading_level - not supported in bare command mode
         format,
         &args.show,
         args.no_summary,
@@ -1075,6 +1140,7 @@ async fn handle_search(
     all: bool,
     page: usize,
     top: Option<u8>,
+    heading_level: Option<String>,
     format: crate::output::OutputFormat,
     show: Vec<crate::cli::ShowComponent>,
     no_summary: bool,
@@ -1279,6 +1345,7 @@ async fn handle_search(
         actual_limit,
         actual_page,
         top,
+        heading_level.clone(),
         format,
         &show,
         no_summary,
