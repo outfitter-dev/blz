@@ -50,6 +50,6 @@
 	],
 	"error_handling": [
 		"If a range falls outside the cached document, re-run `blz search` to confirm the alias/lines combination and update the source if necessary.",
-		"If content looks outdated, run `blz update <alias>` before fetching spans again."
+		"If content looks outdated, run `blz refresh <alias>` (deprecated alias: `blz update <alias>`) before fetching spans again."
 	]
 }

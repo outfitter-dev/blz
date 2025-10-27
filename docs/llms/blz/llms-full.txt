@@ -50,7 +50,7 @@
 - Use `--format json` to capture metadata for automations.
 ### Adding & Updating
 - `blz add <alias> <url>` resolves llms-full vs llms.txt automatically.
-- `blz update <alias>` refreshes a single cache; `--all` fans out sequentially.
+- `blz refresh <alias>` refreshes a single cache; `--all` fans out sequentially (deprecated alias: `blz update <alias>`).
 - Add `--yes` (alias `-y`) to auto-accept upgrades when llms-full becomes available.
 ### Removing
 - `blz remove <alias>` deletes cache data and descriptor metadata.

@@ -358,9 +358,8 @@ async fn fetch_and_index(
     let storage = Storage::new()?;
     if storage.exists(alias) {
         anyhow::bail!(
-            "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
-            alias,
-            alias
+            "Source '{alias}' already exists. Use 'blz refresh {alias}' (deprecated alias: 'blz update {alias}') or choose a different alias.",
+            alias = alias
         );
     }
 
@@ -498,9 +497,8 @@ async fn add_local_source(
     let storage = Storage::new()?;
     if storage.exists(alias) {
         anyhow::bail!(
-            "Source '{}' already exists. Use 'blz update {}' or choose a different alias.",
-            alias,
-            alias
+            "Source '{alias}' already exists. Use 'blz refresh {alias}' (deprecated alias: 'blz update {alias}') or choose a different alias.",
+            alias = alias
         );
     }
 

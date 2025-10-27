@@ -265,8 +265,8 @@ blz add bun https://bun.sh/llms.txt  # Add a source
 Use a different alias or update the existing source:
 
 ```bash
-# Update existing source
-blz update bun
+# Refresh existing source
+blz refresh bun  # deprecated alias: blz update bun
 
 # Use a different alias
 blz add bun-docs https://bun.sh/llms.txt

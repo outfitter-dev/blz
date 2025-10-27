@@ -97,10 +97,10 @@ blz add example https://example.com/llms.txt
 
 **Solutions**:
 
-1. **Update existing source**:
+1. **Refresh existing source**:
 
 ```bash
-blz update bun
+blz refresh bun  # deprecated alias: blz update bun
 ```
 
 2. **Remove and re-add**:
@@ -379,9 +379,9 @@ blz add bun https://bun.sh/llms.txt
 
 ---
 
-## Update Issues
+## Refresh Issues
 
-### Update says "already up to date" but content is stale
+### Refresh says "already up to date" but content is stale
 
 **Problem**: ETag caching prevents fetch when content changed without ETag update
 
@@ -392,17 +392,17 @@ blz remove bun
 blz add bun https://bun.sh/llms.txt
 ```
 
-### Update fails with network error
+### Refresh fails with network error
 
 **Error**: `Error: Network request failed`
 
 **Solutions**:
 
 1. **Check internet connection**
-2. **Retry update**:
+2. **Retry refresh**:
 
 ```bash
-blz update bun
+blz refresh bun  # deprecated alias: blz update bun
 ```
 
 3. **Check URL still valid**:
@@ -497,11 +497,11 @@ blz list --json | jq '[.[] | .lines] | add'
 
 ```bash
 # Instead of:
-blz update --all
+blz refresh --all  # deprecated alias: blz update --all
 
 # Do one at a time:
 for src in $(blz list --json | jq -r '.[].alias'); do
-  blz update "$src"
+  blz refresh "$src"  # deprecated alias: blz update "$src"
 done
 ```
 
@@ -731,7 +731,7 @@ curl -I <url>
 **Solution**: Retry the operation:
 
 ```bash
-blz update <alias>
+blz refresh <alias>  # deprecated alias: blz update <alias>
 ```
 
 ---

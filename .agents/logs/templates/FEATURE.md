@@ -59,14 +59,14 @@ agent: claude
 
 ## Goal
 
-Implement `blz update` command to refresh cached documentation with conditional fetching using ETags.
+Implement `blz refresh` command to refresh cached documentation with conditional fetching using ETags (keep `blz update` as deprecated alias).
 
 ## Requirements
 
 ### Functional
 
-- Update single source: `blz update <alias>`
-- Update all sources: `blz update --all`
+- Refresh single source: `blz refresh <alias>` (deprecated alias: `blz update <alias>`)
+- Refresh all sources: `blz refresh --all` (deprecated alias: `blz update --all`)
 - Show update status and statistics
 - Archive previous version before updating
 - Rebuild search index after update

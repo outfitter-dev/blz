@@ -24,6 +24,7 @@
   "notes": [
     "Refresh operations reuse cached metadata. They do **not** re-add alias/tag descriptors\u2014those remain intact.",
     "If the upstream server returns an error, BLZ preserves the previous cache and reports the failure with actionable context.",
-    "Pair with `blz history --clear-before <DATE>` if you want to prune search history post-refresh."
+    "Pair with `blz history --clear-before <DATE>` if you want to prune search history post-refresh.",
+    "`blz update` remains available as a deprecated alias and will emit a warning when used."
   ]
 }
