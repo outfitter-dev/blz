@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced features including built-in validators and autocompletion support
   - Zero breaking changes - CLI behavior remains identical for users
   - Affected commands: `blz remove`, `blz lookup`, `blz registry create-source`
+- **Terminology clarity**: Renamed `blz anchors` to `blz toc` for clearer intent (table of contents)
+  - Better alignment with internal types (`LlmsJson.toc`)
+  - Clearer separation: `toc` for document structure, `--anchors` for anchor metadata
+  - Renamed `--mappings` to `--anchors` for better clarity (old flag remains as hidden alias)
+  - Backward compatibility: `blz anchors` and `--mappings` remain as hidden aliases
+  - No breaking changes for existing users
+
+### Added
+- **Table of contents enhancements**: New filtering and navigation controls for `blz toc`
+  - `--limit <N>`: Trim output to first N headings
+  - `--max-depth <1-6>`: Restrict results to headings at or above specified depth
+  - `--filter <expr>`: Search heading paths with boolean expressions (e.g., `+api -deprecated`)
+  - Improved agent workflows for hierarchical document navigation
 
 ## [1.3.0] - 2025-10-18
 
