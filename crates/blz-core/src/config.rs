@@ -43,6 +43,7 @@
 //!     },
 //!     index: IndexConfig {
 //!         max_heading_block_lines: Some(500),
+//!         filter_non_english: None, // Use global default
 //!     },
 //! };
 //!
@@ -55,6 +56,14 @@ use crate::{Error, Result, profile};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Default value for `filter_non_english` setting.
+///
+/// Returns `true` to enable non-English content filtering by default,
+/// maintaining backward compatibility with existing behavior.
+const fn default_filter_non_english() -> bool {
+    true
+}
 
 /// Global configuration for the blz cache system.
 ///
@@ -124,6 +133,14 @@ pub struct DefaultsConfig {
     /// Only used when `follow_links` is set to `Allowlist`. Links to domains
     /// not in this list will be ignored.
     pub allowlist: Vec<String>,
+
+    /// Default language filtering behavior.
+    ///
+    /// When `true`, non-English content is filtered during document processing.
+    /// When `false`, all content is retained regardless of language.
+    /// Defaults to `true` for backward compatibility.
+    #[serde(default = "default_filter_non_english")]
+    pub filter_non_english: bool,
 }
 
 /// Policy for following external links in llms.txt files.
@@ -442,6 +459,7 @@ impl Default for Config {
                 fetch_enabled: true,
                 follow_links: FollowLinks::FirstParty,
                 allowlist: Vec::new(),
+                filter_non_english: true,
             },
             paths: PathsConfig {
                 root: directories::ProjectDirs::from("dev", "outfitter", profile::app_dir_slug())
@@ -571,6 +589,13 @@ pub struct IndexConfig {
     ///
     /// If `None`, uses a sensible default based on content analysis.
     pub max_heading_block_lines: Option<usize>,
+
+    /// Override language filtering for this source.
+    ///
+    /// If `Some(true)`, non-English content will be filtered regardless of global default.
+    /// If `Some(false)`, all content will be retained regardless of global default.
+    /// If `None`, uses the global `filter_non_english` setting.
+    pub filter_non_english: Option<bool>,
 }
 
 impl ToolConfig {
@@ -654,6 +679,7 @@ impl ToolConfig {
     ///     },
     ///     index: IndexConfig {
     ///         max_heading_block_lines: Some(300),
+    ///         filter_non_english: None,
     ///     },
     /// };
     ///
@@ -692,6 +718,7 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec!["example.com".to_string(), "docs.rs".to_string()],
+                filter_non_english: true,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp/test"),
@@ -714,6 +741,7 @@ mod tests {
             },
             index: IndexConfig {
                 max_heading_block_lines: Some(100),
+                filter_non_english: None,
             },
         }
     }
@@ -733,6 +761,7 @@ mod tests {
             FollowLinks::FirstParty
         ));
         assert!(config.defaults.allowlist.is_empty());
+        assert!(config.defaults.filter_non_english);
         assert!(!config.paths.root.as_os_str().is_empty());
     }
 
@@ -939,6 +968,7 @@ mod tests {
                 fetch_enabled: false,
                 follow_links: FollowLinks::None,
                 allowlist: vec!["a".repeat(1000)], // Very long domain
+                filter_non_english: false,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/".repeat(100)), // Very long path
@@ -971,6 +1001,7 @@ mod tests {
                 fetch_enabled: true,
                 follow_links: FollowLinks::Allowlist,
                 allowlist: vec![], // Empty allowlist
+                filter_non_english: true,
             },
             paths: PathsConfig {
                 root: PathBuf::from("/tmp"),
@@ -991,6 +1022,80 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_defaults_config_backward_compatibility_filter_non_english() -> Result<()> {
+        // Given: Configuration TOML without filter_non_english field (backward compatibility)
+        let toml_without_filter = r#"
+            [defaults]
+            refresh_hours = 24
+            max_archives = 10
+            fetch_enabled = true
+            follow_links = "first_party"
+            allowlist = []
+
+            [paths]
+            root = "/tmp/test"
+        "#;
+
+        // When: Deserializing old config
+        let config: Config = toml::from_str(toml_without_filter)
+            .map_err(|e| Error::Config(format!("Failed to parse: {e}")))?;
+
+        // Then: Should use default value (true)
+        assert!(config.defaults.filter_non_english);
+        assert_eq!(config.defaults.refresh_hours, 24);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_index_config_backward_compatibility_filter_non_english() -> Result<()> {
+        // Given: IndexConfig without filter_non_english field (backward compatibility)
+        let config = IndexConfig {
+            max_heading_block_lines: Some(500),
+            filter_non_english: None,
+        };
+
+        // When: Serializing and deserializing
+        let serialized = serde_json::to_string(&config)
+            .map_err(|e| Error::Config(format!("Failed to serialize: {e}")))?;
+        let deserialized: IndexConfig = serde_json::from_str(&serialized)
+            .map_err(|e| Error::Config(format!("Failed to deserialize: {e}")))?;
+
+        // Then: None should be preserved (uses global default)
+        assert_eq!(deserialized.filter_non_english, None);
+        assert_eq!(deserialized.max_heading_block_lines, Some(500));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_non_english_serialization() -> Result<()> {
+        // Given: Config with filter_non_english explicitly set to false
+        let config = Config {
+            defaults: DefaultsConfig {
+                refresh_hours: 24,
+                max_archives: 10,
+                fetch_enabled: true,
+                follow_links: FollowLinks::FirstParty,
+                allowlist: vec![],
+                filter_non_english: false,
+            },
+            paths: PathsConfig {
+                root: PathBuf::from("/tmp"),
+            },
+        };
+
+        // When: Serializing and deserializing
+        let serialized = toml::to_string_pretty(&config)?;
+        let deserialized: Config = toml::from_str(&serialized)?;
+
+        // Then: false value should be preserved
+        assert!(!deserialized.defaults.filter_non_english);
+
+        Ok(())
+    }
+
     // Property-based tests
     proptest! {
         #[test]
@@ -1002,6 +1107,7 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
+                    filter_non_english: true,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1023,6 +1129,7 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::FirstParty,
                     allowlist: vec![],
+                    filter_non_english: true,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),
@@ -1044,6 +1151,7 @@ mod tests {
                     fetch_enabled: true,
                     follow_links: FollowLinks::Allowlist,
                     allowlist: allowlist.clone(),
+                    filter_non_english: true,
                 },
                 paths: PathsConfig {
                     root: PathBuf::from("/tmp"),

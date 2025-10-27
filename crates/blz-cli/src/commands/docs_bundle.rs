@@ -151,6 +151,7 @@ fn install(storage: &Storage, metrics: PerformanceMetrics) -> Result<bool> {
         npm_aliases: Vec::new(),
         github_aliases: Vec::new(),
         origin: llms_json.metadata.origin.clone(),
+        filter_non_english: None,
     };
 
     storage
