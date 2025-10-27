@@ -289,8 +289,8 @@ pub enum Commands {
             conflicts_with = "alias"
         )]
         sources: Vec<String>,
-        /// Include all sources
-        #[arg(long, conflicts_with_all = ["alias", "sources"])]
+        /// Include all sources when no alias is provided, or bypass pagination limits
+        #[arg(long)]
         all: bool,
         /// Display as hierarchical tree with box-drawing characters
         #[arg(long)]

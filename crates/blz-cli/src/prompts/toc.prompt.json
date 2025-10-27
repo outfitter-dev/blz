@@ -77,7 +77,7 @@
       "why": "Quick scan of the first page of headings before issuing targeted searches."
     },
     {
-      "command": "blz toc bun --format json | jq '.[] | {path: .headingPath, anchor: .anchor}'",
+      "command": "blz toc bun --format json | jq '.entries[] | {path: .headingPath, anchor: .anchor}'",
       "why": "Generate a terse map of headings to anchors for downstream tooling."
     },
     {

@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use anyhow::{Context, Result, anyhow};
 use blz_core::{AnchorsMap, LlmsJson, Storage};
 use chrono::Utc;
@@ -8,7 +10,7 @@ use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::preferences::{self, TocHistoryEntry};
 
-/// Serialize a HeadingLevelFilter back to its string representation
+/// Serialize a `HeadingLevelFilter` back to its string representation
 fn serialize_heading_level_filter(
     filter: &crate::utils::heading_filter::HeadingLevelFilter,
 ) -> String {
@@ -47,7 +49,7 @@ pub async fn execute(
     max_depth: Option<u8>,
     heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
     filter_expr: Option<&str>,
-    _tree: bool,
+    tree: bool,
     next: bool,
     previous: bool,
     last: bool,
@@ -80,6 +82,10 @@ pub async fn execute(
         }
     }
 
+    if matches!(limit, Some(0)) {
+        anyhow::bail!("--limit must be at least 1; use --all to show everything.");
+    }
+
     // Restore filter parameters from history if navigating and not explicitly provided
     // Note: heading_level restoration is handled separately since it needs parsing
     let (filter_expr, max_depth) = if next || previous || last {
@@ -92,21 +98,19 @@ pub async fn execute(
     };
 
     // Handle heading_level separately - parse from history string if needed
-    let heading_level_parsed: Option<crate::utils::heading_filter::HeadingLevelFilter>;
-    let heading_level = if heading_level.is_some() {
-        // Use provided heading_level
-        heading_level
-    } else if next || previous || last {
-        // Try to restore from history
-        if let Some(saved_str) = last_entry.as_ref().and_then(|e| e.heading_level.as_deref()) {
-            heading_level_parsed = saved_str.parse().ok();
-            heading_level_parsed.as_ref()
+    let mut heading_level_owner: Option<crate::utils::heading_filter::HeadingLevelFilter> = None;
+    let heading_level = heading_level.or_else(|| {
+        if next || previous || last {
+            // Try to restore from history
+            heading_level_owner = last_entry
+                .as_ref()
+                .and_then(|e| e.heading_level.as_deref())
+                .and_then(|saved_str| saved_str.parse().ok());
+            heading_level_owner.as_ref()
         } else {
             None
         }
-    } else {
-        None
-    };
+    });
 
     if next {
         page = last_entry
@@ -280,7 +284,7 @@ pub async fn execute(
         },
     );
 
-    if pagination_limit.is_some() {
+    if limit.is_some() {
         let source_str = if source_list.len() == 1 {
             Some(source_list[0].clone())
         } else if !source_list.is_empty() {
@@ -294,7 +298,7 @@ pub async fn execute(
             source: source_str,
             format: preferences::format_to_string(output),
             page: Some(actual_page),
-            limit: pagination_limit,
+            limit,
             total_pages: Some(total_pages),
             total_results: Some(total_results),
             filter: filter_expr.map(str::to_string),
@@ -324,17 +328,29 @@ pub async fn execute(
             );
         },
         OutputFormat::Jsonl => {
-            for e in page_entries {
+            let metadata = serde_json::json!({
+                "page": actual_page,
+                "total_pages": total_pages.max(1),
+                "total_results": total_results,
+                "page_size": pagination_limit,
+            });
+            println!(
+                "{}",
+                serde_json::to_string(&metadata)
+                    .context("Failed to serialize table of contents metadata to JSONL")?
+            );
+
+            for e in &page_entries {
                 println!(
                     "{}",
-                    serde_json::to_string(&e)
+                    serde_json::to_string(e)
                         .context("Failed to serialize table of contents to JSONL")?
                 );
             }
         },
         OutputFormat::Text => {
             // For paginated text output with flat list rendering
-            if pagination_limit.is_some() && !_tree {
+            if pagination_limit.is_some() && !tree {
                 // Print header
                 if source_list.len() > 1 {
                     println!("Table of contents (showing {} sources)", source_list.len());
@@ -353,11 +369,14 @@ pub async fn execute(
                         .unwrap_or_default();
                     let name = heading_path.last().unwrap_or(&"");
                     let lines = entry["lines"].as_str().unwrap_or("");
-                    let heading_level = entry["headingLevel"].as_u64().unwrap_or(1) as usize;
+                    let heading_level = entry["headingLevel"]
+                        .as_u64()
+                        .and_then(|v| usize::try_from(v).ok())
+                        .unwrap_or(1);
 
                     // Print with proper indentation
                     let indent = "  ".repeat(heading_level.saturating_sub(1));
-                    let lines_display = format!("[{}]", lines).dimmed();
+                    let lines_display = format!("[{lines}]").dimmed();
 
                     if show_anchors {
                         let anchor = entry["anchor"].as_str().unwrap_or("");
@@ -369,7 +388,7 @@ pub async fn execute(
                             anchor.bright_black()
                         );
                     } else {
-                        println!("{}- {} {}", indent, name, lines_display);
+                        println!("{indent}- {name} {lines_display}");
                     }
                 }
 
@@ -404,7 +423,7 @@ pub async fn execute(
                         );
                     }
 
-                    if _tree {
+                    if tree {
                         let mut count = 0;
                         let mut prev_depth: Option<usize> = None;
                         let mut prev_h1_had_children = false;

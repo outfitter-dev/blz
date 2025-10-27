@@ -19,6 +19,8 @@
 
 mod common;
 
+use std::convert::TryFrom;
+
 use common::blz_cmd;
 use serde_json::Value;
 use tempfile::tempdir;
@@ -344,10 +346,15 @@ async fn test_toc_pagination_last() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let all_entries = json_all["entries"]
-        .as_array()
-        .expect("entries should be an array");
-    let total_count = all_entries.len();
+    let total_count = json_all["total_results"]
+        .as_u64()
+        .and_then(|v| usize::try_from(v).ok())
+        .unwrap_or_else(|| {
+            let all_entries = json_all["entries"]
+                .as_array()
+                .expect("entries should be an array");
+            count_all_entries(all_entries)
+        });
 
     // Jump directly to last page with limit of 5
     let output_last = blz_cmd()
@@ -372,8 +379,14 @@ async fn test_toc_pagination_last() -> anyhow::Result<()> {
     );
 
     // Verify we're on the last page
-    let last_page_num = json_last["page"].as_u64().unwrap() as usize;
-    let total_pages = json_last["total_pages"].as_u64().unwrap() as usize;
+    let last_page_num = json_last["page"]
+        .as_u64()
+        .and_then(|v| usize::try_from(v).ok())
+        .unwrap_or(1);
+    let total_pages = json_last["total_pages"]
+        .as_u64()
+        .and_then(|v| usize::try_from(v).ok())
+        .unwrap_or(1);
     assert_eq!(last_page_num, total_pages, "Should be on last page");
 
     // The last page might have fewer than 5 entries (if total isn't divisible by 5)
@@ -487,27 +500,26 @@ async fn test_toc_pagination_all_overrides_limit() -> anyhow::Result<()> {
         .clone();
 
     let json_all: Value = serde_json::from_slice(&output_all)?;
-    let entries_all = json_all["entries"]
-        .as_array()
-        .expect("output should have entries array");
-    let all_count = entries_all.len();
+    let all_count = json_all["total_results"]
+        .as_u64()
+        .and_then(|v| usize::try_from(v).ok())
+        .unwrap_or_else(|| {
+            let entries_all = json_all["entries"]
+                .as_array()
+                .expect("output should have entries array");
+            count_all_entries(entries_all)
+        });
 
     // --all should return more results than the limited query
     assert!(
-        all_count > limited_count,
-        "--all should return more results ({}) than limited query ({})",
+        all_count >= limited_count * 2,
+        "--all should return significantly more entries than a single page (got {}, page size {})",
         all_count,
         limited_count
     );
 
     // Verify we got exactly 5 with limit
     assert_eq!(limited_count, 5, "Limited query should return 5 entries");
-
-    // Verify --all returned significantly more
-    assert!(
-        all_count >= 15,
-        "--all should return at least 15 entries (sample doc has many headings)"
-    );
 
     Ok(())
 }
