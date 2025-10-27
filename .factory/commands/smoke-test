@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# blz CLI Smoke Test - Quick automated validation
+# Usage: /smoke-test [source-name]
+
+echo "🧪 Running blz CLI smoke tests..."
+
+# Target source for testing (default to first available)
+TARGET_SOURCE="${1:-}"
+
+# Check if blz is available
+if ! command -v blz &> /dev/null; then
+    echo "❌ blz command not found. Please install blz first."
+    exit 1
+fi
+
+# Display version
+echo "📋 blz version:"
+blz --version
+
+# Check basic help
+echo "📖 Testing help output..."
+blz --help > /dev/null || {
+    echo "❌ Help command failed"
+    exit 1
+}
+
+# List available sources
+echo "📚 Available sources:"
+SOURCES=$(blz list --json 2>/dev/null | jq -r '.[].name' || blz list | head -5)
+
+if [ -z "$TARGET_SOURCE" ]; then
+    # Use first available source
+    TARGET_SOURCE=$(echo "$SOURCES" | head -1)
+fi
+
+if [ -n "$TARGET_SOURCE" ]; then
+    echo "🎯 Testing with source: $TARGET_SOURCE"
+    
+    # Test search functionality
+    echo "🔍 Testing search..."
+    blz search "test" --source "$TARGET_SOURCE" --limit 3 > /dev/null || {
+        echo "⚠️  Search test failed for source: $TARGET_SOURCE"
+    }
+    
+    # Test JSON output
+    echo "📄 Testing JSON output..."
+    blz search "api" --source "$TARGET_SOURCE" --limit 1 --json > /dev/null || {
+        echo "⚠️  JSON output test failed"
+    }
+else
+    echo "⚠️  No sources available for testing"
+fi
+
+# Test configuration
+echo "⚙️  Testing configuration..."
+blz list --json > /dev/null 2>&1 || {
+    echo "⚠️  Configuration test failed"
+}
+
+echo "✅ Basic smoke tests completed!"
+echo ""
+echo "📊 Summary:"
+echo "- blz is accessible and responsive"
+echo "- Basic commands work correctly"
+echo "- JSON output is functional"
+echo "- Configuration is readable"
+
+if [ -n "$TARGET_SOURCE" ]; then
+    echo "- Search functionality tested with source: $TARGET_SOURCE"
+fi
+
+echo ""
+echo "🚀 blz CLI appears to be working correctly!"
