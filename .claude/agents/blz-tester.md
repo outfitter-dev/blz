@@ -32,7 +32,7 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - `blz list`: Test empty state, populated state, JSON vs text output, `--status`, `--details`, `--limit`
    - `blz search`: Test basic queries, phrase searches, pagination (`--next`, `--previous`, `--last`), source filtering, scoring, `--max-chars`
    - `blz get`: Test line ranges (colon syntax `source:lines`), context flags (`-C`, `-A`, `-B`, `--context all`), invalid ranges
-   - `blz update`: Test single source and `--all` flag
+   - `blz refresh`: Test single source and `--all` flag (cover deprecated `blz update` alias)
    - `blz remove`: Test removal and confirmation flows
    - `blz history`: Test search history retrieval, filtering, pagination
    - `blz info`: Test detailed source information display

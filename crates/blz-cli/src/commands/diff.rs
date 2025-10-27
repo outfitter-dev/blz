@@ -21,7 +21,7 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
     let current: LlmsJson = storage.load_llms_json(&canonical)?;
     let Some(prev_path) = find_previous_llms_json(&storage, &canonical, since)? else {
         println!(
-            "No previous snapshot found for '{canonical}'. Run 'blz update' to create history."
+            "No previous snapshot found for '{canonical}'. Run 'blz refresh {canonical}' (deprecated alias: 'blz update {canonical}') to create history."
         );
         return Ok(());
     };

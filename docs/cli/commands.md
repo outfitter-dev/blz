@@ -49,7 +49,7 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
   - [blz get](#blz-get)
 - [Management Commands](#management-commands)
   - [blz list](#blz-list--blz-sources)
-  - [blz update](#blz-update)
+  - [blz refresh](#blz-refresh)
   - [blz remove](#blz-remove--blz-rm--blz-delete)
 - [Utility Commands](#utility-commands)
   - [blz diff](#blz-diff)
@@ -435,12 +435,14 @@ blz list --json
 blz list --details
 ```
 
-### `blz update`
+### `blz refresh`
 
-Update indexed sources with latest content.
+Refresh indexed sources with the latest content.
+
+> The `blz update` command remains available as a deprecated alias and will emit a warning when used.
 
 ```bash
-blz update [ALIAS] [OPTIONS]
+blz refresh [ALIAS] [OPTIONS]
 ```
 
 **Arguments:**
@@ -454,11 +456,11 @@ blz update [ALIAS] [OPTIONS]
 **Examples:**
 
 ```bash
-# Update specific source
-blz update bun
+# Refresh specific source
+blz refresh bun
 
-# Update all sources
-blz update --all
+# Refresh all sources
+blz refresh --all
 ```
 
 ### `blz remove` / `blz rm` / `blz delete`
@@ -764,7 +766,7 @@ Config discovery order:
 2. **Combine with shell tools** - `blz "test" | grep -i jest`
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
-5. **Regular updates** - Run `blz update --all` periodically for fresh docs
+5. **Regular refreshes** - Run `blz refresh --all` periodically for fresh docs (the deprecated `blz update` alias still works)
 
 ### `blz --prompt`
 

@@ -22,7 +22,7 @@
     {
       "name": "Maintenance",
       "steps": [
-        "Schedule `blz update --all` routinely to keep checksums current.",
+        "Schedule `blz refresh --all` routinely to keep checksums current (deprecated alias: `blz update --all`).",
         "Audit staleness via `blz list --json | jq '.[] | select(.stalenessDays > 3)'`.",
         "Use `./hydrate-dev.sh --force` to clone production caches into the `blz-dev` profile when testing."
       ]
@@ -46,8 +46,8 @@
       "purpose": "Source onboarding with non-interactive confirmation."
     },
     {
-      "command": "blz update --all",
-      "purpose": "Refresh caches while honoring HTTP caching headers."
+      "command": "blz refresh --all",
+      "purpose": "Refresh caches while honoring HTTP caching headers (deprecated alias: `blz update --all`)."
     },
     {
       "command": "blz --prompt <target>",
