@@ -257,6 +257,9 @@ pub enum Commands {
         /// Maximum number of headings to display
         #[arg(short = 'n', long, value_name = "COUNT")]
         limit: Option<usize>,
+        /// Filter headings by boolean expression (use +term for AND, -term for NOT)
+        #[arg(long = "filter", value_name = "EXPR")]
+        filter: Option<String>,
         /// Limit results to headings at or above this level (1-6)
         #[arg(
             long = "max-depth",
@@ -998,6 +1001,9 @@ pub enum AnchorCommands {
             value_parser = clap::value_parser!(u8).range(1..=6)
         )]
         max_depth: Option<u8>,
+        /// Filter headings by boolean expression (use +term for AND, -term for NOT)
+        #[arg(long = "filter", value_name = "EXPR")]
+        filter: Option<String>,
     },
     /// Get content by anchor
     Get {
