@@ -8,6 +8,26 @@ use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::preferences::{self, TocHistoryEntry};
 
+/// Serialize a HeadingLevelFilter back to its string representation
+fn serialize_heading_level_filter(
+    filter: &crate::utils::heading_filter::HeadingLevelFilter,
+) -> String {
+    use crate::utils::heading_filter::HeadingLevelFilter;
+    match filter {
+        HeadingLevelFilter::Exact(n) => format!("={n}"),
+        HeadingLevelFilter::LessThan(n) => format!("<{n}"),
+        HeadingLevelFilter::LessThanOrEqual(n) => format!("<={n}"),
+        HeadingLevelFilter::GreaterThan(n) => format!(">{n}"),
+        HeadingLevelFilter::GreaterThanOrEqual(n) => format!(">={n}"),
+        HeadingLevelFilter::List(levels) => levels
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(","),
+        HeadingLevelFilter::Range(start, end) => format!("{start}-{end}"),
+    }
+}
+
 #[allow(
     dead_code,
     clippy::unused_async,
@@ -61,18 +81,31 @@ pub async fn execute(
     }
 
     // Restore filter parameters from history if navigating and not explicitly provided
-    let (filter_expr, max_depth, heading_level) = if next || previous || last {
+    // Note: heading_level restoration is handled separately since it needs parsing
+    let (filter_expr, max_depth) = if next || previous || last {
         let saved_filter = last_entry.as_ref().and_then(|e| e.filter.as_deref());
         let saved_max_depth = last_entry.as_ref().and_then(|e| e.max_depth);
-        let saved_heading_level = last_entry.as_ref().and_then(|e| e.heading_level.as_deref());
 
-        (
-            filter_expr.or(saved_filter),
-            max_depth.or(saved_max_depth),
-            heading_level.or(saved_heading_level),
-        )
+        (filter_expr.or(saved_filter), max_depth.or(saved_max_depth))
     } else {
-        (filter_expr, max_depth, heading_level)
+        (filter_expr, max_depth)
+    };
+
+    // Handle heading_level separately - parse from history string if needed
+    let heading_level_parsed: Option<crate::utils::heading_filter::HeadingLevelFilter>;
+    let heading_level = if heading_level.is_some() {
+        // Use provided heading_level
+        heading_level
+    } else if next || previous || last {
+        // Try to restore from history
+        if let Some(saved_str) = last_entry.as_ref().and_then(|e| e.heading_level.as_deref()) {
+            heading_level_parsed = saved_str.parse().ok();
+            heading_level_parsed.as_ref()
+        } else {
+            None
+        }
+    } else {
+        None
     };
 
     if next {
@@ -266,7 +299,7 @@ pub async fn execute(
             total_results: Some(total_results),
             filter: filter_expr.map(str::to_string),
             max_depth,
-            heading_level: heading_level.map(str::to_string),
+            heading_level: heading_level.map(serialize_heading_level_filter),
         };
 
         if let Err(err) = preferences::save_toc_history(&history_entry) {
