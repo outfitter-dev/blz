@@ -31,7 +31,7 @@ impl UpdateStorage for Storage {
     fn load_metadata(&self, alias: &str) -> Result<Source> {
         Storage::load_source_metadata(self, alias)
             .map_err(anyhow::Error::from)?
-            .ok_or_else(|| anyhow!("Missing metadata for {}", alias))
+            .ok_or_else(|| anyhow!("Missing metadata for {alias}"))
     }
 
     fn load_llms_aliases(&self, alias: &str) -> Result<Vec<String>> {
@@ -233,7 +233,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
         resolver::resolve_source(&storage, alias)?.unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical_alias) {
-        return Err(anyhow!("Source '{}' not found", alias));
+        return Err(anyhow!("Source '{alias}' not found"));
     }
 
     let spinner = if quiet {

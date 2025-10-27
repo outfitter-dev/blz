@@ -387,6 +387,7 @@ impl OptimizedSearchIndex {
                 source: alias_interned.to_string(),
                 file: file_interned.to_string(),
                 heading_path,
+                raw_heading_path: None,
                 lines,
                 line_numbers,
                 snippet: snippet_buffer.as_str().to_string(),
@@ -1016,18 +1017,18 @@ mod tests {
 
     fn create_test_blocks() -> Vec<HeadingBlock> {
         vec![
-            HeadingBlock {
-                path: vec!["React".to_string(), "Hooks".to_string()],
-                content: "useState is a React hook for state management".to_string(),
-                start_line: 100,
-                end_line: 120,
-            },
-            HeadingBlock {
-                path: vec!["React".to_string(), "Components".to_string()],
-                content: "Components are the building blocks of React applications".to_string(),
-                start_line: 50,
-                end_line: 75,
-            },
+            HeadingBlock::new(
+                vec!["React".to_string(), "Hooks".to_string()],
+                "useState is a React hook for state management".to_string(),
+                100,
+                120,
+            ),
+            HeadingBlock::new(
+                vec!["React".to_string(), "Components".to_string()],
+                "Components are the building blocks of React applications".to_string(),
+                50,
+                75,
+            ),
         ]
     }
 
@@ -1192,12 +1193,12 @@ mod tests {
         // Create blocks with repeated alias values
         let mut blocks = Vec::new();
         for i in 0..10 {
-            blocks.push(HeadingBlock {
-                path: vec!["Section".to_string()],
-                content: format!("Content {}", i),
-                start_line: i,
-                end_line: i + 1,
-            });
+            blocks.push(HeadingBlock::new(
+                vec!["Section".to_string()],
+                format!("Content {}", i),
+                i,
+                i + 1,
+            ));
         }
 
         index

@@ -73,12 +73,12 @@ fn create_realistic_blocks(count: usize, content_size: usize) -> Vec<HeadingBloc
         let section = format!("Section_{}", i / 10);
         let subsection = format!("Subsection_{}", i);
 
-        blocks.push(HeadingBlock {
-            path: vec![section, subsection],
+        blocks.push(HeadingBlock::new(
+            vec![section, subsection],
             content,
-            start_line: i * 20 + 1,
-            end_line: i * 20 + 15,
-        });
+            i * 20 + 1,
+            i * 20 + 15,
+        ));
     }
 
     blocks
@@ -344,6 +344,7 @@ fn bench_caching_strategies(c: &mut Criterion) {
                 source: format!("alias_{}", i % 5),
                 file: format!("file_{}.md", i % 10),
                 heading_path: vec![format!("Section_{}", i), format!("Subsection_{}", i)],
+                raw_heading_path: Some(vec![format!("Section_{}", i), format!("Subsection_{}", i)]),
                 lines: format!("{}-{}", i * 10, i * 10 + 5),
                 line_numbers: None,
                 snippet: format!("This is test content for result {}", i),

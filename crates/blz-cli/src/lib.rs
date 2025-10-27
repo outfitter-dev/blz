@@ -899,7 +899,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
                      • Run 'blz docs export' to view CLI documentation\n\
                      • Run 'blz docs cat' to view the current placeholder content"
                 };
-                anyhow::bail!("{}", error_msg);
+                anyhow::bail!("{error_msg}");
             }
         }
     }
@@ -1217,11 +1217,7 @@ async fn handle_search(
 
             if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
                 if prev_page >= total_pages {
-                    anyhow::bail!(
-                        "Already at the last page (page {} of {})",
-                        prev_page,
-                        total_pages
-                    );
+                    anyhow::bail!("Already at the last page (page {prev_page} of {total_pages})");
                 }
                 actual_page = prev_page + 1;
             } else {
