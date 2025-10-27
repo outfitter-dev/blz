@@ -3,14 +3,27 @@
 use anyhow::Result;
 use blz_core::{Fetcher, PerformanceMetrics, Registry};
 use colored::Colorize;
-use dialoguer::{Input, Select};
+use inquire::{Select, Text};
 use serde_json::json;
+use std::fmt;
 use std::io::IsTerminal;
 
 use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::output::OutputFormat;
 use crate::prompt::{NoteChannel, emit_registry_note};
 use crate::utils::validation::validate_alias;
+
+#[derive(Clone)]
+struct SelectionItem {
+    index: usize,
+    label: String,
+}
+
+impl fmt::Display for SelectionItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
+    }
+}
 
 /// Execute the lookup command to search registries
 #[allow(clippy::too_many_lines)]
@@ -234,18 +247,19 @@ fn try_interactive_selection(
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
 
-    let display_items: Vec<String> = results
+    let options: Vec<SelectionItem> = results
         .iter()
         .enumerate()
-        .map(|(i, result)| format!("{}. {}", i + 1, result.entry))
+        .map(|(i, result)| SelectionItem {
+            index: i,
+            label: format!("{}. {}", i + 1, result.entry),
+        })
         .collect();
 
-    let selection = Select::new()
-        .with_prompt("Select documentation to add (↑/↓ to navigate)")
-        .items(&display_items)
-        .interact()?;
+    let selection =
+        Select::new("Select documentation to add (↑/↓ to navigate)", options).prompt()?;
 
-    Ok(&results[selection].entry)
+    Ok(&results[selection.index].entry)
 }
 
 fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
@@ -253,10 +267,9 @@ fn try_interactive_alias_input(default_alias: &str) -> Result<String> {
         return Err(anyhow::anyhow!("Not in interactive terminal"));
     }
 
-    let alias: String = Input::new()
-        .with_prompt("Enter alias")
-        .default(default_alias.to_string())
-        .interact_text()?;
+    let alias = Text::new("Enter alias")
+        .with_default(default_alias)
+        .prompt()?;
 
     if alias.trim().is_empty() {
         return Err(anyhow::anyhow!("Alias cannot be empty"));
