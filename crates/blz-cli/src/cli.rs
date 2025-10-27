@@ -254,6 +254,16 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
+        /// Maximum number of headings to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
+        /// Limit results to headings at or above this level (1-6)
+        #[arg(
+            long = "max-depth",
+            value_name = "DEPTH",
+            value_parser = clap::value_parser!(u8).range(1..=6)
+        )]
+        max_depth: Option<u8>,
         /// Show anchor remap mappings if available
         #[arg(long)]
         mappings: bool,
@@ -981,6 +991,13 @@ pub enum AnchorCommands {
         /// Maximum number of headings to display
         #[arg(short = 'n', long, value_name = "COUNT")]
         limit: Option<usize>,
+        /// Limit results to headings at or above this level (1-6)
+        #[arg(
+            long = "max-depth",
+            value_name = "DEPTH",
+            value_parser = clap::value_parser!(u8).range(1..=6)
+        )]
+        max_depth: Option<u8>,
     },
     /// Get content by anchor
     Get {

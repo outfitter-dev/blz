@@ -34,7 +34,7 @@ if isinstance(data, list):
 PY
 }
 
-# Print anchors for a given alias as newline-separated list by calling
+# Print heading anchors for a given alias as newline-separated list by calling
 # `blz toc <alias> --format json` and extracting the `anchor` field.
 __blz_anchors_for_alias() {
   local alias="$1"
