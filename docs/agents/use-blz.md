@@ -97,6 +97,52 @@ blz get bun:41994-42009 --context all --max-lines 80 --json
 # Note: -c<N> is legacy syntax; prefer -C <N> (grep-style)
 ```
 
+## Table of Contents Navigation
+
+```bash
+# Browse all headings
+blz toc bun --json
+
+# Filter by heading level - exact match
+blz toc bun -H 1              # Only H1s
+blz toc bun -H 2              # Only H2s
+
+# Filter by level - range
+blz toc bun -H 1-2            # H1 and H2 (outline mode)
+blz toc bun -H 2-4            # H2 through H4
+
+# Filter by level - comparison operators
+blz toc bun -H <=2            # Levels 1-2 (alternative to 1-2)
+blz toc bun -H >2             # Levels 3+ (details only)
+
+# Convenient shorthand for max depth
+blz toc bun --max-depth 2     # Same as -H <=2
+
+# Filter by level - list
+blz toc bun -H 1,3,5          # Specific levels only
+
+# Tree view with hierarchical visualization
+blz toc bun --tree
+
+# Tree view with level filter
+blz toc bun --tree -H 1-3
+
+# Combine level and text filters
+blz toc bun -H 1-2 --filter "api"
+
+# Multi-source TOC (source argument is optional)
+blz toc --source bun,node,deno --tree -H 1-2
+
+# All sources (when --all is used, the source argument is omitted)
+blz toc --all -H 1-2 --json
+```
+
+**Note**: `--max-depth N` is a convenient alias for `-H <=N`, making it easier to limit the depth of headings shown.
+
+**Multi-source usage**: When using `--source` or `--all`, the source alias argument is optional. If not provided, the default is all sources (equivalent to `--all`).
+
+**JSON output**: JSON responses include both `alias` and `source` fields for each entry, making it easy to identify which source a heading comes from when working with multiple sources.
+
 ## Keep Sources Fresh
 
 ```bash
