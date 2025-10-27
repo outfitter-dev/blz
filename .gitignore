@@ -72,6 +72,8 @@ coverage.json
 *.log
 test_output.txt
 test_output-*.txt
+.trail/logs/*
+!.trail/logs/.gitkeep
 
 # Claude
 !.claude/commands/log
