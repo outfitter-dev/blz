@@ -593,7 +593,10 @@ blz toc <ALIAS> [OPTIONS]
 **Options:**
 
 - `-f, --format <FORMAT>` – Output format: `text` (default), `json`, or `jsonl`
-- `-n, --limit <COUNT>` – Show only the first N headings
+- `-n, --limit <COUNT>` – Display up to COUNT headings per page (enable pagination)
+- `--page <NUMBER>` – Jump directly to the given page (1-indexed, defaults to 1)
+- `--next`, `--previous`, `--last` – Navigate relative to the most recent paginated toc
+- `--all` – Ignore the saved limit and return every heading in one response
 - `--filter <EXPR>` – Boolean expression for heading text/anchors:
   - Default OR semantics between terms
   - Prefix with `+` (or use `and`) to require a term
@@ -607,6 +610,12 @@ blz toc <ALIAS> [OPTIONS]
 # Preview nested headings for a source
 blz toc bun --limit 20
 
+# Jump directly to the second page of results
+blz toc bun --limit 20 --page 2
+
+# Continue to the next page using saved pagination state
+blz toc bun --next --format json
+
 # Filter headings that mention API but exclude deprecated sections
 blz toc react --filter "+API -deprecated" --format json
 
@@ -615,6 +624,9 @@ blz toc astro --max-depth 1
 
 # Inspect stored anchor remap metadata
 blz toc bun --anchors --format json
+
+# Override pagination and dump every heading at once
+blz toc bun --all --format json
 ```
 
 ## Default Behavior

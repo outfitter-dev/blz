@@ -15,19 +15,44 @@
       "description": "Show anchor metadata and remap history (old/new line spans) captured during updates."
     },
     {
-      "command": "blz toc <alias> --limit 50 --max-depth 2",
-      "description": "Focus on the first 50 headings up to level 2 for a high-level outline."
+      "command": "blz toc <alias> --limit 50 --page 2",
+      "description": "Jump to the second page of headings while keeping pagination under control."
+    },
+    {
+      "command": "blz toc <alias> --next",
+      "description": "After a paginated run, advance to the next page using the stored history."
     }
   ],
   "workflow_for_agents": [
     "Use this before `blz get` to anchor requests to stable headings rather than line numbers.",
     "Pair with `--format json` to feed heading paths into automatic prompt builders.",
-    "When a section moved between updates, call `--mappings` to translate older anchor references."
+    "When a section moved between updates, call `--anchors` to translate older anchor references.",
+    "Set a limit once, then traverse long documents incrementally with `--next`, `--previous`, or `--last`."
   ],
   "helpful_flags": [
     {
       "flag": "--limit <N>",
-      "impact": "Trim output to the first N headings. Useful while exploring large docs."
+      "impact": "Show up to N headings per page and persist pagination state for navigation flags."
+    },
+    {
+      "flag": "--page <NUMBER>",
+      "impact": "Jump directly to a specific page without replaying earlier pagination steps."
+    },
+    {
+      "flag": "--next",
+      "impact": "Continue from the previous paginated toc using the saved limit."
+    },
+    {
+      "flag": "--previous",
+      "impact": "Back up one page while respecting the cached pagination state."
+    },
+    {
+      "flag": "--last",
+      "impact": "Skip straight to the final page of results (requires a saved limit)."
+    },
+    {
+      "flag": "--all",
+      "impact": "Bypass pagination entirely and return every heading in a single response."
     },
     {
       "flag": "--filter <expr>",
@@ -49,11 +74,15 @@
   "try_this": [
     {
       "command": "blz toc bun --limit 20",
-      "why": "Quick scan of top-level headings before issuing targeted searches."
+      "why": "Quick scan of the first page of headings before issuing targeted searches."
     },
     {
       "command": "blz toc bun --format json | jq '.[] | {path: .headingPath, anchor: .anchor}'",
       "why": "Generate a terse map of headings to anchors for downstream tooling."
+    },
+    {
+      "command": "blz toc bun --next --format json",
+      "why": "Advance to the next page of headings without repeating the previous query."
     },
     {
       "command": "blz toc react --filter \"+api -deprecated\" --format json",
@@ -66,6 +95,10 @@
     {
       "command": "blz toc react --anchors --format json",
       "why": "Inspect how section anchors shifted between updates so agents can refresh citations."
+    },
+    {
+      "command": "blz toc astro --all --format json",
+      "why": "Temporarily bypass pagination to dump every heading for archival or diffing."
     }
   ]
 }

@@ -60,6 +60,18 @@ use clap::{Args, Parser, Subcommand};
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
+/// Validates that limit is at least 1
+fn validate_limit(s: &str) -> Result<usize, String> {
+    let value: usize = s
+        .parse()
+        .map_err(|_| format!("'{s}' is not a valid number"))?;
+    if value == 0 {
+        Err("limit must be at least 1".to_string())
+    } else {
+        Ok(value)
+    }
+}
+
 /// Main CLI structure for the `blz` command
 ///
 /// This structure defines the top-level CLI interface using clap's derive macros.
@@ -254,9 +266,6 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Maximum number of headings to display
-        #[arg(short = 'n', long, value_name = "COUNT")]
-        limit: Option<usize>,
         /// Filter headings by boolean expression (use +term for AND, -term for NOT)
         #[arg(long = "filter", value_name = "EXPR")]
         filter: Option<String>,
@@ -280,8 +289,8 @@ pub enum Commands {
             conflicts_with = "alias"
         )]
         sources: Vec<String>,
-        /// Include all sources
-        #[arg(long, conflicts_with_all = ["alias", "sources"])]
+        /// Include all sources when no alias is provided, or bypass pagination limits
+        #[arg(long)]
         all: bool,
         /// Display as hierarchical tree with box-drawing characters
         #[arg(long)]
@@ -292,6 +301,56 @@ pub enum Commands {
         /// Show anchor slugs in normal TOC output
         #[arg(short = 'a', long)]
         show_anchors: bool,
+        /// Continue from previous toc (next page)
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "previous",
+            conflicts_with = "all",
+            display_order = 50
+        )]
+        next: bool,
+        /// Go back to previous page
+        #[arg(
+            long,
+            conflicts_with = "page",
+            conflicts_with = "last",
+            conflicts_with = "next",
+            conflicts_with = "all",
+            display_order = 51
+        )]
+        previous: bool,
+        /// Jump to last page of results
+        #[arg(
+            long,
+            conflicts_with = "next",
+            conflicts_with = "page",
+            conflicts_with = "previous",
+            conflicts_with = "all",
+            display_order = 52
+        )]
+        last: bool,
+        /// Maximum number of headings per page (must be at least 1)
+        #[arg(
+            short = 'n',
+            long,
+            value_name = "COUNT",
+            value_parser = validate_limit,
+            display_order = 53
+        )]
+        limit: Option<usize>,
+        /// Page number for pagination
+        #[arg(
+            long,
+            default_value = "1",
+            conflicts_with = "next",
+            conflicts_with = "last",
+            conflicts_with = "previous",
+            conflicts_with = "all",
+            display_order = 55
+        )]
+        page: usize,
     },
     /// Add a new source
     #[command(display_order = 1)]
