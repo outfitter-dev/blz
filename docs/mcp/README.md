@@ -67,6 +67,7 @@ The MCP server exposes 5 tools:
 Unified tool for searching documentation and retrieving exact content spans.
 
 **Search mode:**
+
 ```json
 {
   "query": "test runner",
@@ -76,6 +77,7 @@ Unified tool for searching documentation and retrieving exact content spans.
 ```
 
 **Retrieval mode:**
+
 ```json
 {
   "snippets": ["bun:304-324"],
@@ -84,6 +86,7 @@ Unified tool for searching documentation and retrieving exact content spans.
 ```
 
 **Parameters:**
+
 - `query` (string, optional): Search text
 - `snippets` (array, optional): Citation references (e.g., `["bun:120-145"]`)
 - `source` (string, optional): Alias of the documentation source to search (required with `query`)
@@ -92,6 +95,7 @@ Unified tool for searching documentation and retrieving exact content spans.
 - `maxResults` (integer, optional): Limit search hits (1-50, default: 10)
 
 **Returns:**
+
 ```json
 {
   "snippets": [
@@ -124,9 +128,11 @@ Unified tool for searching documentation and retrieving exact content spans.
 List installed sources and registry candidates in one call.
 
 **Parameters:**
+
 - `filter` (string, optional): Filter sources by name (case-insensitive)
 
 **Returns:**
+
 ```json
 {
   "sources": [
@@ -156,11 +162,13 @@ List installed sources and registry candidates in one call.
 Add new documentation source from the registry or a custom URL.
 
 **Parameters:**
+
 - `alias` (string, required): Source identifier
 - `url` (string, optional): Custom URL (uses registry if omitted)
 - `force` (boolean, optional): Overwrite existing source
 
 **Returns:**
+
 ```json
 {
   "alias": "astro",
@@ -174,10 +182,12 @@ Add new documentation source from the registry or a custom URL.
 Execute whitelisted read-only BLZ commands.
 
 **Parameters:**
+
 - `command` (string, required): Whitelisted command name (`stats`, `history`, `list`, `validate`, `inspect`, `schema`)
 - `source` (string, optional): Documentation alias for commands that operate on a specific source
 
 **Returns:**
+
 ```json
 {
   "stdout": "Total sources: 3\nTotal indexed lines: 87,523\n...",
@@ -195,6 +205,7 @@ Returns curated reference data about BLZ capabilities and usage patterns.
 **No parameters required.**
 
 **Returns:**
+
 ```json
 {
   "prompts": [
@@ -257,14 +268,17 @@ Available registry sources:
 Helps discover and add relevant documentation for a project.
 
 **Parameters:**
+
 - `technologies` (string, required): Comma-separated list (e.g., `"bun,react,tailwind"`)
 
 **Flow:**
+
 1. Lists matching sources (installed + registry)
 2. Suggests additions for missing sources
 3. Demonstrates search patterns
 
 **Example call:**
+
 ```json
 {
   "name": "discover-docs",
@@ -386,6 +400,7 @@ const guidance = await mcp.getPrompt("discover-docs", {
 **Symptom:** `blz mcp` exits immediately or hangs
 
 **Check:**
+
 ```bash
 # Verify BLZ is installed
 blz --version
@@ -402,11 +417,13 @@ RUST_LOG=debug blz mcp
 **Symptom:** `find` tool returns empty `hits` array
 
 **Possible causes:**
+
 1. Source not indexed - check `list-sources`
 2. Typo in source name - sources are case-sensitive
 3. Index corruption - try `blz validate <source>`
 
 **Fix:**
+
 ```bash
 # List installed sources
 blz list
@@ -420,11 +437,13 @@ blz update <source>
 **Symptom:** Search takes >100ms consistently
 
 **Check:**
+
 1. Cold cache - first query is slower
 2. Large indices - some docs are 50K+ lines
 3. System load - check CPU/memory
 
 **Optimize:**
+
 ```bash
 # Warm up the cache
 blz search "test" --source bun
@@ -438,11 +457,13 @@ blz stats
 **Symptom:** MCP client shows tool call error
 
 **Common issues:**
+
 - Invalid parameter types (string vs array)
 - Missing required parameters
 - Malformed citations (use `source:start-end` format)
 
 **Debug:**
+
 ```bash
 # Enable MCP debug logging
 RUST_LOG=blz_mcp=debug blz mcp
@@ -453,6 +474,7 @@ RUST_LOG=blz_mcp=debug blz mcp
 **Symptom:** Output contains full file system paths
 
 **This is a bug** - paths should be sanitized. Please file an issue with:
+
 - The command that produced the output
 - Your OS and BLZ version
 - Example output (redact sensitive info)

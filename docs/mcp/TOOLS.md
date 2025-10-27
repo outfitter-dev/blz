@@ -78,6 +78,7 @@ You can use both modes simultaneously.
 Search text for full-text search.
 
 **Examples:**
+
 ```javascript
 {query: "test runner"}
 {query: "async await error handling"}
@@ -89,6 +90,7 @@ Search text for full-text search.
 Citation references to retrieve. Format: `"source:start-end"` or `"source:range1,range2"`.
 
 **Examples:**
+
 ```javascript
 {snippets: ["bun:304-324"]}
 {snippets: ["bun:100-200", "react:500-550"]}
@@ -102,6 +104,7 @@ Alias of the documentation source to search. This field is **required** whenever
 snippets, the source is inferred from each citation string.
 
 **Examples:**
+
 ```javascript
 {source: "bun"}
 {source: "react"} // Search React docs
@@ -115,11 +118,13 @@ snippets, the source is inferred from each citation string.
 Controls snippet expansion. Default: `"none"`.
 
 **Options:**
+
 - `"none"`: Return only the requested line range
 - `"symmetric"`: Expand to the full heading section
 - `"all"`: Return the entire document
 
 **Examples:**
+
 ```javascript
 // Minimal - just the lines requested
 {snippets: ["bun:304-324"], contextMode: "none"}
@@ -140,6 +145,7 @@ Add N lines before and after the snippet. Range: 0-50. Default: 0.
 Only applies when `contextMode` is `"none"`.
 
 **Examples:**
+
 ```javascript
 // No padding
 {snippets: ["bun:304-324"], linePadding: 0}
@@ -158,6 +164,7 @@ Only applies when `contextMode` is `"none"`.
 Limit number of search hits. Range: 1-50. Default: 10.
 
 **Examples:**
+
 ```javascript
 {query: "test", maxResults: 5}   // Top 5 results
 {query: "test", maxResults: 20}  // More comprehensive
@@ -194,6 +201,7 @@ Limit number of search hits. Range: 1-50. Default: 10.
 #### Example 1: Simple Search
 
 **Request:**
+
 ```json
 {
   "name": "find",
@@ -206,6 +214,7 @@ Limit number of search hits. Range: 1-50. Default: 10.
 ```
 
 **Response:**
+
 ```json
 {
   "snippets": [],
@@ -235,6 +244,7 @@ Limit number of search hits. Range: 1-50. Default: 10.
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz search "test runner" --source bun --json
 ```
@@ -242,6 +252,7 @@ blz search "test runner" --source bun --json
 #### Example 2: Retrieve Snippet with Context
 
 **Request:**
+
 ```json
 {
   "name": "find",
@@ -253,6 +264,7 @@ blz search "test runner" --source bun --json
 ```
 
 **Response:**
+
 ```json
 {
   "snippets": [
@@ -272,6 +284,7 @@ blz search "test runner" --source bun --json
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz get bun:304-324 --context block --json
 ```
@@ -279,6 +292,7 @@ blz get bun:304-324 --context block --json
 #### Example 3: Search and Retrieve
 
 **Request:**
+
 ```json
 {
   "name": "find",
@@ -293,6 +307,7 @@ blz get bun:304-324 --context block --json
 ```
 
 **Response:**
+
 ```json
 {
   "snippets": [
@@ -321,6 +336,7 @@ blz get bun:304-324 --context block --json
 #### Example 4: Multiple Ranges
 
 **Request:**
+
 ```json
 {
   "name": "find",
@@ -332,6 +348,7 @@ blz get bun:304-324 --context block --json
 ```
 
 **Response:**
+
 ```json
 {
   "snippets": [
@@ -357,6 +374,7 @@ blz get bun:304-324 --context block --json
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz get bun:100-120,130-150 -C 2 --json
 ```
@@ -401,6 +419,7 @@ List installed documentation sources and registry candidates.
 Case-insensitive substring filter for source names.
 
 **Examples:**
+
 ```javascript
 {filter: "react"}     // Matches "react", "react-native", etc.
 {filter: "bun"}       // Matches "bun", "bunyan", etc.
@@ -431,6 +450,7 @@ Case-insensitive substring filter for source names.
 #### Example 1: List All Sources
 
 **Request:**
+
 ```json
 {
   "name": "list-sources",
@@ -439,6 +459,7 @@ Case-insensitive substring filter for source names.
 ```
 
 **Response:**
+
 ```json
 {
   "sources": [
@@ -464,6 +485,7 @@ Case-insensitive substring filter for source names.
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz list --json
 ```
@@ -471,6 +493,7 @@ blz list --json
 #### Example 2: Filter Sources
 
 **Request:**
+
 ```json
 {
   "name": "list-sources",
@@ -481,6 +504,7 @@ blz list --json
 ```
 
 **Response:**
+
 ```json
 {
   "sources": [
@@ -544,6 +568,7 @@ Add documentation source from registry or custom URL.
 Source identifier. Must be URL-safe (lowercase, alphanumeric, hyphens).
 
 **Examples:**
+
 ```javascript
 {alias: "bun"}
 {alias: "react-native"}
@@ -555,6 +580,7 @@ Source identifier. Must be URL-safe (lowercase, alphanumeric, hyphens).
 Custom documentation URL. If omitted, uses registry lookup.
 
 **Examples:**
+
 ```javascript
 // From registry
 {alias: "bun"}
@@ -568,6 +594,7 @@ Custom documentation URL. If omitted, uses registry lookup.
 Overwrite existing source. Default: `false`.
 
 **Examples:**
+
 ```javascript
 // Add new source
 {alias: "bun"}
@@ -591,6 +618,7 @@ Overwrite existing source. Default: `false`.
 #### Example 1: Add from Registry
 
 **Request:**
+
 ```json
 {
   "name": "source-add",
@@ -601,6 +629,7 @@ Overwrite existing source. Default: `false`.
 ```
 
 **Response:**
+
 ```json
 {
   "alias": "astro",
@@ -610,6 +639,7 @@ Overwrite existing source. Default: `false`.
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz add astro
 ```
@@ -617,6 +647,7 @@ blz add astro
 #### Example 2: Add Custom URL
 
 **Request:**
+
 ```json
 {
   "name": "source-add",
@@ -628,6 +659,7 @@ blz add astro
 ```
 
 **Response:**
+
 ```json
 {
   "alias": "my-docs",
@@ -637,6 +669,7 @@ blz add astro
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz add my-docs https://example.com/docs/llms.txt
 ```
@@ -644,6 +677,7 @@ blz add my-docs https://example.com/docs/llms.txt
 #### Example 3: Force Overwrite
 
 **Request:**
+
 ```json
 {
   "name": "source-add",
@@ -655,6 +689,7 @@ blz add my-docs https://example.com/docs/llms.txt
 ```
 
 **Response:**
+
 ```json
 {
   "alias": "bun",
@@ -708,6 +743,7 @@ Execute whitelisted read-only BLZ commands.
 Whitelisted command name to execute.
 
 **Whitelisted commands:**
+
 - `stats` - Index statistics
 - `history` - Update history
 - `list` - List sources
@@ -721,6 +757,7 @@ Alias of the documentation source when the command operates on a specific
 source (e.g., `history`, `validate`, `inspect`).
 
 **Examples:**
+
 ```javascript
 {command: "stats"}
 {command: "history", source: "bun"}
@@ -744,6 +781,7 @@ source (e.g., `history`, `validate`, `inspect`).
 #### Example 1: Get Statistics
 
 **Request:**
+
 ```json
 {
   "name": "run-command",
@@ -754,6 +792,7 @@ source (e.g., `history`, `validate`, `inspect`).
 ```
 
 **Response:**
+
 ```json
 {
   "stdout": "Total sources: 3\nTotal indexed lines: 87,523\nIndex size: 12.4 MB\nAverage search time: 6.2ms\n",
@@ -763,6 +802,7 @@ source (e.g., `history`, `validate`, `inspect`).
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz stats
 ```
@@ -770,6 +810,7 @@ blz stats
 #### Example 2: Check History
 
 **Request:**
+
 ```json
 {
   "name": "run-command",
@@ -781,6 +822,7 @@ blz stats
 ```
 
 **Response:**
+
 ```json
 {
   "stdout": "bun update history:\n2025-10-15 14:30:00Z - Updated (890ms)\n2025-10-10 09:15:00Z - Added (1.2s)\n",
@@ -790,6 +832,7 @@ blz stats
 ```
 
 **CLI equivalent:**
+
 ```bash
 blz history bun
 ```
@@ -841,6 +884,7 @@ No parameters required.
 ### Example
 
 **Request:**
+
 ```json
 {
   "name": "learn-blz",
@@ -849,6 +893,7 @@ No parameters required.
 ```
 
 **Response:**
+
 ```json
 {
   "prompts": [
@@ -875,6 +920,7 @@ No parameters required.
 ### Use Case
 
 Agents can call `learn-blz` to understand:
+
 - What prompts are available
 - What values are valid for enum parameters
 - Example usage patterns

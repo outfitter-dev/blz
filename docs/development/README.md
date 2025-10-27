@@ -160,6 +160,7 @@ open target/cargo-timings/cargo-timing.html
 ```
 
 This creates a detailed timeline showing:
+
 - Which crates take longest to compile
 - Dependency graph and parallel compilation opportunities
 - CPU utilization during the build
@@ -346,6 +347,7 @@ unset CARGO_TARGET_DIR
 2. **Enable sccache**: Shared target + sccache = maximum speed with minimum disk usage
 3. **Monitor size**: Pre-push hooks check both local and shared targets for bloat
 4. **Clean old locals**: After switching to shared target, remove old per-worktree `target/` directories:
+
    ```bash
    cd path/to/worktree
    scripts/prune-target.sh --prune-all

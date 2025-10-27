@@ -46,12 +46,14 @@ cargo install sccache
 ```
 
 **How it works:**
+
 - Hooks check for `sccache` and set `RUSTC_WRAPPER=sccache` automatically
 - For non-hook workflows (manual `cargo` runs, IDE integration), export `RUSTC_WRAPPER=sccache` in your shell rc file
 - No `.cargo/config.toml` modification is required for cache usage, which keeps remote container and worktree setups happy
 - sccache caches compilation artifacts locally (default: `~/.cache/sccache`)
 
 **Benefits:**
+
 - First run: Normal compilation time
 - Subsequent runs: 2-3x faster (50-70% cache hit rate typical)
 - Especially effective for clippy + tests since they share compilation artifacts
@@ -70,6 +72,7 @@ cargo install cargo-nextest
 ```
 
 **Benefits:**
+
 - Parallel test execution across all CPU cores
 - Better test output and failure reporting
 - Automatically used by pre-push hook when available
@@ -96,6 +99,7 @@ Run the bootstrap script to install all performance tools:
 ```
 
 This script:
+
 1. Installs and configures lefthook
 2. Installs cargo-nextest for fast tests
 3. Installs sccache for build caching
@@ -123,6 +127,7 @@ For emergency situations where you need to push without running full checks:
 ```
 
 **Important:**
+
 - The bypass file (`.hooks/allow-strict-bypass`) is git-ignored
 - Remember to disable bypass after your emergency push
 - Both clippy and tests are skipped when bypass is enabled
@@ -137,6 +142,7 @@ With all optimizations enabled:
 | Pre-push | <3min | ~5-10min | ~2-3min |
 
 **Factors affecting performance:**
+
 - Number of files changed
 - sccache cache state
 - CPU cores available
@@ -147,23 +153,28 @@ With all optimizations enabled:
 ### Hooks are slow
 
 1. **Install sccache:**
+
    ```bash
    cargo install sccache
    sccache --start-server
    ```
 
 2. **Install cargo-nextest:**
+
    ```bash
    cargo install cargo-nextest
    ```
 
 3. **Check sccache stats:**
+
    ```bash
    sccache --show-stats
    ```
+
    Look for high cache hit rates. Low hit rates suggest cache directory issues.
 
 4. **Clear sccache if needed:**
+
    ```bash
    sccache --stop-server
    rm -rf ~/.cache/sccache
@@ -173,6 +184,7 @@ With all optimizations enabled:
 ### sccache not working in remote containers
 
 This is expected. The hooks gracefully degrade:
+
 - They check for sccache availability before using it
 - They show helpful tip messages when sccache is not available
 - Compilation still works, just slower
@@ -184,11 +196,13 @@ The configuration avoids setting `rustc-wrapper` in `.cargo/config.toml` to prev
 ### Bypass not working
 
 Check if the bypass file exists:
+
 ```bash
 ls -la .hooks/allow-strict-bypass
 ```
 
 If it exists but hooks still run, ensure you're using the latest lefthook:
+
 ```bash
 lefthook install
 ```
@@ -198,11 +212,13 @@ lefthook install
 For CI/CD pipelines:
 
 1. **Enable full test suite including UI tests:**
+
    ```bash
    cargo test --workspace  # Includes ignored tests in CI
    ```
 
 2. **Use sccache with shared storage:**
+
    ```bash
    # S3 backend (AWS)
    export SCCACHE_BUCKET=my-cache-bucket
@@ -215,6 +231,7 @@ For CI/CD pipelines:
    ```
 
 3. **Cache cargo and sccache directories:**
+
    ```yaml
    # GitHub Actions example
    - uses: actions/cache@v3
