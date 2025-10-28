@@ -41,7 +41,7 @@
     "Verify ingestion with `blz list --json | jq '.[] | select(.alias==\"<alias>\")'` before handing off to prompts."
   ],
   "error_recovery": [
-    "Checksum mismatches typically indicate the upstream file changed mid-run. Retry after `blz update <alias>`.",
+    "Checksum mismatches typically indicate the upstream file changed mid-run. Retry after `blz refresh <alias>` (deprecated alias: `blz update <alias>`).",
     "HTTP 404/401 responses surface as user errors—confirm the llms.txt URL is publicly accessible or supply credentials via manifest if supported.",
     "Duplicate alias? Run `blz remove <alias>` first or choose an alternative canonical name."
   ]

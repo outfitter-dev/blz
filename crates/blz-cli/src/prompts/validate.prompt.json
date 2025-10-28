@@ -17,8 +17,8 @@
     "issues \u2013 array of human-readable warnings (missing files, mismatched checksums, offline URLs)"
   ],
   "agent_workflow": [
-    "Run after `blz update --all` to confirm nothing drifted during ingestion.",
-    "If `checksumMatches` is false, re-index via `blz update <alias>` or re-add the source.",
+    "Run after `blz refresh --all` (deprecated alias: `blz update --all`) to confirm nothing drifted during ingestion.",
+    "If `checksumMatches` is false, re-index via `blz refresh <alias>` (deprecated alias: `blz update <alias>`) or re-add the source.",
     "Surface `issues` back to operators or logs so they can repair failing sources."
   ]
 }

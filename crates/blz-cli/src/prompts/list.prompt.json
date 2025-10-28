@@ -28,7 +28,7 @@
     "descriptor.meta.displayName \u2013 optional human-friendly label if provided."
   ],
   "follow_up_commands": [
-    "Run `blz update <alias>` for stale entries.",
+    "Run `blz refresh <alias>` (deprecated alias: `blz update <alias>`) for stale entries.",
     "Use `blz remove <alias>` to delete unused caches.",
     "Pair with `blz lookup --prompt` to find additional sources to onboard."
   ]

@@ -47,7 +47,7 @@ Configuration is merged from lowest to highest priority:
 
 # Environment variable: BLZ_REFRESH_HOURS=6
 
-# CLI flag: blz update react --refresh-hours 1
+# CLI flag: blz refresh react --refresh-hours 1 (`blz update react --refresh-hours 1` alias is deprecated)
 
 # Actual value used: 1 (CLI flag wins)
 ```
@@ -452,7 +452,7 @@ EOF
 export BLZ_REFRESH_HOURS=6
 
 # CLI flag (highest priority)
-blz update react --refresh-hours 1
+blz refresh react --refresh-hours 1  # deprecated alias: blz update react --refresh-hours 1
 ```
 
 ## CLI State Files

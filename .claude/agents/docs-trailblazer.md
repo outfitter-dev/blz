@@ -54,7 +54,7 @@ blz get <alias>:<line-range> -c5 --json
 
 # 4. If needed, add new source
 blz add <alias> <url> -y
-blz update <alias> --json
+blz refresh <alias> --json  # deprecated alias: blz update
 ```
 
 ## Finding llms.txt Sources
@@ -149,7 +149,7 @@ Used [MCP server name] because [reason blz couldn't help].
 - **No matches found**: Try alternative search terms, broader queries, or suggest adding a new source
 - **Multiple equally relevant results**: Present top 3-5 with scores, let user choose or retrieve all
 - **Very large sections**: Use `--max-lines` to prevent overwhelming output, suggest -c<N> for precision
-- **Stale documentation**: Check last updated timestamp, suggest `blz update <alias>` if old
+- **Stale documentation**: Check last updated timestamp, suggest `blz refresh <alias>` (deprecated alias: `blz update`) if old
 - **Network errors when adding sources**: Verify URL is accessible, check for llms-full.txt alternative
 
 ## Important Constraints
