@@ -1,28 +1,28 @@
 {
-  "target": "update",
+  "target": "refresh",
   "summary": "Re-fetch sources that are already indexed, respecting HTTP caching (ETag / Last-Modified) to avoid unnecessary downloads.",
   "usage": [
     {
-      "command": "blz update --all",
+      "command": "blz refresh --all",
       "description": "Refresh every source. Best scheduled nightly or before evaluation runs."
     },
     {
-      "command": "blz update <alias>",
+      "command": "blz refresh <alias>",
       "description": "Targeted refresh for a single source the agent depends on."
     },
     {
-      "command": "blz update --all --yes",
+      "command": "blz refresh --all --yes",
       "description": "Skip confirmation prompts for unattended jobs."
     }
   ],
   "agent_workflow": [
     "Call `blz list --json` first to identify stale or failed sources.",
-    "Trigger `blz update --all` (or alias-specific) before heavy usage to ensure line numbers and checksums remain current.",
-    "Inspect output: updated sources show `Updated <alias>` messages; unchanged ones report `unchanged` (HTTP 304).",
-    "After updating, run a quick search to confirm new docs are accessible."
+    "Trigger `blz refresh --all` (or alias-specific) before heavy usage to ensure line numbers and checksums remain current.",
+    "Inspect output: refreshed sources show `Refreshed <alias>` messages; unchanged ones report `unchanged` (HTTP 304).",
+    "After refreshing, run a quick search to confirm new docs are accessible."
   ],
   "notes": [
-    "Update processes reuse cached metadata. They do **not** re-add alias/tag descriptors\u2014those remain intact.",
+    "Refresh operations reuse cached metadata. They do **not** re-add alias/tag descriptors\u2014those remain intact.",
     "If the upstream server returns an error, BLZ preserves the previous cache and reports the failure with actionable context.",
     "Pair with `blz history --clear-before <DATE>` if you want to prune search history post-refresh."
   ]
