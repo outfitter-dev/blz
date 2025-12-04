@@ -2,7 +2,7 @@
 %
 # Provides runtime completions for:
 # - Aliases: `search --alias/-s/--source`, positional for `get`, `update`, `remove`, `toc`, and `anchor list|get` (alias: `anchors`)
-# - Anchors: `anchor get <alias> <anchor>` values
+# - Heading anchors: `anchor get <alias> <anchor>` values
 #
 # Usage (PowerShell profile):
 #   . "$PSScriptRoot/blz-dynamic-completions.ps1"

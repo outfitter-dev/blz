@@ -8,11 +8,15 @@
     },
     {
       "command": "blz toc <alias> --format json",
-      "description": "Machine-readable output suitable for agents; includes raw and normalized heading paths plus anchors."
+      "description": "Machine-readable output suitable for agents; includes heading levels, raw and normalized paths, plus anchors."
     },
     {
       "command": "blz toc <alias> --mappings",
       "description": "Show anchor remap metadata (old/new line spans) captured during updates."
+    },
+    {
+      "command": "blz toc <alias> --limit 50 --max-depth 2",
+      "description": "Focus on the first 50 headings up to level 2 for a high-level outline."
     }
   ],
   "workflow_for_agents": [
@@ -24,6 +28,10 @@
     {
       "flag": "--limit <N>",
       "impact": "Trim output to the first N headings. Useful while exploring large docs."
+    },
+    {
+      "flag": "--max-depth <1-6>",
+      "impact": "Restrict results to headings at or above the specified depth. Great for zooming out to higher-level sections."
     },
     {
       "flag": "--mappings",
@@ -42,6 +50,10 @@
     {
       "command": "blz toc bun --format json | jq '.[] | {path: .headingPath, anchor: .anchor}'",
       "why": "Generate a terse map of headings to anchors for downstream tooling."
+    },
+    {
+      "command": "blz toc react --max-depth 2 --format json",
+      "why": "Capture just the chapter/section headings for structured navigation."
     },
     {
       "command": "blz toc react --mappings --format json",
