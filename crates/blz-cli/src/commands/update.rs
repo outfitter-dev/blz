@@ -199,6 +199,7 @@ where
         npm_aliases: existing_metadata.npm_aliases,
         github_aliases: existing_metadata.github_aliases,
         origin,
+        filter_non_english: existing_metadata.filter_non_english,
     };
     storage.save_metadata(alias, &metadata)?;
 
@@ -565,6 +566,7 @@ mod tests {
                     url: "https://example.com".into(),
                 }),
             },
+            filter_non_english: None,
         }
     }
 

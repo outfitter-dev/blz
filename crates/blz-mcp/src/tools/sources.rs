@@ -323,6 +323,7 @@ pub async fn handle_source_add(
                 manifest: None,
                 source_type: Some(blz_core::SourceType::Remote { url: url.clone() }),
             },
+            filter_non_english: None,
         },
         toc: parse_result.toc.clone(),
         files: vec![blz_core::FileInfo {
@@ -338,6 +339,7 @@ pub async fn handle_source_add(
             parser_version: 1,
             segmentation: "structured".to_string(),
         }),
+        filter_stats: None,
     };
 
     storage

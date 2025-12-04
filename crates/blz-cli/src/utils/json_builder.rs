@@ -37,7 +37,9 @@ pub fn build_llms_json(
                     url: url.to_string(),
                 }),
             },
+            filter_non_english: None,
         },
+        filter_stats: None,
         toc: parse_result.toc.clone(),
         files: vec![FileInfo {
             path: file_name.to_string(),
