@@ -26,7 +26,7 @@ The MCP server provides a Rust-native interface to BLZ's documentation cache. It
 
 ```bash
 # Start MCP server (stdio mode)
-blz mcp
+blz mcp-server
 ```
 
 The server communicates via JSON-RPC over stdin/stdout. It's designed to be launched by MCP-compatible clients (Claude Code, Cursor, etc.).
@@ -397,7 +397,7 @@ const guidance = await mcp.getPrompt("discover-docs", {
 
 ### Server Won't Start
 
-**Symptom:** `blz mcp` exits immediately or hangs
+**Symptom:** `blz mcp-server` exits immediately or hangs
 
 **Check:**
 
@@ -409,7 +409,7 @@ blz --version
 blz list
 
 # Check for errors with debug logging
-RUST_LOG=debug blz mcp
+RUST_LOG=debug blz mcp-server
 ```
 
 ### Search Returns No Results
@@ -466,7 +466,7 @@ blz stats
 
 ```bash
 # Enable MCP debug logging
-RUST_LOG=blz_mcp=debug blz mcp
+RUST_LOG=blz_mcp=debug blz mcp-server
 ```
 
 ### Path Shows Absolute Paths

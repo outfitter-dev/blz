@@ -18,9 +18,9 @@
 /// - `add`, `search`, `get`, `list`, `sources`, `update`, `remove`, `rm`, `delete`
 /// - `help`, `version`, `completions`, `diff`, `lookup`
 ///
-/// ## Meta Operations  
+/// ## Meta Operations
 /// Configuration and system-level operations (may be added in future versions):
-/// - `config`, `settings`, `serve`, `server`, `mcp`, `start`, `stop`, `status`
+/// - `config`, `settings`, `serve`, `server`, `start`, `stop`, `status`
 ///
 /// ## Data Operations
 /// Operations for data management (may be added in future versions):
@@ -90,7 +90,6 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "settings",
     "serve",
     "server",
-    "mcp",
     "start",
     "stop",
     "status",
