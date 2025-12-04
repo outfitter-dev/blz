@@ -799,8 +799,11 @@ async fn execute_command(
             aliases,
             all,
             yes: _, // Ignored - kept for CLI backward compat
+            reindex,
+            filter,
+            no_filter,
         }) => {
-            handle_refresh(aliases, all, metrics, cli.quiet).await?;
+            handle_refresh(aliases, all, reindex, filter, no_filter, metrics, cli.quiet).await?;
         },
         #[allow(deprecated)]
         #[allow(deprecated)]
@@ -815,7 +818,7 @@ async fn execute_command(
                     "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
                 );
             }
-            handle_refresh(aliases, all, metrics, cli.quiet).await?;
+            handle_refresh(aliases, all, false, false, false, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -1376,14 +1379,18 @@ async fn handle_search(
     .await
 }
 
+#[allow(clippy::fn_params_excessive_bools)]
 async fn handle_refresh(
     aliases: Vec<String>,
     all: bool,
+    reindex: bool,
+    filter: bool,
+    no_filter: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
 ) -> Result<()> {
     if all || aliases.is_empty() {
-        return commands::refresh_all(metrics, quiet).await;
+        return commands::refresh_all(metrics, quiet, reindex, filter, no_filter).await;
     }
 
     for alias in aliases {
@@ -1395,7 +1402,7 @@ async fn handle_refresh(
             bytes_processed: Arc::clone(&metrics.bytes_processed),
             lines_searched: Arc::clone(&metrics.lines_searched),
         };
-        commands::refresh_source(&alias, metrics_clone, quiet).await?;
+        commands::refresh_source(&alias, metrics_clone, quiet, reindex, filter, no_filter).await?;
     }
 
     Ok(())

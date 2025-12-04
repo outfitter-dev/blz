@@ -257,15 +257,122 @@ fn create_spinner(message: &str) -> ProgressBar {
     pb
 }
 
+/// Execute reindex: re-parse and re-index from cached content
+fn execute_reindex(
+    storage: &Storage,
+    alias: &str,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    filter: bool,
+    no_filter: bool,
+) -> Result<()> {
+    let spinner = if quiet {
+        ProgressBar::hidden()
+    } else {
+        create_spinner(format!("Re-indexing {alias}...").as_str())
+    };
+
+    let start = Instant::now();
+
+    // Load existing metadata to determine filter preference
+    let existing_metadata = storage.load_metadata(alias)?;
+
+    // Determine filter preference
+    let filter_preference = if filter {
+        true
+    } else if no_filter {
+        false
+    } else {
+        // Use stored preference or default
+        existing_metadata.filter_non_english.unwrap_or(true)
+    };
+
+    // Load cached llms.txt content
+    let content = storage.load_llms_txt(alias)?;
+
+    // Parse the content
+    let mut parser = MarkdownParser::new()?;
+    let mut parse_result = parser.parse(&content)?;
+
+    // Show before stats
+    let before_count = parse_result.heading_blocks.len();
+
+    // Apply filtering
+    apply_language_filter(&mut parse_result, !filter_preference, quiet);
+
+    // Show after stats
+    let after_count = parse_result.heading_blocks.len();
+    let filtered_count = before_count.saturating_sub(after_count);
+
+    spinner.set_message(format!("Indexing {alias}..."));
+
+    // Re-index
+    let index_path = storage.index_dir(alias)?;
+    let index = SearchIndex::create_or_open(&index_path)?.with_metrics(metrics);
+    index.index_blocks(alias, &parse_result.heading_blocks)?;
+
+    spinner.finish_and_clear();
+
+    if !quiet {
+        let elapsed = start.elapsed();
+        if filtered_count > 0 {
+            println!(
+                "{} {}: {} → {} headings ({:.1}% {}) in {:?}",
+                "✓ Re-indexed".green(),
+                alias.green(),
+                before_count,
+                after_count,
+                percentage(filtered_count, before_count),
+                if filter_preference {
+                    "filtered"
+                } else {
+                    "restored"
+                },
+                elapsed
+            );
+        } else {
+            println!(
+                "{} {}: {} headings in {:?}",
+                "✓ Re-indexed".green(),
+                alias.green(),
+                after_count,
+                elapsed
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Execute refresh for a specific source.
 #[allow(clippy::too_many_lines)]
-pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
+#[allow(clippy::fn_params_excessive_bools)]
+pub async fn execute(
+    alias: &str,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    reindex: bool,
+    filter: bool,
+    no_filter: bool,
+) -> Result<()> {
     let storage = Storage::new()?;
     let canonical_alias =
         resolver::resolve_source(&storage, alias)?.unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical_alias) {
         return Err(anyhow!("Source '{alias}' not found"));
+    }
+
+    // Handle reindex flag: re-parse and re-index from cached content
+    if reindex {
+        return execute_reindex(
+            &storage,
+            &canonical_alias,
+            metrics,
+            quiet,
+            filter,
+            no_filter,
+        );
     }
 
     let spinner = if quiet {
@@ -404,12 +511,55 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
 }
 
 /// Execute refresh for all sources.
-pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::fn_params_excessive_bools)]
+pub async fn execute_all(
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    reindex: bool,
+    filter: bool,
+    no_filter: bool,
+) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
     if sources.is_empty() {
         anyhow::bail!("No sources configured. Use 'blz add' to add sources.");
+    }
+
+    // If reindexing, handle each source synchronously with reindex logic
+    if reindex {
+        let mut updated_count = 0;
+        let mut error_count = 0;
+
+        for alias in sources {
+            match execute_reindex(&storage, &alias, metrics.clone(), quiet, filter, no_filter) {
+                Ok(()) => {
+                    updated_count += 1;
+                },
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("{}: {}", alias.red(), e);
+                    }
+                    error_count += 1;
+                },
+            }
+        }
+
+        if !quiet {
+            println!(
+                "\nSummary: {} re-indexed, {} errors",
+                updated_count.to_string().green(),
+                if error_count > 0 {
+                    error_count.to_string().red()
+                } else {
+                    error_count.to_string().normal()
+                }
+            );
+            metrics.print_summary();
+        }
+
+        return Ok(());
     }
 
     let fetcher = Fetcher::new()?;
