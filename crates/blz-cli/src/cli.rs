@@ -779,10 +779,18 @@ pub enum Commands {
         /// Force re-parse and re-index even if content unchanged
         #[arg(long)]
         reindex: bool,
-        /// Override filter preference for this refresh
-        #[arg(long, conflicts_with = "no_filter")]
-        filter: bool,
-        /// Disable filtering for this refresh
+        /// Enable content filters (comma-separated: lang). Use --filter with no value to enable all filters.
+        ///
+        /// Available filters:
+        ///   lang,language  - Filter non-English content
+        ///
+        /// Examples:
+        ///   --filter           # Enable all filters
+        ///   --filter lang      # Only language filter
+        ///   --no-filter        # Disable all filters
+        #[arg(long, value_name = "FILTERS", num_args = 0..=1, default_missing_value = "all", conflicts_with = "no_filter")]
+        filter: Option<String>,
+        /// Disable all content filters for this refresh
         #[arg(long, conflicts_with = "filter")]
         no_filter: bool,
     },

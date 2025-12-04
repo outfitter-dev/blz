@@ -133,28 +133,21 @@ where
     // Apply language filtering based on stored preference
     let original_heading_count = parse_result.heading_blocks.len();
     let filter_enabled = existing_metadata.filter_non_english.unwrap_or(true);
-    if filter_enabled {
-        apply_language_filter(&mut parse_result, false, quiet);
-    }
+    apply_language_filter(&mut parse_result, !filter_enabled, quiet);
 
     // Calculate and store filter stats
-    let filter_stats = if filter_enabled {
-        Some(HeadingFilterStats {
-            enabled: true,
-            headings_total: original_heading_count,
-            headings_accepted: parse_result.heading_blocks.len(),
-            headings_rejected: original_heading_count - parse_result.heading_blocks.len(),
-            reason: "non-English content removed".to_string(),
-        })
-    } else {
-        Some(HeadingFilterStats {
-            enabled: false,
-            headings_total: parse_result.heading_blocks.len(),
-            headings_accepted: parse_result.heading_blocks.len(),
-            headings_rejected: 0,
-            reason: "filtering disabled".to_string(),
-        })
-    };
+    let filtered_count = original_heading_count.saturating_sub(parse_result.heading_blocks.len());
+    let filter_stats = Some(HeadingFilterStats {
+        enabled: filter_enabled,
+        headings_total: original_heading_count,
+        headings_accepted: parse_result.heading_blocks.len(),
+        headings_rejected: filtered_count,
+        reason: if filter_enabled {
+            "non-English content removed".to_string()
+        } else {
+            "filtering disabled".to_string()
+        },
+    });
 
     storage.save_llms_txt(alias, &payload.content)?;
 
@@ -263,7 +256,7 @@ fn execute_reindex(
     alias: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let spinner = if quiet {
@@ -277,11 +270,12 @@ fn execute_reindex(
     // Load existing metadata to determine filter preference
     let existing_metadata = storage.load_metadata(alias)?;
 
-    // Determine filter preference
-    let filter_preference = if filter {
-        true
-    } else if no_filter {
+    // Parse filter flags and determine filter preference
+    let filter_flags = crate::utils::filter_flags::parse_filter_flags(filter);
+    let filter_preference = if no_filter {
         false
+    } else if filter_flags.any_enabled() {
+        filter_flags.language
     } else {
         // Use stored preference or default
         existing_metadata.filter_non_english.unwrap_or(true)
@@ -346,13 +340,12 @@ fn execute_reindex(
 
 /// Execute refresh for a specific source.
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
     alias: &str,
     metrics: PerformanceMetrics,
     quiet: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
@@ -385,6 +378,15 @@ pub async fn execute(
     let existing_metadata = storage.load_metadata(&canonical_alias)?;
     let existing_aliases = storage.load_llms_aliases(&canonical_alias)?;
     let fetcher = Fetcher::new()?;
+
+    let filter_flags = crate::utils::filter_flags::parse_filter_flags(filter);
+    let filter_preference = if no_filter {
+        false
+    } else if filter_flags.any_enabled() {
+        filter_flags.language
+    } else {
+        existing_metadata.filter_non_english.unwrap_or(true)
+    };
 
     // Check for URL upgrades (llms.txt -> llms-full.txt)
     let (final_url, updated_variant) = if existing_metadata.variant == blz_core::SourceVariant::Llms
@@ -441,6 +443,11 @@ pub async fn execute(
     let outcome = match fetch_result {
         FetchResult::NotModified { .. } => {
             spinner.finish_and_clear();
+            if existing_metadata.filter_non_english.unwrap_or(true) != filter_preference {
+                let mut updated_metadata = existing_metadata.clone();
+                updated_metadata.filter_non_english = Some(filter_preference);
+                storage.save_metadata(&canonical_alias, &updated_metadata)?;
+            }
             if !quiet {
                 println!("{} {} (unchanged)", "✓".green(), canonical_alias.green());
             }
@@ -467,6 +474,7 @@ pub async fn execute(
             let mut updated_metadata = existing_metadata.clone();
             updated_metadata.url = final_url;
             updated_metadata.variant = updated_variant;
+            updated_metadata.filter_non_english = Some(filter_preference);
 
             let outcome = apply_refresh(
                 &storage,
@@ -512,12 +520,11 @@ pub async fn execute(
 
 /// Execute refresh for all sources.
 #[allow(clippy::too_many_lines)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute_all(
     metrics: PerformanceMetrics,
     quiet: bool,
     reindex: bool,
-    filter: bool,
+    filter: Option<&String>,
     no_filter: bool,
 ) -> Result<()> {
     let storage = Storage::new()?;
@@ -567,6 +574,7 @@ pub async fn execute_all(
     let mut skipped_count = 0;
     let mut error_count = 0;
     let indexer = DefaultIndexer;
+    let filter_flags = crate::utils::filter_flags::parse_filter_flags(filter);
 
     for alias in sources {
         let spinner = if quiet {
@@ -575,7 +583,7 @@ pub async fn execute_all(
             create_spinner(format!("Checking {alias}...").as_str())
         };
 
-        let metadata = storage.load_metadata(&alias)?;
+        let mut metadata = storage.load_metadata(&alias)?;
         let aliases = storage.load_llms_aliases(&alias)?;
         let fetch_result = fetcher
             .fetch_with_cache(
@@ -585,9 +593,21 @@ pub async fn execute_all(
             )
             .await?;
 
+        let filter_preference = if no_filter {
+            false
+        } else if filter_flags.any_enabled() {
+            filter_flags.language
+        } else {
+            metadata.filter_non_english.unwrap_or(true)
+        };
+
         match fetch_result {
             FetchResult::NotModified { .. } => {
                 spinner.finish_and_clear();
+                if metadata.filter_non_english.unwrap_or(true) != filter_preference {
+                    metadata.filter_non_english = Some(filter_preference);
+                    storage.save_metadata(&alias, &metadata)?;
+                }
                 skipped_count += 1;
                 if !quiet {
                     println!("{} {} (unchanged)", "✓".green(), alias.green());
@@ -600,6 +620,8 @@ pub async fn execute_all(
                 last_modified,
             } => {
                 spinner.set_message(format!("Parsing {alias}..."));
+                metadata.filter_non_english = Some(filter_preference);
+
                 match apply_refresh(
                     &storage,
                     &alias,
