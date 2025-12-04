@@ -971,6 +971,12 @@ pub struct AddArgs {
     pub dry_run: bool,
 
     /// Disable language filtering (keep all languages)
+    ///
+    /// By default, BLZ filters non-English content from multilingual documentation.
+    /// Use this flag to keep all languages.
+    ///
+    /// Examples:
+    ///   blz add anthropic <https://docs.anthropic.com/llms-full.txt> --no-language-filter
     #[arg(long)]
     pub no_language_filter: bool,
 }
