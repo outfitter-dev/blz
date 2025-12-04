@@ -202,7 +202,7 @@ fn is_known_subcommand(value: &str) -> bool {
     known_subcommands().contains(value)
 }
 
-const RESERVED_SUBCOMMANDS: &[&str] = &["anchors", "anchor"];
+const RESERVED_SUBCOMMANDS: &[&str] = &["toc", "anchors", "anchor"];
 
 fn known_subcommands() -> &'static BTreeSet<String> {
     static CACHE: OnceLock<BTreeSet<String>> = OnceLock::new();
@@ -816,13 +816,13 @@ async fn execute_command(
         Some(Commands::Anchor { command }) => {
             handle_anchor(command, cli.quiet).await?;
         },
-        Some(Commands::Anchors {
+        Some(Commands::Toc {
             alias,
             format,
             mappings,
         }) => {
-            // Anchors command doesn't have a limit flag directly (only via subcommand)
-            commands::show_anchors(&alias, format.resolve(cli.quiet), mappings, None).await?;
+            // TOC command doesn't have a limit flag directly (only via subcommand)
+            commands::show_toc(&alias, format.resolve(cli.quiet), mappings, None).await?;
         },
         None => {
             commands::handle_default_search(&cli.query, metrics, None, prefs, cli.quiet).await?;
@@ -1007,7 +1007,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             format,
             mappings,
             limit,
-        } => commands::show_anchors(&alias, format.resolve(quiet), mappings, limit).await,
+        } => commands::show_toc(&alias, format.resolve(quiet), mappings, limit).await,
         AnchorCommands::Get {
             alias,
             anchor,
@@ -1927,20 +1927,32 @@ mod tests {
 
     #[test]
     fn preprocess_does_not_inject_hidden_subcommands() {
-        let raw = to_string_vec(&["blz", "anchors", "e2e", "-f", "json"]);
+        let raw = to_string_vec(&["blz", "toc", "e2e", "-f", "json"]);
         let processed = preprocess_args_from(&raw);
         assert_eq!(processed, raw);
     }
 
     #[test]
     fn preprocess_retains_hidden_subcommand_with_search_flags() {
-        let raw = to_string_vec(&["blz", "anchors", "e2e", "--limit", "5", "--json"]);
+        let raw = to_string_vec(&["blz", "toc", "e2e", "--limit", "5", "--json"]);
         let processed = preprocess_args_from(&raw);
         // Should preserve --json for explicit subcommands (even hidden ones)
         assert_eq!(
             processed, raw,
             "hidden subcommands must not trigger shorthand injection or format conversion"
         );
+    }
+
+    #[test]
+    fn anchors_alias_still_parses_to_toc() {
+        use clap::Parser;
+
+        let raw = to_string_vec(&["blz", "anchors", "react"]);
+        let cli = Cli::try_parse_from(raw).expect("anchors alias should parse");
+        match cli.command {
+            Some(Commands::Toc { alias, .. }) => assert_eq!(alias, "react"),
+            other => panic!("expected toc command, got {other:?}"),
+        }
     }
 
     #[test]

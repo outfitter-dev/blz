@@ -246,15 +246,15 @@ pub enum Commands {
         command: AnchorCommands,
     },
 
-    /// Show anchors for a source or remap mappings
-    #[command(display_order = 54)]
-    Anchors {
+    /// Show table of contents (headings) for a source
+    #[command(display_order = 54, alias = "anchors")]
+    Toc {
         /// Source alias
         alias: String,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Show anchors remap mappings if available
+        /// Show anchor remap mappings if available
         #[arg(long)]
         mappings: bool,
     },
@@ -968,17 +968,17 @@ pub enum ShowComponent {
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum AnchorCommands {
-    /// List anchors for a source
+    /// List table-of-contents entries (headings) for a source
     List {
         /// Source alias
         alias: String,
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Show anchors remap mappings if available
+        /// Show anchor remap mappings if available
         #[arg(long)]
         mappings: bool,
-        /// Maximum number of anchors to display
+        /// Maximum number of headings to display
         #[arg(short = 'n', long, value_name = "COUNT")]
         limit: Option<usize>,
     },

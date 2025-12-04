@@ -7,7 +7,7 @@ Canonical handle
 - Use "source" as the canonical identifier for a document. Prefer `--source` (or `-s`) and positional SOURCE where available.
 
 Recommended defaults
-- export BLZ_OUTPUT_FORMAT=json   # agent-friendly default across search/list/anchors/docs
+- export BLZ_OUTPUT_FORMAT=json   # agent-friendly default across search/list/toc/docs
 
 Core Commands
 - Add source (non-interactive): blz add <alias> <llms.txt-url> -y
@@ -64,7 +64,7 @@ Notes
 
 Shell completions
 - Static: blz completions <bash|zsh|fish|powershell>
-- Dynamic aliases & anchors (recommended):
+- Dynamic aliases & headings (recommended):
   - Fish: source scripts/blz-dynamic-completions.fish
   - Zsh:  source scripts/blz-dynamic-completions.zsh (after compinit)
   - PS:   . scripts/blz-dynamic-completions.ps1

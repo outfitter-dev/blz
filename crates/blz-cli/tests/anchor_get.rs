@@ -37,11 +37,11 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
         .assert()
         .success();
 
-    // Get anchors JSON
+    // Get TOC JSON
     let mut cmd = blz_cmd();
     let anchors_out = cmd
         .env("BLZ_DATA_DIR", tmp.path())
-        .args(["anchors", "e2e", "-f", "json"])
+        .args(["toc", "e2e", "-f", "json"])
         .assert()
         .success()
         .get_output()
@@ -49,7 +49,7 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
         .clone();
     let entries: Value = serde_json::from_slice(&anchors_out)?;
     let arr = entries.as_array().cloned().unwrap_or_default();
-    assert!(!arr.is_empty(), "expected anchors list");
+    assert!(!arr.is_empty(), "expected toc list");
     // Find anchor for heading A
     let anchor = arr
         .iter()
