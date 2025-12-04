@@ -822,12 +822,12 @@ async fn execute_command(
             limit,
             filter,
             max_depth,
-            mappings,
+            anchors,
         }) => {
             commands::show_toc(
                 &alias,
                 format.resolve(cli.quiet),
-                mappings,
+                anchors,
                 limit,
                 max_depth.map(usize::from),
                 filter.as_deref(),
@@ -1015,7 +1015,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
         AnchorCommands::List {
             alias,
             format,
-            mappings,
+            anchors,
             limit,
             max_depth,
             filter,
@@ -1023,7 +1023,7 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             commands::show_toc(
                 &alias,
                 format.resolve(quiet),
-                mappings,
+                anchors,
                 limit,
                 max_depth.map(usize::from),
                 filter.as_deref(),
