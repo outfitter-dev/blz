@@ -67,21 +67,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Which llms.txt variant was successfully resolved and used
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceVariant {
     /// llms-full.txt was found and used
     LlmsFull,
     /// llms.txt was found and used
+    #[default]
     Llms,
     /// Custom URL (neither llms.txt nor llms-full.txt)
     Custom,
-}
-
-impl Default for SourceVariant {
-    fn default() -> Self {
-        Self::Llms
-    }
 }
 
 /// Content type based on line count analysis
