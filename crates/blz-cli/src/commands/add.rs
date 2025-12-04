@@ -289,7 +289,7 @@ pub async fn execute_manifest(
             (Some(url), None) => {
                 let request = AddRequest::new(
                     normalized_alias.clone(),
-                    url.to_string(),
+                    url.clone(),
                     descriptor_input.clone(),
                     dry_run,
                     quiet,
