@@ -566,7 +566,7 @@ mod tests {
                     url: "https://example.com".into(),
                 }),
             },
-            filter_non_english: None,
+            filter_non_english: Some(true),
         }
     }
 

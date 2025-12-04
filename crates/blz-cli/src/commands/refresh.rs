@@ -5,7 +5,8 @@ use std::time::Instant;
 
 use anyhow::{Result, anyhow};
 use blz_core::{
-    FetchResult, Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, Storage,
+    FetchResult, Fetcher, HeadingFilterStats, LanguageFilter, MarkdownParser, ParseResult,
+    PerformanceMetrics, SearchIndex, Source, Storage,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -110,6 +111,8 @@ pub struct RefreshPayload {
 }
 
 /// Apply a refresh: persist content and re-index the source.
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 pub fn apply_refresh<S, I>(
     storage: &S,
     alias: &str,
@@ -118,13 +121,40 @@ pub fn apply_refresh<S, I>(
     payload: RefreshPayload,
     metrics: PerformanceMetrics,
     indexer: &I,
+    quiet: bool,
 ) -> Result<RefreshOutcome>
 where
     S: RefreshStorage,
     I: RefreshIndexer,
 {
     let mut parser = MarkdownParser::new()?;
-    let parse_result = parser.parse(&payload.content)?;
+    let mut parse_result = parser.parse(&payload.content)?;
+
+    // Apply language filtering based on stored preference
+    let original_heading_count = parse_result.heading_blocks.len();
+    let filter_enabled = existing_metadata.filter_non_english.unwrap_or(true);
+    if filter_enabled {
+        apply_language_filter(&mut parse_result, false, quiet);
+    }
+
+    // Calculate and store filter stats
+    let filter_stats = if filter_enabled {
+        Some(HeadingFilterStats {
+            enabled: true,
+            headings_total: original_heading_count,
+            headings_accepted: parse_result.heading_blocks.len(),
+            headings_rejected: original_heading_count - parse_result.heading_blocks.len(),
+            reason: "non-English content removed".to_string(),
+        })
+    } else {
+        Some(HeadingFilterStats {
+            enabled: false,
+            headings_total: parse_result.heading_blocks.len(),
+            headings_accepted: parse_result.heading_blocks.len(),
+            headings_rejected: 0,
+            reason: "filtering disabled".to_string(),
+        })
+    };
 
     storage.save_llms_txt(alias, &payload.content)?;
 
@@ -165,6 +195,7 @@ where
         .github_aliases
         .clone_from(&existing_metadata.github_aliases);
     llms_json.metadata.variant = existing_metadata.variant.clone();
+    llms_json.filter_stats = filter_stats;
     storage.save_llms_json(alias, &llms_json)?;
 
     let mut origin = existing_metadata.origin.clone();
@@ -338,6 +369,7 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
                 payload,
                 metrics,
                 &indexer,
+                quiet,
             )?;
             spinner.finish_and_clear();
             outcome
@@ -431,6 +463,7 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
                     },
                     metrics.clone(),
                     &indexer,
+                    quiet,
                 ) {
                     Ok(RefreshOutcome::Refreshed { .. }) => {
                         refreshed_count += 1;
@@ -470,6 +503,115 @@ pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()>
     }
 
     Ok(())
+}
+
+/// Apply language filtering to parse results
+///
+/// Filters out non-English heading blocks using hybrid URL-based and text-based detection.
+/// Prints filtering statistics if blocks were filtered and not in quiet mode.
+fn apply_language_filter(parse_result: &mut ParseResult, no_language_filter: bool, quiet: bool) {
+    if no_language_filter {
+        return;
+    }
+
+    let mut language_filter = LanguageFilter::new(true);
+
+    // Filter heading blocks using both URL-based and text-based methods
+    let original_count = parse_result.heading_blocks.len();
+    parse_result.heading_blocks.retain(|block| {
+        // First check URLs in content (fast, catches locale-based URLs)
+        let urls_in_content = extract_urls_from_content(&block.content);
+        let url_check = urls_in_content.is_empty()
+            || urls_in_content
+                .iter()
+                .all(|url| language_filter.is_english_url(url));
+
+        // Then check heading text (catches non-URL-based translations)
+        let heading_check = language_filter.is_english_heading_path(&block.path);
+
+        // Block must pass both checks to be kept
+        url_check && heading_check
+    });
+
+    let filtered_count = original_count - parse_result.heading_blocks.len();
+    if filtered_count > 0 && !quiet {
+        println!(
+            "Filtered {} non-English content blocks ({:.1}% reduction)",
+            filtered_count,
+            percentage(filtered_count, original_count)
+        );
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn percentage(part: usize, total: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        (part as f64 / total as f64) * 100.0
+    }
+}
+
+/// Extract URLs from markdown content using simple string parsing
+fn extract_urls_from_content(content: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+
+    let mut search_start = 0;
+    while let Some(rel) = content[search_start..].find('[') {
+        let open_idx = search_start + rel;
+        if let Some(close_rel) = content[open_idx + 1..].find(']') {
+            let close_idx = open_idx + 1 + close_rel;
+            let after_bracket = content.get(close_idx + 1..).unwrap_or("");
+            if let Some(rest) = after_bracket.strip_prefix('(') {
+                if let Some(paren_rel) = rest.find(')') {
+                    if let Some(cleaned) = clean_url_slice(&rest[..paren_rel]) {
+                        urls.push(cleaned.to_string());
+                    }
+                }
+            }
+        }
+        search_start = open_idx + 1;
+    }
+
+    urls
+}
+
+/// Helper to clean a URL slice by trimming whitespace and quotes
+fn clean_url_slice(s: &str) -> Option<&str> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let trimmed = trimmed
+        .strip_prefix('"')
+        .or_else(|| trimmed.strip_prefix('\''))
+        .unwrap_or(trimmed);
+
+    let trimmed = trimmed
+        .strip_suffix('"')
+        .or_else(|| trimmed.strip_suffix('\''))
+        .unwrap_or(trimmed);
+
+    // Trim trailing punctuation
+    let mut end = trimmed.len();
+    for (idx, ch) in trimmed.char_indices().rev() {
+        if trailing_punctuation(ch) {
+            end = idx;
+        } else {
+            break;
+        }
+    }
+
+    if end == 0 {
+        None
+    } else {
+        Some(&trimmed[..end])
+    }
+}
+
+const fn trailing_punctuation(c: char) -> bool {
+    matches!(c, ',' | '.' | ';' | ':' | '!' | '?')
 }
 
 #[cfg(test)]
@@ -562,7 +704,7 @@ mod tests {
                     url: "https://example.com".into(),
                 }),
             },
-            filter_non_english: None,
+            filter_non_english: Some(true),
         }
     }
 
@@ -592,6 +734,7 @@ mod tests {
             sample_payload(),
             PerformanceMetrics::default(),
             &indexer,
+            false, // quiet
         )?;
 
         assert!(matches!(outcome, RefreshOutcome::Refreshed { .. }));

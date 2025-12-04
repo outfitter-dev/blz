@@ -392,7 +392,7 @@ mod tests {
                     url: url.to_string(),
                 }),
             },
-            filter_non_english: None,
+            filter_non_english: Some(true),
         }
     }
 
