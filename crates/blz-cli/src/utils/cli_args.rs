@@ -6,6 +6,21 @@ use is_terminal::IsTerminal;
 use crate::output::OutputFormat;
 
 static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
+
+pub fn deprecation_warnings_suppressed() -> bool {
+    match std::env::var("BLZ_SUPPRESS_DEPRECATIONS") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            if normalized.is_empty() {
+                false
+            } else {
+                !matches!(normalized.as_str(), "0" | "false" | "off" | "no")
+            }
+        },
+        Err(std::env::VarError::NotPresent) => false,
+        Err(std::env::VarError::NotUnicode(_)) => true,
+    }
+}
 static SNIPPET_LINES_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
 /// Shared clap argument for commands that accept an output format.
@@ -100,7 +115,7 @@ impl FormatArg {
 }
 
 fn emit_deprecated_warning(quiet: bool) {
-    if quiet || std::env::var_os("BLZ_SUPPRESS_DEPRECATIONS").is_some() {
+    if quiet || deprecation_warnings_suppressed() {
         return;
     }
 
@@ -119,7 +134,7 @@ fn emit_deprecated_warning(quiet: bool) {
 /// Suggests using --max-chars instead and indicates the flag will be removed in v2.0.
 /// Respects quiet mode and `BLZ_SUPPRESS_DEPRECATIONS` environment variable.
 pub fn emit_snippet_lines_deprecation(quiet: bool) {
-    if quiet || std::env::var_os("BLZ_SUPPRESS_DEPRECATIONS").is_some() {
+    if quiet || deprecation_warnings_suppressed() {
         return;
     }
 

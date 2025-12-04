@@ -7,7 +7,7 @@ const ADD_PROMPT: &str = include_str!("prompts/add.prompt.json");
 const SEARCH_PROMPT: &str = include_str!("prompts/search.prompt.json");
 const GET_PROMPT: &str = include_str!("prompts/get.prompt.json");
 const LIST_PROMPT: &str = include_str!("prompts/list.prompt.json");
-const UPDATE_PROMPT: &str = include_str!("prompts/update.prompt.json");
+const REFRESH_PROMPT: &str = include_str!("prompts/refresh.prompt.json");
 const REMOVE_PROMPT: &str = include_str!("prompts/remove.prompt.json");
 const LOOKUP_PROMPT: &str = include_str!("prompts/lookup.prompt.json");
 const DOCS_PROMPT: &str = include_str!("prompts/docs.prompt.json");
@@ -37,7 +37,7 @@ pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
         "search" => Some(SEARCH_PROMPT),
         "get" => Some(GET_PROMPT),
         "list" | "sources" => Some(LIST_PROMPT),
-        "update" => Some(UPDATE_PROMPT),
+        "refresh" => Some(REFRESH_PROMPT),
         "remove" | "rm" | "delete" => Some(REMOVE_PROMPT),
         "lookup" => Some(LOOKUP_PROMPT),
         "docs" => Some(DOCS_PROMPT),
@@ -84,7 +84,8 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Search { .. } => "search".into(),
                 Commands::Instruct => "blz".into(),
                 Commands::Add(_) => "add".into(),
-                Commands::Update { .. } => "update".into(),
+                #[allow(deprecated)]
+                Commands::Refresh { .. } | Commands::Update { .. } => "refresh".into(),
                 Commands::Remove { .. } => "remove".into(),
                 Commands::List { .. } => "list".into(),
                 Commands::Get { .. } => "get".into(),
@@ -122,6 +123,7 @@ fn available_targets() -> Vec<&'static str> {
         "search",
         "get",
         "list",
+        "refresh",
         "update",
         "remove",
         "lookup",

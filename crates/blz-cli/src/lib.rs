@@ -6,6 +6,7 @@
 use anyhow::{Result, anyhow};
 use blz_core::{PerformanceMetrics, Storage};
 use clap::{CommandFactory, Parser};
+use colored::Colorize;
 use colored::control as color_control;
 use tracing::{Level, warn};
 use tracing_subscriber::FmtSubscriber;
@@ -794,12 +795,27 @@ async fn execute_command(
         Some(Commands::Doctor { format, fix }) => {
             commands::run_doctor(format.resolve(cli.quiet), fix).await?;
         },
+        Some(Commands::Refresh {
+            aliases,
+            all,
+            yes: _, // Ignored - kept for CLI backward compat
+        }) => {
+            handle_refresh(aliases, all, metrics, cli.quiet).await?;
+        },
+        #[allow(deprecated)]
+        #[allow(deprecated)]
         Some(Commands::Update {
             aliases,
             all,
             yes: _, // Ignored - kept for CLI backward compat
         }) => {
-            handle_update(aliases, all, metrics, cli.quiet).await?;
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
+                );
+            }
+            handle_refresh(aliases, all, metrics, cli.quiet).await?;
         },
         Some(Commands::Remove { alias, yes }) => {
             commands::remove_source(&alias, yes, cli.quiet).await?;
@@ -1360,14 +1376,14 @@ async fn handle_search(
     .await
 }
 
-async fn handle_update(
+async fn handle_refresh(
     aliases: Vec<String>,
     all: bool,
     metrics: PerformanceMetrics,
     quiet: bool,
 ) -> Result<()> {
     if all || aliases.is_empty() {
-        return commands::update_all(metrics, quiet).await;
+        return commands::refresh_all(metrics, quiet).await;
     }
 
     for alias in aliases {
@@ -1379,7 +1395,7 @@ async fn handle_update(
             bytes_processed: Arc::clone(&metrics.bytes_processed),
             lines_searched: Arc::clone(&metrics.lines_searched),
         };
-        commands::update_source(&alias, metrics_clone, quiet).await?;
+        commands::refresh_source(&alias, metrics_clone, quiet).await?;
     }
 
     Ok(())
@@ -1593,9 +1609,36 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parse_refresh_multiple_aliases() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(vec!["blz", "refresh", "bun", "react"]).unwrap();
+        match cli.command {
+            Some(Commands::Refresh { aliases, all, .. }) => {
+                assert_eq!(aliases, vec!["bun", "react"]);
+                assert!(!all);
+            },
+            other => panic!("Expected refresh command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_refresh_all_conflict_with_aliases() {
+        use clap::Parser;
+
+        let result = Cli::try_parse_from(vec!["blz", "refresh", "bun", "--all"]);
+        assert!(
+            result.is_err(),
+            "Should error when both --all and aliases are provided"
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
     fn test_cli_parse_update_multiple_aliases() {
         use clap::Parser;
 
+        // Test deprecated 'update' command for backward compatibility
         let cli = Cli::try_parse_from(vec!["blz", "update", "bun", "react"]).unwrap();
         match cli.command {
             Some(Commands::Update { aliases, all, .. }) => {
@@ -1607,9 +1650,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_cli_update_all_conflict_with_aliases() {
         use clap::Parser;
 
+        // Test deprecated 'update' command for backward compatibility
         let result = Cli::try_parse_from(vec!["blz", "update", "bun", "--all"]);
         assert!(
             result.is_err(),
@@ -2522,6 +2567,7 @@ mod tests {
             "add",
             "list",
             "get",
+            "refresh",
             "update",
             "remove",
             "lookup",
@@ -2818,6 +2864,7 @@ mod tests {
             "search",
             "get",
             "list",
+            "refresh",
             "update",
             "remove",
             "diff",

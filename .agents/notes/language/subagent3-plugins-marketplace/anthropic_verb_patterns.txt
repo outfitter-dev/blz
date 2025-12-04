@@ -1,0 +1,234 @@
+MULTILINGUAL VERB PATTERNS - PLUGIN & MARKETPLACE TERMINOLOGY
+==============================================================
+
+1. INSTALL / ADD OPERATIONS
+===========================
+
+English:
+  - Install plugins
+  - Add marketplaces
+  - Manage plugins
+
+French:
+  - Installez les plugins (imperative: install)
+  - Ajoutez des marketplaces (imperative: add)
+  - Gérez les plugins (imperative: manage)
+
+German:
+  - Plugins installieren (infinitive: to install)
+  - Installation überprüfen (noun: installation check)
+  - Marketplaces hinzufügen (infinitive: to add)
+
+Portuguese:
+  - Instale plugins (imperative: install)
+  - Adicione marketplaces (imperative: add)
+  - Gerencie plugins (imperative: manage)
+
+Italian:
+  - Installare plugin (infinitive: to install)
+  - Aggiungere marketplace (infinitive: to add)
+  - Gestire le operazioni (infinitive: to manage)
+
+Indonesian:
+  - Menginstal plugin (infinitive: to install)
+  - Menambahkan marketplace (infinitive: to add)
+  - Mengelola operasi (infinitive: to manage)
+
+
+2. DEVELOP / CREATE / BUILD OPERATIONS
+=======================================
+
+English:
+  - Develop more complex plugins
+  - Organize complex plugins
+  - Share your plugins
+  - Test your plugins locally
+
+French:
+  - Développez des plugins plus complexes (imperative: develop)
+  - Organisez les plugins complexes (imperative: organize)
+  - Partagez vos plugins (imperative: share)
+  - Testez vos plugins localement (imperative: test)
+
+German:
+  - Komplexere Plugins entwickeln (infinitive: develop/create)
+  - Komplexe Plugins organisieren (infinitive: organize)
+  - Ihre Plugins teilen (infinitive: share)
+  - Ihre Plugins lokal testen (infinitive: test)
+
+Portuguese:
+  - Desenvolva plugins mais complexos (imperative: develop)
+  - Organize plugins complexos (imperative: organize)
+  - Compartilhe seus plugins (imperative: share)
+  - Teste seus plugins localmente (imperative: test)
+
+Italian:
+  - Creare il tuo marketplace (infinitive: to create)
+  - Creare il file marketplace (infinitive: to create)
+  - Verificare l'installazione (infinitive: to verify)
+
+Indonesian:
+  - Membuat marketplace Anda sendiri (infinitive: to create)
+  - Membuat file marketplace (infinitive: to create)
+  - Memverifikasi instalasi (infinitive: to verify)
+
+
+3. MARKETPLACE-SPECIFIC OPERATIONS
+===================================
+
+English:
+  - Manage marketplace operations
+  - Remove a marketplace
+  - Update marketplace metadata
+
+French:
+  - Opérations marketplace (implied)
+
+German:
+  - Marketplaces hinzufügen
+  - Plugin-Marketplaces
+
+Italian:
+  - Gestire le operazioni del marketplace (infinitive: to manage)
+  - Aggiornare i metadati (infinitive: to update)
+  - Rimuovere un marketplace (infinitive: to remove)
+  - Elencare marketplace (infinitive: to list)
+
+Indonesian:
+  - Mengelola operasi marketplace (infinitive: to manage)
+  - Memperbarui metadata (infinitive: to update)
+  - Menghapus marketplace (infinitive: to remove)
+  - Daftar marketplace (infinitive: to list)
+  - Hosting dan mendistribusikan (infinitive: to host and distribute)
+
+
+4. KEY LANGUAGE INDICATORS
+===========================
+
+LANGUAGE IDENTIFIERS BY MORPHOLOGY:
+
+French:
+  - -ez endings (vous form imperatives): Installez, Ajoutez, Gérez
+  - le/la articles: les plugins, des marketplaces
+  - Accented characters: é, è, ê, ç
+  - Words: étendez, configurez
+
+German:
+  - -en endings (infinitives): installieren, entwickeln
+  - Capital nouns: Plugins, Marketplaces
+  - -ieren verbs: organisieren, konfigurieren
+  - Compound words: Plugin-Marketplaces, Marketplace-Verwaltung
+
+Portuguese:
+  - -e endings (imperatives): Instale, Adicione, Gerencie
+  - Nasal sounds (ã, õ): marketplaces
+  - Words: gerencie, desenvolva, compartilhe
+  - Tilde accents: ã, õ
+
+Italian:
+  - -are/-ere/-ire infinitives: installare, aggiungere, gestire
+  - -i plurals: dei plugin, dei marketplace, i metadati
+  - Dell'/dei articles: Marketplace dei plugin, dei creatori
+  - Words: creare, verificare, rimuovere
+
+Indonesian:
+  - Meng- prefix (infinitive aspect marker): Menginstal, Menambahkan, Mengelola
+  - -kan suffix: Memperbarui, Menghapus
+  - No inflections (isolating language)
+  - Words: buat, kelola, daftar
+
+
+5. NAVIGATION/MENU PATTERNS BY LANGUAGE
+========================================
+
+English:
+  - "Install and manage plugins"
+  - "Plugin marketplaces"
+  - "Manage marketplace operations"
+
+French:
+  - "Installez et gérez les plugins"
+  - "Prochaines étapes" (Next steps)
+  - "Pour les utilisateurs de plugins" (For plugin users)
+
+German:
+  - "Plugins installieren und verwalten"
+  - "Komplexere Plugins entwickeln"
+  - Pattern: [Object] [Verb infinitive]
+
+Portuguese:
+  - "Instale e gerencie plugins"
+  - "Próximos passos" (Next steps)
+  - Pattern: [Verb imperative] [Object]
+
+Italian:
+  - "Aggiungere e utilizzare marketplace"
+  - "Creare il tuo marketplace"
+  - "Gestire le operazioni del marketplace"
+  - "Ospitare e distribuire marketplace"
+  - "Prossimi passi" (Next steps)
+
+Indonesian:
+  - "Menambahkan dan menggunakan marketplace"
+  - "Membuat marketplace Anda sendiri"
+  - "Mengelola operasi marketplace"
+  - "Langkah selanjutnya" (Next steps)
+  - "Untuk pengguna marketplace" (For marketplace users)
+
+
+6. SEMANTIC FIELD - CROSS-LANGUAGE CONSISTENCY
+===============================================
+
+Core Concepts (appear in all languages):
+  1. Install/Add plugins
+  2. Manage/Organize plugins
+  3. Create/Develop plugins
+  4. Share plugins
+  5. Test plugins
+  6. Create marketplaces
+  7. Add/Remove marketplaces
+  8. Manage marketplace operations
+  9. Distribute/Host marketplaces
+
+Consistent Terminology:
+  - "marketplace" (near-universal)
+  - "plugin(s)" / "plugin/i" (Romance/Germanic)
+  - "metadata/metadati/metadados/metadata"
+  - "GitHub" (exact across languages)
+  - "team" / "equipo" / "tim" / "team" / "tim"
+  - "local" / "lokal" / "locales" / "lokal"
+
+
+7. STRONGEST LANGUAGE INDICATORS
+=================================
+
+FRENCH:
+  - -ez verb endings (Installez, Ajoutez, Gérez, Développez)
+  - les/des articles
+  - qu'ils/qu'elles pronouns
+  - Accented vowels (é, è, ê, ç, à)
+
+GERMAN:
+  - Capital nouns (Plugins, Marketplaces, Verwaltung)
+  - Infinitive -en endings (entwickeln, organisieren, teilen, testen)
+  - Compound words with hyphens or concatenation
+  - ü/ö/ä characters
+
+PORTUGUESE:
+  - Imperative -e endings (Instale, Adicione, Gerencie)
+  - Nasal vowels (ã, õ)
+  - Words like "desenvolva", "compartilhe", "próximos"
+  - Tilde accents
+
+ITALIAN:
+  - Infinitive -are/-ere/-ire endings
+  - -i/-e plurals (dei plugin, dei marketplace)
+  - Articles: il/la/dello/della
+  - Words like "creare", "verificare", "rimuovere", "ospitare"
+
+INDONESIAN:
+  - Meng- prefix (Menginstal, Menambahkan, Mengelola)
+  - No inflections or articles
+  - Words like "buat", "daftar", "kelola"
+  - Ang-ism patterns (Ang... = to... structure)
+
