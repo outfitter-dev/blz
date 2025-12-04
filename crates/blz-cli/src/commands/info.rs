@@ -1,7 +1,8 @@
 //! Command to display detailed information about a cached source
 
 use anyhow::{Context, Result};
-use blz_core::Storage;
+use blz_core::{HeadingFilterStats, Storage};
+use colored::Colorize;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -35,6 +36,9 @@ pub struct SourceInfo {
     pub checksum: Option<String>,
     /// Path to cached source directory
     pub cache_path: PathBuf,
+    /// Language filtering statistics
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_stats: Option<HeadingFilterStats>,
 }
 
 /// Execute the info command
@@ -78,6 +82,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
         etag: metadata.etag.clone(),
         checksum: Some(metadata.sha256),
         cache_path,
+        filter_stats: llms.filter_stats,
     };
 
     match format {
@@ -129,6 +134,42 @@ fn print_text_info(info: &SourceInfo) {
     }
 
     println!("Cache Location: {}", info.cache_path.display());
+
+    // Display language filtering information
+    println!();
+    if let Some(stats) = &info.filter_stats {
+        println!("Language Filtering:");
+        let status_text = if stats.enabled {
+            "enabled".green()
+        } else {
+            "disabled".yellow()
+        };
+        println!("  Status: {status_text}");
+
+        if stats.enabled && stats.headings_rejected > 0 {
+            let percentage = percentage(stats.headings_rejected, stats.headings_total);
+            println!(
+                "  Filtered: {} headings ({percentage:.1}%)",
+                format_number(stats.headings_rejected)
+            );
+            println!("  Reason: {}", stats.reason);
+        }
+    } else {
+        println!(
+            "Language Filtering: {} (added before filtering feature)",
+            "unknown".yellow()
+        );
+    }
+}
+
+fn percentage(count: usize, total: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        #[allow(clippy::cast_precision_loss)]
+        let result = (count as f64 / total as f64) * 100.0;
+        result
+    }
 }
 
 fn format_number(n: usize) -> String {
@@ -299,5 +340,20 @@ mod tests {
                 .any(|m| m.contains("Failed to parse llms.json")),
             "missing parse failure detail: {chain_messages:?}"
         );
+    }
+
+    #[test]
+    fn test_percentage() {
+        assert!((percentage(0, 100) - 0.0).abs() < f64::EPSILON);
+        assert!((percentage(50, 100) - 50.0).abs() < f64::EPSILON);
+        assert!((percentage(100, 100) - 100.0).abs() < f64::EPSILON);
+        assert!((percentage(33, 100) - 33.0).abs() < f64::EPSILON);
+        assert!((percentage(0, 0) - 0.0).abs() < f64::EPSILON); // Edge case: no total
+    }
+
+    #[test]
+    fn test_percentage_precision() {
+        let result = percentage(1, 3);
+        assert!((result - 33.333_333).abs() < 0.001);
     }
 }
