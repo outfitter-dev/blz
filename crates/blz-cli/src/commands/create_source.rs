@@ -252,7 +252,7 @@ async fn analyze_source(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Failed to analyze source:\n{}", stderr);
+        anyhow::bail!("Failed to analyze source:\n{stderr}");
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -473,7 +473,7 @@ async fn rebuild_registry(quiet: bool) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Failed to rebuild registry:\n{}", stderr);
+        anyhow::bail!("Failed to rebuild registry:\n{stderr}");
     }
 
     Ok(())

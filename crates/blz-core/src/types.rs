@@ -381,6 +381,14 @@ pub struct TocEntry {
     /// For example: `["Getting Started", "Installation", "Prerequisites"]`
     pub heading_path: Vec<String>,
 
+    /// Display-friendly heading path (markdown links stripped, anchors removed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading_path_display: Option<Vec<String>>,
+
+    /// Normalized heading path segments suitable for search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading_path_normalized: Option<Vec<String>>,
+
     /// Line range where this section appears.
     ///
     /// Format: `"start-end"` where both are 1-based line numbers.
@@ -590,6 +598,10 @@ pub struct SearchHit {
     /// Empty vector indicates content not under any specific heading.
     pub heading_path: Vec<String>,
 
+    /// Original heading path as stored in the source (before sanitization).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_heading_path: Option<Vec<String>>,
+
     /// Line range containing the matching content.
     ///
     /// Format: `"start-end"` with 1-based line numbers.
@@ -782,6 +794,14 @@ pub struct HeadingBlock {
     /// representations in this module.
     pub path: Vec<String>,
 
+    /// Sanitized presentation path (markdown links stripped, anchors removed).
+    ///
+    /// Mirrors `path` in structure but with display-friendly segments.
+    pub display_path: Vec<String>,
+
+    /// Normalized tokens derived from the display path for heading-focused search.
+    pub normalized_tokens: Vec<String>,
+
     /// Raw content text for this block.
     ///
     /// Includes the heading itself and all content until the next
@@ -793,6 +813,22 @@ pub struct HeadingBlock {
 
     /// Ending line number (1-based, inclusive).
     pub end_line: usize,
+}
+
+impl HeadingBlock {
+    #[must_use]
+    /// Construct a heading block while computing display and normalized variants.
+    pub fn new(path: Vec<String>, content: String, start_line: usize, end_line: usize) -> Self {
+        let variants = crate::path_variants(&path);
+        Self {
+            path,
+            display_path: variants.display_segments,
+            normalized_tokens: variants.tokens,
+            content,
+            start_line,
+            end_line,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -807,6 +843,7 @@ mod tests {
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
+            raw_heading_path: Some(vec!["React".to_string(), "Hooks".to_string()]),
             lines: "100-120".to_string(),
             line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
@@ -823,6 +860,7 @@ mod tests {
             source: "react".to_string(),
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
+            raw_heading_path: Some(vec!["React".to_string(), "Hooks".to_string()]),
             lines: "100-120".to_string(),
             line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
@@ -875,6 +913,14 @@ mod tests {
     fn test_toc_entry_creation() {
         let entry = TocEntry {
             heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
+            heading_path_display: Some(vec![
+                "Getting Started".to_string(),
+                "Installation".to_string(),
+            ]),
+            heading_path_normalized: Some(vec![
+                "getting started".to_string(),
+                "installation".to_string(),
+            ]),
             lines: "1-25".to_string(),
             anchor: None,
             children: vec![],
@@ -960,16 +1006,18 @@ mod tests {
 
     #[test]
     fn test_heading_block_creation() {
-        let block = HeadingBlock {
-            path: vec!["API".to_string(), "Reference".to_string()],
-            content: "This is the API reference content...".to_string(),
-            start_line: 50,
-            end_line: 75,
-        };
+        let block = HeadingBlock::new(
+            vec!["API".to_string(), "Reference".to_string()],
+            "This is the API reference content...".to_string(),
+            50,
+            75,
+        );
 
         assert_eq!(block.path.len(), 2);
         assert_eq!(block.start_line, 50);
         assert_eq!(block.end_line, 75);
         assert!(block.content.starts_with("This is the API"));
+        assert_eq!(block.display_path.len(), 2);
+        assert!(!block.normalized_tokens.is_empty());
     }
 }

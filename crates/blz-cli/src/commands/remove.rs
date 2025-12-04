@@ -160,7 +160,7 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
     // Return error for not-found to ensure proper exit code
     match outcome {
         RemoveOutcome::NotFound => {
-            anyhow::bail!("Source '{}' not found", canonical);
+            anyhow::bail!("Source '{canonical}' not found");
         },
         RemoveOutcome::Cancelled | RemoveOutcome::Removed { .. } => Ok(()),
     }

@@ -7,6 +7,7 @@ use std::fs;
 
 /// Show diffs for a source between the latest archived snapshot and current
 /// state. If no archive exists, a helpful message is printed.
+#[allow(clippy::too_many_lines)]
 pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
@@ -54,9 +55,48 @@ pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
         .map(|m| {
             let oldc = slice_content(&prev_llms_text, &m.old_lines);
             let newc = slice_content(&current_text, &m.new_lines);
+
+            let display_current = curr_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("headingPath"))
+                .cloned();
+            let raw_current = curr_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("rawHeadingPath"))
+                .cloned();
+            let normalized_current = curr_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("headingPathNormalized"))
+                .cloned();
+
+            let display_previous = prev_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("headingPath"))
+                .cloned();
+            let raw_previous = prev_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("rawHeadingPath"))
+                .cloned();
+            let normalized_previous = prev_map
+                .get(&m.anchor)
+                .and_then(|v| v.get("headingPathNormalized"))
+                .cloned();
+
+            let heading_path_value = display_current
+                .or(display_previous)
+                .unwrap_or_else(|| json!(m.heading_path));
+            let raw_heading_path_value = raw_current
+                .or(raw_previous)
+                .unwrap_or_else(|| json!(m.heading_path));
+            let normalized_heading_value = normalized_current
+                .or(normalized_previous)
+                .unwrap_or(serde_json::Value::Null);
+
             json!({
                 "anchor": m.anchor,
-                "headingPath": m.heading_path,
+                "headingPath": heading_path_value,
+                "rawHeadingPath": raw_heading_path_value,
+                "headingPathNormalized": normalized_heading_value,
                 "oldLines": m.old_lines,
                 "newLines": m.new_lines,
                 "oldContent": oldc,
@@ -178,12 +218,15 @@ fn collect_anchors(
         for e in list {
             if let Some(a) = e.anchor.as_ref() {
                 set.insert(a.clone());
+                let display_path = sanitized_path(e);
                 map.insert(
                     a.clone(),
                     json!({
                         "anchor": a,
-                        "headingPath": e.heading_path,
-                        "lines": e.lines,
+                        "headingPath": display_path,
+                        "rawHeadingPath": &e.heading_path,
+                        "headingPathNormalized": &e.heading_path_normalized,
+                        "lines": &e.lines,
                     }),
                 );
             }
@@ -224,4 +267,11 @@ fn slice_content(all: &str, lines_spec: &str) -> String {
         out.push_str(line);
     }
     out
+}
+
+fn sanitized_path(entry: &blz_core::TocEntry) -> Vec<String> {
+    entry
+        .heading_path_display
+        .clone()
+        .unwrap_or_else(|| entry.heading_path.clone())
 }

@@ -61,6 +61,8 @@ pub mod config;
 pub mod error;
 /// HTTP fetching with conditional requests support
 pub mod fetcher;
+/// Heading sanitization and normalization helpers
+pub mod heading;
 /// Search index implementation using Tantivy
 pub mod index;
 /// Language filtering for multilingual llms.txt files
@@ -87,6 +89,10 @@ pub use config::{
 };
 pub use error::{Error, Result};
 pub use fetcher::{FetchResult, Fetcher};
+pub use heading::{
+    HeadingPathVariants, HeadingSegmentVariants, normalize_text_for_search, path_variants,
+    segment_variants,
+};
 pub use index::SearchIndex;
 pub use language_filter::{FilterStats, LanguageFilter};
 pub use mapping::{build_anchors_map, compute_anchor_mappings};

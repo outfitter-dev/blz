@@ -414,6 +414,8 @@ mod tests {
         (0..count)
             .map(|i| blz_core::TocEntry {
                 heading_path: vec![format!("Heading {i}")],
+                heading_path_display: Some(vec![format!("Heading {i}")]),
+                heading_path_normalized: Some(vec![format!("heading {i}")]),
                 lines: "1-2".into(),
                 anchor: None,
                 children: vec![],

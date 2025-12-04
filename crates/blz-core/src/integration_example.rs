@@ -147,12 +147,12 @@ impl HighPerformanceSearchSystem {
                         parse_buffer.as_mut().push('\n');
                     }
                     
-                    blocks.push(HeadingBlock {
-                        path: vec!["Section".to_string()],
-                        content: parse_buffer.as_str().to_string(),
-                        start_line: line_num - current_section.len(),
-                        end_line: line_num - 1,
-                    });
+                    blocks.push(HeadingBlock::new(
+                        vec!["Section".to_string()],
+                        parse_buffer.as_str().to_string(),
+                        line_num - current_section.len(),
+                        line_num - 1,
+                    ));
                     
                     current_section.clear();
                 }
@@ -170,12 +170,12 @@ impl HighPerformanceSearchSystem {
                 parse_buffer.as_mut().push('\n');
             }
             
-            blocks.push(HeadingBlock {
-                path: vec!["Section".to_string()],
-                content: parse_buffer.as_str().to_string(),
-                start_line: line_num - current_section.len(),
-                end_line: line_num - 1,
-            });
+            blocks.push(HeadingBlock::new(
+                vec!["Section".to_string()],
+                parse_buffer.as_str().to_string(),
+                line_num - current_section.len(),
+                line_num - 1,
+            ));
         }
         
         Ok(blocks)

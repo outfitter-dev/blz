@@ -38,7 +38,7 @@
 ### Targeted Search
 - `blz search "edge cache" --source cloudflare`
 - `--source` (or `-s`) accepts multiple aliases; comma separation is optional.
-- Add `--json` for automation-friendly output.
+- Add `--format json` for automation-friendly output.
 ### Training Queries Against Bundled Docs
 - `blz docs search batching` runs a scoped search against the bundled guide only.
 - `blz docs top` shows a curated quick-start summary (no search required).
@@ -47,7 +47,7 @@
 ## Managing Sources
 ### Listing
 - `blz list --format text` prints status, line counts, last update, and tags.
-- Use `--json` to capture metadata for automations.
+- Use `--format json` to capture metadata for automations.
 ### Adding & Updating
 - `blz add <alias> <url>` resolves llms-full vs llms.txt automatically.
 - `blz update <alias>` refreshes a single cache; `--all` fans out sequentially.
@@ -76,8 +76,8 @@
 
 ## JSON + Agent Workflows
 ### Machine-Readable Docs
-- `blz docs export --json` mirrors the Clap command tree for tool scaffolding.
-- `blz get <alias> section --json` surfaces `requests[]` entries with `snippet`, `lineStart`, and `lineEnd` (multi-range calls expose `ranges[]`).
+- `blz docs export --format json` mirrors the Clap command tree for tool scaffolding.
+- `blz get <alias> section --format json` surfaces `requests[]` entries with `snippet`, `lineStart`, and `lineEnd` (multi-range calls expose `ranges[]`).
 ### Prompt Builder Integration
 - Global `--prompt` flag (e.g., `blz --prompt search`) emits JSON describing arguments, outputs, and gotchas.
 - Agents can read `llms.json` for a normalized Table of Contents and anchor metadata.
@@ -86,7 +86,7 @@
 ## Keeping Bundled Docs Fresh
 - Run `blz docs sync` after upgrading BLZ to pull in the latest embedded guide revision.
 - The sync command compares base64 SHA-256 hashes to skip unnecessary reindexing.
-- `blz list --json` surfaces `tags` that include `internal` and `blz` so you can filter quickly.
+- `blz list --format json` surfaces `tags` that include `internal` and `blz` so you can filter quickly.
 
 ## Troubleshooting
 - `blz doctor` scans for common issues (missing indices, unreadable directories, stale manifests).
