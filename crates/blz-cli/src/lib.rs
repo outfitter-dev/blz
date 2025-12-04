@@ -822,15 +822,25 @@ async fn execute_command(
             limit,
             filter,
             max_depth,
+            heading_level,
+            sources,
+            all,
+            tree,
             anchors,
+            show_anchors,
         }) => {
             commands::show_toc(
-                &alias,
+                alias.as_deref(),
+                &sources,
+                all,
                 format.resolve(cli.quiet),
                 anchors,
+                show_anchors,
                 limit,
-                max_depth.map(usize::from),
+                max_depth,
+                heading_level.as_ref(),
                 filter.as_deref(),
+                tree,
             )
             .await?;
         },
@@ -1021,12 +1031,17 @@ async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
             filter,
         } => {
             commands::show_toc(
-                &alias,
+                Some(&alias),
+                &[],
+                false,
                 format.resolve(quiet),
                 anchors,
+                false, // show_anchors - not applicable in anchor list mode
                 limit,
-                max_depth.map(usize::from),
+                max_depth,
+                None,
                 filter.as_deref(),
+                false,
             )
             .await
         },
@@ -1972,7 +1987,7 @@ mod tests {
         let raw = to_string_vec(&["blz", "anchors", "react"]);
         let cli = Cli::try_parse_from(raw).expect("anchors alias should parse");
         match cli.command {
-            Some(Commands::Toc { alias, .. }) => assert_eq!(alias, "react"),
+            Some(Commands::Toc { alias, .. }) => assert_eq!(alias, Some("react".to_string())),
             other => panic!("expected toc command, got {other:?}"),
         }
     }
