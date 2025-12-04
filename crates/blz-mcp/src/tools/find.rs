@@ -1,6 +1,6 @@
 //! Find tool implementation for searching and retrieving documentation snippets
 
-use blz_core::{SearchIndex, Storage};
+use blz_core::{SearchIndex, Storage, index::DEFAULT_SNIPPET_CHAR_LIMIT};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -90,6 +90,10 @@ pub struct FindParams {
     /// Based on Anthropic research showing 30-65% token savings with concise mode.
     #[serde(default)]
     pub format: ResponseFormat,
+
+    /// Restrict matches to heading text only
+    #[serde(default)]
+    pub headings_only: bool,
 }
 
 fn default_context_mode() -> String {
@@ -263,8 +267,18 @@ async fn execute_search(
     query: &str,
     source_filter: Option<&str>,
     max_results: usize,
+    headings_only: bool,
 ) -> McpResult<Vec<SearchHitResult>> {
-    let hits = index.search(query, source_filter, max_results)?;
+    let hits = if headings_only {
+        index.search_headings_only(
+            query,
+            source_filter,
+            max_results,
+            DEFAULT_SNIPPET_CHAR_LIMIT,
+        )?
+    } else {
+        index.search(query, source_filter, max_results)?
+    };
 
     let results = hits
         .into_iter()
@@ -633,7 +647,15 @@ pub async fn handle_find(
             };
 
             // Search this index (it already filters by alias internally)
-            match execute_search(&index, query, Some(source), params.max_results).await {
+            match execute_search(
+                &index,
+                query,
+                Some(source),
+                params.max_results,
+                params.headings_only,
+            )
+            .await
+            {
                 Ok(hits) => {
                     all_hits.extend(hits);
                 },
@@ -945,6 +967,7 @@ Last line of section 2"#;
             max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         // Store index in cache
@@ -979,6 +1002,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1014,6 +1038,7 @@ Last line of section 2"#;
             max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         // Store index in cache
@@ -1060,6 +1085,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::Concise,
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1108,6 +1134,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::Detailed,
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1149,6 +1176,7 @@ Last line of section 2"#;
                 max_results: 10,
                 source: None,
                 format: ResponseFormat::default(),
+                headings_only: false,
             };
 
             let result = handle_find(params, &storage, &index_cache).await;
@@ -1164,6 +1192,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1184,6 +1213,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1208,6 +1238,7 @@ Last line of section 2"#;
             max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1223,6 +1254,7 @@ Last line of section 2"#;
             max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1244,6 +1276,7 @@ Last line of section 2"#;
             max_results: 1000,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1258,6 +1291,7 @@ Last line of section 2"#;
             max_results: 1001,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1287,6 +1321,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1310,6 +1345,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None,
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1346,6 +1382,7 @@ Last line of section 2"#;
             max_results: 10,
             source: None, // No source specified - should search all
             format: ResponseFormat::default(),
+            headings_only: false,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;

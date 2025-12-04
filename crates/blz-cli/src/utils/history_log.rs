@@ -223,6 +223,7 @@ mod tests {
             limit: Some(10),
             total_pages: Some(1),
             total_results: Some(5),
+            headings_only: false,
         }
     }
 
