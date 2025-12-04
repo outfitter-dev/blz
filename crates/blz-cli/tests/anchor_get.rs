@@ -84,6 +84,7 @@ async fn anchor_get_returns_expected_section() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
     let tmp = tempdir()?;
     let server = MockServer::start().await;
@@ -155,6 +156,47 @@ async fn toc_limit_and_depth_flags() -> anyhow::Result<()> {
     assert!(
         s.contains("Title"),
         "expected top-level heading to remain visible"
+    );
+
+    // Filter expression restricts to matching headings
+    let mut cmd = blz_cmd();
+    let filter_json = cmd
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args(["toc", "e2e", "--filter", "A.1", "-f", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let filtered: Value = serde_json::from_slice(&filter_json)?;
+    let filtered_arr = filtered.as_array().cloned().unwrap_or_default();
+    assert_eq!(
+        filtered_arr.len(),
+        1,
+        "expected only A.1 heading to match filter"
+    );
+    assert_eq!(
+        filtered_arr[0]
+            .get("headingPath")
+            .and_then(|hp| hp.as_array())
+            .and_then(|hp| hp.last())
+            .and_then(|last| last.as_str()),
+        Some("A.1")
+    );
+
+    let mut cmd = blz_cmd();
+    let filter_text = cmd
+        .env("BLZ_DATA_DIR", tmp.path())
+        .args(["toc", "e2e", "--filter", "-B"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8(filter_text)?;
+    assert!(
+        !s.contains('B'),
+        "expected filter to exclude headings containing 'B'"
     );
 
     Ok(())
