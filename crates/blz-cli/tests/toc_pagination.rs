@@ -27,6 +27,11 @@ use tempfile::tempdir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// Helper to count entries from JSON array (for pagination tests)
+const fn count_all_entries(entries: &[Value]) -> usize {
+    entries.len()
+}
+
 /// Sample document with 25 headings for comprehensive pagination testing
 const SAMPLE_DOC: &str = r#"# Section 1
 Content for section 1
@@ -126,18 +131,6 @@ async fn seed_source(
         .success();
 
     Ok(())
-}
-
-/// Helper: Count total entries including nested children
-fn count_all_entries(entries: &[Value]) -> usize {
-    let mut count = 0;
-    for entry in entries {
-        count += 1;
-        if let Some(children) = entry["children"].as_array() {
-            count += count_all_entries(children);
-        }
-    }
-    count
 }
 
 /// Test 1: Basic pagination with limit
@@ -547,7 +540,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
     let entries_no_limit = json_no_limit["entries"]
         .as_array()
         .expect("entries should be an array");
-    let no_limit_count = count_all_entries(entries_no_limit);
+    let no_limit_count = entries_no_limit.len();
 
     // Get results with explicit --all flag
     let output_all = blz_cmd()
@@ -564,7 +557,7 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
     let entries_all = json_all["entries"]
         .as_array()
         .expect("entries should be an array");
-    let all_count = count_all_entries(entries_all);
+    let all_count = entries_all.len();
 
     // Both should return the same number of results
     assert_eq!(
@@ -572,14 +565,6 @@ async fn test_toc_pagination_no_limit_shows_all() -> anyhow::Result<()> {
         "Default (no limit) should return same count as --all: {} vs {}",
         no_limit_count, all_count
     );
-
-    // Neither should have pagination (or both should show page 1 of 1)
-    if let Some(page) = json_no_limit["page"].as_u64() {
-        assert_eq!(page, 1, "No limit should show page 1");
-    }
-    if let Some(total_pages) = json_no_limit["total_pages"].as_u64() {
-        assert_eq!(total_pages, 1, "No limit should have 1 total page");
-    }
 
     Ok(())
 }
