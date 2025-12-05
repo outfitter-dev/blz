@@ -429,7 +429,7 @@ RUST_LOG=debug blz mcp-server
 blz list
 
 # Reindex if needed
-blz update <source>
+blz refresh <source>  # deprecated alias: blz update <source>
 ```
 
 ### High Latency

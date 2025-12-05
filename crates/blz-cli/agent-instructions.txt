@@ -11,7 +11,7 @@ Recommended defaults
 
 Core Commands
 - Add source (non-interactive): blz add <alias> <llms.txt-url> -y
-- Update all sources:           blz update --all
+- Refresh all sources:          blz refresh --all  # deprecated alias: blz update --all
 - List sources (JSON):          blz list --format json
 - CLI docs (Markdown):          blz docs --format markdown
 - CLI docs (JSON):              BLZ_OUTPUT_FORMAT=json blz docs

@@ -95,10 +95,10 @@ Output:
 
 > Note: Update functionality is not yet implemented in the MVP
 
-### Future: Update Single Source
+### Future: Refresh Single Source
 
 ```bash
-blz update bun
+blz refresh bun  # deprecated alias: blz update bun
 ```
 
 This will:
@@ -107,10 +107,10 @@ This will:
 - Skip if unchanged (304 Not Modified)
 - Re-index only if content changed
 
-### Future: Update All Sources
+### Future: Refresh All Sources
 
 ```bash
-blz update --all
+blz refresh --all  # deprecated alias: blz update --all
 ```
 
 Updates all sources efficiently using conditional requests.
@@ -262,8 +262,8 @@ blz add webpack https://webpack.js.org/llms.txt
 Once implemented, update regularly:
 
 ```bash
-# Future: Daily update
-blz update --all
+# Future: Daily refresh
+blz refresh --all  # deprecated alias: blz update --all
 ```
 
 ### 4. Monitor Storage

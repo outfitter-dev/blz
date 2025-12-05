@@ -107,9 +107,9 @@ blz "api" --json
 # List all sources
 blz list
 
-# Update sources
-blz update --all
-blz update react
+# Refresh sources
+blz refresh --all
+blz refresh react  # deprecated alias: blz update react
 
 # Remove source
 blz remove react

@@ -18,7 +18,7 @@
   ],
   "follow_up": [
     "Combine with `blz stats --json` for a workspace-level view.",
-    "If a source is stale, jump straight to `blz update <alias>`.",
+    "If a source is stale, jump straight to `blz refresh <alias>` (deprecated alias: `blz update <alias>`).",
     "To remove it afterwards, call `blz remove <alias> --yes`."
   ]
 }

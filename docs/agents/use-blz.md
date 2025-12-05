@@ -146,9 +146,11 @@ blz toc --all -H 1-2 --json
 ## Keep Sources Fresh
 
 ```bash
-blz update bun --json        # Refresh a single source
-blz update --all --json      # Refresh everything
+blz refresh bun --json       # Refresh a single source
+blz refresh --all --json     # Refresh everything
 ```
+
+> `blz update` still works as a deprecated alias and will emit a warning.
 
 ## Common JSON Pipelines
 

@@ -208,7 +208,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.zsh
 What it adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz toc`, and `blz anchor list|get`
+- Positional alias completion for `blz get`, `blz refresh`, `blz remove`, `blz toc`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
@@ -248,7 +248,7 @@ alias bs='blz search'
 alias bg='blz get'
 alias ba='blz add'
 alias bl='blz list'
-alias bu='blz update --all'
+alias bu='blz refresh --all'  # deprecated alias: blz update --all
 
 # Search function with fzf
 blz-fzf() {
@@ -346,7 +346,7 @@ Fish completions query your actual indexed sources:
 # Complete with your actual sources
 blz search -s <TAB>     # Shows: anthropic, nextjs, tanstack...
 blz get <TAB>           # Shows available sources
-blz update <TAB>        # Lists sources you can update
+blz refresh <TAB>       # Lists sources you can refresh (`blz update` alias still works)
 blz remove <TAB>        # Shows removable sources
 ```
 
@@ -385,7 +385,7 @@ abbr -a bs 'blz search'
 abbr -a bg 'blz get'
 abbr -a ba 'blz add'
 abbr -a bl 'blz list'
-abbr -a bu 'blz update --all'
+abbr -a bu 'blz refresh --all'  # deprecated alias: blz update --all
 
 # Common searches
 abbr -a bsh 'blz search hooks'
@@ -427,7 +427,7 @@ source /path/to/blz/scripts/blz-dynamic-completions.fish
 Adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz diff`, `blz toc`
+- Positional alias completion for `blz get`, `blz refresh`, `blz remove`, `blz diff`, `blz toc`
 - `blz anchor list <alias>` alias completion
 - `blz anchor get <alias> <anchor>` anchor completion (after alias is provided)
 
@@ -572,7 +572,7 @@ function Blz-Quick {
 
 # Update all sources
 function Blz-UpdateAll {
-    blz update --all
+    blz refresh --all  # deprecated alias: blz update --all
 }
 ```
 
@@ -617,7 +617,7 @@ For live alias suggestions (canonical + metadata aliases) when typing `blz` comm
 This adds:
 
 - `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz update`, `blz remove`, `blz toc`, and `blz anchor list|get`
+- Positional alias completion for `blz get`, `blz refresh`, `blz remove`, `blz toc`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases.

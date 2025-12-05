@@ -78,11 +78,11 @@ blz list
 # With metadata
 blz list --details
 
-# Update single source
-blz update bun
+# Refresh single source
+blz refresh bun  # deprecated alias: blz update bun
 
-# Update all sources
-blz update --all
+# Refresh all sources
+blz refresh --all  # deprecated alias: blz update --all
 
 # Remove source
 blz remove bun
@@ -137,11 +137,11 @@ blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"'
 blz get bun:304-324 -C 5
 ```
 
-### Update All Sources Daily
+### Refresh All Sources Daily
 
 ```bash
 # Add to cron/launchd
-blz update --all
+blz refresh --all  # deprecated alias: blz update --all
 ```
 
 ### Integration with Scripts

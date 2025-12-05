@@ -91,6 +91,7 @@ impl UpdateIndexer for DefaultIndexer {
 }
 
 /// Result summary for an update.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateOutcome {
     Updated {
@@ -231,7 +232,7 @@ fn create_spinner(message: &str) -> ProgressBar {
 
 /// Execute update for a specific source.
 #[deprecated(since = "1.4.0", note = "use refresh::execute instead")]
-#[allow(clippy::too_many_lines)]
+#[allow(dead_code, clippy::too_many_lines)]
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let canonical_alias =

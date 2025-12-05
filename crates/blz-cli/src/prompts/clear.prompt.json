@@ -18,7 +18,7 @@
   ],
   "agent_guidance": [
     "Call `blz list --json` beforehand and persist any metadata you need to restore.",
-    "Immediately follow with manifest-driven `blz add` or `blz update --all` to repopulate key sources.",
+    "Immediately follow with manifest-driven `blz add` or `blz refresh --all` (deprecated alias: `blz update --all`) to repopulate key sources.",
     "Use `./hydrate-dev.sh --force` instead when you only need to clone production data into the dev profile."
   ]
 }

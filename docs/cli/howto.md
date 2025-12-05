@@ -169,17 +169,19 @@ blz list --details
 blz list --json
 ```
 
-### I want to update all my sources
+### I want to refresh all my sources
 
 ```bash
-blz update --all
+blz refresh --all
 ```
 
-### I want to update one specific source
+### I want to refresh one specific source
 
 ```bash
-blz update bun
+blz refresh bun
 ```
+
+> `blz update` still works as a deprecated alias and emits a warning.
 
 ### I want to remove a source
 

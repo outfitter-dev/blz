@@ -215,7 +215,7 @@ fn source_health_check(
     let mut recommendations = Vec::new();
     if stale_count > 0 {
         recommendations.push(format!(
-            "Run `blz update --all` to refresh {stale_count} stale sources"
+            "Run `blz refresh --all` (deprecated alias: `blz update --all`) to refresh {stale_count} stale sources"
         ));
     }
     if corrupted_count > 0 {
@@ -298,13 +298,21 @@ async fn apply_fixes(storage: &Storage, report: &mut HealthReport) -> Result<()>
 
     // Fix 1: Update stale sources
     if !report.source_health.stale_sources.is_empty() {
-        println!("  Updating stale sources...");
+        println!("  Refreshing stale sources...");
         let metrics = blz_core::PerformanceMetrics::default();
         for alias in &report.source_health.stale_sources {
-            #[allow(deprecated)]
-            match crate::commands::update::execute(alias, metrics.clone(), true).await {
-                Ok(()) => println!("    ✓ Updated {alias}"),
-                Err(e) => eprintln!("    ✗ Failed to update {alias}: {e}"),
+            match crate::commands::refresh::execute(
+                alias,
+                metrics.clone(),
+                true,
+                false,
+                None,
+                false,
+            )
+            .await
+            {
+                Ok(()) => println!("    ✓ Refreshed {alias}"),
+                Err(e) => eprintln!("    ✗ Failed to refresh {alias}: {e}"),
             }
         }
     }

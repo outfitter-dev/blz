@@ -334,8 +334,8 @@ blz search "async rust" --source bun  # Search specific source
 blz add react https://react.dev/llms.txt  # Add new source
 blz remove react                 # Remove source
 blz list                          # List all sources
-blz update                        # Update all sources
-blz update react                  # Update specific source
+blz refresh --all                 # Refresh all sources (deprecated alias: blz update --all)
+blz refresh react                 # Refresh specific source (deprecated alias: blz update react)
 ```
 
 ## Testing CLI Applications
