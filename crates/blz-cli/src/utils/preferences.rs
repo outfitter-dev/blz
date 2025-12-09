@@ -206,7 +206,6 @@ impl<'a> HistoryEntryBuilder<'a> {
         self
     }
 
-    #[allow(dead_code)]
     pub const fn with_headings_only(mut self, headings_only: bool) -> Self {
         self.headings_only = headings_only;
         self

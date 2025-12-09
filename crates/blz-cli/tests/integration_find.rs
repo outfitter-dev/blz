@@ -466,3 +466,31 @@ async fn find_with_multiple_sources_in_search_mode() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn find_heading_level_filter_with_range_syntax() -> anyhow::Result<()> {
+    let tmp = tempdir()?;
+    let server = MockServer::start().await;
+
+    seed_source(&tmp, &server, "docs", SAMPLE_DOC).await?;
+
+    // Filter for headings level 2-3 (h2 and h3)
+    let filtered = run_find_json(
+        &tmp,
+        &[
+            "find", "section", "--source", "docs", "-H", "2-3", "-f", "json",
+        ],
+    )?;
+
+    // All results should have level between 2 and 3 (inclusive)
+    for result in filtered["results"].as_array().unwrap() {
+        let level = result.get("level").and_then(Value::as_u64).unwrap();
+        assert!(
+            (2..=3).contains(&level),
+            "filtered result should have level 2-3, got {}",
+            level
+        );
+    }
+
+    Ok(())
+}

@@ -17,7 +17,8 @@ use blz_core::{PerformanceMetrics, ResourceMonitor};
 use super::get;
 use super::search::{
     ALL_RESULTS_LIMIT, DEFAULT_SCORE_PRECISION, SearchOptions, clamp_max_chars,
-    copy_results_to_clipboard, format_and_display, perform_search, resolve_show_components,
+    copy_results_to_clipboard, default_search_limit, format_and_display, perform_search,
+    resolve_show_components,
 };
 
 /// Detect if input matches citation format: `alias:digits-digits[,digits-digits]*`
@@ -168,8 +169,8 @@ async fn execute_retrieve_mode(
         line_expression: line_expression.to_string(),
     }];
 
-    // Delegate to get::execute function
-    get::execute(&specs, context_mode, block, max_lines, format, copy).await
+    // Delegate to get::execute_internal to avoid deprecation warning
+    get::execute_internal(&specs, context_mode, block, max_lines, format, copy).await
 }
 
 /// Execute search mode (query detected)
@@ -207,10 +208,11 @@ async fn execute_search_mode(
     use tracing::warn;
 
     // Calculate actual limit with proper default
+    // Respects BLZ_DEFAULT_LIMIT env var for customization
     let limit = if all {
         ALL_RESULTS_LIMIT
     } else {
-        limit.unwrap_or(50)
+        limit.unwrap_or_else(default_search_limit)
     };
 
     // Clamp max_chars to valid range
@@ -308,6 +310,7 @@ async fn execute_search_mode(
             total_pages: Some(total_pages),
             total_results: Some(total_results),
         })
+        .with_headings_only(options.headings_only)
         .build();
         if !options.no_history {
             if let Err(err) = history_log::append(&history_entry) {

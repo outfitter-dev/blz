@@ -6,6 +6,7 @@ const GLOBAL_PROMPT: &str = include_str!("prompts/blz.prompt.json");
 const ADD_PROMPT: &str = include_str!("prompts/add.prompt.json");
 const SEARCH_PROMPT: &str = include_str!("prompts/search.prompt.json");
 const GET_PROMPT: &str = include_str!("prompts/get.prompt.json");
+const FIND_PROMPT: &str = include_str!("prompts/find.prompt.json");
 const LIST_PROMPT: &str = include_str!("prompts/list.prompt.json");
 const REFRESH_PROMPT: &str = include_str!("prompts/refresh.prompt.json");
 const REMOVE_PROMPT: &str = include_str!("prompts/remove.prompt.json");
@@ -36,6 +37,7 @@ pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
         "add" => Some(ADD_PROMPT),
         "search" => Some(SEARCH_PROMPT),
         "get" => Some(GET_PROMPT),
+        "find" => Some(FIND_PROMPT),
         "list" | "sources" => Some(LIST_PROMPT),
         "refresh" => Some(REFRESH_PROMPT),
         "remove" | "rm" | "delete" => Some(REMOVE_PROMPT),
@@ -121,6 +123,7 @@ fn available_targets() -> Vec<&'static str> {
     vec![
         "blz",
         "add",
+        "find",
         "search",
         "get",
         "list",

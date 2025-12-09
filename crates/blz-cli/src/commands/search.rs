@@ -26,6 +26,16 @@ use crate::utils::toc::{
 pub(super) const ALL_RESULTS_LIMIT: usize = 10_000;
 pub(super) const DEFAULT_SCORE_PRECISION: u8 = 1;
 pub const DEFAULT_MAX_CHARS: usize = DEFAULT_SNIPPET_CHAR_LIMIT;
+/// Default limit for search results. Can be overridden via `BLZ_DEFAULT_LIMIT` env var.
+pub(super) const DEFAULT_SEARCH_LIMIT: usize = 50;
+
+/// Get the default search limit, checking `BLZ_DEFAULT_LIMIT` env var first.
+pub(super) fn default_search_limit() -> usize {
+    std::env::var("BLZ_DEFAULT_LIMIT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_SEARCH_LIMIT)
+}
 
 /// Search options
 #[derive(Debug, Clone)]
@@ -240,12 +250,12 @@ pub async fn handle_default(
     super::find::execute(
         &input,
         &sources_filter,
-        Some(50), // limit
-        false,    // all
-        1,        // page
-        false,    // last
-        None,     // top_percentile
-        None,     // heading_level - not supported in handle_default
+        Some(default_search_limit()), // limit - respects BLZ_DEFAULT_LIMIT env var
+        false,                        // all
+        1,                            // page
+        false,                        // last
+        None,                         // top_percentile
+        None,                         // heading_level - not supported in handle_default
         OutputFormat::Text,
         &show_components,
         false, // no_summary
