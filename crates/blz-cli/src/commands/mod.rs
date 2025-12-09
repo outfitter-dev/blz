@@ -14,6 +14,7 @@ mod diff;
 pub mod docs;
 pub mod docs_bundle;
 mod doctor;
+mod find;
 mod get;
 mod history;
 mod info;
@@ -46,6 +47,7 @@ pub use docs_bundle::{
     sync as sync_bundled_docs,
 };
 pub use doctor::execute as run_doctor;
+pub use find::execute as find;
 pub use get::{RequestSpec, execute as get_lines};
 pub use history::show as show_history;
 pub use info::execute_info;

@@ -497,9 +497,35 @@ fn process_single_request(
 }
 
 /// Execute the get command to retrieve specific lines from a source
+///
+/// **Deprecated**: Use `blz find` instead. The `get` command will be removed in a future release.
+///
+/// Note: The `find` command handles both search and retrieval with the same options.
+/// Use `blz find bun:120-142` instead of `blz get bun:120-142`.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cognitive_complexity)]
 pub async fn execute(
+    specs: &[RequestSpec],
+    context_mode: Option<&crate::cli::ContextMode>,
+    block: bool,
+    max_block_lines: Option<usize>,
+    format: OutputFormat,
+    copy: bool,
+) -> Result<()> {
+    // Emit deprecation warning to stderr (doesn't interfere with JSON output)
+    eprintln!("warning: `blz get` is deprecated, use `blz find` instead");
+
+    execute_internal(specs, context_mode, block, max_block_lines, format, copy).await
+}
+
+/// Internal implementation of get command - called by both `get` and `find` commands
+///
+/// This is the actual retrieval logic, separated from `execute` to allow `find` to call
+/// it without triggering the deprecation warning.
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::unused_async)] // Keep async for API consistency with execute()
+pub(super) async fn execute_internal(
     specs: &[RequestSpec],
     context_mode: Option<&crate::cli::ContextMode>,
     block: bool,

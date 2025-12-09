@@ -1,0 +1,98 @@
+{
+  "target": "find",
+  "summary": "Unified command for both search and retrieval. Automatically detects input pattern: text queries trigger search mode (BM25), citation patterns (alias:lines) trigger retrieve mode.",
+  "pattern_detection": [
+    "Text query (e.g., `async patterns`) → search mode with BM25 scoring",
+    "Citation (e.g., `bun:120-142`) → retrieve mode for exact line ranges",
+    "Multiple citations (e.g., `bun:120-142,200-210 react:50-75`) → batch retrieval"
+  ],
+  "primary_usage": [
+    {
+      "command": "blz find \"<query>\" --json",
+      "description": "Search mode. Returns ranked hits with alias, headingPath, lines, snippet, and score."
+    },
+    {
+      "command": "blz find <alias>:<lines> -C 5 --json",
+      "description": "Retrieve mode. Fetches exact line ranges with ±5 lines context."
+    },
+    {
+      "command": "blz find \"<query>\" -C all --json",
+      "description": "Search with full section expansion. One-shot query to complete context."
+    },
+    {
+      "command": "blz find <alias>:<lines> -C all --max-lines 80 --json",
+      "description": "Retrieve entire heading block, capped at 80 lines."
+    }
+  ],
+  "workflow_for_agents": [
+    "Set `BLZ_OUTPUT_FORMAT=json` globally for consistent structured output.",
+    "One-shot retrieval: `blz find \"<query>\" -C all --json` returns full sections immediately.",
+    "Heading-anchored search: `blz find \"# <heading text>\" --headings-only -C all --json` for stable section targeting.",
+    "Two-step approach: Search first, then retrieve with `blz find <alias>:<lines> -C 3 --json`.",
+    "Store checksum from JSON output to detect stale cache."
+  ],
+  "search_mode_flags": [
+    {
+      "flag": "--source <alias>",
+      "impact": "Scope search to specific source(s). Comma-separate for multiple."
+    },
+    {
+      "flag": "--limit <N> / --all",
+      "impact": "Control result count. Default: 50. Use --all for exhaustive search."
+    },
+    {
+      "flag": "--headings-only",
+      "impact": "Restrict search to heading fields. Pair with `#` prefix for heading-anchored retrieval."
+    },
+    {
+      "flag": "-H <filter>",
+      "impact": "Filter by heading level. Examples: -H 2 (only h2), -H 1,2 (h1 and h2), -H 2-4 (h2 through h4), -H <=2 (h1 and h2)."
+    },
+    {
+      "flag": "--max-chars <N>",
+      "impact": "Control snippet length (default: 200, range: 50-1000). Higher values help assess relevance."
+    },
+    {
+      "flag": "--top <percent>",
+      "impact": "Keep only top percentile of hits to reduce noise."
+    }
+  ],
+  "context_flags": [
+    {
+      "flag": "-C <N> / -A <N> / -B <N>",
+      "impact": "Add context lines: -C symmetric, -A after, -B before. Keep N small (0-3) for efficiency."
+    },
+    {
+      "flag": "-C all (or --context all)",
+      "impact": "Expand to full heading section. Use --max-lines to cap output."
+    },
+    {
+      "flag": "--max-lines <N>",
+      "impact": "Hard limit when using -C all to avoid oversized payloads."
+    }
+  ],
+  "retrieve_mode_notes": [
+    "Citation format: `<alias>:<start>-<end>` (e.g., `bun:120-142`)",
+    "Multiple ranges: `<alias>:<span1>,<span2>` (e.g., `bun:120-142,200-210`)",
+    "Multiple sources: space-separate (e.g., `bun:120-142 react:50-75`)"
+  ],
+  "try_this": [
+    {
+      "command": "blz find \"error handling\" -C all -s react --json",
+      "why": "Full sections from search in one command. Fastest path to complete context."
+    },
+    {
+      "command": "blz find bun:41994-42009 -C 5 --json",
+      "why": "Precise retrieval with context. Feed citation from previous search."
+    },
+    {
+      "command": "blz find \"# Skip tests\" --headings-only -C all --json",
+      "why": "Heading-anchored retrieval. Resilient to line shifts."
+    },
+    {
+      "command": "blz find \"config\" -H 2,3 --json",
+      "why": "Filter to h2 and h3 headings only. Reduces noise from deep nesting."
+    }
+  ],
+  "deprecation_note": "The `find` command replaces both `search` and `get`. Use `blz find` for all workflows."
+}

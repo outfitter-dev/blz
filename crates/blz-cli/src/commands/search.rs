@@ -16,7 +16,6 @@ use tracing::warn;
 
 use crate::cli::ShowComponent;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
-use crate::utils::history_log;
 use crate::utils::parsing::parse_line_span;
 use crate::utils::preferences::{self, CliPreferences};
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
@@ -24,14 +23,24 @@ use crate::utils::toc::{
     extract_block_slice, finalize_block_slice, find_heading_span, heading_level_from_line,
 };
 
-const ALL_RESULTS_LIMIT: usize = 10_000;
-const DEFAULT_SCORE_PRECISION: u8 = 1;
+pub(super) const ALL_RESULTS_LIMIT: usize = 10_000;
+pub(super) const DEFAULT_SCORE_PRECISION: u8 = 1;
 pub const DEFAULT_MAX_CHARS: usize = DEFAULT_SNIPPET_CHAR_LIMIT;
+/// Default limit for search results. Can be overridden via `BLZ_DEFAULT_LIMIT` env var.
+pub(super) const DEFAULT_SEARCH_LIMIT: usize = 50;
+
+/// Get the default search limit, checking `BLZ_DEFAULT_LIMIT` env var first.
+pub(super) fn default_search_limit() -> usize {
+    std::env::var("BLZ_DEFAULT_LIMIT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_SEARCH_LIMIT)
+}
 
 /// Search options
 #[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
-pub struct SearchOptions {
+pub(super) struct SearchOptions {
     pub query: String,
     pub sources: Vec<String>,
     pub last: bool,
@@ -60,14 +69,14 @@ pub struct SearchOptions {
 
 #[derive(Default, Debug, Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)]
-struct ShowToggles {
-    url: bool,
-    lines: bool,
-    anchor: bool,
-    raw_score: bool,
+pub(super) struct ShowToggles {
+    pub(super) url: bool,
+    pub(super) lines: bool,
+    pub(super) anchor: bool,
+    pub(super) raw_score: bool,
 }
 
-fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
+pub(super) fn resolve_show_components(components: &[ShowComponent]) -> ShowToggles {
     let mut toggles = ShowToggles::default();
     for component in components {
         match component {
@@ -88,6 +97,10 @@ pub fn clamp_max_chars(value: usize) -> usize {
 }
 
 /// Execute a search across cached documentation
+///
+/// This function delegates to the unified `find` command for consistent behavior.
+///
+/// **Deprecated**: Use `blz find` instead. The `search` command will be removed in a future release.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
@@ -97,6 +110,7 @@ pub async fn execute(
     limit: usize,
     page: usize,
     top_percentile: Option<u8>,
+    heading_level: Option<String>,
     format: OutputFormat,
     show: &[ShowComponent],
     no_summary: bool,
@@ -114,102 +128,51 @@ pub async fn execute(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
-    // Convert ContextMode to before/after context and block flag
-    let (before_context, after_context, block) = match context_mode {
-        Some(crate::cli::ContextMode::All) => (0, 0, true),
-        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
-        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
-        None => (0, 0, block),
+    // Emit deprecation warning to stderr (doesn't interfere with JSON output)
+    eprintln!("warning: `blz search` is deprecated, use `blz find` instead");
+
+    // Delegate to find command
+    // Convert limit to Option<usize> and bool `all` flag for find
+    let (limit_opt, all) = if limit >= ALL_RESULTS_LIMIT {
+        (None, true)
+    } else {
+        (Some(limit), false)
     };
-    let toggles = resolve_show_components(show);
-    let options = SearchOptions {
-        query: query.to_string(),
-        sources: sources.to_vec(),
-        last,
-        limit,
+
+    super::find::execute(
+        query,
+        sources,
+        limit_opt,
+        all,
         page,
+        last,
         top_percentile,
+        heading_level,
         format,
-        show_url: toggles.url,
-        show_lines: toggles.lines,
-        show_anchor: toggles.anchor,
-        show_raw_score: toggles.raw_score,
+        show,
         no_summary,
         score_precision,
-        snippet_lines: snippet_lines.max(1),
-        all: limit >= ALL_RESULTS_LIMIT, // If limit is >= ALL_RESULTS_LIMIT, we want all results
-        no_history,
-        copy,
-        before_context,
-        after_context,
+        snippet_lines,
+        Some(clamp_max_chars(max_chars)),
+        context_mode,
         block,
         max_block_lines,
-        max_chars: clamp_max_chars(max_chars),
+        no_history,
+        copy,
         quiet,
         headings_only,
-    };
-
-    let results = perform_search(&options, metrics.clone()).await?;
-    let ((page, actual_limit, total_pages), total_results) =
-        format_and_display(&results, &options)?;
-
-    // Copy results to clipboard if --copy flag was set
-    if options.copy && !results.hits.is_empty() {
-        copy_results_to_clipboard(&results, page, actual_limit)?;
-    }
-
-    if let Some(prefs) = prefs {
-        let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
-        let show_components = preferences::collect_show_components_extended(
-            options.show_url,
-            options.show_lines,
-            options.show_anchor,
-            options.show_raw_score,
-        );
-        prefs.set_default_show(&show_components);
-        prefs.set_default_score_precision(precision);
-        prefs.set_default_snippet_lines(options.snippet_lines);
-        let history_source_str;
-        let history_source = if options.sources.is_empty() {
-            None
-        } else if options.sources.len() == 1 {
-            Some(options.sources[0].as_str())
-        } else {
-            // For multiple sources, store as comma-separated list
-            history_source_str = options.sources.join(",");
-            Some(history_source_str.as_str())
-        };
-        let history_entry = preferences::HistoryEntryBuilder::new(
-            &options.query,
-            history_source,
-            options.format,
-            show,
-        )
-        .with_snippet_lines(options.snippet_lines)
-        .with_score_precision(precision)
-        .with_pagination(preferences::PaginationInfo {
-            page: Some(page),
-            limit: Some(actual_limit),
-            total_pages: Some(total_pages),
-            total_results: Some(total_results),
-        })
-        .with_headings_only(options.headings_only)
-        .build();
-        if !options.no_history {
-            if let Err(err) = history_log::append(&history_entry) {
-                warn!("failed to persist search history: {err}");
-            }
-        }
-    }
-
-    if let Some(monitor) = resource_monitor {
-        monitor.print_resource_usage();
-    }
-
-    Ok(())
+        prefs,
+        metrics,
+        resource_monitor,
+    )
+    .await
 }
 
 /// Handle default search from command line arguments
+///
+/// This function routes bare command syntax through the unified `find` command,
+/// which automatically detects whether the input is a citation (for retrieval)
+/// or a query (for search).
 pub async fn handle_default(
     args: &[String],
     metrics: PerformanceMetrics,
@@ -219,13 +182,16 @@ pub async fn handle_default(
 ) -> Result<()> {
     if args.is_empty() {
         println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
+        println!("       blz [CITATION]");
         println!("       blz search [OPTIONS] QUERY");
         println!("\nExamples:");
         println!("  blz hooks react");
         println!("  blz react hooks");
+        println!("  blz bun:120-142");
         println!("  blz search \"async await\" --source react --format json");
         println!("\nNotes:");
         println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
+        println!("  • CITATION format is alias:start-end (e.g., bun:120-142).");
         println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
         println!("  • Run 'blz --prompt search' for agent-focused guidance.");
         return Ok(());
@@ -239,20 +205,22 @@ pub async fn handle_default(
         return Ok(());
     }
 
-    let (mut query, mut alias) = parse_arguments(args, &sources);
+    let (input, source_arg) = parse_arguments(args, &sources);
 
-    // If no canonical alias was detected, attempt metadata alias resolution for first/last token
-    if alias.is_none() && args.len() >= 2 {
+    // If no canonical alias was detected in parse_arguments, attempt metadata alias resolution
+    let mut sources_filter = Vec::new();
+    if let Some(ref source_name) = source_arg {
+        sources_filter.push(source_name.clone());
+    } else if args.len() >= 2 {
+        // Try first and last args as potential source names
         let first = &args[0];
         let last = &args[args.len() - 1];
         if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, first) {
             // blz SOURCE QUERY...
-            alias = Some(canon);
-            query = args[1..].join(" ");
+            sources_filter.push(canon);
         } else if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, last) {
             // blz QUERY... SOURCE
-            alias = Some(canon);
-            query = args[..args.len() - 1].join(" ");
+            sources_filter.push(canon);
         }
     }
 
@@ -276,30 +244,31 @@ pub async fn handle_default(
     let max_chars_env = std::env::var("BLZ_MAX_CHARS")
         .ok()
         .and_then(|raw| raw.parse::<usize>().ok());
-    let max_chars = max_chars_env.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
+    let max_chars = max_chars_env.map(clamp_max_chars);
 
-    let sources = alias.map_or_else(Vec::new, |alias_str| vec![alias_str]);
-
-    execute(
-        &query,
-        &sources,
-        false,
-        50,
-        1,
-        None,
+    // Delegate to the unified find command
+    super::find::execute(
+        &input,
+        &sources_filter,
+        Some(default_search_limit()), // limit - respects BLZ_DEFAULT_LIMIT env var
+        false,                        // all
+        1,                            // page
+        false,                        // last
+        None,                         // top_percentile
+        None,                         // heading_level - not supported in handle_default
         OutputFormat::Text,
         &show_components,
-        false,
+        false, // no_summary
         Some(score_precision),
         snippet_lines,
         max_chars,
-        None,
-        false,
-        None,
-        false,
-        false, // no_history: false for default search
-        false, // copy: false for default search
+        None,  // context_mode
+        false, // block
+        None,  // max_block_lines
+        false, // no_history
+        false, // copy
         quiet,
+        false, // headings_only
         Some(prefs),
         metrics,
         resource_monitor,
@@ -329,11 +298,11 @@ fn parse_arguments(args: &[String], sources: &[String]) -> (String, Option<Strin
     (args.join(" "), None)
 }
 
-struct SearchResults {
-    hits: Vec<SearchHit>,
-    total_lines_searched: usize,
-    search_time: std::time::Duration,
-    sources: Vec<String>,
+pub(super) struct SearchResults {
+    pub(super) hits: Vec<SearchHit>,
+    pub(super) total_lines_searched: usize,
+    pub(super) search_time: std::time::Duration,
+    pub(super) sources: Vec<String>,
 }
 
 fn get_max_concurrent_searches() -> usize {
@@ -341,7 +310,7 @@ fn get_max_concurrent_searches() -> usize {
 }
 
 #[allow(clippy::too_many_lines)]
-async fn perform_search(
+pub(super) async fn perform_search(
     options: &SearchOptions,
     metrics: PerformanceMetrics,
 ) -> Result<SearchResults> {
@@ -804,7 +773,7 @@ fn ensure_llms<'a>(
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
 #[allow(clippy::too_many_lines)]
-fn format_and_display(
+pub(super) fn format_and_display(
     results: &SearchResults,
     options: &SearchOptions,
 ) -> Result<((usize, usize, usize), usize)> {
@@ -1038,7 +1007,11 @@ fn score_tokens(h: &[String], q: &[String]) -> f32 {
 // alias resolution moved to utils::resolver
 
 /// Copy search results to clipboard using OSC 52
-fn copy_results_to_clipboard(results: &SearchResults, page: usize, page_size: usize) -> Result<()> {
+pub(super) fn copy_results_to_clipboard(
+    results: &SearchResults,
+    page: usize,
+    page_size: usize,
+) -> Result<()> {
     use crate::utils::clipboard;
 
     // Calculate which hits are on the current page
@@ -1083,6 +1056,7 @@ mod tests {
                 file: "llms.txt".to_string(),
                 heading_path: vec![format!("heading-{i}")],
                 raw_heading_path: Some(vec![format!("heading-{i}")]),
+                level: 1,
                 lines: format!("{start}-{end}", start = i * 10, end = i * 10 + 5),
                 line_numbers: Some(vec![i * 10, i * 10 + 5]),
                 snippet: format!("test content {i}"),

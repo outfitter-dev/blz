@@ -48,6 +48,7 @@
 //!     file: "hooks.md".to_string(),
 //!     heading_path: vec!["Hooks".to_string(), "useState".to_string()],
 //!     raw_heading_path: None,
+//!     level: 2,
 //!     lines: "120-145".to_string(),
 //!     line_numbers: Some(vec![120, 145]),
 //!     snippet: "useState returns an array with two elements...".to_string(),
@@ -639,6 +640,13 @@ pub struct SearchHit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw_heading_path: Option<Vec<String>>,
 
+    /// Heading level (1-6) for the section containing this hit.
+    ///
+    /// Corresponds to the number of `#` characters in the markdown heading.
+    /// Level 1 is top-level (`#`), level 6 is deepest (`######`).
+    /// Calculated from the `heading_path` length.
+    pub level: u8,
+
     /// Line range containing the matching content.
     ///
     /// Format: `"start-end"` with 1-based line numbers.
@@ -881,6 +889,7 @@ mod tests {
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             raw_heading_path: Some(vec!["React".to_string(), "Hooks".to_string()]),
+            level: 2,
             lines: "100-120".to_string(),
             line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
@@ -898,6 +907,7 @@ mod tests {
             file: "hooks.md".to_string(),
             heading_path: vec!["React".to_string(), "Hooks".to_string()],
             raw_heading_path: Some(vec!["React".to_string(), "Hooks".to_string()]),
+            level: 2,
             lines: "100-120".to_string(),
             line_numbers: Some(vec![100, 120]),
             snippet: "useState is a React hook...".to_string(),
