@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI: Rename `update` command to `refresh` ([BLZ-262](https://linear.app/outfitter/issue/BLZ-262))
 
 ### Added
+- **Unified `find` command** ([BLZ-229](https://linear.app/outfitter/issue/BLZ-229)): New command consolidating `search` and `get` with automatic pattern-based dispatch
+  - **Smart routing**: Citations (e.g., `bun:120-142`) trigger retrieve mode; text queries trigger search mode
+  - **Heading-level filtering**: `-H` flag filters results by markdown heading level (1-6)
+    - Single level: `-H 2` (only h2)
+    - Range syntax: `-H 2-4` (h2 through h4)
+    - Comparison: `-H <=2` (h1 and h2)
+    - List: `-H 1,3,5` (specific levels)
+  - **New `level` field**: Search results now include heading level (1-6) for filtering and display
+  - **Configurable defaults**: `BLZ_DEFAULT_LIMIT` environment variable controls default search limit
+  - **Agent prompt**: New `blz --prompt find` provides comprehensive guidance for AI agents
 - **Table of contents enhancements**: New filtering and navigation controls for `blz toc`
   - `--limit <N>`: Trim output to first N headings
   - `--max-depth <1-6>`: Restrict results to headings at or above specified depth
@@ -50,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 - `blz update` is now hidden and emits a warning. Use `blz refresh` instead.
+- `blz search` and `blz get` are now hidden and emit deprecation warnings. Use `blz find` instead.
+  - Both commands continue to work and route through `find` internally
+  - Will be removed in a future major version
 
 ### Fixed
 - **Language filtering consistency** ([BLZ-261](https://linear.app/outfitter/issue/BLZ-261)): Improved locale detection and fallback behavior
