@@ -117,11 +117,50 @@ for package_file in "${PACKAGE_FILES[@]}"; do
         DEPS_LIST+=("$clean_dep")
       done
     else
-      # Fallback: grep-based extraction (less reliable)
-      log_verbose "Warning: jq not found, using fallback grep method"
-      deps=$(grep -A 100 '"dependencies"' "$package_file" | \
-             grep -E '^\s*"[^"]+"\s*:' | \
-             sed 's/.*"\([^"]*\)".*/\1/' || true)
+      # Fallback: use Python if available, otherwise a minimal awk parser.
+      if command -v python3 &> /dev/null; then
+        deps=$(python3 - "$package_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    sys.exit(0)
+
+for name in (data.get("dependencies") or {}).keys():
+    print(name)
+PY
+)
+      elif command -v python &> /dev/null; then
+        deps=$(python - "$package_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    sys.exit(0)
+
+for name in (data.get("dependencies") or {}).keys():
+    print(name)
+PY
+)
+      else
+        log_verbose "Warning: jq and python not found, using awk fallback"
+        deps=$(awk '
+          /"dependencies"[[:space:]]*:[[:space:]]*{/ {in=1; depth=1; next}
+          in {
+            if ($0 ~ /{/) depth++
+            if ($0 ~ /}/) {depth--; if (depth==0) {in=0; next}}
+            if (match($0, /"([^"]+)"[[:space:]]*:/, m)) print m[1]
+          }
+        ' "$package_file" || true)
+      fi
 
       for dep in $deps; do
         clean_dep=$(echo "$dep" | sed 's/^@//' | tr '/' '-')

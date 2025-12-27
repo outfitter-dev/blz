@@ -29,16 +29,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Claude Code Plugin**: Official plugin for integrating BLZ documentation search into Claude Code workflows
   - **Commands**: Single `/blz` command handling search, retrieval, and source management
-  - **Agents**: `@blz:trailblazer` for search, retrieval, and source management workflows
-  - **Skills**: `blz-search` for search patterns, `blz-manage-sources` for source management
+  - **Agents**: `@blz:blazer` for search, retrieval, and source management workflows
+  - **Skills**: `blz-docs-search` for search patterns, `blz-source-management` for source management
   - **Dependency Scanning**: Automatic discovery of documentation candidates from Cargo.toml and package.json
-  - **Local Installation**: Support for local development with `/plugin install /path/to/claude-plugin`
+  - **Local Installation**: Support for local development with `/plugin install /path/to/.claude-plugin`
   - **Documentation**: Comprehensive guides in `docs/agents/claude-code.md` and plugin README
 - **Table of contents enhancements**: New filtering and navigation controls for `blz toc`
   - `--limit <N>`: Trim output to first N headings
   - `--max-depth <1-6>`: Restrict results to headings at or above specified depth
-  - `--filter <expr>`: Search heading paths with boolean expressions (e.g., `+api -deprecated`)
+  - `--filter <expr>`: Search heading paths with boolean expressions (e.g., `API AND NOT deprecated`)
   - Improved agent workflows for hierarchical document navigation
+- **Unified `find` command** ([BLZ-229](https://linear.app/outfitter/issue/BLZ-229)): New command consolidating `search` and `get` with automatic pattern-based dispatch
+  - **Smart routing**: Citations (e.g., `bun:120-142`) trigger retrieve mode; text queries trigger search mode
+  - **Heading-level filtering**: `-H` flag filters results by markdown heading level (1-6)
+    - Single level: `-H 2` (only h2)
+    - Range syntax: `-H 2-4` (h2 through h4)
+    - Comparison: `-H <=2` (h1 and h2)
+    - List: `-H 1,3,5` (specific levels)
+  - **New `level` field**: Search results now include heading level (1-6) for filtering and display
+  - **Configurable defaults**: `BLZ_DEFAULT_LIMIT` environment variable controls default search limit
+  - **Agent prompt**: New `blz --prompt find` provides comprehensive guidance for AI agents
 
 ### Changed
 - **CLI prompts migration** ([BLZ-240](https://linear.app/outfitter/issue/BLZ-240)): Replaced `dialoguer` with `inquire` for interactive CLI prompts
@@ -54,25 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatibility: `blz anchors` and `--mappings` remain as hidden aliases
   - No breaking changes for existing users
 - CLI: Rename `update` command to `refresh` ([BLZ-262](https://linear.app/outfitter/issue/BLZ-262))
-- **Plugin Structure**: Reorganized from `.claude-plugin/` to `claude-plugin/` for better clarity
-- **Agent References**: Updated plugin commands to use `@blz:trailblazer` for unified documentation operations
-
-### Added
-- **Unified `find` command** ([BLZ-229](https://linear.app/outfitter/issue/BLZ-229)): New command consolidating `search` and `get` with automatic pattern-based dispatch
-  - **Smart routing**: Citations (e.g., `bun:120-142`) trigger retrieve mode; text queries trigger search mode
-  - **Heading-level filtering**: `-H` flag filters results by markdown heading level (1-6)
-    - Single level: `-H 2` (only h2)
-    - Range syntax: `-H 2-4` (h2 through h4)
-    - Comparison: `-H <=2` (h1 and h2)
-    - List: `-H 1,3,5` (specific levels)
-  - **New `level` field**: Search results now include heading level (1-6) for filtering and display
-  - **Configurable defaults**: `BLZ_DEFAULT_LIMIT` environment variable controls default search limit
-  - **Agent prompt**: New `blz --prompt find` provides comprehensive guidance for AI agents
-- **Table of contents enhancements**: New filtering and navigation controls for `blz toc`
-  - `--limit <N>`: Trim output to first N headings
-  - `--max-depth <1-6>`: Restrict results to headings at or above specified depth
-  - `--filter <expr>`: Search heading paths with boolean expressions (e.g., `+api -deprecated`)
-  - Improved agent workflows for hierarchical document navigation
+- **Plugin Structure**: Consolidated Claude plugin assets under `.claude-plugin/` for clarity
+- **Agent References**: Updated plugin commands to use `@blz:blazer` for unified documentation operations
 
 ### Deprecated
 - `blz update` is now hidden and emits a warning. Use `blz refresh` instead.

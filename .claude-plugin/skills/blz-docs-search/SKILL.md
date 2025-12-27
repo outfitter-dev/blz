@@ -1,5 +1,5 @@
 ---
-name: blz-search
+name: blz-docs-search
 description: Teaches effective documentation search using the blz CLI tool. Use when searching documentation with blz, looking up APIs, finding code examples, retrieving citations, or when questions mention libraries, frameworks, "how to", or documentation topics. Covers BM25 full-text search patterns, citation retrieval, and efficient querying.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: trailblazer
+name: blazer
 description: |
   Documentation search and retrieval using the blz CLI. Handles all blz operations: searching documentation, retrieving content by citation, adding sources, listing sources, and managing the documentation cache. Use when users need to find technical documentation, API references, code examples, or manage their indexed documentation sources.
 
