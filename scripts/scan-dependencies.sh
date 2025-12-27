@@ -145,7 +145,8 @@ if [[ "$CARGO_FILES" -gt 0 ]]; then
         ALL_DEPS+=("$dep")
       done
 
-      log_verbose "Found $(echo "$cargo_deps" | wc -l | tr -d ' ') Cargo dependencies"
+      cargo_count=$(echo "$cargo_deps" | grep -cve '^[[:space:]]*$' || true)
+      log_verbose "Found $cargo_count Cargo dependencies"
     else
       log_verbose "Warning: jq not found, skipping Cargo dependency parsing"
     fi
@@ -170,7 +171,8 @@ if [[ "$NPM_FILES" -gt 0 ]]; then
         ALL_DEPS+=("$dep")
       done
 
-      log_verbose "Found $(echo "$npm_deps" | wc -l | tr -d ' ') npm dependencies"
+      npm_count=$(echo "$npm_deps" | grep -cve '^[[:space:]]*$' || true)
+      log_verbose "Found $npm_count npm dependencies"
     else
       log_verbose "Warning: jq not found, skipping npm dependency parsing"
     fi
@@ -186,52 +188,39 @@ log_info "Total unique dependencies: ${#UNIQUE_DEPS[@]}"
 
 # Output results
 if [[ "$FORMAT" == "json" ]]; then
-  # JSON output
-  echo -n '{"found":{'
-
-  # Cargo deps (sorted and deduplicated)
-  echo -n '"cargo":['
-  first=true
-  for dep in $(printf '%s\n' "${CARGO_DEPS_LIST[@]}" | sort -u); do
-    if [[ "$first" == "true" ]]; then
-      first=false
-    else
-      echo -n ','
+  json_array_from_stdin() {
+    if command -v jq &> /dev/null; then
+      jq -R -s -c 'split("\n") | map(select(length > 0))'
+      return
     fi
-    echo -n "\"$dep\""
-  done
-  echo -n '],'
 
-  # npm deps (sorted and deduplicated)
-  echo -n '"npm":['
-  first=true
-  for dep in $(printf '%s\n' "${NPM_DEPS_LIST[@]}" | sort -u); do
-    if [[ "$first" == "true" ]]; then
-      first=false
-    else
-      echo -n ','
+    if command -v python3 &> /dev/null; then
+      python3 - <<'PY'
+import json
+import sys
+
+print(json.dumps([line.rstrip("\n") for line in sys.stdin if line.strip()]))
+PY
+      return
     fi
-    echo -n "\"$dep\""
-  done
-  echo -n ']'
 
-  echo -n '},'
-  echo -n "\"total\":${#UNIQUE_DEPS[@]},"
+    return 1
+  }
 
-  # All candidates
-  echo -n '"candidates":['
-  first=true
-  for dep in "${UNIQUE_DEPS[@]}"; do
-    if [[ "$first" == "true" ]]; then
-      first=false
-    else
-      echo -n ','
-    fi
-    echo -n "\"$dep\""
-  done
-  echo -n ']'
+  if ! command -v jq &> /dev/null && ! command -v python3 &> /dev/null; then
+    echo "Error: JSON output requires jq or python3 for safe encoding." >&2
+    exit 1
+  fi
 
-  echo '}'
+  cargo_json=$(printf '%s\n' "${CARGO_DEPS_LIST[@]}" | sort -u | json_array_from_stdin)
+  npm_json=$(printf '%s\n' "${NPM_DEPS_LIST[@]}" | sort -u | json_array_from_stdin)
+  candidates_json=$(printf '%s\n' "${UNIQUE_DEPS[@]}" | json_array_from_stdin)
+
+  printf '{"found":{"cargo":%s,"npm":%s},"total":%s,"candidates":%s}\n' \
+    "${cargo_json}" \
+    "${npm_json}" \
+    "${#UNIQUE_DEPS[@]}" \
+    "${candidates_json}"
 else
   # Text output
   echo ""

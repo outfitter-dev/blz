@@ -40,7 +40,7 @@ Agent discovers llms.txt is an index, expands to find linked docs (guides.txt, j
 </commentary>
 </example>
 
-tools: Bash(blz:*), Bash(curl:*), Bash(scripts/scan-*), Glob, Grep, Read, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, mcp__firecrawl, mcp__context7, Task, mcp__blz__*
+tools: Bash(blz:*), Bash(curl:*), Bash(scripts/scan-*), Glob, Grep, Read, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, mcp__firecrawl, mcp__context7, mcp__blz__blz_find, mcp__blz__blz_list_sources, mcp__blz__blz_add_source, mcp__blz__blz_run_command, mcp__blz__blz_learn
 model: sonnet
 color: green
 ---

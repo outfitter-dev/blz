@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SOURCE_DIR="${REPO_ROOT}/.claude-plugin"
 PLUGIN_DIR="${REPO_ROOT}/claude-plugin"
 
 # Colors for output
@@ -24,8 +25,16 @@ log_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
 }
 
+if [[ ! -d "${SOURCE_DIR}" ]]; then
+    log_warning "Canonical plugin source directory not found at ${SOURCE_DIR}"
+    exit 1
+fi
+
 # Ensure plugin directory exists
-mkdir -p "${PLUGIN_DIR}"/{.claude-plugin,agents,commands,skills}
+mkdir -p "${PLUGIN_DIR}"
+
+log_info "Syncing canonical plugin files..."
+cp -R "${SOURCE_DIR}/." "${PLUGIN_DIR}/"
 
 log_info "Building Claude Code plugin..."
 
@@ -50,9 +59,15 @@ fi
 # Skills: claude-plugin/skills/ (canonical)
 # Agents: .claude/agents/ (canonical, synced to claude-plugin/)
 
+# Remove legacy nested directory if it exists from older builds
+if [[ -d "${PLUGIN_DIR}/.claude-plugin" ]]; then
+    rm -rf "${PLUGIN_DIR}/.claude-plugin"
+fi
+
 # Verify plugin.json exists
-if [[ ! -f "${PLUGIN_DIR}/.claude-plugin/plugin.json" ]]; then
+if [[ ! -f "${PLUGIN_DIR}/plugin.json" ]]; then
     log_warning "plugin.json not found! Plugin may not work correctly."
+    exit 1
 fi
 
 # Verify README exists

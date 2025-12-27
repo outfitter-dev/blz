@@ -11,7 +11,7 @@
       "mcp__firecrawl__firecrawl_scrape",
       "Bash(git worktree list)",
       "Bash(env)",
-      "Bash(cat /Users/mg/Developer/outfitter/blz/.conductor/amsterdam/.git)",
+      "Bash(cat .conductor/amsterdam/.git)",
       "Bash(blz list --status --json)",
       "WebSearch",
       "WebFetch(domain:docs.rs)",
@@ -35,7 +35,7 @@
     "sequential-thinking"
   ],
   "hooks": {
-    "sessionStart": [
+    "SessionStart": [
       {
         "matcher": "",
         "hooks": [
