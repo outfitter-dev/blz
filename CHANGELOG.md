@@ -28,9 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Claude Code Plugin**: Official plugin for integrating BLZ documentation search into Claude Code workflows
-  - **Commands**: `/blz-add`, `/blz-quick-search`, `/blz-retrieve`, `/blz-manage`, `/add-source`, `/search-docs-with-blz`
-  - **Agents**: `@blz-docs-searcher` for complex research and synthesis, `@blz-source-manager` for intelligent source management
-  - **Skills**: `blz-search` for core search patterns, `add-blz-source` for source validation workflows
+  - **Commands**: Single `/blz` command handling search, retrieval, and source management
+  - **Agents**: `@blz:trailblazer` for search, retrieval, and source management workflows
+  - **Skills**: `blz-search` for search patterns, `blz-manage-sources` for source management
   - **Dependency Scanning**: Automatic discovery of documentation candidates from Cargo.toml and package.json
   - **Local Installation**: Support for local development with `/plugin install /path/to/claude-plugin`
   - **Documentation**: Comprehensive guides in `docs/agents/claude-code.md` and plugin README

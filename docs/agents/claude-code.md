@@ -40,125 +40,72 @@ blz --version
 
 ## Available Commands
 
-### `/blz-add <source> <url>`
+### `/blz <query>`
+
+Search across all indexed documentation sources.
+
+**Examples:**
+```bash
+/blz "test runner"
+/blz useEffect cleanup
+```
+
+### `/blz add <source> <url>`
 
 Add a new documentation source to your BLZ index.
 
 **Examples:**
 ```bash
-/blz-add bun https://bun.sh/llms-full.txt
-/blz-add react https://react.dev/llms.txt
+/blz add bun https://bun.sh/llms-full.txt
+/blz add react https://react.dev/llms.txt
 ```
 
-### `/blz-quick-search <query>`
-
-Quick search across all indexed documentation sources.
-
-**Examples:**
-```bash
-/blz-quick-search "test runner"
-/blz-quick-search "useEffect cleanup"
-```
-
-### `/blz-retrieve <citation>`
+### `/blz get <citation>`
 
 Retrieve exact lines from a citation returned by search.
 
 **Examples:**
 ```bash
-/blz-retrieve bun:304-324
-/blz-retrieve react:2000-2050 -C 5
+/blz get bun:304-324
+/blz get react:2000-2050 -C 5
 ```
 
-### `/blz-manage <action> [source]`
+### `/blz list`
 
-Manage documentation sources (list, update, remove, stats).
+List indexed documentation sources.
 
 **Examples:**
 ```bash
-/blz-manage list              # List all sources
-/blz-manage update            # Update all sources
-/blz-manage update bun        # Update specific source
-/blz-manage remove old-docs   # Remove a source
-/blz-manage stats             # Show statistics
+/blz list
+/blz list --status
 ```
 
-### `/add-source [name] [url]`
+### `/blz refresh [source]`
 
-Intelligent source addition with discovery and dependency scanning. Delegates to the `@blz-source-manager` agent.
+Refresh documentation sources (all or specific).
 
 **Examples:**
 ```bash
-/add-source bun https://bun.sh/llms-full.txt   # Direct add
-/add-source react                               # Discover URL
-/add-source                                     # Scan dependencies
-```
-
-### `/search-docs-with-blz <query>`
-
-Advanced search using the `@blz-docs-searcher` agent for complex research, synthesis, and multi-source queries.
-
-**Examples:**
-```bash
-/search-docs-with-blz Find information about Bun's HTTP server
-/search-docs-with-blz Compare authentication in Bun vs Deno
+/blz refresh
+/blz refresh bun
 ```
 
 ## Available Agents
 
-### `@blz-docs-searcher`
+### `@blz:trailblazer`
 
-**Purpose**: Complex documentation research, synthesis, and comparison.
-
-**Capabilities**:
-- Multi-source research and comparison
-- Citation-based returns (keeps context clean)
-- Parallel subagent execution for independent queries
-- Handles adding new sources autonomously
-- Deep dives into specific topics
-
-**When to use**:
-- Comparing multiple libraries/frameworks
-- Synthesizing information across sources
-- Multi-step research requiring context building
-- Deep exploration of complex topics
-
-**Example invocation**:
-```javascript
-Task({
-  subagent_type: "blz-docs-searcher",
-  prompt: "Compare routing approaches in Next.js, Remix, and TanStack Router",
-  description: "Compare framework routing"
-})
-```
-
-**Returns**: Citations (e.g., `next:123-456`, `remix:789-900`) rather than full content, allowing the orchestrating agent to retrieve content as needed.
-
-### `@blz-source-manager`
-
-**Purpose**: Intelligent documentation source management with discovery and validation.
+**Purpose**: Unified documentation search, retrieval, and source management for BLZ.
 
 **Capabilities**:
+- Search and retrieve citations
 - Add sources by URL or name (with auto-discovery)
-- Expand index files to find full documentation
-- Scan project dependencies (Cargo.toml, package.json)
-- Batch additions with validation
-- Proactive suggestions for comprehensive coverage
+- List and refresh sources
+- Handle complex research requests across sources
 
 **When to use**:
-- Adding new documentation sources
-- Discovering llms.txt URLs from library names
-- Scanning dependencies for documentation candidates
-- Validating and managing existing sources
-
-**Example invocation**:
-```javascript
-Task({
-  subagent_type: "blz-source-manager",
-  prompt: "Scan project dependencies and add any documentation not yet indexed",
-  description: "Add missing docs from dependencies"
-})
-```
+- Any BLZ documentation task
+- Source management workflows
+- Multi-source research and comparisons
 
 ## Skills
 
@@ -174,7 +121,7 @@ Core skill teaching effective use of blz CLI and MCP server. Provides patterns f
 
 **Activation**: Automatically available, used by commands and agents.
 
-### `add-blz-source`
+### `blz-manage-sources`
 
 Skill teaching source discovery, validation workflows, web search patterns, and post-addition integration.
 
@@ -184,7 +131,7 @@ Skill teaching source discovery, validation workflows, web search patterns, and 
 - Index file detection and expansion
 - Web search patterns for discovery
 
-**Activation**: Used by `@blz-source-manager` agent and `/add-source` command.
+**Activation**: Used by the `@blz:trailblazer` agent for source discovery and management.
 
 ## Workflow Patterns
 
@@ -194,10 +141,10 @@ For simple API lookups or single-concept searches:
 
 ```bash
 # Direct search
-/blz-quick-search "useState hook"
+/blz "useState hook"
 
 # Retrieve content
-/blz-retrieve react:1234-1256
+/blz get react:1234-1256
 ```
 
 ### Complex Research
@@ -205,8 +152,7 @@ For simple API lookups or single-concept searches:
 For comparing libraries, synthesizing information, or multi-step research:
 
 ```bash
-# Use the specialized agent
-/search-docs-with-blz Compare authentication approaches in Bun, Deno, and Node.js
+/blz Compare authentication approaches in Bun, Deno, and Node.js
 ```
 
 The agent will:
@@ -220,24 +166,24 @@ The agent will:
 
 **Direct addition**:
 ```bash
-/blz-add bun https://bun.sh/llms-full.txt
+/blz add bun https://bun.sh/llms-full.txt
 ```
 
 **Discovery mode**:
 ```bash
-/add-source react  # Agent finds URL
+/blz Add React docs
 ```
 
 **Dependency scanning**:
 ```bash
-/add-source  # Scans Cargo.toml, package.json
+/blz Scan project dependencies for docs
 ```
 
 ### Keeping Sources Updated
 
 ```bash
-/blz-manage update           # Update all
-/blz-manage update bun deno  # Update specific sources
+/blz refresh
+/blz refresh bun
 ```
 
 ## Best Practices
@@ -255,7 +201,7 @@ The agent will:
 
 3. **Use source filters**: When you know the library, narrow the search
    ```bash
-   /blz-quick-search "hooks" --source react
+   /blz "hooks" --source react
    ```
 
 4. **Batch retrievals**: Get multiple citations in one call
@@ -266,16 +212,16 @@ The agent will:
 ### Source Management
 
 1. **Prefer llms-full.txt**: More comprehensive than llms.txt
-2. **Scan dependencies**: Use `/add-source` without args to discover project needs
-3. **Keep updated**: Run `/blz-manage update` periodically
+2. **Scan dependencies**: Ask `/blz` to scan project dependencies when needed
+3. **Keep updated**: Run `/blz refresh` periodically
 4. **Check health**: Use `blz list --status --json` to verify sources
 
 ### Agent Usage
 
-1. **Simple lookups**: Use commands directly (`/blz-quick-search`)
-2. **Complex research**: Delegate to `@blz-docs-searcher`
-3. **Source management**: Use `@blz-source-manager` for batch operations
-4. **Citation-based flow**: Let agents return citations, retrieve content as needed
+1. **All operations**: Use `/blz` (it invokes `@blz:trailblazer`)
+2. **Complex research**: Ask the question directly via `/blz`
+3. **Source management**: Use `/blz add`, `/blz list`, and `/blz refresh`
+4. **Citation-based flow**: Let the agent return citations, retrieve content as needed
 
 ## Troubleshooting
 
@@ -290,17 +236,17 @@ blz --version
 ### No Sources Available
 
 ```bash
-/blz-manage list
+/blz list
 # If empty:
-/add-source bun
-/add-source react
+/blz add bun https://bun.sh/llms-full.txt
+/blz add react https://react.dev/llms.txt
 ```
 
 ### Slow Searches
 
 BLZ searches should be 6-10ms. If slow:
 - Check disk space
-- Update sources: `/blz-manage update`
+- Update sources: `/blz refresh`
 - Check for index corruption: `blz info <source> --json`
 
 ### Agent Not Found
@@ -321,7 +267,7 @@ Reinstall if needed:
 ### With Context7
 
 For libraries without llms.txt:
-1. Try blz first: `/blz-quick-search "<library> <topic>"`
+1. Try blz first: `/blz "<library> <topic>"`
 2. If no results, use context7 as fallback
 3. Consider requesting llms.txt from the project
 
@@ -336,7 +282,7 @@ For very recent information:
 
 For discovering new sources:
 1. Search for: `"llms-full.txt" site:docs.example.com`
-2. Add via `/add-source`
+2. Add via `/blz add <alias> <url>` (or ask `/blz` to discover the URL)
 3. Now available for instant local search
 
 ## Development Notes
@@ -345,31 +291,24 @@ For discovering new sources:
 
 ```
 claude-plugin/
-├── .claude-plugin/
-│   └── plugin.json          # Plugin metadata
+├── README.md
+├── plugin.json
 ├── agents/
-│   ├── blz-docs-searcher.md # Research agent
-│   └── blz-source-manager.md # Source management agent
+│   └── trailblazer.md       # Unified BLZ agent
 ├── commands/
-│   ├── blz-add.md
-│   ├── blz-quick-search.md
-│   ├── blz-retrieve.md
-│   ├── blz-manage.md
-│   ├── add-source.md
-│   └── search-docs-with-blz.md
+│   └── blz.md
 ├── skills/
 │   ├── blz-search/         # Core search skill
-│   └── add-blz-source/     # Source addition skill
-└── README.md
+│   └── blz-manage-sources/ # Source management skill
 ```
 
 ### Canonical Sources
 
-- **Agents**: `.claude/agents/` (synced to `claude-plugin/agents/`)
-- **Commands**: `claude-plugin/commands/` (canonical)
-- **Skills**: `claude-plugin/skills/` (canonical)
+- **Agents**: `.claude-plugin/agents/` (plugin agent), `.claude/agents/` (optional internal agents synced into builds)
+- **Commands**: `.claude-plugin/commands/` (canonical)
+- **Skills**: `.claude-plugin/skills/` (canonical)
 
-Build script syncs agents from `.claude/` to plugin directory.
+Build script syncs canonical plugin files and optional internal agents into `claude-plugin/`.
 
 ### Testing Changes
 
@@ -382,8 +321,8 @@ Build script syncs agents from `.claude/` to plugin directory.
 /plugin install /path/to/blz/claude-plugin
 
 # Test commands
-/blz-quick-search "test"
-/add-source bun
+/blz "test"
+/blz add bun https://bun.sh/llms-full.txt
 ```
 
 ## Additional Resources
@@ -391,7 +330,7 @@ Build script syncs agents from `.claude/` to plugin directory.
 - [BLZ Repository](https://github.com/outfitter-dev/blz)
 - [BLZ CLI Usage Guide](./use-blz.md)
 - [llms.txt Standard](https://llmstxt.org/)
-- [Plugin README](../../claude-plugin/README.md)
+- [Plugin README](../../.claude-plugin/README.md)
 
 ## Contributing
 
