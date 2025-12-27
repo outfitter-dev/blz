@@ -1,24 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash",
-      "Read",
-      "Write",
-      "Edit",
-      "Glob",
-      "Grep",
-      "Task",
-      "SlashCommand",
-      "TodoWrite",
-      "NotebookRead",
-      "NotebookEdit",
+      "mcp__graphite__run_gt_cmd",
+      "Bash(grep:*)",
+      "Bash(blz list --json)",
+      "Bash(blz search \"test\" --source anthropic --json)",
+      "Skill(codex-pairing)",
+      "Bash(blz search \"test\" --source anthropic --limit 5 --json)",
+      "mcp__firecrawl__firecrawl_search",
+      "mcp__firecrawl__firecrawl_scrape",
+      "Bash(git worktree list)",
+      "Bash(env)",
+      "Bash(cat .conductor/amsterdam/.git)",
+      "Bash(blz list --status --json)",
       "WebSearch",
-      "WebFetch",
-      "mcp__graphite",
-      "mcp__firecrawl",
-      "mcp__blz",
-      "mcp__context7",
-      "mcp__linear-server"
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:fadeevab.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(rg \"MultiSelect|Select::new|Input::new|Password::new\" --type rust crates/blz-cli/src --count-matches)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
@@ -32,6 +31,9 @@
     ]
   },
   "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sequential-thinking"
+  ],
   "hooks": {
     "SessionStart": [
       {
@@ -39,11 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash",
-            "args": [
-              "-lc",
-              "if [ -n \"${AGENT_TYPE:-}\" ]; then ./scripts/setup-agent-universal.sh; fi"
-            ]
+            "command": "./scripts/install_pkgs.sh"
           }
         ]
       }
