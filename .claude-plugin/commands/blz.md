@@ -7,7 +7,7 @@ argument-hint: "<query> | add <source> <url> | list | get <citation> | refresh"
 
 **Request**: $ARGUMENTS
 
-Invoke the `@blz:trailblazer` agent with this request. The agent handles all BLZ operations:
+Invoke the `@blz:blazer` agent with this request. The agent handles all BLZ operations:
 
 - **Search**: `/blz "test runner"` or `/blz how do I write tests in Bun`
 - **Add source**: `/blz add bun https://bun.sh/llms-full.txt`

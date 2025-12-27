@@ -38,26 +38,10 @@ cp -R "${SOURCE_DIR}/." "${PLUGIN_DIR}/"
 
 log_info "Building Claude Code plugin..."
 
-# Sync blz-docs-searcher agent (canonical version in .claude/)
-if [[ -f "${REPO_ROOT}/.claude/agents/blz-docs-searcher.md" ]]; then
-    cp "${REPO_ROOT}/.claude/agents/blz-docs-searcher.md" "${PLUGIN_DIR}/agents/"
-    log_success "Synced blz-docs-searcher agent"
-else
-    log_warning "Canonical blz-docs-searcher.md not found in .claude/agents/"
-fi
-
-# Sync blz-source-manager agent (canonical version in .claude/)
-if [[ -f "${REPO_ROOT}/.claude/agents/blz-source-manager.md" ]]; then
-    cp "${REPO_ROOT}/.claude/agents/blz-source-manager.md" "${PLUGIN_DIR}/agents/"
-    log_success "Synced blz-source-manager agent"
-else
-    log_warning "Canonical blz-source-manager.md not found in .claude/agents/"
-fi
-
-# Note: Commands and skills in claude-plugin/ are currently the canonical versions
-# Commands: claude-plugin/commands/ (canonical)
-# Skills: claude-plugin/skills/ (canonical)
-# Agents: .claude/agents/ (canonical, synced to claude-plugin/)
+# Note: Commands and skills in .claude-plugin/ are the canonical versions
+# Commands: .claude-plugin/commands/ (canonical)
+# Skills: .claude-plugin/skills/ (canonical)
+# Agents: .claude-plugin/agents/ (canonical)
 
 # Remove legacy nested directory if it exists from older builds
 if [[ -d "${PLUGIN_DIR}/.claude-plugin" ]]; then

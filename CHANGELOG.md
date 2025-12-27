@@ -29,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Claude Code Plugin**: Official plugin for integrating BLZ documentation search into Claude Code workflows
   - **Commands**: Single `/blz` command handling search, retrieval, and source management
-  - **Agents**: `@blz:trailblazer` for search, retrieval, and source management workflows
-  - **Skills**: `blz-search` for search patterns, `blz-manage-sources` for source management
+- **Agents**: `@blz:blazer` for search, retrieval, and source management workflows
+- **Skills**: `blz-search` for search patterns, `manage-blz-sources` for source management
   - **Dependency Scanning**: Automatic discovery of documentation candidates from Cargo.toml and package.json
   - **Local Installation**: Support for local development with `/plugin install /path/to/claude-plugin`
   - **Documentation**: Comprehensive guides in `docs/agents/claude-code.md` and plugin README
@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - No breaking changes for existing users
 - CLI: Rename `update` command to `refresh` ([BLZ-262](https://linear.app/outfitter/issue/BLZ-262))
 - **Plugin Structure**: Reorganized from `.claude-plugin/` to `claude-plugin/` for better clarity
-- **Agent References**: Updated plugin commands to use `@blz:trailblazer` for unified documentation operations
+- **Agent References**: Updated plugin commands to use `@blz:blazer` for unified documentation operations
 
 ### Added
 - **Unified `find` command** ([BLZ-229](https://linear.app/outfitter/issue/BLZ-229)): New command consolidating `search` and `get` with automatic pattern-based dispatch

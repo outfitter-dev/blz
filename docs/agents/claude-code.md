@@ -92,7 +92,7 @@ Refresh documentation sources (all or specific).
 
 ## Available Agents
 
-### `@blz:trailblazer`
+### `@blz:blazer`
 
 **Purpose**: Unified documentation search, retrieval, and source management for BLZ.
 
@@ -121,7 +121,7 @@ Core skill teaching effective use of blz CLI and MCP server. Provides patterns f
 
 **Activation**: Automatically available, used by commands and agents.
 
-### `blz-manage-sources`
+### `manage-blz-sources`
 
 Skill teaching source discovery, validation workflows, web search patterns, and post-addition integration.
 
@@ -131,7 +131,7 @@ Skill teaching source discovery, validation workflows, web search patterns, and 
 - Index file detection and expansion
 - Web search patterns for discovery
 
-**Activation**: Used by the `@blz:trailblazer` agent for source discovery and management.
+**Activation**: Used by the `@blz:blazer` agent for source discovery and management.
 
 ## Workflow Patterns
 
@@ -218,7 +218,7 @@ The agent will:
 
 ### Agent Usage
 
-1. **All operations**: Use `/blz` (it invokes `@blz:trailblazer`)
+1. **All operations**: Use `/blz` (it invokes `@blz:blazer`)
 2. **Complex research**: Ask the question directly via `/blz`
 3. **Source management**: Use `/blz add`, `/blz list`, and `/blz refresh`
 4. **Citation-based flow**: Let the agent return citations, retrieve content as needed
@@ -294,21 +294,21 @@ claude-plugin/
 ├── README.md
 ├── plugin.json
 ├── agents/
-│   └── trailblazer.md       # Unified BLZ agent
+│   └── blazer.md            # Unified BLZ agent
 ├── commands/
 │   └── blz.md
 ├── skills/
 │   ├── blz-search/         # Core search skill
-│   └── blz-manage-sources/ # Source management skill
+│   └── manage-blz-sources/ # Source management skill
 ```
 
 ### Canonical Sources
 
-- **Agents**: `.claude-plugin/agents/` (plugin agent), `.claude/agents/` (optional internal agents synced into builds)
+- **Agents**: `.claude-plugin/agents/` (canonical)
 - **Commands**: `.claude-plugin/commands/` (canonical)
 - **Skills**: `.claude-plugin/skills/` (canonical)
 
-Build script syncs canonical plugin files and optional internal agents into `claude-plugin/`.
+Build script syncs canonical plugin files into `claude-plugin/`.
 
 ### Testing Changes
 

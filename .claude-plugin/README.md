@@ -66,9 +66,9 @@ All BLZ operations go through a single command. The agent interprets your reques
 /blz Compare React hooks vs Vue composition API
 ```
 
-### Agent: `@blz:trailblazer`
+### Agent: `@blz:blazer`
 
-The trailblazer agent handles all documentation operations. You can invoke it directly or let the `/blz` command route to it.
+The blazer agent handles all documentation operations. You can invoke it directly or let the `/blz` command route to it.
 
 **Capabilities:**
 - Search across all indexed documentation
@@ -89,7 +89,7 @@ Teaches effective documentation search patterns:
 - Context modes and flags
 - MCP tool alternatives
 
-### `blz-sources`
+### `manage-blz-sources`
 
 Teaches source management:
 - Discovering llms.txt URLs
