@@ -47,7 +47,7 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
 
     // Resolve metadata alias to canonical if needed
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
-        .map_or_else(|| alias.to_string(), |c| c);
+        .unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical) {
         anyhow::bail!("Source '{alias}' not found. Run `blz list` to see available sources.");
