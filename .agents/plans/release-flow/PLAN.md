@@ -9,7 +9,7 @@ This plan migrates BLZ from a custom label-driven release system to [release-ple
 ### Key Benefits
 - ✅ **Single release flow** - eliminates multiple "official" paths
 - ✅ **Fully automated** - no manual version bumping or label management  
-- ✅ **Battle-tested** - used by Google and thousands of open source projects
+- ✅ **Battle-tested** - used by Google and thousands of open-source projects
 - ✅ **Conventional commits ready** - leverages existing `commitlint` enforcement
 - ✅ **Multi-package coordination** - handles Rust workspace + npm package simultaneously
 - ✅ **Audit trail** - explicit release PRs with generated changelogs
@@ -69,6 +69,10 @@ This plan migrates BLZ from a custom label-driven release system to [release-ple
       "release-type": "rust",
       "package-name": "blz-mcp"
     },
+    "crates/blz-registry-build": {
+      "release-type": "rust",
+      "package-name": "blz-registry-build"
+    },
     "crates/blz-release": {
       "release-type": "rust",
       "package-name": "blz-release"
@@ -102,6 +106,7 @@ This plan migrates BLZ from a custom label-driven release system to [release-ple
   "crates/blz-core": "1.3.0", 
   "crates/blz-cli": "1.3.0",
   "crates/blz-mcp": "1.3.0",
+  "crates/blz-registry-build": "1.3.0",
   "crates/blz-release": "1.3.0"
 }
 ```
@@ -138,6 +143,8 @@ jobs:
       blz-core--release_created: ${{ steps.release.outputs['crates/blz-core--release_created'] }}
       blz-cli--release_created: ${{ steps.release.outputs['crates/blz-cli--release_created'] }}
       blz-mcp--release_created: ${{ steps.release.outputs['crates/blz-mcp--release_created'] }}
+      blz-registry-build--release_created: ${{ steps.release.outputs['crates/blz-registry-build--release_created'] }}
+      blz-release--release_created: ${{ steps.release.outputs['crates/blz-release--release_created'] }}
       npm--release_created: ${{ steps.release.outputs['--release_created'] }}
     steps:
       - name: Release Please
@@ -154,10 +161,9 @@ jobs:
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
-      version: ${{ needs.release-please.outputs.version }}
       mode: 'full'
       # Skip individual packages if they weren't updated
-      skip_crates: ${{ !needs.release-please.outputs.blz-core--release_created && !needs.release-please.outputs.blz-cli--release_created }}
+      skip_crates: ${{ !needs.release-please.outputs.blz-core--release_created && !needs.release-please.outputs.blz-cli--release_created && !needs.release-please.outputs.blz-mcp--release_created && !needs.release-please.outputs.blz-registry-build--release_created && !needs.release-please.outputs.blz-release--release_created }}
       skip_npm: ${{ !needs.release-please.outputs.npm--release_created }}
     secrets: inherit
 ```
@@ -356,6 +362,7 @@ rm -rf crates/blz-release
 
 # Update Cargo.toml workspace members
 # Remove blz-release from workspace
+# Note: blz-registry-build remains as it's used for build tooling
 
 # Clean up justfile
 # Remove or update release-prep target
@@ -371,6 +378,7 @@ members = [
     "crates/blz-core",
     "crates/blz-cli", 
     "crates/blz-mcp",
+    "crates/blz-registry-build",  # Keep: used for build tooling
     # Remove: "crates/blz-release"
 ]
 ```
