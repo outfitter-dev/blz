@@ -94,8 +94,8 @@ blz remove bun
 # Inspect heading hierarchy
 blz toc bun --limit 20
 
-# Boolean filter (require +API, exclude deprecated)
-blz toc react --filter "+API -deprecated" --format json
+# Boolean filter (API but not deprecated)
+blz toc react --filter "API AND NOT deprecated" --format json
 ```
 
 ### History
