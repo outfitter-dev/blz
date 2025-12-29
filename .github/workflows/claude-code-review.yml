@@ -35,7 +35,7 @@ jobs:
        contains(github.event.comment.body, '@claude review') &&
        (github.event.comment.user.login == 'galligan' ||
         contains(fromJSON('["copilot[bot]", "devin[bot]", "coderabbitai[bot]"]'), github.event.comment.user.login) ||
-        contains(fromJSON('["OWNER", "COLLABORATOR"]'), github.event.comment.author_association))))
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))))
     runs-on: ubuntu-latest
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
