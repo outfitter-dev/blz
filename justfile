@@ -205,17 +205,6 @@ check:
     @echo "Checking for println! in library code..."
     @rg "println!" crates/blz-core/src || echo "No println! in library"
 
-# Create a new release (requires cargo-release)
-release-prep version:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if ! command -v cargo-release >/dev/null 2>&1; then
-        echo "Please install cargo-release: cargo install cargo-release"
-        exit 1
-    fi
-    cargo release version {{version}}
-    cargo release changes
-
 # Fast bootstrap: install tools, enable sccache, install hooks
 bootstrap-fast:
     scripts/bootstrap-fast.sh
