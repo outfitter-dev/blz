@@ -271,7 +271,7 @@ pub enum Commands {
         /// Output format
         #[command(flatten)]
         format: FormatArg,
-        /// Filter headings by boolean expression (use +term for AND, -term for NOT)
+        /// Filter headings by boolean expression (use AND/OR/NOT; whitespace implies OR)
         #[arg(long = "filter", value_name = "EXPR")]
         filter: Option<String>,
         /// Limit results to headings at or above this level (1-6)
@@ -1305,7 +1305,7 @@ pub enum AnchorCommands {
             value_parser = clap::value_parser!(u8).range(1..=6)
         )]
         max_depth: Option<u8>,
-        /// Filter headings by boolean expression (use +term for AND, -term for NOT)
+        /// Filter headings by boolean expression (use AND/OR/NOT; whitespace implies OR)
         #[arg(long = "filter", value_name = "EXPR")]
         filter: Option<String>,
     },

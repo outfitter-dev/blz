@@ -56,7 +56,7 @@
     },
     {
       "flag": "--filter <expr>",
-      "impact": "Search heading paths with search-style boolean snippets (e.g., '+api -deprecated')."
+      "impact": "Search heading paths with boolean expressions (e.g., \"API AND NOT deprecated\")."
     },
     {
       "flag": "--max-depth <1-6>",
@@ -85,7 +85,7 @@
       "why": "Advance to the next page of headings without repeating the previous query."
     },
     {
-      "command": "blz toc react --filter \"+api -deprecated\" --format json",
+      "command": "blz toc react --filter \"API AND NOT deprecated\" --format json",
       "why": "Fetch headings that mention API while excluding deprecated sections."
     },
     {
