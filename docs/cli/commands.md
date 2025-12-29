@@ -601,8 +601,9 @@ blz toc <ALIAS> [OPTIONS]
 - `--all` – Ignore the saved limit and return every heading in one response
 - `--filter <EXPR>` – Boolean expression for heading text/anchors:
   - Default OR semantics between terms
-  - Prefix with `+` (or use `and`) to require a term
-  - Prefix with `-`/`!` (or use `not`) to exclude a term
+  - Use `AND`, `OR`, and `NOT` (case-insensitive) for complex expressions
+  - Parentheses are supported for grouping
+  - Quote expressions that include spaces or parentheses
 - `--max-depth <1-6>` – Restrict results to headings at or above the specified level
 - `--anchors` – Show anchor metadata and remap history (ignores other filters)
 
@@ -619,7 +620,7 @@ blz toc bun --limit 20 --page 2
 blz toc bun --next --format json
 
 # Filter headings that mention API but exclude deprecated sections
-blz toc react --filter "+API -deprecated" --format json
+blz toc react --filter "API AND NOT deprecated" --format json
 
 # Show only top-level headings
 blz toc astro --max-depth 1

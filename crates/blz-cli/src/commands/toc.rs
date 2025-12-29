@@ -181,7 +181,7 @@ pub async fn execute(
             return Err(anyhow!("--anchors can only be used with a single source"));
         }
         let canonical = crate::utils::resolver::resolve_source(&storage, &source_list[0])?
-            .map_or_else(|| source_list[0].clone(), |c| c);
+            .unwrap_or_else(|| source_list[0].clone());
         let path = storage.anchors_map_path(&canonical)?;
         if !path.exists() {
             println!("No heading remap metadata found for '{canonical}'");
@@ -231,7 +231,7 @@ pub async fn execute(
 
     for source_alias in &source_list {
         let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-            .map_or_else(|| source_alias.clone(), |c| c);
+            .unwrap_or_else(|| source_alias.clone());
 
         let llms: LlmsJson = storage
             .load_llms_json(&canonical)
@@ -356,7 +356,7 @@ pub async fn execute(
                     println!("Table of contents (showing {} sources)", source_list.len());
                 } else if let Some(first) = source_list.first() {
                     let canonical = crate::utils::resolver::resolve_source(&storage, first)?
-                        .map_or_else(|| first.clone(), |c| c);
+                        .unwrap_or_else(|| first.clone());
                     println!("Table of contents for {}\n", canonical.green());
                 }
 
@@ -397,7 +397,7 @@ pub async fn execute(
                 // Use original tree/hierarchical rendering for non-paginated or tree mode
                 for source_alias in &source_list {
                     let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-                        .map_or_else(|| source_alias.clone(), |c| c);
+                        .unwrap_or_else(|| source_alias.clone());
 
                     let llms: LlmsJson = storage
                         .load_llms_json(&canonical)
@@ -752,75 +752,17 @@ fn can_descend(depth: usize, max_depth: Option<usize>) -> bool {
     max_depth.is_none_or(|max| depth + 1 < max)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct HeadingFilter {
-    must: Vec<String>,
-    any: Vec<String>,
-    not: Vec<String>,
+    expr: HeadingExpr,
 }
 
 impl HeadingFilter {
     fn parse(expr: &str) -> Result<Self> {
         let tokens = tokenize_filter(expr)?;
-        let mut terms: Vec<(TokenKind, String)> = Vec::new();
-        let mut pending: Option<TokenKind> = None;
-
-        for token in tokens {
-            if token.trim().is_empty() {
-                continue;
-            }
-
-            let lower = token.to_ascii_lowercase();
-            match lower.as_str() {
-                "and" | "&&" => {
-                    pending = Some(TokenKind::Must);
-                    if let Some(last) = terms.last_mut() {
-                        if matches!(last.0, TokenKind::Any) {
-                            last.0 = TokenKind::Must;
-                        }
-                    }
-                    continue;
-                },
-                "or" | "||" => {
-                    pending = Some(TokenKind::Any);
-                    continue;
-                },
-                "not" | "!" => {
-                    pending = Some(TokenKind::Not);
-                    continue;
-                },
-                _ => {},
-            }
-
-            let (kind, value) = classify_token(&token, pending)?;
-            terms.push((kind, value.to_ascii_lowercase()));
-            pending = None;
-        }
-
-        if let Some(kind) = pending {
-            return Err(anyhow!(
-                "Filter expression ended with operator {}; expected another term",
-                match kind {
-                    TokenKind::Must => "AND",
-                    TokenKind::Any => "OR",
-                    TokenKind::Not => "NOT",
-                }
-            ));
-        }
-
-        if terms.is_empty() {
-            return Err(anyhow!("Filter expression must include at least one term"));
-        }
-
-        let mut filter = Self::default();
-        for (kind, value) in terms {
-            match kind {
-                TokenKind::Must => filter.must.push(value),
-                TokenKind::Any => filter.any.push(value),
-                TokenKind::Not => filter.not.push(value),
-            }
-        }
-        Ok(filter)
+        let mut parser = FilterParser::new(tokens);
+        let parsed = parser.parse_expression()?;
+        Ok(Self { expr: parsed })
     }
 
     fn matches(&self, display_path: &[String], anchor: Option<&str>) -> bool {
@@ -831,33 +773,214 @@ impl HeadingFilter {
                 haystack.push_str(&anchor.to_ascii_lowercase());
             }
         }
-
-        if self.must.iter().any(|term| !haystack.contains(term)) {
-            return false;
-        }
-        if !self.any.is_empty() && !self.any.iter().any(|term| haystack.contains(term)) {
-            return false;
-        }
-        if self.not.iter().any(|term| haystack.contains(term)) {
-            return false;
-        }
-        // If the user only provided negative terms, matched entries survive by default.
-        true
+        self.expr.matches(&haystack)
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum TokenKind {
-    Must,
-    Any,
-    Not,
+#[derive(Debug, Clone)]
+enum HeadingExpr {
+    Term(String),
+    And(Vec<Self>),
+    Or(Vec<Self>),
+    Not(Box<Self>),
 }
 
-fn tokenize_filter(expr: &str) -> Result<Vec<String>> {
+impl HeadingExpr {
+    fn matches(&self, haystack: &str) -> bool {
+        match self {
+            Self::Term(term) => haystack.contains(term),
+            Self::And(terms) => terms.iter().all(|expr| expr.matches(haystack)),
+            Self::Or(terms) => terms.iter().any(|expr| expr.matches(haystack)),
+            Self::Not(expr) => !expr.matches(haystack),
+        }
+    }
+
+    fn and(terms: Vec<Self>) -> Self {
+        if terms.len() == 1 {
+            return terms
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Self::And(Vec::new()));
+        }
+        let mut flattened = Vec::new();
+        for term in terms {
+            match term {
+                Self::And(mut inner) => flattened.append(&mut inner),
+                _ => flattened.push(term),
+            }
+        }
+        Self::And(flattened)
+    }
+
+    fn or(terms: Vec<Self>) -> Self {
+        if terms.len() == 1 {
+            return terms
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Self::Or(Vec::new()));
+        }
+        let mut flattened = Vec::new();
+        for term in terms {
+            match term {
+                Self::Or(mut inner) => flattened.append(&mut inner),
+                _ => flattened.push(term),
+            }
+        }
+        Self::Or(flattened)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FilterToken {
+    Term(String),
+    And,
+    Or,
+    Not,
+    LParen,
+    RParen,
+}
+
+struct FilterParser {
+    tokens: Vec<FilterToken>,
+    position: usize,
+}
+
+impl FilterParser {
+    const fn new(tokens: Vec<FilterToken>) -> Self {
+        Self {
+            tokens,
+            position: 0,
+        }
+    }
+
+    fn parse_expression(&mut self) -> Result<HeadingExpr> {
+        let expr = self.parse_or()?;
+        if let Some(token) = self.peek() {
+            return Err(anyhow!(
+                "Unexpected token {} in filter expression",
+                token.describe()
+            ));
+        }
+        Ok(expr)
+    }
+
+    fn parse_or(&mut self) -> Result<HeadingExpr> {
+        let mut terms = vec![self.parse_and()?];
+        loop {
+            match self.peek() {
+                Some(FilterToken::Or) => {
+                    self.advance();
+                    terms.push(self.parse_and()?);
+                },
+                Some(FilterToken::RParen) | None => break,
+                Some(token) if Self::starts_expression(token) => {
+                    terms.push(self.parse_and()?);
+                },
+                Some(token) => {
+                    return Err(anyhow!(
+                        "Unexpected token {} in filter expression",
+                        token.describe()
+                    ));
+                },
+            }
+        }
+        Ok(HeadingExpr::or(terms))
+    }
+
+    fn parse_and(&mut self) -> Result<HeadingExpr> {
+        let mut terms = vec![self.parse_unary()?];
+        while matches!(self.peek(), Some(FilterToken::And)) {
+            self.advance();
+            terms.push(self.parse_unary()?);
+        }
+        Ok(HeadingExpr::and(terms))
+    }
+
+    fn parse_unary(&mut self) -> Result<HeadingExpr> {
+        match self.next() {
+            Some(FilterToken::Not) => Ok(HeadingExpr::Not(Box::new(self.parse_unary()?))),
+            Some(FilterToken::LParen) => {
+                let expr = self.parse_or()?;
+                self.expect_rparen()?;
+                Ok(expr)
+            },
+            Some(FilterToken::Term(term)) => Ok(HeadingExpr::Term(term)),
+            Some(token) => Err(anyhow!(
+                "Unexpected token {} in filter expression",
+                token.describe()
+            )),
+            None => Err(anyhow!("Unexpected end of filter expression")),
+        }
+    }
+
+    fn expect_rparen(&mut self) -> Result<()> {
+        match self.next() {
+            Some(FilterToken::RParen) => Ok(()),
+            Some(token) => Err(anyhow!(
+                "Expected ')' but found {} in filter expression",
+                token.describe()
+            )),
+            None => Err(anyhow!("Unclosed '(' in filter expression")),
+        }
+    }
+
+    const fn starts_expression(token: &FilterToken) -> bool {
+        matches!(
+            token,
+            FilterToken::Term(_) | FilterToken::Not | FilterToken::LParen
+        )
+    }
+
+    fn peek(&self) -> Option<&FilterToken> {
+        self.tokens.get(self.position)
+    }
+
+    fn next(&mut self) -> Option<FilterToken> {
+        let token = self.tokens.get(self.position).cloned();
+        if token.is_some() {
+            self.position += 1;
+        }
+        token
+    }
+
+    const fn advance(&mut self) {
+        self.position += 1;
+    }
+}
+
+impl FilterToken {
+    const fn describe(&self) -> &'static str {
+        match self {
+            Self::Term(_) => "term",
+            Self::And => "AND",
+            Self::Or => "OR",
+            Self::Not => "NOT",
+            Self::LParen => "(",
+            Self::RParen => ")",
+        }
+    }
+}
+
+fn tokenize_filter(expr: &str) -> Result<Vec<FilterToken>> {
     let mut tokens = Vec::new();
     let mut current = String::new();
+    let mut current_quoted = false;
     let mut in_quote = false;
     let mut quote_char = '\0';
+
+    let flush_token = |tokens: &mut Vec<FilterToken>,
+                       current: &mut String,
+                       current_quoted: &mut bool|
+     -> Result<()> {
+        if current.is_empty() {
+            return Ok(());
+        }
+        let token = parse_filter_token(current, *current_quoted)?;
+        tokens.push(token);
+        current.clear();
+        *current_quoted = false;
+        Ok(())
+    };
 
     for ch in expr.chars() {
         match ch {
@@ -871,13 +994,19 @@ fn tokenize_filter(expr: &str) -> Result<Vec<String>> {
                 } else {
                     in_quote = true;
                     quote_char = ch;
+                    current_quoted = true;
                 }
             },
+            '(' | ')' if !in_quote => {
+                flush_token(&mut tokens, &mut current, &mut current_quoted)?;
+                tokens.push(if ch == '(' {
+                    FilterToken::LParen
+                } else {
+                    FilterToken::RParen
+                });
+            },
             c if c.is_whitespace() && !in_quote => {
-                if !current.is_empty() {
-                    tokens.push(current.clone());
-                    current.clear();
-                }
+                flush_token(&mut tokens, &mut current, &mut current_quoted)?;
             },
             _ => current.push(ch),
         }
@@ -887,31 +1016,42 @@ fn tokenize_filter(expr: &str) -> Result<Vec<String>> {
         return Err(anyhow!("Unterminated quote in filter expression"));
     }
 
-    if !current.is_empty() {
-        tokens.push(current);
+    flush_token(&mut tokens, &mut current, &mut current_quoted)?;
+
+    if tokens.is_empty() {
+        return Err(anyhow!("Filter expression must include at least one term"));
     }
 
     Ok(tokens)
 }
 
-fn classify_token(token: &str, pending: Option<TokenKind>) -> Result<(TokenKind, String)> {
-    let trimmed = token.trim();
+fn parse_filter_token(raw: &str, quoted: bool) -> Result<FilterToken> {
+    if quoted {
+        return Ok(FilterToken::Term(raw.to_ascii_lowercase()));
+    }
+    let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(anyhow!("Encountered empty term in filter expression"));
     }
-    let mut chars = trimmed.chars();
-    let Some(first) = chars.next() else {
-        return Err(anyhow!("Encountered empty term in filter expression"));
-    };
-    let (kind, value) = match first {
-        '+' => (TokenKind::Must, trimmed[1..].trim()),
-        '-' | '!' => (TokenKind::Not, trimmed[1..].trim()),
-        _ => (pending.unwrap_or(TokenKind::Any), trimmed),
-    };
-    if value.is_empty() {
-        return Err(anyhow!("Filter term '{trimmed}' is missing a value"));
+    let lower = trimmed.to_ascii_lowercase();
+    match lower.as_str() {
+        "and" | "&&" => Ok(FilterToken::And),
+        "or" | "||" => Ok(FilterToken::Or),
+        "not" => Ok(FilterToken::Not),
+        _ => {
+            if trimmed.starts_with('+') {
+                return Err(anyhow!(
+                    "Filter term '{trimmed}' uses '+'. Use AND instead."
+                ));
+            }
+            if trimmed.starts_with('-') || trimmed.starts_with('!') {
+                return Err(anyhow!(
+                    "Filter term '{trimmed}' uses a prefix operator. Use NOT instead."
+                ));
+            }
+            Ok(FilterToken::Term(lower))
+        },
     }
-    Ok((kind, value.to_string()))
 }
 
 /// Get lines by anchor
@@ -924,7 +1064,7 @@ pub async fn get_by_anchor(
 ) -> Result<()> {
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
-        .map_or_else(|| alias.to_string(), |c| c);
+        .unwrap_or_else(|| alias.to_string());
     // Load JSON metadata (Phase 3: always llms.txt)
     let llms: LlmsJson = storage
         .load_llms_json(&canonical)

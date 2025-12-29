@@ -561,7 +561,16 @@ async fn test_combining_heading_level_and_text_filter() -> anyhow::Result<()> {
 
     let json = run_toc_json(
         &tmp,
-        &["toc", "docs", "-H", "<=2", "--filter", "+API", "-f", "json"],
+        &[
+            "toc",
+            "docs",
+            "-H",
+            "<=2",
+            "--filter",
+            "(API OR Auth) AND NOT Database",
+            "-f",
+            "json",
+        ],
     )?;
     let entries = json["entries"].as_array().expect("expected entries array");
 
