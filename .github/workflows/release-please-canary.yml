@@ -1,0 +1,25 @@
+name: Release Please (Canary)
+
+on:
+  push:
+    branches:
+      - release-canary
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run release-please (canary)
+        uses: googleapis/release-please-action@v4
+        with:
+          # Use a PAT so tag creation triggers publish workflows.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: .release-please-canary.json
+          manifest-file: .release-please-manifest.canary.json
+          target-branch: ${{ github.ref_name }}
