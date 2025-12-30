@@ -19,8 +19,7 @@ Runs automatically before each commit with parallel execution:
 - **Action linting** (`actionlint`) - Validates GitHub Actions syntax
 - **Whitespace checks** - Detects trailing whitespace
 - **Rust formatting** (`cargo fmt`) - Auto-formats Rust code
-- **Quick compile check** (`cargo check`) - Ensures code compiles
-- **Basic clippy** (`cargo clippy --workspace`) - Catches common issues
+- **Rust compile + basic clippy** (`cargo check` + `cargo clippy --workspace`) - Skips when no Rust changes are staged, or only Rust tests/benches/examples change; scopes to `blz-cli` when only `crates/blz-cli/**` changed; emits output to avoid “hang” perception
 
 ### Pre-push Hook (~3 minutes with caching)
 
