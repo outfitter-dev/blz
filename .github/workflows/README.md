@@ -8,45 +8,70 @@ This directory contains automated workflows for the blz Rust project, implementi
 
 The release system follows this flow:
 
-1. **Auto Release Detection** (`auto-release.yml`) - Detects release labels on PRs and creates tags
-2. **Main Release Build** (`publish.yml`) - Builds binaries and creates GitHub releases
-3. **Registry Publishing** - Publishes to npm, crates.io, and Homebrew in parallel
+1. **Release Please** (`release-please.yml`) - Opens/updates the release PR on `main` and creates tags on merge
+2. **Release Please Canary** (`release-please-canary.yml`) - Opens/updates prerelease PRs on `release-canary`
+3. **Publish Workflow** (`publish.yml`) - Builds binaries and publishes registries from tags
 4. **DotSlash Generation** (`generate-dotslash.yml`) - Creates DotSlash files after successful release
 
 ```mermaid
 graph TD
-    A[PR with release:label] --> B[Auto Release]
-    B --> C[Create Tag]
-    C --> D[Publish Workflow]
-    D --> E[Build All Platforms]
-    D --> F[Publish npm]
-    D --> G[Publish crates.io]
-    D --> H[Publish Homebrew]
-    E --> I[Finalize Release]
-    F --> I
-    G --> I
-    H --> I
-    I --> J[Generate DotSlash]
+    A[Conventional commits merged] --> B[release-please PR]
+    B --> C[Merge release PR]
+    C --> D[Create Tag + Draft Release]
+    D --> E[Publish Workflow]
+    E --> F[Build All Platforms]
+    E --> G[Publish npm]
+    E --> H[Publish crates.io]
+    E --> I[Publish Homebrew]
+    F --> J[Finalize Release]
+    G --> J
+    H --> J
+    I --> J
+    J --> K[Generate DotSlash]
 ```
 
 ## Core Workflows
 
 ### 🏗️ Build & Release Workflows
 
+#### release-please.yml
+**Purpose**: Opens/updates the release PR on `main` and creates tags + draft releases on merge
+
+**Triggers**:
+- Push to `main`
+- Manual dispatch (for testing)
+
+**Key Features**:
+- **Release PRs**: Aggregates conventional commits into a single release PR
+- **Changelog management**: Updates CHANGELOG + manifest files
+- **Multi-package awareness**: Handles the Rust workspace and npm package together
+- **Publish handoff**: Calls `publish.yml` once a tag is created
+
+#### release-please-canary.yml
+**Purpose**: Opens/updates prerelease PRs on `release-canary` and creates `-canary` tags on merge
+
+**Triggers**:
+- Push to `release-canary`
+- Manual dispatch (for testing)
+
+**Key Features**:
+- **Canary releases**: Produces prerelease tags and canary dist-tags
+- **Parallel cadence**: Keeps prerelease flow separate from mainline
+
 #### publish.yml
 **Purpose**: Main release workflow that orchestrates building, publishing, and finalizing releases
 
 **Triggers**:
-- Push to tags matching `v*` (automatic from `auto-release.yml`)
+- Push to tags matching `v*` (automatic from release-please)
 - Manual dispatch with tag parameter
-- Workflow call from other workflows
+- Workflow call from release-please workflows
 
 **Key Features**:
 - **Auto-publish**: Now automatically publishes draft releases (no manual intervention required)
 - **Multi-platform builds**: Builds for macOS (arm64/x64), Linux (x64), and Windows (x64)
 - **Parallel publishing**: npm, crates.io, and Homebrew publish concurrently
 - **Semantic versioning**: Automatically determines dist-tag based on version format
-- **Release notes**: Auto-generates release notes from PR associations
+- **Release notes**: Release-please manages CHANGELOG; publish can optionally regenerate notes
 
 **Workflow Dispatch Parameters**:
 - `tag` (required): Git tag to release (e.g., v0.2.0)
@@ -57,25 +82,9 @@ graph TD
 - `skip_homebrew` (optional): Skip Homebrew publishing (default: false)
 - `dry_run` (optional): Validate but don't actually publish (default: false)
 
-#### auto-release.yml
-**Purpose**: Automatically creates releases when PRs with release labels are merged
-
-**Triggers**:
-- Push to main branch
-- Pull request events (for label validation)
-
-**Release Labels**:
-- `release:major` - Major version bump (1.0.0 → 2.0.0)
-- `release:minor` - Minor version bump (1.0.0 → 1.1.0)
-- `release:patch` - Patch version bump (1.0.0 → 1.0.1)
-- `release:canary` - Pre-release with timestamp
-- `release:hold` - Pauses release automation
-
-**Key Features**:
-- **Semver bumping**: Uses `scripts/release/semver-bump.sh` for version management
-- **Tag creation**: Automatically creates and pushes release tags
-- **Skip conditions**: Respects `[skip release]` in commit messages
-- **PR association**: Links releases to originating pull requests
+#### Archived release workflows
+Legacy release workflows have been archived under `.github/workflows/archive/`.
+See `.github/workflows/archive/README.md` for details.
 
 #### reusable-build.yml / reusable-build-v2.yml
 **Purpose**: Reusable workflow for building platform-specific binaries
@@ -263,15 +272,17 @@ graph TD
 
 ### Event Chains
 
-1. PR merge → `auto-release.yml` → tag creation
-2. Tag push → `publish.yml` → multi-platform builds + publishing
-3. `publish.yml` success → `generate-dotslash.yml`
+1. Conventional commits merged → `release-please.yml` updates release PR
+2. Release PR merged → tag creation
+3. Tag push → `publish.yml` → multi-platform builds + publishing
+4. `publish.yml` success → `generate-dotslash.yml`
 
 ## Required Secrets
 
 ### GitHub Repository Secrets
 
 - `CLAUDE_CODE_OAUTH_TOKEN` - Claude AI integration
+- `RELEASE_PLEASE_TOKEN` - PAT used by release-please to create tags that trigger publish workflows
 - `NPM_TOKEN` - npm registry publishing
 - `CARGO_REGISTRY_TOKEN` - crates.io publishing
 - `HOMEBREW_TAP_TOKEN` - Homebrew tap updates (note: still required despite some documentation suggesting otherwise)
@@ -327,7 +338,7 @@ gh workflow run publish-homebrew.yml -f tag=v1.0.0
 
 #### Transient GitHub API Failures
 **Problem**: GitHub API occasionally fails with 500/503 errors
-**Solution**: Retry logic implemented in `publish-homebrew.yml` and `auto-release.yml`
+**Solution**: Retry logic implemented in `publish-homebrew.yml`
 **Workaround**: Re-run failed workflows
 
 #### Homebrew Asset Missing
@@ -374,8 +385,8 @@ gh run list --workflow=publish.yml --limit=10
 # Check release assets
 gh release view v1.0.0 --json assets
 
-# Validate release labels
-gh pr view <pr-number> --json labels
+# Check release-please PRs
+gh pr list --search "chore: release" --state open
 ```
 
 ## Maintenance Guidelines

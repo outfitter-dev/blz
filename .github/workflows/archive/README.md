@@ -4,13 +4,17 @@ This directory contains deprecated workflow files that have been consolidated in
 
 ## Archived Files
 
+- **`auto-release.yml.deprecated`** - Legacy label-based release automation (replaced by release-please)
+- **`release-drafter.yml.deprecated`** - Draft release notes automation (superseded by release-please changelog)
 - **`release.yml.deprecated`** - Legacy release workflow with matrix builds
 - **`release-simplified.yml.deprecated`** - Experimental simplified release workflow
 - **`manual-publish.yml.deprecated`** - Manual publishing workflow for crates/npm
 
 ## Replacement
 
-These workflows have been consolidated into **`publish.yml`** which now supports:
+Release-please owns versioning and changelog updates, and `publish.yml` owns builds
+and registry publishing. Legacy release workflows were consolidated into
+**`publish.yml`**, which now supports:
 
 - Multiple release modes (`full`, `assets-only`, `publish-only`)
 - Individual skip flags (`skip_npm`, `skip_crates`, `skip_homebrew`)
