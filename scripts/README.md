@@ -98,21 +98,6 @@ Installs shell completions for bash, zsh, and fish.
 ./scripts/install-completions.sh blz
 ```
 
-### `release/semver-bump.sh`
-Bumps the workspace version and keeps npm metadata in sync.
-- Computes the next semver (patch/minor/major/canary/set)
-- Runs `cargo set-version --workspace`
-- Updates `package.json`/`package-lock.json`
-- Regenerates `Cargo.lock`
-- Persists canary sequence state in `.semver-meta.json`
-
-**Usage:**
-```bash
-./scripts/release/semver-bump.sh patch
-./scripts/release/semver-bump.sh canary
-./scripts/release/semver-bump.sh --check  # verify versions are aligned
-```
-
 ## For AI Agents
 
 If you're an AI coding agent, start with:
