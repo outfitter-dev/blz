@@ -5,7 +5,7 @@ Complete guide to BLZ's continuous integration and deployment setup using GitHub
 ## Table of Contents
 
 - [Overview](#overview)
-- [Release Labels](#release-labels)
+- [Release Automation](#release-automation)
 - [Publish Workflow](#publish-workflow)
 - [Local Testing with Act](#local-testing-with-act)
 - [Test Cases](#test-cases)
@@ -15,51 +15,41 @@ Complete guide to BLZ's continuous integration and deployment setup using GitHub
 
 BLZ uses GitHub Actions for continuous integration and deployment with the following workflows:
 
-- **`publish.yml`** - Main release workflow supporting multiple modes (full, assets-only, publish-only)
-- **`auto-release.yml`** - Automated release detection based on PR labels
+- **`release-please.yml`** - Opens/updates the release PR on `main`
+- **`release-please-canary.yml`** - Opens/updates prerelease PRs on `release-canary`
+- **`publish.yml`** - Main release publisher (assets + registries)
 - **`ci.yml`** - Continuous integration checks on pull requests
 
 All workflows are optimized for Graphite stacked PRs and support both automatic and manual triggering.
 
-## Release Labels
+## Release Automation
 
-Use these labels on pull requests that target `main` to signal release automation.
+Release-please drives versioning and changelog updates via conventional commits.
 
-### Available Labels
+### Mainline releases (`main`)
 
-**`release:patch`**
+1. Merge conventional commits into `main`.
+2. release-please opens or updates the release PR.
+3. Merge the release PR to create the tag and draft release.
+4. The tag triggers `publish.yml` to upload assets and publish to registries.
 
-- Publish a new patch version (`0.0.x`) once merged
-- Example: `v0.4.1` → `v0.4.2`
+### Canary releases (`release-canary`)
 
-**`release:minor`**
+1. Merge conventional commits into `release-canary`.
+2. release-please opens or updates a prerelease PR.
+3. Merge the PR to create a `-canary` tag and draft release.
+4. The tag triggers `publish.yml` and publishes with the canary dist-tag.
 
-- Publish a new minor version (`0.x.0`) once merged
-- Example: `v0.4.1` → `v0.5.0`
+### Token requirement
 
-**`release:major`**
-
-- Publish a new major version (`x.0.0`) once merged
-- Example: `v0.4.1` → `v1.0.0`
-
-**`release:canary`**
-
-- Publish a pre-release canary build
-- Tagged with the `canary` dist-tag
-- Example: `v0.5.0-canary.1`
-
-**`release:hold`**
-
-- Pause automation for the PR
-- Automation resumes once the label is removed
-
-### Usage
-
-If no `release:*` label is present, the release workflow will skip tagging. See `.github/workflows/auto-release.yml` for automation logic.
+Release-please must use a PAT (e.g., `RELEASE_PLEASE_TOKEN`) so tag creation
+triggers downstream workflows like `publish.yml`.
 
 ## Publish Workflow
 
-The `publish.yml` workflow is the main release automation workflow with multiple modes.
+The `publish.yml` workflow publishes assets and registries. Release notes are
+owned by release-please; set `generate_release_notes=true` only when you need
+to overwrite the release body from PR history.
 
 ### Modes
 
@@ -78,7 +68,6 @@ gh workflow run publish.yml -f tag=v1.0.0
 - ✅ Publish to npm
 - ✅ Publish to crates.io
 - ✅ Publish to Homebrew
-- ✅ Generate release notes
 - ✅ Finalize GitHub release
 
 #### Assets Only Mode
@@ -96,7 +85,6 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=assets-only
 - ❌ Skip npm publishing
 - ❌ Skip crates.io publishing
 - ❌ Skip Homebrew publishing
-- ✅ Generate release notes
 - ✅ Finalize GitHub release (assets only)
 
 #### Publish Only Mode
@@ -114,7 +102,7 @@ gh workflow run publish.yml -f tag=v1.0.0 -f mode=publish-only
 - ✅ Publish to npm (from existing release)
 - ✅ Publish to crates.io
 - ✅ Publish to Homebrew
-- ✅ Update release notes
+- ✅ Update release notes (only if `generate_release_notes=true`)
 
 **Use case:** When you need to re-publish to a specific registry without rebuilding binaries.
 
@@ -196,12 +184,12 @@ Use [act](https://github.com/nektos/act) to rehearse release automation locally 
 
 ### Quick Start
 
-#### Test Release Detection Logic
+#### Test Release-Please Workflow
 
-Dry-run the release detection on the current branch:
+Dry-run the release-please workflow (note: GitHub API interactions are limited under `act`):
 
 ```bash
-act pull_request -W .github/workflows/auto-release.yml -j detect
+act workflow_dispatch -W .github/workflows/release-please.yml
 ```
 
 #### Simulate Build Pipeline
@@ -270,9 +258,9 @@ To validate workflow functionality, check:
 You need to publish a critical patch immediately:
 
 ```bash
-# 1. Create and merge hotfix PR with release:patch label
-# 2. Automation creates tag and runs publish workflow
-# 3. Monitor workflow completion
+# 1. Merge hotfix PR to main (conventional commit)
+# 2. Merge the release-please PR
+# 3. Automation creates tag and runs publish workflow
 gh run list --workflow=publish.yml
 ```
 
@@ -294,8 +282,8 @@ gh workflow run publish.yml \
 Release a beta for testing before stable:
 
 ```bash
-# 1. Create PR with release:canary label
-# 2. Automation creates v1.0.0-canary.1
+# 1. Merge changes into release-canary
+# 2. Merge the release-please canary PR
 # 3. Published with canary dist-tag
 npm install @outfitter/blz@canary
 ```

@@ -240,18 +240,21 @@ chore    # Maintenance
 
 ## Release Process
 
-### Version Bumping
+### Release Automation (release-please)
 
-1. Update version in `Cargo.toml` files
-2. Update `CHANGELOG.md`
-3. Create release PR
+1. Merge conventional commits into `main`.
+2. release-please opens or updates the release PR.
+3. Merge the release PR to create the tag and draft release.
+4. `publish.yml` runs on the tag to upload assets and publish registries.
+
+For canary releases, merge into `release-canary` and follow the same flow.
 
 ### Release Checklist
 
 - [ ] All tests passing
 - [ ] Documentation updated
-- [ ] CHANGELOG.md updated
-- [ ] Version bumped appropriately
+- [ ] Release-please PR merged
+- [ ] Publish workflow completed
 - [ ] Security audit clean
 - [ ] Performance benchmarks acceptable
 
