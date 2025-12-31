@@ -47,6 +47,11 @@ on:
         required: false
         default: false
         type: boolean
+      generate_release_notes:
+        description: 'Generate release notes from PRs (overwrites release body)'
+        required: false
+        default: false
+        type: boolean
       dry_run:
         description: 'Dry run (validate but do not publish)'
         required: false
@@ -75,6 +80,10 @@ on:
         type: boolean
         default: false
       skip_homebrew:
+        required: false
+        type: boolean
+        default: false
+      generate_release_notes:
         required: false
         type: boolean
         default: false
@@ -636,7 +645,12 @@ jobs:
     needs:
       - prepare
       - publish_release
-    if: ${{ always() && needs.publish_release.result == 'success' }}
+    if: >-
+      ${{ always() && needs.publish_release.result == 'success' && (
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+        inputs.generate_release_notes == true ||
+        inputs.generate_release_notes == 'true'
+      ) }}
     runs-on: ubuntu-latest
     outputs:
       body: ${{ steps.notes.outputs.body }}
@@ -770,7 +784,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update release notes
-        if: ${{ needs.release_notes.outputs.body != '' }}
+        if: >-
+          ${{ needs.release_notes.outputs.body != '' && (
+            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+            inputs.generate_release_notes == true ||
+            inputs.generate_release_notes == 'true'
+          ) }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
