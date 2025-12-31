@@ -61,20 +61,49 @@ pre-commit:
         '
       stage_fixed: true
 
-    cargo_check:
-      run: cargo check --workspace --quiet
-
-    clippy_basic:
+    cargo_check_clippy:
       run: |
         bash -lc '
+          CHANGED=$(git diff --name-only --cached -- "*.rs" "**/Cargo.toml" "**/Cargo.lock")
+          NON_TEST_RUST=$(echo "$CHANGED" | grep -Ev '(^crates/.+/tests/|^crates/.+/benches/|^crates/.+/examples/|^crates/.+/testdata/|^tests/|^benches/)' | head -n 1 || true)
+          if [ -z "$CHANGED" ]; then
+            echo "⏭  No Rust changes staged; skipping cargo check + clippy."
+            exit 0
+          fi
+          if [ -z "$NON_TEST_RUST" ]; then
+            echo "⏭  Only test/bench/example Rust changes staged; skipping cargo check + clippy."
+            exit 0
+          fi
           if ! cargo clippy -V >/dev/null 2>&1; then
             echo "clippy not available. Install with: rustup component add clippy"
             echo "Or run: just bootstrap-fast"
             exit 2
           fi
+          if command -v sccache >/dev/null 2>&1; then
+            export RUSTC_WRAPPER=sccache
+            echo "🔧 Using sccache for build acceleration"
+          else
+            echo "💡 Tip: Install sccache for 2-3x faster builds: cargo install sccache"
+          fi
+          SCOPE="workspace"
+          if ! echo "$CHANGED" | grep -Eq "^(Cargo\\.toml|Cargo\\.lock)"; then
+            if ! echo "$CHANGED" | grep -Eqv "^crates/blz-cli/"; then
+              SCOPE="cli"
+            fi
+          fi
+          if [ "$SCOPE" = "cli" ]; then
+            CHECK_ARGS=(-p blz-cli)
+            CLIPPY_ARGS=(-p blz-cli)
+          else
+            CHECK_ARGS=(--workspace)
+            CLIPPY_ARGS=(--workspace)
+          fi
+          echo "🔎 Running cargo check ($SCOPE)..."
+          cargo check "${CHECK_ARGS[@]}"
           # Quick clippy check without full strictness (saves those for pre-push)
           # Only check workspace members, not all targets (no benches, examples)
-          cargo clippy --workspace --quiet -- -W clippy::all
+          echo "🔎 Running clippy (basic, $SCOPE)..."
+          cargo clippy "${CLIPPY_ARGS[@]}" -- -W clippy::all
         '
 
 commit-msg:
