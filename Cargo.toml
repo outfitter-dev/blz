@@ -38,7 +38,7 @@ time = "0.3"
 pprof = "0.15"
 
 # Parsing & indexing
-tree-sitter = "0.24"
+tree-sitter = "0.26"
 tree-sitter-md = "0.3"
 tantivy = "0.22"
 fuzzy-matcher = "0.3"
