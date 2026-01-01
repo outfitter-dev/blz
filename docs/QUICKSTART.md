@@ -105,7 +105,7 @@ Search results for 'test runner' (6ms):
 Retrieve specific line ranges:
 
 ```bash
-blz get bun:304-324
+blz find bun:304-324
 ```
 
 **You'll see:**
@@ -189,7 +189,7 @@ alias=$(echo "$result" | jq -r '.alias')
 lines=$(echo "$result" | jq -r '.lines')
 
 echo "Found in $alias at lines $lines"
-blz get "$alias:$lines"
+blz find "$alias:$lines"
 ```
 
 ## Shell Completion
@@ -219,7 +219,7 @@ After installation, you can use TAB to complete commands and options:
 ```bash
 blz sea<TAB>        # Completes to: blz search
 blz search --so<TAB> # Completes to: blz search --source
-blz get <TAB>        # Shows available aliases
+blz find <TAB>       # Shows available aliases
 ```
 
 ## Performance Tips

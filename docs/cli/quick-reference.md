@@ -54,19 +54,19 @@ blz "query" --page 2
 
 ```bash
 # Colon syntax (preferred, matches search output)
-blz get bun:41994-42009
+blz find bun:41994-42009
 
 # Multiple ranges (comma-separated)
-blz get bun:41994-42009,42010-42020 --json
+blz find bun:41994-42009,42010-42020 --json
 
 # Multiple sources in one call
-blz get bun:41994-42009,42010-42020 turbo:2656-2729 --json
+blz find bun:41994-42009,42010-42020 turbo:2656-2729 --json
 
 # Heading-aware retrieval (entire section, capped at 80 lines)
-blz get bun:41994-42009 --context all --max-lines 80 --json
+blz find bun:41994-42009 --context all --max-lines 80 --json
 
 # Add context lines without blocks
-blz get bun:25760-25780 -C 3
+blz find bun:25760-25780 -C 3
 ```
 
 ### Managing Sources
@@ -134,7 +134,7 @@ blz "test runner" --json | jq -r '.results[0] | "\(.alias):\(.lines)"'
 # Output: bun:304-324
 
 # 2. Get full context
-blz get bun:304-324 -C 5
+blz find bun:304-324 -C 5
 ```
 
 ### Refresh All Sources Daily
@@ -152,7 +152,7 @@ blz refresh --all  # deprecated alias: blz update --all
 result=$(blz "$1" -n1 --json)
 alias=$(echo "$result" | jq -r '.results[0].alias')
 lines=$(echo "$result" | jq -r '.results[0].lines')
-blz get "$alias:$lines"
+blz find "$alias:$lines"
 ```
 
 ## Troubleshooting
@@ -180,7 +180,7 @@ blz --help
 
 # Command-specific help
 blz search --help
-blz get --help
+blz find --help
 
 # Agent integration guidance
 blz --prompt
