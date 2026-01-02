@@ -4,9 +4,27 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'crates/**'
+      - 'vendor/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.cargo/**'
+      - 'rust-toolchain.toml'
+      - 'clippy.toml'
+      - '.github/workflows/coverage.yml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'crates/**'
+      - 'vendor/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.cargo/**'
+      - 'rust-toolchain.toml'
+      - 'clippy.toml'
+      - '.github/workflows/coverage.yml'
   schedule:
     - cron: '0 3 * * MON'
   workflow_dispatch:
