@@ -65,7 +65,7 @@ pre-commit:
       run: |
         bash -lc '
           CHANGED=$(git diff --name-only --cached -- "*.rs" "**/Cargo.toml" "**/Cargo.lock")
-          NON_TEST_RUST=$(echo "$CHANGED" | grep -Ev '(^crates/.+/tests/|^crates/.+/benches/|^crates/.+/examples/|^crates/.+/testdata/|^tests/|^benches/)' | head -n 1 || true)
+          NON_TEST_RUST=$(echo "$CHANGED" | grep -Ev "(^crates/.+/tests/|^crates/.+/benches/|^crates/.+/examples/|^crates/.+/testdata/|^tests/|^benches/)" | head -n 1 || true)
           if [ -z "$CHANGED" ]; then
             echo "⏭  No Rust changes staged; skipping cargo check + clippy."
             exit 0
