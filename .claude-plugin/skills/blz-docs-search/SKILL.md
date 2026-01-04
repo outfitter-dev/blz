@@ -13,7 +13,7 @@ Fast local documentation search using blz. Search is local, free, and fast (~6ms
 - Good: `"useEffect cleanup"`, `"test configuration"`, `"HTTP server"`
 - Bad: `"How do I use useEffect?"`, `"What's the best way to..."`
 
-**Citations**: Results include citations like `bun:304-324` (source:start-end lines). Use these with `blz get` to retrieve content.
+**Citations**: Results include citations like `bun:304-324` (source:start-end lines). Use these with `blz find` to retrieve content.
 
 ## Quick Patterns
 
@@ -28,16 +28,16 @@ blz "test runner" --json
 blz "hooks" --source react --json
 
 # Retrieve by citation
-blz get bun:304-324 --json
+blz find bun:304-324 --json
 
 # Retrieve with full section context
-blz get bun:304-324 --context all --json
+blz find bun:304-324 --context all --json
 
 # Retrieve with surrounding lines
-blz get bun:304-324 -C 5 --json
+blz find bun:304-324 -C 5 --json
 
 # Batch retrieve multiple citations
-blz get bun:304-324 deno:500-520 --json
+blz find bun:304-324 deno:500-520 --json
 ```
 
 ## Search Strategy
@@ -68,8 +68,19 @@ blz get bun:304-324 deno:500-520 --json
 ## MCP Alternative
 
 For structured operations, MCP tools are also available:
-```
+```javascript
+// Search documentation
 mcp__blz__blz_find({ query: "test runner" })
+
+// Retrieve citations
 mcp__blz__blz_find({ snippets: ["bun:304-324"] })
+
+// List available sources
 mcp__blz__blz_list_sources()
+
+// Add new source
+mcp__blz__blz_add_source({ alias: "react", url: "https://react.dev/llms.txt" })
+
+// Learn blz usage
+mcp__blz__blz_learn({})
 ```

@@ -25,6 +25,8 @@ All workflows are optimized for Graphite stacked PRs and support both automatic 
 ## Release Automation
 
 Release-please drives versioning and changelog updates via conventional commits.
+Legacy label-based automation (`auto-release.yml`) and release-drafter are
+archived under `.github/workflows/archive/` and no longer run.
 
 ### Mainline releases (`main`)
 

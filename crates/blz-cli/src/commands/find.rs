@@ -67,11 +67,52 @@ fn is_citation(input: &str) -> bool {
     true
 }
 
+#[derive(Debug)]
+enum FindMode {
+    Retrieve(Vec<RequestSpec>),
+    Search(String),
+}
+
+fn classify_inputs(inputs: &[String]) -> Result<FindMode> {
+    if inputs.is_empty() {
+        return Err(anyhow::anyhow!("find requires at least one input"));
+    }
+
+    let all_citations = inputs.iter().all(|input| is_citation(input));
+    let any_citations = inputs.iter().any(|input| is_citation(input));
+
+    if all_citations {
+        let mut specs = Vec::with_capacity(inputs.len());
+        for input in inputs {
+            let (alias, line_expression) = input
+                .split_once(':')
+                .ok_or_else(|| anyhow::anyhow!("Invalid citation format: {input}"))?;
+            specs.push(RequestSpec {
+                alias: alias.to_string(),
+                line_expression: line_expression.to_string(),
+            });
+        }
+        return Ok(FindMode::Retrieve(specs));
+    }
+
+    if any_citations {
+        return Err(anyhow::anyhow!(
+            "Do not mix citations and search terms. Use `blz find \"query\"` or `blz find alias:1-2 alias:3-4`."
+        ));
+    }
+
+    let query = inputs.join(" ").trim().to_string();
+    if query.is_empty() {
+        return Err(anyhow::anyhow!("Search query cannot be empty"));
+    }
+    Ok(FindMode::Search(query))
+}
+
 /// Execute the find command with smart pattern-based dispatch
 ///
 /// # Pattern Detection
 ///
-/// - If `input` matches `alias:digits-digits` → delegates to get (retrieve mode)
+/// - If all inputs match `alias:digits-digits` → delegates to get (retrieve mode)
 /// - Otherwise → delegates to search (search mode)
 ///
 /// # Examples
@@ -83,12 +124,13 @@ fn is_citation(input: &str) -> bool {
 ///
 /// // Retrieve mode
 /// blz find bun:120-142
+/// blz find bun:120-142 deno:5-10
 /// blz find bun:120-142,200-210 -C 5
 /// ```
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
-    input: &str,
+    inputs: &[String],
     sources: &[String],
     limit: Option<usize>,
     all: bool,
@@ -113,64 +155,43 @@ pub async fn execute(
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
 ) -> Result<()> {
-    if is_citation(input) {
-        // Retrieve mode: delegate to get command logic
-        // Note: heading_level is ignored in retrieve mode
-        execute_retrieve_mode(input, context_mode, block, max_lines, format, copy).await
-    } else {
-        // Search mode: delegate to search command logic
-        execute_search_mode(
-            input,
-            sources,
-            limit,
-            all,
-            page,
-            last,
-            top,
-            heading_level,
-            format,
-            show,
-            no_summary,
-            score_precision,
-            snippet_lines,
-            max_chars,
-            context_mode,
-            block,
-            max_lines,
-            no_history,
-            copy,
-            quiet,
-            headings_only,
-            prefs,
-            metrics,
-            resource_monitor,
-        )
-        .await
+    match classify_inputs(inputs)? {
+        FindMode::Retrieve(specs) => {
+            // Retrieve mode: delegate to get command logic
+            // Note: heading_level is ignored in retrieve mode
+            get::execute_internal(&specs, context_mode, block, max_lines, format, copy).await
+        },
+        FindMode::Search(query) => {
+            // Search mode: delegate to search command logic
+            execute_search_mode(
+                &query,
+                sources,
+                limit,
+                all,
+                page,
+                last,
+                top,
+                heading_level,
+                format,
+                show,
+                no_summary,
+                score_precision,
+                snippet_lines,
+                max_chars,
+                context_mode,
+                block,
+                max_lines,
+                no_history,
+                copy,
+                quiet,
+                headings_only,
+                prefs,
+                metrics,
+                resource_monitor,
+            )
+            .await
+        },
     }
-}
-
-/// Execute retrieve mode (citation detected)
-async fn execute_retrieve_mode(
-    citation: &str,
-    context_mode: Option<&ContextMode>,
-    block: bool,
-    max_lines: Option<usize>,
-    format: OutputFormat,
-    copy: bool,
-) -> Result<()> {
-    // Parse citation into RequestSpec
-    // Format: alias:ranges (e.g., "bun:120-142,200-210")
-    let (alias, line_expression) = citation
-        .split_once(':')
-        .ok_or_else(|| anyhow::anyhow!("Invalid citation format: {citation}"))?;
-
-    let specs = vec![RequestSpec {
-        alias: alias.to_string(),
-        line_expression: line_expression.to_string(),
-    }];
-
-    // Delegate to get::execute_internal to avoid deprecation warning
-    get::execute_internal(&specs, context_mode, block, max_lines, format, copy).await
 }
 
 /// Execute search mode (query detected)
@@ -327,8 +348,43 @@ async fn execute_search_mode(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classify_inputs_retrieve_multiple() {
+        let inputs = vec!["bun:1-2".to_string(), "deno:3-4".to_string()];
+        let mode = classify_inputs(&inputs).expect("should classify as retrieve mode");
+        assert!(matches!(mode, FindMode::Retrieve(specs) if specs.len() == 2));
+    }
+
+    #[test]
+    fn classify_inputs_search_multiword() {
+        let inputs = vec!["async".to_string(), "patterns".to_string()];
+        let mode = classify_inputs(&inputs).expect("should classify as search mode");
+        assert!(matches!(mode, FindMode::Search(ref query) if query == "async patterns"));
+    }
+
+    #[test]
+    fn classify_inputs_rejects_mixed() {
+        let inputs = vec!["bun:1-2".to_string(), "async".to_string()];
+        let err = classify_inputs(&inputs).unwrap_err();
+        assert!(
+            err.to_string().contains("Do not mix citations"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn classify_inputs_rejects_empty() {
+        let inputs: Vec<String> = vec![];
+        let err = classify_inputs(&inputs).unwrap_err();
+        assert!(
+            err.to_string().contains("at least one input"),
+            "unexpected error: {err}"
+        );
+    }
 
     #[test]
     fn test_citation_detection() {

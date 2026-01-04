@@ -779,7 +779,7 @@ async fn execute_command(
             .await?;
         },
         Some(Commands::Find {
-            input,
+            inputs,
             sources,
             limit,
             all,
@@ -814,7 +814,7 @@ async fn execute_command(
 
             // Execute find with smart dispatch
             commands::find(
-                &input,
+                &inputs,
                 &sources,
                 limit,
                 all,

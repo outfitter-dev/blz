@@ -56,7 +56,7 @@ All BLZ operations go through a single command. The agent interprets your reques
 /blz list
 
 # Retrieve content by citation
-/blz get bun:304-324
+/blz find bun:304-324
 
 # Refresh documentation sources
 /blz refresh
@@ -118,10 +118,10 @@ Teaches source management:
 /blz "test runner configuration"
 
 # After search returns citation bun:304-324
-/blz get bun:304-324
+/blz find bun:304-324
 
 # Get full section context
-/blz get bun:304-324 --context all
+/blz find bun:304-324 --context all
 ```
 
 ### Keeping documentation fresh
