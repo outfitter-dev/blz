@@ -67,6 +67,7 @@ fn is_citation(input: &str) -> bool {
     true
 }
 
+#[derive(Debug)]
 enum FindMode {
     Retrieve(Vec<RequestSpec>),
     Search(String),
@@ -347,45 +348,43 @@ async fn execute_search_mode(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::{FindMode, classify_inputs};
+    use super::*;
 
     #[test]
     fn classify_inputs_retrieve_multiple() {
         let inputs = vec!["bun:1-2".to_string(), "deno:3-4".to_string()];
-        match classify_inputs(&inputs) {
-            Ok(mode) => assert!(matches!(mode, FindMode::Retrieve(specs) if specs.len() == 2)),
-            Err(err) => assert!(false, "unexpected error: {err}"),
-        }
+        let mode = classify_inputs(&inputs).expect("should classify as retrieve mode");
+        assert!(matches!(mode, FindMode::Retrieve(specs) if specs.len() == 2));
     }
 
     #[test]
     fn classify_inputs_search_multiword() {
         let inputs = vec!["async".to_string(), "patterns".to_string()];
-        match classify_inputs(&inputs) {
-            Ok(mode) => {
-                assert!(matches!(mode, FindMode::Search(ref query) if query == "async patterns"));
-            },
-            Err(err) => assert!(false, "unexpected error: {err}"),
-        }
+        let mode = classify_inputs(&inputs).expect("should classify as search mode");
+        assert!(matches!(mode, FindMode::Search(ref query) if query == "async patterns"));
     }
 
     #[test]
     fn classify_inputs_rejects_mixed() {
         let inputs = vec!["bun:1-2".to_string(), "async".to_string()];
-        match classify_inputs(&inputs) {
-            Ok(_) => assert!(false, "expected mixed input error"),
-            Err(err) => assert!(
-                err.to_string().contains("Do not mix citations"),
-                "unexpected error: {err}"
-            ),
-        }
+        let err = classify_inputs(&inputs).unwrap_err();
+        assert!(
+            err.to_string().contains("Do not mix citations"),
+            "unexpected error: {err}"
+        );
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    #[test]
+    fn classify_inputs_rejects_empty() {
+        let inputs: Vec<String> = vec![];
+        let err = classify_inputs(&inputs).unwrap_err();
+        assert!(
+            err.to_string().contains("at least one input"),
+            "unexpected error: {err}"
+        );
+    }
 
     #[test]
     fn test_citation_detection() {
