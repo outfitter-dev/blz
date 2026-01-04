@@ -301,7 +301,7 @@ blz search "test runner" --source bun --json
 **CLI equivalent:**
 
 ```bash
-blz get bun:304-324 --context block --json
+blz find bun:304-324 --context block --json
 ```
 
 #### Example 3: Search and Retrieve
@@ -391,7 +391,7 @@ blz get bun:304-324 --context block --json
 **CLI equivalent:**
 
 ```bash
-blz get bun:100-120,130-150 -C 2 --json
+blz find bun:100-120,130-150 -C 2 --json
 ```
 
 ### Error Handling

@@ -60,14 +60,14 @@ Add a new documentation source to your BLZ index.
 /blz add react https://react.dev/llms.txt
 ```
 
-### `/blz get <citation>`
+### `/blz find <citation>`
 
 Retrieve exact lines from a citation returned by search.
 
 **Examples:**
 ```bash
-/blz get bun:304-324
-/blz get react:2000-2050 -C 5
+/blz find bun:304-324
+/blz find react:2000-2050 -C 5
 ```
 
 ### `/blz list`
@@ -144,7 +144,7 @@ For simple API lookups or single-concept searches:
 /blz "useState hook"
 
 # Retrieve content
-/blz get react:1234-1256
+/blz find react:1234-1256
 ```
 
 ### Complex Research
@@ -206,7 +206,7 @@ The agent will:
 
 4. **Batch retrievals**: Get multiple citations in one call
    ```bash
-   blz get bun:123-456 deno:789-900 react:2000-2050 --json
+   blz find bun:123-456 deno:789-900 react:2000-2050 --json
    ```
 
 ### Source Management

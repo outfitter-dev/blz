@@ -24,11 +24,14 @@ jobs:
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
   claude-review:
     # Run on PR events (open, ready_for_review, review_requested) OR when someone comments "@claude review"
-    # Manual triggers only allowed for user 'galligan', approved bots, or repository owners/collaborators (users with write permission)
+    # Skip for bot-created PRs (dependabot, etc.) - they don't need Claude review
+    # Manual triggers only allowed for user 'galligan', approved bots, or repository owners/collaborators
     needs: optimize_ci
     if: |
       needs.optimize_ci.outputs.skip == 'false' &&
-      ((github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      ((github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.user.type != 'Bot') ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        github.event.comment &&
@@ -112,7 +115,7 @@ jobs:
           #   !contains(github.event.pull_request.title, '[skip-review]') &&
           #   !contains(github.event.pull_request.title, '[WIP]')
 # This workflow runs automatically when:
-# 1. A PR is first opened (not draft)
+# 1. A PR is first opened (not draft, not from a bot)
 # 2. A draft PR is marked as ready for review
 # 3. Someone requests a review on the PR
 # 4. Someone comments "@claude review" on a PR
@@ -130,4 +133,5 @@ jobs:
 # It will NOT run on:
 # - New commits to existing PRs (unless manually triggered)
 # - Draft PRs
+# - Bot-created PRs (dependabot, renovate, etc.) - skipped, not errored
 # - Other bot comments (except the allowed ones)

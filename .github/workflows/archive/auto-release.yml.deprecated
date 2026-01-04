@@ -1,0 +1,271 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: auto-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect Release Intent
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip release]') }}
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.labels.outputs.skip }}
+      reason: ${{ steps.labels.outputs.reason }}
+      mode: ${{ steps.labels.outputs.mode }}
+      pr_number: ${{ steps.labels.outputs.pr_number }}
+      pr_url: ${{ steps.labels.outputs.pr_url }}
+      labels: ${{ steps.labels.outputs.labels }}
+    steps:
+      - name: Inspect release labels
+        id: labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const allowed = ['release:major', 'release:minor', 'release:patch', 'release:canary'];
+
+            if (context.eventName === 'pull_request') {
+              const pr = context.payload.pull_request;
+              const labels = (pr.labels || []).map((label) => label.name);
+              core.setOutput('pr_number', pr.number.toString());
+              core.setOutput('pr_url', pr.html_url);
+              core.setOutput('labels', labels.join(','));
+
+              if (labels.includes('release:hold')) {
+                const message = 'Release automation paused: `release:hold` label present. See docs/ci/release-labels.md';
+                core.setOutput('skip', 'true');
+                core.setOutput('reason', 'release-hold');
+                core.notice(message);
+                return;
+              }
+
+              const matches = allowed.filter((label) => labels.includes(label));
+              if (matches.length === 0) {
+                core.notice('Release automation skipped: no `release:*` label found. See docs/ci/release-labels.md for guidance.');
+                core.setOutput('skip', 'true');
+                core.setOutput('reason', 'no-release-label');
+                return;
+              }
+              if (matches.length > 1) {
+                core.setFailed(`Multiple release labels detected on PR #${pr.number}: ${matches.join(', ')}`);
+                return;
+              }
+              const mode = matches[0].split(':')[1];
+              core.setOutput('mode', mode);
+              core.setOutput('skip', 'false');
+              core.setOutput('reason', 'ready');
+              return;
+            }
+
+            // push event
+            const commitSha = context.sha;
+            const { owner, repo } = context.repo;
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner,
+              repo,
+              commit_sha: commitSha,
+            });
+            if (!prs.data.length) {
+              core.setOutput('skip', 'true');
+              core.setOutput('reason', 'no-associated-pr');
+              return;
+            }
+            const pr = prs.data[0];
+            const labels = pr.labels.map((label) => label.name);
+            core.setOutput('pr_number', pr.number.toString());
+            core.setOutput('pr_url', pr.html_url);
+            core.setOutput('labels', labels.join(','));
+
+            if (labels.includes('release:hold')) {
+              const message = 'Release automation paused: `release:hold` label present. See docs/ci/release-labels.md';
+              core.setOutput('skip', 'true');
+              core.setOutput('reason', 'release-hold');
+              core.notice(message);
+              return;
+            }
+
+            const matches = allowed.filter((label) => labels.includes(label));
+            if (matches.length === 0) {
+              core.notice('Release automation skipped: no `release:*` label found. See docs/ci/release-labels.md for guidance.');
+              core.setOutput('skip', 'true');
+              core.setOutput('reason', 'no-release-label');
+              return;
+            }
+            if (matches.length > 1) {
+              core.setFailed(`Multiple release labels detected on PR #${pr.number}: ${matches.join(', ')}`);
+              return;
+            }
+            const mode = matches[0].split(':')[1];
+            core.setOutput('mode', mode);
+            core.setOutput('skip', 'false');
+            core.setOutput('reason', 'ready');
+
+      - name: Notify hold label (push events)
+        if: ${{ github.event_name == 'push' && steps.labels.outputs.reason == 'release-hold' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ steps.labels.outputs.pr_number }}');
+            if (!prNumber) {
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: '⚠️ Release automation skipped: `release:hold` label is still applied. Remove the hold label and merge again when ready to release.',
+            });
+
+      - name: Debug labels
+        run: |
+          {
+            echo "Skip: ${{ steps.labels.outputs.skip }}"
+            echo "Reason: ${{ steps.labels.outputs.reason }}"
+            if [[ -n "${{ steps.labels.outputs.pr_url }}" ]]; then
+              echo "PR: ${{ steps.labels.outputs.pr_url }}"
+            fi
+            if [[ -n "${{ steps.labels.outputs.labels }}" ]]; then
+              echo "Labels: ${{ steps.labels.outputs.labels }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  bump:
+    name: Bump & Tag Release
+    needs: detect
+    if: ${{ github.event_name == 'push' && needs.detect.outputs.skip == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      dist-tag: ${{ steps.meta.outputs.dist_tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      mode: ${{ needs.detect.outputs.mode }}
+      pr_number: ${{ needs.detect.outputs.pr_number }}
+      committed: ${{ steps.commit.outputs.committed || 'false' }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Restore cargo-edit cache
+        id: cargo_edit_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-set-version
+            ~/.cargo/bin/cargo-set-version.exe
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: cargo-edit-${{ runner.os }}-v0
+
+      - name: Ensure cargo-edit
+        run: |
+          if ! command -v cargo-set-version >/dev/null 2>&1; then
+            cargo install cargo-edit --locked
+          fi
+
+      - name: Run semver bump
+        id: bump
+        env:
+          RELEASE_MODE: ${{ needs.detect.outputs.mode }}
+        run: |
+          set -euo pipefail
+          MODE="$RELEASE_MODE"
+          VERSION=$(./scripts/release/semver-bump.sh "$MODE")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          { echo "New version: $VERSION"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Derive release metadata
+        id: meta
+        env:
+          BUMP_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION="$BUMP_VERSION"
+          if [[ -z "$VERSION" ]]; then
+            echo "No version returned from semver bump" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$VERSION" == *"-canary."* ]]; then
+            echo "dist_tag=canary" >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" == *"-beta"* ]]; then
+            echo "dist_tag=beta" >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" == *"-alpha"* ]]; then
+            echo "dist_tag=alpha" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit release
+        id: commit
+        env:
+          RELEASE_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          if [[ -z $(git status --porcelain) ]]; then
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            { echo "No file changes detected after semver bump"; } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "Outfitter Release Bot"
+          git config user.email "release-bot@outfitter.dev"
+          git add .
+          git commit -m "chore(release): v$RELEASE_VERSION [skip release] [skip ci]"
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push changes
+        if: ${{ steps.commit.outputs.committed == 'true' }}
+        run: |
+          git push origin HEAD
+
+      - name: Create tag
+        id: create_tag
+        if: ${{ steps.commit.outputs.committed == 'true' }}
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          TAG="$RELEASE_TAG"
+          git fetch --tags --force --quiet
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists" >&2
+            exit 1
+          fi
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Created tag $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize release
+        run: |
+          {
+            echo "### Release Automation"
+            echo "- Version: ${{ steps.bump.outputs.version }}"
+            echo "- Tag: ${{ steps.meta.outputs.tag }}"
+            echo "- Mode: ${{ needs.detect.outputs.mode }}"
+            echo "- Dist tag: ${{ steps.meta.outputs.dist_tag }}"
+            if [[ -n "${{ needs.detect.outputs.pr_number }}" ]]; then
+              echo "- PR: #${{ needs.detect.outputs.pr_number }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -12,7 +12,7 @@ Invoke the `@blz:blazer` agent with this request. The agent handles all BLZ oper
 - **Search**: `/blz "test runner"` or `/blz how do I write tests in Bun`
 - **Add source**: `/blz add bun https://bun.sh/llms-full.txt`
 - **List sources**: `/blz list`
-- **Retrieve content**: `/blz get bun:304-324`
+- **Retrieve content**: `/blz find bun:304-324`
 - **Refresh sources**: `/blz refresh` or `/blz refresh bun`
 - **Complex research**: `/blz Compare React hooks vs Vue composition API`
 

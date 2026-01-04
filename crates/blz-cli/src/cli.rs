@@ -865,13 +865,15 @@ pub enum Commands {
     ///
     /// Examples:
     ///   blz find "async patterns"        # Search mode
+    ///   blz find async patterns          # Search mode (unquoted)
     ///   blz find bun:120-142             # Retrieve mode
     ///   blz find bun:120-142,200-210     # Multiple ranges
+    ///   blz find bun:120-142 deno:5-10   # Multiple citations
     #[command(display_order = 5)]
     Find {
-        /// Query string or citation (e.g., "query" or "alias:123-456")
-        #[arg(value_name = "INPUT", required = true)]
-        input: String,
+        /// Query terms or citation(s) (e.g., "query" or "alias:123-456")
+        #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+        inputs: Vec<String>,
 
         /// Filter by source(s) for search mode - comma-separated for multiple
         #[arg(
