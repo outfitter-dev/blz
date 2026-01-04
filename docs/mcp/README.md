@@ -486,7 +486,7 @@ For reference, here's how MCP tools map to CLI commands:
 | MCP Tool | CLI Equivalent |
 |----------|----------------|
 | `find(query=...)` | `blz search "..." --json` |
-| `find(snippets=...)` | `blz get source:lines --json` |
+| `find(snippets=...)` | `blz find source:lines --json` |
 | `list-sources()` | `blz list --json` |
 | `source-add(alias=...)` | `blz add alias url` |
 | `run-command(command="stats")` | `blz stats` |

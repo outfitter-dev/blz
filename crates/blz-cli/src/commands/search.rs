@@ -139,8 +139,9 @@ pub async fn execute(
         (Some(limit), false)
     };
 
+    let inputs = vec![query.to_string()];
     super::find::execute(
-        query,
+        &inputs,
         sources,
         limit_opt,
         all,
@@ -247,8 +248,9 @@ pub async fn handle_default(
     let max_chars = max_chars_env.map(clamp_max_chars);
 
     // Delegate to the unified find command
+    let inputs = vec![input];
     super::find::execute(
-        &input,
+        &inputs,
         &sources_filter,
         Some(default_search_limit()), // limit - respects BLZ_DEFAULT_LIMIT env var
         false,                        // all

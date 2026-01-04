@@ -287,7 +287,7 @@ blz list --json
 blz search "test runner" --json
 
 # Get content
-blz get bun:304-324 --json
+blz find bun:304-324 --json
 ```
 
 If these work, the MCP server should work too.
