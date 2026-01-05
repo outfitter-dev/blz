@@ -1,12 +1,14 @@
-//! Helper utilities for building blz-core JSON structures
+//! Helper utilities for building blz-core JSON structures.
 
-use blz_core::{FileInfo, LineIndex, LlmsJson, ParseMeta, ParseResult, Source};
 use chrono::Utc;
 
-/// Build a `LlmsJson` structure from parse results and metadata
+use crate::{FileInfo, LineIndex, LlmsJson, ParseMeta, ParseResult, Source};
+
+/// Build a `LlmsJson` structure from parse results and metadata.
 ///
 /// This helper constructs the complete JSON structure that gets saved
 /// to disk for each source, containing TOC, line index, and metadata.
+#[must_use]
 pub fn build_llms_json(
     alias: &str,
     url: &str,
@@ -24,16 +26,16 @@ pub fn build_llms_json(
             last_modified,
             fetched_at: Utc::now(),
             sha256: sha256.clone(),
-            variant: blz_core::SourceVariant::Llms, // Default, will be updated by caller
+            variant: crate::SourceVariant::Llms, // Default, caller can override.
             aliases: Vec::new(),
             tags: Vec::new(),
             description: None,
             category: None,
             npm_aliases: Vec::new(),
             github_aliases: Vec::new(),
-            origin: blz_core::SourceOrigin {
+            origin: crate::SourceOrigin {
                 manifest: None,
-                source_type: Some(blz_core::SourceType::Remote {
+                source_type: Some(crate::SourceType::Remote {
                     url: url.to_string(),
                 }),
             },

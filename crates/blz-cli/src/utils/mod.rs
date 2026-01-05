@@ -58,7 +58,6 @@ pub mod filter_flags;
 pub mod formatting;
 pub mod heading_filter;
 pub mod history_log;
-pub mod json_builder;
 pub mod parsing;
 pub mod preferences;
 pub mod process_guard;
@@ -67,7 +66,6 @@ pub mod settings;
 pub mod staleness;
 pub mod store;
 pub mod toc;
-pub mod url_resolver;
 pub mod validation;
 
 #[cfg(test)]

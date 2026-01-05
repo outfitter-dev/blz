@@ -65,6 +65,8 @@ pub mod fetcher;
 pub mod heading;
 /// Search index implementation using Tantivy
 pub mod index;
+/// JSON builder helpers for llms.json structures
+pub mod json_builder;
 /// Language filtering for multilingual llms.txt files
 pub mod language_filter;
 /// Anchor remapping utilities between versions
@@ -75,12 +77,16 @@ pub mod parser;
 pub mod profile;
 /// Performance profiling utilities
 pub mod profiling;
+/// Refresh helpers shared across CLI and MCP
+pub mod refresh;
 /// Built-in registry of known documentation sources
 pub mod registry;
 /// Local filesystem storage for cached documentation
 pub mod storage;
 /// Core data types and structures
 pub mod types;
+/// URL resolver for llms.txt variants
+pub mod url_resolver;
 
 // Re-export commonly used types
 pub use config::{
@@ -94,6 +100,7 @@ pub use heading::{
     segment_variants,
 };
 pub use index::SearchIndex;
+pub use json_builder::build_llms_json;
 pub use language_filter::{FilterStats, LanguageFilter};
 pub use mapping::{build_anchors_map, compute_anchor_mappings};
 pub use parser::{MarkdownParser, ParseResult};

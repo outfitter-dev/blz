@@ -4,7 +4,7 @@ use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::{
     Fetcher, LanguageFilter, MarkdownParser, ParseResult, PerformanceMetrics, SearchIndex, Source,
-    SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage,
+    SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage, build_llms_json,
 };
 use chrono::Utc;
 use colored::Colorize;
@@ -18,9 +18,8 @@ use tokio::fs as async_fs;
 use url::Url;
 
 use crate::utils::count_headings;
-use crate::utils::json_builder::build_llms_json;
-use crate::utils::url_resolver;
 use crate::utils::validation::{normalize_alias, validate_alias};
+use blz_core::url_resolver;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
