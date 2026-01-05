@@ -27,7 +27,7 @@ sha2 = "0.10"
 base64 = "0.22"
 clap = { version = "4", features = ["derive", "env"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3.20", features = ["fmt", "json"] }
+tracing-subscriber = { version = "0.3.22", features = ["fmt", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
 directories = "5"
 futures = "0.3"
