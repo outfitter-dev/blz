@@ -1,10 +1,12 @@
 {
   "mcpServers": {
-    "linear-server": {
-      "type": "sse",
-      "url": "https://mcp.linear.app/sse"
+    "linear": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:obra/streamlinear"]
     },
     "blz": {
+      "type": "stdio",
       "command": "blz",
       "args": ["mcp-server"],
       "env": {
