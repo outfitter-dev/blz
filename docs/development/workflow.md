@@ -246,8 +246,10 @@ chore    # Maintenance
 2. release-please opens or updates the release PR.
 3. Merge the release PR to create the tag and draft release.
 4. `publish.yml` runs on the tag to upload assets and publish registries.
+5. DotSlash generation runs after the release is published.
 
 For canary releases, merge into `release-canary` and follow the same flow.
+Legacy label-based release workflows are archived under `.github/workflows/archive/`.
 
 ### Release Checklist
 
