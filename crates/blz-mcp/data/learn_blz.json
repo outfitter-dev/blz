@@ -14,17 +14,17 @@
     {
       "name": "Search and retrieve",
       "steps": [
-        "Use blz_find tool with query to search documentation",
+        "Use find tool with action 'search' to search documentation",
         "Review search results to identify relevant citations",
-        "Use blz_find tool with snippets parameter to retrieve full content"
+        "Use find tool with action 'get' to retrieve full content"
       ]
     },
     {
       "name": "Add new source",
       "steps": [
-        "Use blz_list_sources to check if source is in registry",
-        "Use blz_add_source with alias to install from registry",
-        "Or use blz_add_source with alias and url for custom sources"
+        "Use blz tool with action 'list' to check if source is in the registry",
+        "Use blz tool with action 'add' to install from the registry",
+        "Or use blz tool with action 'add' and url for custom sources"
       ]
     }
   ],
@@ -32,14 +32,15 @@
     "Always specify a source filter when searching for best performance",
     "Use context_mode='symmetric' with line_padding=5 for code examples",
     "Use context_mode='all' to retrieve entire documentation sections",
-    "Check blz_list_sources before adding to avoid duplicates",
+    "Check blz action 'list' before adding to avoid duplicates",
     "Citations format: 'source:start-end' or 'source:range1,range2' for multiple ranges"
   ],
   "examples": [
     {
       "description": "Search for async patterns in Bun docs",
-      "tool": "blz_find",
+      "tool": "find",
       "params": {
+        "action": "search",
         "query": "async await",
         "source": "bun",
         "maxResults": 5
@@ -47,8 +48,9 @@
     },
     {
       "description": "Retrieve code example with context",
-      "tool": "blz_find",
+      "tool": "find",
       "params": {
+        "action": "get",
         "snippets": ["bun:1234-1250"],
         "contextMode": "symmetric",
         "linePadding": 5
@@ -56,22 +58,24 @@
     },
     {
       "description": "List all installed sources",
-      "tool": "blz_list_sources",
+      "tool": "blz",
       "params": {
+        "action": "list",
         "kind": "installed"
       }
     },
     {
       "description": "Add React documentation",
-      "tool": "blz_add_source",
+      "tool": "blz",
       "params": {
+        "action": "add",
         "alias": "react"
       }
     }
   ],
   "cli_equivalents": {
-    "find_search": "blz search 'query' --source bun --json",
-    "find_retrieve": "blz get bun:100-200 -C 5 --json",
+    "find_search": "blz find \"async await\" --source bun --json",
+    "find_retrieve": "blz find \"bun:100-200\" -C 5 --json",
     "list_sources": "blz list --json",
     "source_add": "blz add react https://react.dev/llms.txt"
   }
