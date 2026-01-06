@@ -141,22 +141,32 @@ mkdir -p "$LOGS_DIR"
 tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT
 
+# Escape values for sed replacements
+escape_sed() {
+  printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+}
+
+DATE_STR_ESCAPED=$(escape_sed "$DATE_STR")
+BRANCH_ESCAPED=$(escape_sed "$BRANCH")
+SLUG_ESCAPED=$(escape_sed "${TYPE}-${SLUG_DESC}")
+PR_FIELD_ESCAPED=$(escape_sed "$PR_FIELD")
+
 # Prepare sed expressions conditionally
 SED_EXPR=(
-  -e "s/^date:.*$/date: ${DATE_STR}/"
+  -e "s/^date:.*$/date: ${DATE_STR_ESCAPED}/"
 )
 if grep -q '^branch:' "$TEMPLATE_PATH"; then
-  SED_EXPR+=( -e "s/^branch:.*$/branch: ${BRANCH}/" )
+  SED_EXPR+=( -e "s/^branch:.*$/branch: ${BRANCH_ESCAPED}/" )
 fi
 if grep -q '^slug:' "$TEMPLATE_PATH"; then
-  SED_EXPR+=( -e "s/^slug:.*$/slug: ${TYPE}-${SLUG_DESC}/" )
+  SED_EXPR+=( -e "s/^slug:.*$/slug: ${SLUG_ESCAPED}/" )
 fi
 if grep -q '^pr:' "$TEMPLATE_PATH" && [[ -n "$PR_FIELD" ]]; then
-  SED_EXPR+=( -e "s/^pr:.*$/pr: ${PR_FIELD}/" )
+  SED_EXPR+=( -e "s/^pr:.*$/pr: ${PR_FIELD_ESCAPED}/" )
 fi
 if grep -q '^issue:' "$TEMPLATE_PATH" && [[ -n "$PR_FIELD" ]]; then
   # For DEBUG/FEATURE templates which use 'issue:'
-  SED_EXPR+=( -e "s/^issue:.*$/issue: ${PR_FIELD}/" )
+  SED_EXPR+=( -e "s/^issue:.*$/issue: ${PR_FIELD_ESCAPED}/" )
 fi
 
 sed "${SED_EXPR[@]}" "$TEMPLATE_PATH" \
