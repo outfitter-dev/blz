@@ -4,6 +4,8 @@
 //! fallback to exact URL if neither variant exists. Uses HEAD requests to
 //! check availability before fetching content.
 
+use std::fmt::Write as _;
+
 use tracing::{debug, warn};
 
 use crate::{ContentType, Error, Fetcher, Result, SourceVariant};
@@ -114,33 +116,48 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
         }
     }
 
-    let mut message = format!(
+    Err(Error::NotFound(build_resolution_error_message(
+        base_url,
+        &blocked_statuses,
+        &rejected_statuses,
+    )))
+}
+
+fn build_resolution_error_message(
+    base_url: &str,
+    blocked_statuses: &[u16],
+    rejected_statuses: &[u16],
+) -> String {
+    let mut message = String::new();
+    let _ = write!(
+        message,
         "Failed to resolve any llms.txt variant for '{base_url}'. \
          Tried: llms-full.txt, exact URL, and llms.txt fallback."
     );
 
     if !blocked_statuses.is_empty() {
-        let statuses = blocked_statuses
-            .iter()
-            .map(u16::to_string)
-            .collect::<Vec<_>>()
-            .join(", ");
-        message.push_str(&format!(
-            " HEAD returned {statuses}; the host may be blocking automated requests. \
-             Try a direct llms.txt/llms-full.txt URL or add a local file via a manifest."
-        ));
+        message.push_str(" HEAD returned ");
+        write_status_list(&mut message, blocked_statuses);
+        message.push_str(
+            "; the host may be blocking automated requests. \
+             Try a direct llms.txt/llms-full.txt URL or add a local file via a manifest.",
+        );
     } else if !rejected_statuses.is_empty() {
-        let statuses = rejected_statuses
-            .iter()
-            .map(u16::to_string)
-            .collect::<Vec<_>>()
-            .join(", ");
-        message.push_str(&format!(
-            " HEAD returned non-success status codes ({statuses})."
-        ));
+        message.push_str(" HEAD returned non-success status codes (");
+        write_status_list(&mut message, rejected_statuses);
+        message.push_str(").");
     }
 
-    Err(Error::NotFound(message))
+    message
+}
+
+fn write_status_list(message: &mut String, statuses: &[u16]) {
+    for (idx, status) in statuses.iter().enumerate() {
+        if idx > 0 {
+            message.push_str(", ");
+        }
+        let _ = write!(message, "{status}");
+    }
 }
 
 fn try_full_variant(url: &str) -> Option<String> {
