@@ -39,8 +39,36 @@ elif [ -d "/usr/local/share/zsh/site-functions" ]; then
     echo "✅ Zsh completions installed (system-wide)"
 fi
 
+# Elvish
+if [ -d "$HOME/.elvish/lib" ]; then
+    "$BINARY_PATH" completions elvish > "$HOME/.elvish/lib/$BINARY.elv"
+    echo "✅ Elvish completions installed"
+fi
+
+# PowerShell (pwsh)
+if command -v pwsh >/dev/null 2>&1; then
+    PROFILE_PATH="$(pwsh -NoProfile -Command '$PROFILE' 2>/dev/null || true)"
+    PROFILE_PATH="$(printf '%s' "$PROFILE_PATH" | tr -d '\r')"
+    if [ -n "$PROFILE_PATH" ]; then
+        PROFILE_DIR="$(dirname "$PROFILE_PATH")"
+        COMPLETIONS_FILE="$PROFILE_DIR/${BINARY}-completions.ps1"
+        mkdir -p "$PROFILE_DIR"
+        "$BINARY_PATH" completions powershell > "$COMPLETIONS_FILE"
+        if [ ! -f "$PROFILE_PATH" ] || ! grep -Fq "$COMPLETIONS_FILE" "$PROFILE_PATH"; then
+            {
+                echo ""
+                echo "# Load ${BINARY} completions"
+                echo "if (Test-Path \"$COMPLETIONS_FILE\") { . \"$COMPLETIONS_FILE\" }"
+            } >> "$PROFILE_PATH"
+        fi
+        echo "✅ PowerShell completions installed"
+    fi
+fi
+
 echo ""
 echo "Completions installed! Reload your shell or run:"
 echo "  Fish: source ~/.config/fish/config.fish"
 echo "  Bash: source ~/.bashrc"
 echo "  Zsh:  exec zsh"
+echo "  Elvish: exec elvish"
+echo "  PowerShell: . \$PROFILE"

@@ -11,7 +11,7 @@
 
 # Print aliases (canonical + metadata) as newline-separated list using JSON output.
 __blz_aliases() {
-  blz list --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
+  blz list --json 2>/dev/null | python3 - <<'PY' 2>/dev/null
 import json, sys
 try:
   data = json.load(sys.stdin)
@@ -41,7 +41,7 @@ __blz_anchors_for_alias() {
   if [[ -z "$alias" ]]; then
     return
   fi
-  blz toc "$alias" --format json 2>/dev/null | python3 - <<'PY' 2>/dev/null
+  blz toc "$alias" --json 2>/dev/null | python3 - <<'PY' 2>/dev/null
 import json, sys
 try:
   data = json.load(sys.stdin)
@@ -77,7 +77,7 @@ _blz_dynamic() {
   # positional alias for common subcommands
   if (( ret )); then
     case $sub in
-      get|update|remove|toc|anchors)
+      get|refresh|update|remove|diff|toc|anchors)
         if (( CURRENT == 3 )); then
           local -a aliases
           aliases=(${(f)$(__blz_aliases)})
