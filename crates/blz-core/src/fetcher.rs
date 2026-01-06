@@ -243,6 +243,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_with_etag_not_modified() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -274,6 +275,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_with_etag_modified() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -356,6 +358,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_404_error() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -389,6 +392,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_500_error() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -420,6 +424,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_timeout() -> anyhow::Result<()> {
         // Setup mock server with very slow response
         let mock_server = MockServer::start().await;
@@ -453,6 +458,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_fetch_simple_without_cache() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
@@ -536,6 +542,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_invalid_urls() -> anyhow::Result<()> {
         let fetcher = Fetcher::new()?;
 
@@ -556,6 +563,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "network: run in CI"]
     async fn test_concurrent_requests() -> anyhow::Result<()> {
         // Setup mock server
         let mock_server = MockServer::start().await;
