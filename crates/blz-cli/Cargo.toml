@@ -48,7 +48,7 @@ colored = "2"
 indicatif = "0.17"
 clap_complete = "4"
 inquire.workspace = true
-terminal_size = "0.3"
+terminal_size = "0.4"
 unicode-width = "0.2"
 directories = { workspace = true }
 serde.workspace = true
