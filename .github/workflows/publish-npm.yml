@@ -18,7 +18,7 @@ on:
         type: string
     secrets:
       npm-token:
-        required: true
+        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -57,9 +57,11 @@ jobs:
             DIST_TAG="$INPUT_DIST_TAG"
             VERSION="$INPUT_VERSION"
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "dist_tag=$DIST_TAG"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout tag
         uses: actions/checkout@v4
@@ -72,6 +74,11 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
           scope: '@outfitter'
+
+      - name: Ensure npm 11.5.1+ for trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
 
       - name: Validate package version
         run: |
