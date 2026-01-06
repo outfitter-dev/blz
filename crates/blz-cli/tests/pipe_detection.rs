@@ -3,7 +3,6 @@
 
 mod common;
 
-use assert_cmd::cargo::cargo_bin;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -12,7 +11,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn blz_binary_path() -> PathBuf {
-    cargo_bin("blz")
+    assert_cmd::cargo::cargo_bin!("blz").to_path_buf()
 }
 
 fn command_with_env(bin: &Path, data_dir: &Path, config_dir: &Path) -> Command {
