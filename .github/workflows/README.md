@@ -433,9 +433,10 @@ When modifying workflows:
 ### Version Management
 
 - Use semantic versioning strictly
-- Release labels determine bump type automatically
-- Canary releases include timestamp for uniqueness
-- Pre-releases skip Homebrew publishing
+- release-please automatically calculates version bumps from conventional commits and opens release PRs
+- Merge the release PR to create the tag + draft release; `publish.yml` handles publishing
+- Canary releases run from `release-canary` and publish with canary dist-tags
+- Pre-releases skip Homebrew publishing by default
 
 ### Security Considerations
 
