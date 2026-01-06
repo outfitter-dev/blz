@@ -1,14 +1,10 @@
 //! MCP tools for BLZ
 
+pub mod blz;
 pub mod find;
-pub mod learn_blz;
-pub mod run_command;
-pub mod sources;
+mod learn_blz;
+mod run_command;
+mod sources;
 
+pub use blz::{BlzOutput, BlzParams, handle_blz};
 pub use find::{FindOutput, FindParams, handle_find};
-pub use learn_blz::{LearnBlzOutput, LearnBlzParams, handle_learn_blz};
-pub use run_command::{RunCommandOutput, RunCommandParams, handle_run_command};
-pub use sources::{
-    ListSourcesOutput, ListSourcesParams, SourceAddOutput, SourceAddParams, handle_list_sources,
-    handle_source_add,
-};

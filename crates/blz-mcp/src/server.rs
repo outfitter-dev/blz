@@ -186,60 +186,47 @@ impl ServerHandler for McpServer {
             }
         });
 
-        let list_sources_schema = json!({
+        let blz_schema = json!({
             "type": "object",
             "properties": {
-                "kind": {
+                "action": {
                     "type": "string",
-                    "enum": ["installed", "registry", "all"],
-                    "description": "Filter by source kind"
+                    "enum": ["list", "add", "remove", "refresh", "info", "validate", "history", "help"],
+                    "description": "Action to execute (optional; inferred from parameters)"
                 },
-                "query": {
-                    "type": "string",
-                    "description": "Search query to filter sources"
-                }
-            }
-        });
-
-        let source_add_schema = json!({
-            "type": "object",
-            "properties": {
                 "alias": {
                     "type": "string",
-                    "description": "Alias for the source"
+                    "description": "Source alias for add/remove/refresh/info/validate/history"
                 },
                 "url": {
                     "type": "string",
-                    "description": "URL override (if not from registry)"
+                    "description": "URL override for add"
                 },
                 "force": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Force override if source exists"
-                }
-            },
-            "required": ["alias"]
-        });
-
-        let run_command_schema = json!({
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "enum": ["list", "stats", "history", "validate", "inspect", "schema"],
-                    "description": "Diagnostic command to execute"
+                    "description": "Force override if source exists (add only)"
                 },
-                "source": {
+                "kind": {
                     "type": "string",
-                    "description": "Optional source for commands that operate on a specific source"
+                    "enum": ["installed", "registry", "all"],
+                    "description": "List filter: installed, registry, or all"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search query to filter sources"
+                },
+                "reindex": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Re-index cached content instead of fetching (refresh)"
+                },
+                "all": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Refresh all sources"
                 }
-            },
-            "required": ["command"]
-        });
-
-        let learn_blz_schema = json!({
-            "type": "object",
-            "properties": {}
+            }
         });
 
         let find_schema_obj = find_schema
@@ -247,51 +234,21 @@ impl ServerHandler for McpServer {
             .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
             .clone();
 
-        let list_sources_schema_obj = list_sources_schema
-            .as_object()
-            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
-            .clone();
-
-        let source_add_schema_obj = source_add_schema
-            .as_object()
-            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
-            .clone();
-
-        let run_command_schema_obj = run_command_schema
-            .as_object()
-            .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
-            .clone();
-
-        let learn_blz_schema_obj = learn_blz_schema
+        let blz_schema_obj = blz_schema
             .as_object()
             .ok_or_else(|| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid schema", None))?
             .clone();
 
         let tools = vec![
             Tool::new(
-                "blz_find",
+                "find",
                 "Search, retrieve, and browse documentation (actions: search, get, toc)",
                 Arc::new(find_schema_obj),
             ),
             Tool::new(
-                "blz_list_sources",
-                "List docs",
-                Arc::new(list_sources_schema_obj),
-            ),
-            Tool::new(
-                "blz_add_source",
-                "Add docs",
-                Arc::new(source_add_schema_obj),
-            ),
-            Tool::new(
-                "blz_run_command",
-                "Run safe diagnostic commands",
-                Arc::new(run_command_schema_obj),
-            ),
-            Tool::new(
-                "blz_learn",
-                "Learn BLZ usage",
-                Arc::new(learn_blz_schema_obj),
+                "blz",
+                "Manage sources and metadata (actions: list, add, remove, refresh, info, validate, history, help)",
+                Arc::new(blz_schema_obj),
             ),
         ];
 
@@ -311,7 +268,7 @@ impl ServerHandler for McpServer {
         tracing::debug!(tool = %request.name, "calling tool");
 
         match request.name.as_ref() {
-            "blz_find" => {
+            "find" => {
                 let params: tools::FindParams = serde_json::from_value(serde_json::Value::Object(
                     request.arguments.unwrap_or_default(),
                 ))
@@ -365,176 +322,34 @@ impl ServerHandler for McpServer {
                     meta: None,
                 })
             },
-            "blz_list_sources" => {
-                let params: tools::ListSourcesParams = serde_json::from_value(
-                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
-                )
+            "blz" => {
+                let params: tools::BlzParams = serde_json::from_value(serde_json::Value::Object(
+                    request.arguments.unwrap_or_default(),
+                ))
                 .map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
-                        format!("Invalid list-sources parameters: {e}"),
+                        format!("Invalid blz parameters: {e}"),
                         None,
                     )
                 })?;
 
-                let output = tools::handle_list_sources(params, &self.storage)
+                let output = tools::handle_blz(params, &self.storage, &self.index_cache)
                     .await
                     .map_err(|e| {
-                        tracing::error!("list-sources tool error: {}", e);
+                        tracing::error!("blz tool error: {}", e);
                         let error_code = match e {
-                            crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
-                            _ => ErrorCode::INTERNAL_ERROR,
-                        };
-                        ErrorData::new(error_code, e.to_string(), None)
-                    })?;
-
-                let result_json = serde_json::to_value(&output).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to serialize output: {e}"),
-                        None,
-                    )
-                })?;
-
-                Ok(CallToolResult {
-                    content: vec![Content {
-                        raw: RawContent::Text(RawTextContent {
-                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
-                                ErrorData::new(
-                                    ErrorCode::INTERNAL_ERROR,
-                                    format!("Failed to format output: {e}"),
-                                    None,
-                                )
-                            })?,
-                            meta: None,
-                        }),
-                        annotations: None,
-                    }],
-                    structured_content: Some(result_json),
-                    is_error: None,
-                    meta: None,
-                })
-            },
-            "blz_add_source" => {
-                let params: tools::SourceAddParams = serde_json::from_value(
-                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
-                )
-                .map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        format!("Invalid source-add parameters: {e}"),
-                        None,
-                    )
-                })?;
-
-                let output = tools::handle_source_add(params, &self.storage, &self.index_cache)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("source-add tool error: {}", e);
-                        let error_code = match e {
-                            crate::error::McpError::SourceExists(_)
+                            crate::error::McpError::InvalidParams(_)
+                            | crate::error::McpError::SourceExists(_)
                             | crate::error::McpError::SourceNotFound(_)
-                            | crate::error::McpError::InvalidParams(_) => ErrorCode::INVALID_PARAMS,
-                            _ => ErrorCode::INTERNAL_ERROR,
-                        };
-                        ErrorData::new(error_code, e.to_string(), None)
-                    })?;
-
-                let result_json = serde_json::to_value(&output).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to serialize output: {e}"),
-                        None,
-                    )
-                })?;
-
-                Ok(CallToolResult {
-                    content: vec![Content {
-                        raw: RawContent::Text(RawTextContent {
-                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
-                                ErrorData::new(
-                                    ErrorCode::INTERNAL_ERROR,
-                                    format!("Failed to format output: {e}"),
-                                    None,
-                                )
-                            })?,
-                            meta: None,
-                        }),
-                        annotations: None,
-                    }],
-                    structured_content: Some(result_json),
-                    is_error: None,
-                    meta: None,
-                })
-            },
-            "blz_run_command" => {
-                let params: tools::RunCommandParams = serde_json::from_value(
-                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
-                )
-                .map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        format!("Invalid run-command parameters: {e}"),
-                        None,
-                    )
-                })?;
-
-                let output = tools::handle_run_command(params, &self.storage)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("run-command tool error: {}", e);
-                        let error_code = match e {
-                            crate::error::McpError::UnsupportedCommand(_) => {
+                            | crate::error::McpError::MissingParameter(_)
+                            | crate::error::McpError::UnsupportedCommand(_) => {
                                 ErrorCode::INVALID_PARAMS
                             },
                             _ => ErrorCode::INTERNAL_ERROR,
                         };
                         ErrorData::new(error_code, e.to_string(), None)
                     })?;
-
-                let result_json = serde_json::to_value(&output).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to serialize output: {e}"),
-                        None,
-                    )
-                })?;
-
-                Ok(CallToolResult {
-                    content: vec![Content {
-                        raw: RawContent::Text(RawTextContent {
-                            text: serde_json::to_string_pretty(&result_json).map_err(|e| {
-                                ErrorData::new(
-                                    ErrorCode::INTERNAL_ERROR,
-                                    format!("Failed to format output: {e}"),
-                                    None,
-                                )
-                            })?,
-                            meta: None,
-                        }),
-                        annotations: None,
-                    }],
-                    structured_content: Some(result_json),
-                    is_error: None,
-                    meta: None,
-                })
-            },
-            "blz_learn" => {
-                let params: tools::LearnBlzParams = serde_json::from_value(
-                    serde_json::Value::Object(request.arguments.unwrap_or_default()),
-                )
-                .map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        format!("Invalid learn-blz parameters: {e}"),
-                        None,
-                    )
-                })?;
-
-                let output = tools::handle_learn_blz(params).await.map_err(|e| {
-                    tracing::error!("learn-blz tool error: {}", e);
-                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
-                })?;
 
                 let result_json = serde_json::to_value(&output).map_err(|e| {
                     ErrorData::new(
