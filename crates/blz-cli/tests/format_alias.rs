@@ -5,9 +5,13 @@ use std::str;
 use anyhow::Result;
 use assert_cmd::Command;
 
+fn blz_cmd() -> Command {
+    Command::new(assert_cmd::cargo::cargo_bin!("blz"))
+}
+
 #[test]
 fn deprecated_output_alias_warns_and_matches_format() -> Result<()> {
-    let canonical_stdout = Command::cargo_bin("blz")?
+    let canonical_stdout = blz_cmd()
         .env("BLZ_DISABLE_GUARD", "1")
         .args(["completions", "--format", "json", "--list"])
         .assert()
@@ -17,7 +21,7 @@ fn deprecated_output_alias_warns_and_matches_format() -> Result<()> {
         .clone();
 
     for flag in ["--output", "-o"] {
-        let assertion = Command::cargo_bin("blz")?
+        let assertion = blz_cmd()
             .env("BLZ_DISABLE_GUARD", "1")
             .args(["completions", flag, "json", "--list"])
             .assert()
@@ -48,7 +52,7 @@ fn deprecated_output_alias_warns_and_matches_format() -> Result<()> {
 
 #[test]
 fn deprecated_output_respects_quiet_flag() -> Result<()> {
-    let assertion = Command::cargo_bin("blz")?
+    let assertion = blz_cmd()
         .env("BLZ_DISABLE_GUARD", "1")
         .args(["-q", "completions", "--output", "json", "--list"])
         .assert()

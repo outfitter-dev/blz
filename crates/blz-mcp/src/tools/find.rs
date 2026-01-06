@@ -219,7 +219,7 @@ pub struct TocEntrySummary {
     pub anchor: Option<String>,
     /// Nested entries (tree mode only)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub children: Option<Vec<TocEntrySummary>>,
+    pub children: Option<Vec<Self>>,
 }
 
 /// Truncate a string to the specified number of characters, appending ellipsis when shortened.

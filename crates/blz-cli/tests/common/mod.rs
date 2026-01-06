@@ -23,7 +23,7 @@ fn data_dir() -> &'static Path {
 /// Ensures child processes are cleaned up even when the harness aborts.
 #[allow(dead_code)]
 pub fn blz_cmd() -> Command {
-    let mut cmd = Command::cargo_bin("blz").expect("blz binary should build for tests");
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("blz"));
     cmd.timeout(CMD_TIMEOUT);
     if std::env::var("BLZ_PARENT_GUARD_TIMEOUT_SECS").is_err() {
         cmd.env("BLZ_PARENT_GUARD_TIMEOUT_SECS", DEFAULT_GUARD_TIMEOUT_SECS);
