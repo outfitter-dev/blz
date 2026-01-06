@@ -1,4 +1,4 @@
-//! Find tool implementation for searching and retrieving documentation snippets
+//! Find tool implementation for searching, retrieving, and browsing documentation
 
 use blz_core::{SearchIndex, Storage, index::DEFAULT_SNIPPET_CHAR_LIMIT};
 use serde::{Deserialize, Serialize};
@@ -47,6 +47,18 @@ impl SourceFilter {
     }
 }
 
+/// Actions supported by the find tool.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FindAction {
+    /// Full-text search across sources
+    Search,
+    /// Retrieve snippets by citation
+    Get,
+    /// Browse the table of contents
+    Toc,
+}
+
 /// Parameters for the find tool
 ///
 /// # Performance Notes
@@ -56,6 +68,10 @@ impl SourceFilter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FindParams {
+    /// Action to execute
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<FindAction>,
+
     /// Search query (optional if only retrieving snippets)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
@@ -65,16 +81,16 @@ pub struct FindParams {
     pub snippets: Option<Vec<String>>,
 
     /// Context mode: "none", "symmetric", or "all"
-    #[serde(default = "default_context_mode")]
-    pub context_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_mode: Option<String>,
 
     /// Lines of padding (0-50)
-    #[serde(default)]
-    pub line_padding: u32,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "linePadding")]
+    pub context: Option<u32>,
 
     /// Maximum search results (default 10)
-    #[serde(default = "default_max_results")]
-    pub max_results: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<usize>,
 
     /// Optional source filter - can be:
     /// - None: search all sources
@@ -88,26 +104,37 @@ pub struct FindParams {
     ///
     /// Concise returns minimal data, detailed includes all metadata.
     /// Based on Anthropic research showing 30-65% token savings with concise mode.
-    #[serde(default)]
-    pub format: ResponseFormat,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<ResponseFormat>,
 
     /// Restrict matches to heading text only
-    #[serde(default)]
-    pub headings_only: bool,
-}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headings_only: Option<bool>,
 
-fn default_context_mode() -> String {
-    "none".to_string()
-}
+    /// Maximum number of lines to return for snippet retrieval
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_lines: Option<usize>,
 
-const fn default_max_results() -> usize {
-    DEFAULT_MAX_RESULTS
+    /// Filter TOC entries by heading levels (e.g., "1,2" or "<=2")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headings: Option<String>,
+
+    /// Return hierarchical TOC tree (default false)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tree: Option<bool>,
+
+    /// Maximum heading depth to include
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<usize>,
 }
 
 /// Output from find tool
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FindOutput {
+    /// Action that was executed
+    pub action: FindAction,
+
     /// Search results (if query provided)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_results: Option<Vec<SearchHitResult>>,
@@ -115,6 +142,10 @@ pub struct FindOutput {
     /// Snippet results (if snippets requested)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_results: Option<Vec<SnippetResult>>,
+
+    /// Table of contents results (if requested)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toc: Option<TocOutput>,
 
     /// Execution metadata
     pub executed: FindExecuted,
@@ -159,6 +190,36 @@ pub struct FindExecuted {
     pub search_executed: bool,
     /// Whether snippet retrieval was executed
     pub snippets_executed: bool,
+    /// Whether TOC retrieval was executed
+    pub toc_executed: bool,
+}
+
+/// Output from TOC requests
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TocOutput {
+    /// Source identifier
+    pub source: String,
+    /// Flattened or tree TOC entries
+    pub entries: Vec<TocEntrySummary>,
+    /// Whether entries are returned as a tree
+    pub tree: bool,
+}
+
+/// Summary entry for TOC output
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TocEntrySummary {
+    /// Full heading path for this entry
+    pub heading_path: Vec<String>,
+    /// Line range in format "start-end"
+    pub lines: String,
+    /// Optional stable anchor
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+    /// Nested entries (tree mode only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<TocEntrySummary>>,
 }
 
 /// Truncate a string to the specified number of characters, appending ellipsis when shortened.
@@ -195,6 +256,196 @@ fn apply_concise_format(
             truncate_with_ellipsis(&mut snippet.content, CONCISE_SNIPPET_CONTENT_CHARS);
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum HeadingLevelFilter {
+    Any,
+    Max(usize),
+    Min(usize),
+    Range { min: usize, max: usize },
+    Levels,
+}
+
+fn parse_heading_filter(raw: Option<&str>) -> McpResult<(HeadingLevelFilter, Vec<usize>)> {
+    let Some(raw) = raw else {
+        return Ok((HeadingLevelFilter::Any, Vec::new()));
+    };
+
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok((HeadingLevelFilter::Any, Vec::new()));
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("<=") {
+        let max = parse_heading_level(rest)?;
+        return Ok((HeadingLevelFilter::Max(max), Vec::new()));
+    }
+
+    if let Some(rest) = trimmed.strip_prefix(">=") {
+        let min = parse_heading_level(rest)?;
+        return Ok((HeadingLevelFilter::Min(min), Vec::new()));
+    }
+
+    if let Some((start, end)) = trimmed.split_once('-') {
+        let min = parse_heading_level(start)?;
+        let max = parse_heading_level(end)?;
+        if min > max {
+            return Err(crate::error::McpError::InvalidParams(format!(
+                "Invalid headings range {min}-{max}: start must be <= end"
+            )));
+        }
+        return Ok((HeadingLevelFilter::Range { min, max }, Vec::new()));
+    }
+
+    if trimmed.contains(',') {
+        let mut levels = Vec::new();
+        for token in trimmed.split(',') {
+            let level = parse_heading_level(token)?;
+            if !levels.contains(&level) {
+                levels.push(level);
+            }
+        }
+        levels.sort_unstable();
+        return Ok((HeadingLevelFilter::Levels, levels));
+    }
+
+    let level = parse_heading_level(trimmed)?;
+    Ok((HeadingLevelFilter::Levels, vec![level]))
+}
+
+fn parse_heading_level(token: &str) -> McpResult<usize> {
+    let trimmed = token.trim();
+    let level = trimmed.parse::<usize>().map_err(|_| {
+        crate::error::McpError::InvalidParams(format!("Invalid heading level '{trimmed}'"))
+    })?;
+    if level == 0 {
+        return Err(crate::error::McpError::InvalidParams(
+            "Heading levels must be >= 1".to_string(),
+        ));
+    }
+    Ok(level)
+}
+
+fn heading_level_allowed(filter: HeadingLevelFilter, levels: &[usize], level: usize) -> bool {
+    match filter {
+        HeadingLevelFilter::Any => true,
+        HeadingLevelFilter::Max(max) => level <= max,
+        HeadingLevelFilter::Min(min) => level >= min,
+        HeadingLevelFilter::Range { min, max } => level >= min && level <= max,
+        HeadingLevelFilter::Levels => levels.contains(&level),
+    }
+}
+
+fn entry_heading_path(entry: &blz_core::TocEntry) -> Vec<String> {
+    entry
+        .heading_path_display
+        .clone()
+        .unwrap_or_else(|| entry.heading_path.clone())
+}
+
+fn build_toc_tree(
+    entries: &[blz_core::TocEntry],
+    filter: HeadingLevelFilter,
+    levels: &[usize],
+    max_depth: Option<usize>,
+) -> Vec<TocEntrySummary> {
+    entries
+        .iter()
+        .filter_map(|entry| build_toc_tree_entry(entry, filter, levels, max_depth))
+        .collect()
+}
+
+fn build_toc_tree_entry(
+    entry: &blz_core::TocEntry,
+    filter: HeadingLevelFilter,
+    levels: &[usize],
+    max_depth: Option<usize>,
+) -> Option<TocEntrySummary> {
+    let level = entry.heading_path.len();
+    if max_depth.is_some_and(|max| level > max) {
+        return None;
+    }
+
+    let children: Vec<TocEntrySummary> = entry
+        .children
+        .iter()
+        .filter_map(|child| build_toc_tree_entry(child, filter, levels, max_depth))
+        .collect();
+
+    let include_self = heading_level_allowed(filter, levels, level);
+    if !include_self && children.is_empty() {
+        return None;
+    }
+
+    Some(TocEntrySummary {
+        heading_path: entry_heading_path(entry),
+        lines: entry.lines.clone(),
+        anchor: entry.anchor.clone(),
+        children: if children.is_empty() {
+            None
+        } else {
+            Some(children)
+        },
+    })
+}
+
+fn build_toc_flat(
+    entries: &[blz_core::TocEntry],
+    filter: HeadingLevelFilter,
+    levels: &[usize],
+    max_depth: Option<usize>,
+) -> Vec<TocEntrySummary> {
+    let mut results = Vec::new();
+    flatten_toc_entries(entries, filter, levels, max_depth, &mut results);
+    results
+}
+
+fn flatten_toc_entries(
+    entries: &[blz_core::TocEntry],
+    filter: HeadingLevelFilter,
+    levels: &[usize],
+    max_depth: Option<usize>,
+    output: &mut Vec<TocEntrySummary>,
+) {
+    for entry in entries {
+        let level = entry.heading_path.len();
+        if max_depth.is_none_or(|max| level <= max) && heading_level_allowed(filter, levels, level)
+        {
+            output.push(TocEntrySummary {
+                heading_path: entry_heading_path(entry),
+                lines: entry.lines.clone(),
+                anchor: entry.anchor.clone(),
+                children: None,
+            });
+        }
+
+        if !entry.children.is_empty() {
+            flatten_toc_entries(&entry.children, filter, levels, max_depth, output);
+        }
+    }
+}
+
+fn resolve_action(params: &FindParams) -> McpResult<FindAction> {
+    if let Some(action) = params.action {
+        return Ok(action);
+    }
+
+    if params.snippets.is_some() && params.query.is_none() {
+        return Ok(FindAction::Get);
+    }
+
+    if params.query.is_some() {
+        return Ok(FindAction::Search);
+    }
+
+    if params.source.is_some() {
+        return Ok(FindAction::Toc);
+    }
+
+    Err(crate::error::McpError::MissingParameter(
+        "action".to_string(),
+    ))
 }
 
 /// Parse citation string into source and line ranges
@@ -423,6 +674,167 @@ fn flatten_toc<'a>(
     }
 }
 
+#[derive(Clone, Copy)]
+struct SnippetRange {
+    start: usize,
+    end: usize,
+    start_idx: usize,
+    end_idx: usize,
+}
+
+struct SnippetContext<'a> {
+    storage: &'a Storage,
+    source: &'a str,
+    context_mode: &'a str,
+    range: SnippetRange,
+    total_lines: usize,
+    line_padding: u32,
+}
+
+impl SnippetContext<'_> {
+    const fn max_idx(&self) -> usize {
+        self.total_lines.saturating_sub(1)
+    }
+}
+
+fn validate_line_range(
+    source: &str,
+    start: usize,
+    end: usize,
+    start_idx: usize,
+    end_idx: usize,
+    total_lines: usize,
+) -> McpResult<()> {
+    if start_idx >= total_lines || end_idx >= total_lines {
+        return Err(crate::error::McpError::Internal(format!(
+            "Line range {start}-{end} exceeds document length {total_lines} for source '{source}'"
+        )));
+    }
+
+    Ok(())
+}
+
+fn symmetric_range(
+    start_idx: usize,
+    end_idx: usize,
+    padding: usize,
+    max_idx: usize,
+) -> (usize, usize) {
+    let range_start = start_idx.saturating_sub(padding);
+    let range_end = (end_idx + padding).min(max_idx);
+    (range_start, range_end)
+}
+
+fn resolve_all_context_range(context: &SnippetContext<'_>) -> (usize, usize) {
+    let max_idx = context.max_idx();
+    let range = context.range;
+    match context.storage.load_llms_json(context.source) {
+        Ok(llms_json) => {
+            if let Some((block_start, block_end)) =
+                find_containing_block(&llms_json.toc, range.start, range.end)
+            {
+                tracing::debug!(
+                    requested = %format!("{}-{}", range.start, range.end),
+                    block = %format!("{}-{}", block_start + 1, block_end + 1),
+                    "Found containing block from TOC"
+                );
+
+                let clamped_start = block_start.min(max_idx);
+                let clamped_end = block_end.min(max_idx);
+
+                if clamped_start != block_start || clamped_end != block_end {
+                    tracing::warn!(
+                        requested = %format!("{}-{}", range.start, range.end),
+                        toc_block = %format!("{}-{}", block_start + 1, block_end + 1),
+                        clamped_block = %format!("{}-{}", clamped_start + 1, clamped_end + 1),
+                        total_lines = context.total_lines,
+                        "TOC block exceeded document bounds; clamped to file length"
+                    );
+                }
+
+                (clamped_start, clamped_end)
+            } else {
+                tracing::warn!(
+                    context.source,
+                    "No TOC entry contains requested range, using symmetric fallback"
+                );
+                symmetric_range(range.start_idx, range.end_idx, 20, max_idx)
+            }
+        },
+        Err(e) => {
+            tracing::warn!(
+                context.source,
+                error = %e,
+                "Failed to load llms.json, using symmetric fallback"
+            );
+            symmetric_range(range.start_idx, range.end_idx, 20, max_idx)
+        },
+    }
+}
+
+fn resolve_context_range(context: &SnippetContext<'_>) -> (usize, usize) {
+    let max_idx = context.max_idx();
+    let range = context.range;
+    match context.context_mode {
+        "all" => resolve_all_context_range(context),
+        "symmetric" => symmetric_range(
+            range.start_idx,
+            range.end_idx,
+            context.line_padding as usize,
+            max_idx,
+        ),
+        _ => (range.start_idx, range.end_idx.min(max_idx)),
+    }
+}
+
+fn apply_max_lines(
+    start_idx: usize,
+    end_idx: usize,
+    mut actual_start: usize,
+    mut actual_end: usize,
+    max_lines: usize,
+) -> McpResult<(usize, usize)> {
+    if max_lines == 0 {
+        return Err(crate::error::McpError::InvalidParams(
+            "max_lines must be >= 1".to_string(),
+        ));
+    }
+
+    let requested_len = end_idx.saturating_sub(start_idx) + 1;
+    if max_lines < requested_len {
+        return Err(crate::error::McpError::InvalidParams(format!(
+            "max_lines {max_lines} is smaller than requested range ({requested_len} lines)"
+        )));
+    }
+
+    let actual_len = actual_end.saturating_sub(actual_start) + 1;
+    if max_lines < actual_len {
+        let remaining = max_lines - requested_len;
+        let mut left_extra = remaining / 2;
+        let mut right_extra = remaining - left_extra;
+
+        let max_left = start_idx.saturating_sub(actual_start);
+        if left_extra > max_left {
+            left_extra = max_left;
+            right_extra = remaining - left_extra;
+        }
+
+        let max_right = actual_end.saturating_sub(end_idx);
+        if right_extra > max_right {
+            right_extra = max_right;
+            left_extra = remaining - right_extra;
+            if left_extra > max_left {
+                left_extra = max_left;
+            }
+        }
+
+        actual_start = start_idx.saturating_sub(left_extra);
+        actual_end = end_idx + right_extra;
+    }
+
+    Ok((actual_start, actual_end))
+}
+
 /// Retrieve snippet with context
 #[tracing::instrument(skip(storage))]
 fn retrieve_snippet(
@@ -432,6 +844,7 @@ fn retrieve_snippet(
     end: usize,
     context_mode: &str,
     line_padding: u32,
+    max_lines: Option<usize>,
 ) -> McpResult<SnippetResult> {
     let content = storage.load_llms_txt(source)?;
     let lines: Vec<&str> = content.lines().collect();
@@ -446,85 +859,43 @@ fn retrieve_snippet(
     // Convert to 0-based indexing
     let start_idx = start.saturating_sub(1);
     let end_idx = end.saturating_sub(1);
+    let range = SnippetRange {
+        start,
+        end,
+        start_idx,
+        end_idx,
+    };
 
     // Validate line ranges
-    if start_idx >= lines.len() || end_idx >= lines.len() {
-        return Err(crate::error::McpError::Internal(format!(
-            "Line range {start}-{end} exceeds document length {} for source '{source}'",
-            lines.len()
-        )));
-    }
+    validate_line_range(
+        source,
+        range.start,
+        range.end,
+        range.start_idx,
+        range.end_idx,
+        lines.len(),
+    )?;
 
-    let (actual_start, actual_end) = match context_mode {
-        "all" => {
-            // Try to load TOC and find containing block
-            match storage.load_llms_json(source) {
-                Ok(llms_json) => {
-                    // Search for containing block using 1-based line numbers
-                    if let Some((block_start, block_end)) =
-                        find_containing_block(&llms_json.toc, start, end)
-                    {
-                        tracing::debug!(
-                            requested = %format!("{start}-{end}"),
-                            block = %format!("{}-{}", block_start + 1, block_end + 1),
-                            "Found containing block from TOC"
-                        );
-
-                        let max_idx = lines.len().saturating_sub(1);
-                        let clamped_start = block_start.min(max_idx);
-                        let clamped_end = block_end.min(max_idx);
-
-                        if clamped_start != block_start || clamped_end != block_end {
-                            tracing::warn!(
-                                requested = %format!("{start}-{end}"),
-                                toc_block = %format!("{}-{}", block_start + 1, block_end + 1),
-                                clamped_block = %format!(
-                                    "{}-{}",
-                                    clamped_start + 1,
-                                    clamped_end + 1
-                                ),
-                                total_lines = lines.len(),
-                                "TOC block exceeded document bounds; clamped to file length"
-                            );
-                        }
-
-                        (clamped_start, clamped_end)
-                    } else {
-                        // No containing block found, fall back to symmetric padding
-                        tracing::warn!(
-                            source,
-                            "No TOC entry contains requested range, using symmetric fallback"
-                        );
-                        let padding = 20_usize;
-                        let range_start = start_idx.saturating_sub(padding);
-                        let range_end = (end_idx + padding).min(lines.len().saturating_sub(1));
-                        (range_start, range_end)
-                    }
-                },
-                Err(e) => {
-                    tracing::warn!(
-                        source,
-                        error = %e,
-                        "Failed to load llms.json, using symmetric fallback"
-                    );
-                    let padding = 20_usize;
-                    let range_start = start_idx.saturating_sub(padding);
-                    let range_end = (end_idx + padding).min(lines.len().saturating_sub(1));
-                    (range_start, range_end)
-                },
-            }
-        },
-        "symmetric" => {
-            let padding = line_padding as usize;
-            let range_start = start_idx.saturating_sub(padding);
-            let range_end = (end_idx + padding).min(lines.len().saturating_sub(1));
-            (range_start, range_end)
-        },
-        _ => {
-            // "none" - just the requested range
-            (start_idx, end_idx.min(lines.len().saturating_sub(1)))
-        },
+    let snippet_ctx = SnippetContext {
+        storage,
+        source,
+        context_mode,
+        range,
+        total_lines: lines.len(),
+        line_padding,
     };
+
+    let (mut actual_start, mut actual_end) = resolve_context_range(&snippet_ctx);
+
+    if let Some(max_lines) = max_lines {
+        (actual_start, actual_end) = apply_max_lines(
+            range.start_idx,
+            range.end_idx,
+            actual_start,
+            actual_end,
+            max_lines,
+        )?;
+    }
 
     let snippet_lines = &lines[actual_start..=actual_end];
     let snippet_content = snippet_lines.join("\n");
@@ -545,184 +916,244 @@ pub async fn handle_find(
     storage: &Storage,
     index_cache: &IndexCache,
 ) -> McpResult<FindOutput> {
-    // Validate that at least one parameter is provided
-    if params.query.is_none() && params.snippets.is_none() {
-        return Err(crate::error::McpError::Internal(
-            "Either query or snippets must be provided".to_string(),
-        ));
-    }
-
-    // Validate parameters
-    if params.line_padding > MAX_LINE_PADDING {
-        return Err(crate::error::McpError::InvalidPadding(params.line_padding));
-    }
-
-    if params.max_results > MAX_ALLOWED_RESULTS {
-        return Err(crate::error::McpError::Internal(format!(
-            "max_results {} exceeds limit of {}",
-            params.max_results, MAX_ALLOWED_RESULTS
-        )));
-    }
-
-    let valid_context_modes = ["none", "symmetric", "all"];
-    if !valid_context_modes.contains(&params.context_mode.as_str()) {
-        return Err(crate::error::McpError::Internal(format!(
-            "Invalid context mode: {}. Must be one of: {:?}",
-            params.context_mode, valid_context_modes
-        )));
-    }
+    let action = resolve_action(&params)?;
+    let format = params.format.unwrap_or_default();
 
     let mut search_results = None;
     let mut snippet_results = None;
+    let mut toc = None;
+    let mut executed = FindExecuted {
+        search_executed: false,
+        snippets_executed: false,
+        toc_executed: false,
+    };
 
-    // Execute search if query provided
-    if let Some(ref query) = params.query {
-        // Validate query is not empty
-        if query.trim().is_empty() {
-            return Err(crate::error::McpError::Internal(
-                "Query cannot be empty".to_string(),
-            ));
-        }
-        tracing::debug!(query, source = ?params.source, "executing search");
+    match action {
+        FindAction::Search => {
+            let query = params
+                .query
+                .as_ref()
+                .ok_or_else(|| crate::error::McpError::MissingParameter("query".to_string()))?;
+            if query.trim().is_empty() {
+                return Err(crate::error::McpError::InvalidParams(
+                    "query cannot be empty".to_string(),
+                ));
+            }
 
-        // Determine which sources to search
-        let mut sources_to_search = params
-            .source
-            .as_ref()
-            .and_then(SourceFilter::sources)
-            .unwrap_or_else(|| storage.list_sources());
-
-        // Validate we have sources to search
-        // If no sources are available from storage but we're searching all,
-        // fall back to sources in the cache
-        if sources_to_search.is_empty() {
-            if params.source.is_none() {
-                let cache_read = index_cache.read().await;
-                let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
-                drop(cache_read);
-
-                if cached_sources.is_empty() {
-                    let available = storage.list_sources();
-                    return Err(crate::error::McpError::Internal(format!(
-                        "No sources available to search. Available sources: {available:?}"
-                    )));
-                }
-
-                sources_to_search = cached_sources;
-            } else {
-                let available = storage.list_sources();
-                return Err(crate::error::McpError::Internal(format!(
-                    "No sources available to search for filter {:?}. Available sources: {available:?}",
-                    params.source.as_ref()
+            let max_results = params.max_results.unwrap_or(DEFAULT_MAX_RESULTS);
+            if max_results == 0 {
+                return Err(crate::error::McpError::InvalidParams(
+                    "max_results must be >= 1".to_string(),
+                ));
+            }
+            if max_results > MAX_ALLOWED_RESULTS {
+                return Err(crate::error::McpError::InvalidParams(format!(
+                    "max_results {max_results} exceeds limit of {MAX_ALLOWED_RESULTS}"
                 )));
             }
-        }
 
-        tracing::debug!(
-            sources = ?sources_to_search,
-            count = sources_to_search.len(),
-            "searching sources"
-        );
+            let headings_only = params.headings_only.unwrap_or(false);
 
-        // Search across all specified sources and merge results
-        let source_count = sources_to_search.len().max(1);
-        let estimated_capacity = params
-            .max_results
-            .saturating_mul(source_count)
-            .min(MAX_ALLOWED_RESULTS);
-        let mut all_hits = Vec::with_capacity(estimated_capacity.max(params.max_results));
+            tracing::debug!(query, source = ?params.source, "executing search");
 
-        for source in &sources_to_search {
-            // Get or load the index for this source
-            let index = match cache::get_or_load_index(index_cache, storage, source).await {
-                Ok(idx) => idx,
-                Err(e) => {
-                    tracing::warn!(
-                        source,
-                        error = %e,
-                        "failed to load index, skipping source"
-                    );
-                    continue;
+            // Determine which sources to search
+            let mut sources_to_search = params
+                .source
+                .as_ref()
+                .and_then(SourceFilter::sources)
+                .unwrap_or_else(|| storage.list_sources());
+
+            // Validate we have sources to search
+            // If no sources are available from storage but we're searching all,
+            // fall back to sources in the cache
+            if sources_to_search.is_empty() {
+                if params.source.is_none() {
+                    let cache_read = index_cache.read().await;
+                    let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
+                    drop(cache_read);
+
+                    if cached_sources.is_empty() {
+                        let available = storage.list_sources();
+                        return Err(crate::error::McpError::Internal(format!(
+                            "No sources available to search. Available sources: {available:?}"
+                        )));
+                    }
+
+                    sources_to_search = cached_sources;
+                } else {
+                    let available = storage.list_sources();
+                    return Err(crate::error::McpError::Internal(format!(
+                        "No sources available to search for filter {:?}. Available sources: {available:?}",
+                        params.source.as_ref()
+                    )));
+                }
+            }
+
+            tracing::debug!(
+                sources = ?sources_to_search,
+                count = sources_to_search.len(),
+                "searching sources"
+            );
+
+            // Search across all specified sources and merge results
+            let source_count = sources_to_search.len().max(1);
+            let estimated_capacity = max_results
+                .saturating_mul(source_count)
+                .min(MAX_ALLOWED_RESULTS);
+            let mut all_hits = Vec::with_capacity(estimated_capacity.max(max_results));
+
+            for source in &sources_to_search {
+                // Get or load the index for this source
+                let index = match cache::get_or_load_index(index_cache, storage, source).await {
+                    Ok(idx) => idx,
+                    Err(e) => {
+                        tracing::warn!(
+                            source,
+                            error = %e,
+                            "failed to load index, skipping source"
+                        );
+                        continue;
+                    },
+                };
+
+                // Search this index (it already filters by alias internally)
+                match execute_search(&index, query, Some(source), max_results, headings_only).await
+                {
+                    Ok(hits) => {
+                        all_hits.extend(hits);
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            source,
+                            error = %e,
+                            "search failed for source, skipping"
+                        );
+                    },
+                }
+            }
+
+            // Sort merged results by score (descending) and limit
+            all_hits.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            all_hits.truncate(max_results);
+
+            tracing::debug!(
+                count = all_hits.len(),
+                sources_searched = sources_to_search.len(),
+                "search completed"
+            );
+            search_results = Some(all_hits);
+            executed.search_executed = true;
+        },
+        FindAction::Get => {
+            let citations = params
+                .snippets
+                .as_ref()
+                .ok_or_else(|| crate::error::McpError::MissingParameter("snippets".to_string()))?;
+
+            if citations.is_empty() {
+                return Err(crate::error::McpError::InvalidParams(
+                    "snippets cannot be empty".to_string(),
+                ));
+            }
+
+            let line_padding = params.context.unwrap_or(0);
+            if line_padding > MAX_LINE_PADDING {
+                return Err(crate::error::McpError::InvalidPadding(line_padding));
+            }
+
+            let context_mode = params.context_mode.as_deref().unwrap_or("none");
+            let valid_context_modes = ["none", "symmetric", "all"];
+            if !valid_context_modes.contains(&context_mode) {
+                return Err(crate::error::McpError::InvalidParams(format!(
+                    "Invalid context mode: {context_mode}. Must be one of: {valid_context_modes:?}"
+                )));
+            }
+
+            tracing::debug!(count = citations.len(), "retrieving snippets");
+
+            let mut results = Vec::with_capacity(citations.len());
+
+            for citation in citations {
+                let (source, ranges) =
+                    parse_citation(citation).map_err(crate::error::McpError::InvalidCitation)?;
+
+                for (start, end) in ranges {
+                    let snippet = retrieve_snippet(
+                        storage,
+                        &source,
+                        start,
+                        end,
+                        context_mode,
+                        line_padding,
+                        params.max_lines,
+                    )?;
+                    results.push(snippet);
+                }
+            }
+
+            tracing::debug!(count = results.len(), "snippets retrieved");
+            snippet_results = Some(results);
+            executed.snippets_executed = true;
+        },
+        FindAction::Toc => {
+            let source = match params.source.as_ref() {
+                Some(SourceFilter::Single(alias)) if alias != "all" => alias.clone(),
+                Some(SourceFilter::Single(_)) => {
+                    return Err(crate::error::McpError::InvalidParams(
+                        "TOC requires a single source alias, not 'all'".to_string(),
+                    ));
+                },
+                Some(SourceFilter::Multiple(_)) => {
+                    return Err(crate::error::McpError::InvalidParams(
+                        "TOC requires a single source alias".to_string(),
+                    ));
+                },
+                None => {
+                    return Err(crate::error::McpError::MissingParameter(
+                        "source".to_string(),
+                    ));
                 },
             };
 
-            // Search this index (it already filters by alias internally)
-            match execute_search(
-                &index,
-                query,
-                Some(source),
-                params.max_results,
-                params.headings_only,
-            )
-            .await
-            {
-                Ok(hits) => {
-                    all_hits.extend(hits);
-                },
-                Err(e) => {
-                    tracing::warn!(
-                        source,
-                        error = %e,
-                        "search failed for source, skipping"
-                    );
-                },
+            if params.max_depth.is_some_and(|depth| depth == 0) {
+                return Err(crate::error::McpError::InvalidParams(
+                    "max_depth must be >= 1".to_string(),
+                ));
             }
-        }
 
-        // Sort merged results by score (descending) and limit
-        all_hits.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        all_hits.truncate(params.max_results);
+            let llms_json = storage.load_llms_json(&source)?;
+            let (filter, levels) = parse_heading_filter(params.headings.as_deref())?;
+            let tree = params.tree.unwrap_or(false);
 
-        tracing::debug!(
-            count = all_hits.len(),
-            sources_searched = sources_to_search.len(),
-            "search completed"
-        );
-        search_results = Some(all_hits);
+            let entries = if tree {
+                build_toc_tree(&llms_json.toc, filter, &levels, params.max_depth)
+            } else {
+                build_toc_flat(&llms_json.toc, filter, &levels, params.max_depth)
+            };
+
+            toc = Some(TocOutput {
+                source,
+                entries,
+                tree,
+            });
+            executed.toc_executed = true;
+        },
     }
 
-    // Retrieve snippets if requested
-    if let Some(ref citations) = params.snippets {
-        tracing::debug!(count = citations.len(), "retrieving snippets");
-
-        let mut results = Vec::with_capacity(citations.len());
-
-        for citation in citations {
-            let (source, ranges) =
-                parse_citation(citation).map_err(crate::error::McpError::InvalidCitation)?;
-
-            for (start, end) in ranges {
-                let snippet = retrieve_snippet(
-                    storage,
-                    &source,
-                    start,
-                    end,
-                    &params.context_mode,
-                    params.line_padding,
-                )?;
-                results.push(snippet);
-            }
-        }
-
-        tracing::debug!(count = results.len(), "snippets retrieved");
-        snippet_results = Some(results);
-    }
-
-    if matches!(params.format, ResponseFormat::Concise) {
+    if matches!(format, ResponseFormat::Concise) {
         apply_concise_format(&mut search_results, &mut snippet_results);
     }
 
     Ok(FindOutput {
+        action,
         search_results,
         snippet_results,
-        executed: FindExecuted {
-            search_executed: params.query.is_some(),
-            snippets_executed: params.snippets.is_some(),
-        },
+        toc,
+        executed,
     })
 }
 
@@ -916,6 +1347,24 @@ mod integration_tests {
     use tempfile::TempDir;
     use tokio::sync::RwLock;
 
+    fn base_params(action: FindAction) -> FindParams {
+        FindParams {
+            action: Some(action),
+            query: None,
+            snippets: None,
+            context_mode: None,
+            context: None,
+            max_results: None,
+            source: None,
+            format: None,
+            headings_only: None,
+            max_lines: None,
+            headings: None,
+            tree: None,
+            max_depth: None,
+        }
+    }
+
     /// Create a test storage with a sample document
     fn setup_test_storage() -> (Storage, TempDir) {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -961,13 +1410,9 @@ Last line of section 2"#;
 
         let params = FindParams {
             query: Some("section".to_string()),
-            snippets: None,
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
-            format: ResponseFormat::default(),
-            headings_only: false,
+            max_results: Some(10),
+            ..base_params(FindAction::Search)
         };
 
         // Store index in cache
@@ -995,14 +1440,8 @@ Last line of section 2"#;
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
         let params = FindParams {
-            query: None,
             snippets: Some(vec!["test-source:2-4".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1022,7 +1461,7 @@ Last line of section 2"#;
     }
 
     #[tokio::test]
-    async fn test_combined_query_and_snippets() {
+    async fn test_action_search_ignores_snippets() {
         let (storage, temp_dir) = setup_test_storage();
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
@@ -1033,12 +1472,9 @@ Last line of section 2"#;
         let params = FindParams {
             query: Some("section".to_string()),
             snippets: Some(vec!["test-source:2-4".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
-            format: ResponseFormat::default(),
-            headings_only: false,
+            max_results: Some(10),
+            ..base_params(FindAction::Search)
         };
 
         // Store index in cache
@@ -1052,9 +1488,9 @@ Last line of section 2"#;
 
         let output = result.unwrap();
         assert!(output.executed.search_executed);
-        assert!(output.executed.snippets_executed);
+        assert!(!output.executed.snippets_executed);
         assert!(output.search_results.is_some());
-        assert!(output.snippet_results.is_some());
+        assert!(output.snippet_results.is_none());
     }
 
     #[tokio::test]
@@ -1078,14 +1514,9 @@ Last line of section 2"#;
         std::fs::write(source_dir.join("llms.txt"), long_content).expect("Failed to write content");
 
         let params = FindParams {
-            query: None,
             snippets: Some(vec![format!("{alias}:1-200")]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::Concise,
-            headings_only: false,
+            format: Some(ResponseFormat::Concise),
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1127,14 +1558,9 @@ Last line of section 2"#;
             .expect("Failed to write content");
 
         let params = FindParams {
-            query: None,
             snippets: Some(vec![format!("{alias}:1-200")]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::Detailed,
-            headings_only: false,
+            format: Some(ResponseFormat::Detailed),
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1169,14 +1595,10 @@ Last line of section 2"#;
         // Test valid padding values
         for padding in [0, 25, 50] {
             let params = FindParams {
-                query: None,
                 snippets: Some(vec!["test-source:2-4".to_string()]),
-                context_mode: "symmetric".to_string(),
-                line_padding: padding,
-                max_results: 10,
-                source: None,
-                format: ResponseFormat::default(),
-                headings_only: false,
+                context_mode: Some("symmetric".to_string()),
+                context: Some(padding),
+                ..base_params(FindAction::Get)
             };
 
             let result = handle_find(params, &storage, &index_cache).await;
@@ -1185,14 +1607,10 @@ Last line of section 2"#;
 
         // Test invalid padding value
         let params = FindParams {
-            query: None,
             snippets: Some(vec!["test-source:2-4".to_string()]),
-            context_mode: "symmetric".to_string(),
-            line_padding: 51,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            context_mode: Some("symmetric".to_string()),
+            context: Some(51),
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1206,14 +1624,8 @@ Last line of section 2"#;
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
         let params = FindParams {
-            query: None,
             snippets: Some(vec!["invalid-citation".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1232,34 +1644,26 @@ Last line of section 2"#;
         // Test completely empty query
         let params = FindParams {
             query: Some(String::new()),
-            snippets: None,
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
-            format: ResponseFormat::default(),
-            headings_only: false,
+            max_results: Some(10),
+            ..base_params(FindAction::Search)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), McpError::Internal(_)));
+        assert!(matches!(result.unwrap_err(), McpError::InvalidParams(_)));
 
         // Test whitespace-only query
         let params = FindParams {
             query: Some("   ".to_string()),
-            snippets: None,
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
             source: Some(SourceFilter::Single("test-source".to_string())),
-            format: ResponseFormat::default(),
-            headings_only: false,
+            max_results: Some(10),
+            ..base_params(FindAction::Search)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), McpError::Internal(_)));
+        assert!(matches!(result.unwrap_err(), McpError::InvalidParams(_)));
     }
 
     #[tokio::test]
@@ -1269,14 +1673,10 @@ Last line of section 2"#;
 
         // Test at limit
         let params = FindParams {
-            query: None,
-            snippets: Some(vec!["test-source:2-4".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 1000,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            query: Some("section".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
+            max_results: Some(1000),
+            ..base_params(FindAction::Search)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1284,19 +1684,15 @@ Last line of section 2"#;
 
         // Test over limit
         let params = FindParams {
-            query: None,
-            snippets: Some(vec!["test-source:2-4".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 1001,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            query: Some("section".to_string()),
+            source: Some(SourceFilter::Single("test-source".to_string())),
+            max_results: Some(1001),
+            ..base_params(FindAction::Search)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), McpError::Internal(_)));
+        assert!(matches!(result.unwrap_err(), McpError::InvalidParams(_)));
     }
 
     #[tokio::test]
@@ -1314,14 +1710,8 @@ Last line of section 2"#;
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
         let params = FindParams {
-            query: None,
             snippets: Some(vec!["empty-source:1-2".to_string()]),
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
-            source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            ..base_params(FindAction::Get)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1333,29 +1723,34 @@ Last line of section 2"#;
     }
 
     #[tokio::test]
-    async fn test_both_params_none_rejected() {
+    async fn test_missing_action_rejected() {
         let (storage, _temp_dir) = setup_test_storage();
         let index_cache: IndexCache = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
         let params = FindParams {
+            action: None,
             query: None,
             snippets: None,
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
+            context_mode: None,
+            context: None,
+            max_results: None,
             source: None,
-            format: ResponseFormat::default(),
-            headings_only: false,
+            format: None,
+            headings_only: None,
+            max_lines: None,
+            headings: None,
+            tree: None,
+            max_depth: None,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
         assert!(result.is_err());
 
         let err = result.unwrap_err();
-        assert!(matches!(err, McpError::Internal(_)));
+        assert!(matches!(err, McpError::MissingParameter(_)));
         assert!(
             err.to_string()
-                .contains("Either query or snippets must be provided")
+                .contains("missing required parameter: action")
         );
     }
 
@@ -1376,13 +1771,9 @@ Last line of section 2"#;
 
         let params = FindParams {
             query: Some("section".to_string()),
-            snippets: None,
-            context_mode: "none".to_string(),
-            line_padding: 0,
-            max_results: 10,
             source: None, // No source specified - should search all
-            format: ResponseFormat::default(),
-            headings_only: false,
+            max_results: Some(10),
+            ..base_params(FindAction::Search)
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
@@ -1713,7 +2104,7 @@ Line 12";
             .expect("Failed to write llms.json");
 
         // Request lines 5-6 (in Section A: 4-8)
-        let result = retrieve_snippet(&storage, "test-toc", 5, 6, "all", 0);
+        let result = retrieve_snippet(&storage, "test-toc", 5, 6, "all", 0, None);
         assert!(result.is_ok());
 
         let snippet = result.unwrap();
@@ -1744,7 +2135,7 @@ Line 12";
         // Don't create llms.json - test fallback behavior
 
         // Request line 3
-        let result = retrieve_snippet(&storage, "no-toc", 3, 3, "all", 0);
+        let result = retrieve_snippet(&storage, "no-toc", 3, 3, "all", 0, None);
         assert!(result.is_ok());
 
         let snippet = result.unwrap();
@@ -1817,7 +2208,7 @@ Line 12";
         let json_str = serde_json::to_string(&llms_json).expect("Failed to serialize JSON");
         std::fs::write(source_dir.join("llms.json"), json_str).expect("Failed to write llms.json");
 
-        let result = retrieve_snippet(&storage, "out-of-bounds", 1, 2, "all", 0);
+        let result = retrieve_snippet(&storage, "out-of-bounds", 1, 2, "all", 0, None);
         assert!(result.is_ok());
 
         let snippet = result.unwrap();
@@ -1919,7 +2310,7 @@ B line 3
         )
         .expect("Failed to write llms.json");
 
-        let result = retrieve_snippet(&storage, "cross-sections", 6, 10, "all", 0);
+        let result = retrieve_snippet(&storage, "cross-sections", 6, 10, "all", 0, None);
         assert!(
             result.is_ok(),
             "context all should succeed for multi-section range"

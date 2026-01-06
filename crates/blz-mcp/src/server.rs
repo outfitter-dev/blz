@@ -101,9 +101,14 @@ impl ServerHandler for McpServer {
         let find_schema = json!({
             "type": "object",
             "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["search", "get", "toc"],
+                    "description": "Action to execute (optional; inferred from parameters)"
+                },
                 "query": {
                     "type": "string",
-                    "description": "Search query (optional if only retrieving snippets)"
+                    "description": "Search query"
                 },
                 "snippets": {
                     "type": "array",
@@ -116,18 +121,29 @@ impl ServerHandler for McpServer {
                     "default": "none",
                     "description": "Context expansion mode"
                 },
-                "linePadding": {
+                "context": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 50,
                     "default": 0,
-                    "description": "Lines of padding for symmetric mode"
+                    "description": "Lines of context padding"
+                },
+                "linePadding": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50,
+                    "description": "Alias for context"
                 },
                 "maxResults": {
                     "type": "integer",
                     "minimum": 1,
                     "default": 10,
                     "description": "Maximum search results"
+                },
+                "maxLines": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Maximum lines to return for snippets"
                 },
                 "source": {
                     "description": "Optional source filter: omit or set to \"all\" to search every source, provide a string alias for one source, or an array of aliases to target multiple sources",
@@ -147,6 +163,25 @@ impl ServerHandler for McpServer {
                     "enum": ["concise", "detailed"],
                     "default": "concise",
                     "description": "Response format (concise = minimal, detailed = full metadata)"
+                },
+                "headingsOnly": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Restrict search results to headings only"
+                },
+                "headings": {
+                    "type": "string",
+                    "description": "TOC heading levels filter (e.g., \"1,2\" or \"<=2\")"
+                },
+                "tree": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Return TOC as a tree"
+                },
+                "maxDepth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Maximum heading depth to include in TOC"
                 }
             }
         });
@@ -235,7 +270,7 @@ impl ServerHandler for McpServer {
         let tools = vec![
             Tool::new(
                 "blz_find",
-                "Search & retrieve documentation snippets",
+                "Search, retrieve, and browse documentation (actions: search, get, toc)",
                 Arc::new(find_schema_obj),
             ),
             Tool::new(
