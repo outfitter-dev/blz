@@ -5,6 +5,11 @@
       "command": "npx",
       "args": ["-y", "github:obra/streamlinear"]
     },
+    "superlinear": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:obra/streamlinear"]
+    },
     "blz": {
       "type": "stdio",
       "command": "blz",
