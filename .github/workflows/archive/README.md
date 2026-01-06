@@ -21,6 +21,9 @@ and registry publishing. Legacy release workflows were consolidated into
 - Dry run mode for validation
 - All functionality from the original workflows
 
+These archived workflows should remain disabled; the active release flow is
+release-please + `publish.yml` as described in the main workflow docs.
+
 ## Usage
 
 Instead of the archived workflows, use:

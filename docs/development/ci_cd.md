@@ -18,7 +18,7 @@ BLZ uses GitHub Actions for continuous integration and deployment with the follo
 - **`release-please.yml`** - Opens/updates the release PR on `main`
 - **`release-please-canary.yml`** - Opens/updates prerelease PRs on `release-canary`
 - **`publish.yml`** - Main release publisher (assets + registries)
-- **`ci.yml`** - Continuous integration checks on pull requests
+- **`tests.yml`** - Continuous integration checks on pull requests
 
 All workflows are optimized for Graphite stacked PRs and support both automatic and manual triggering.
 
@@ -34,6 +34,7 @@ archived under `.github/workflows/archive/` and no longer run.
 2. release-please opens or updates the release PR.
 3. Merge the release PR to create the tag and draft release.
 4. The tag triggers `publish.yml` to upload assets and publish to registries.
+5. DotSlash generation runs after the release is published.
 
 ### Canary releases (`release-canary`)
 
@@ -168,6 +169,7 @@ The current `publish.yml` consolidates several previous workflows:
 
 | Old Workflow | New Equivalent |
 |-------------|----------------|
+| `auto-release.yml` | `release-please.yml` + merge the release PR |
 | `release.yml` | `publish.yml` (default mode=full) |
 | `release-simplified.yml` | `publish.yml` (default mode=full) |
 | `manual-publish.yml` | `publish.yml -f mode=publish-only` |
