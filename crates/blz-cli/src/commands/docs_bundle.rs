@@ -8,13 +8,11 @@ use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use blz_core::{
     MarkdownParser, PerformanceMetrics, SearchIndex, Source, SourceDescriptor, SourceOrigin,
-    SourceType, SourceVariant, Storage,
+    SourceType, SourceVariant, Storage, build_llms_json,
 };
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
-
-use crate::utils::json_builder::build_llms_json;
 
 /// Canonical alias for the embedded documentation source.
 pub const BUNDLED_ALIAS: &str = "blz-docs";

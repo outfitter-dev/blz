@@ -9,15 +9,15 @@ use std::time::Instant;
 use anyhow::{Result, anyhow};
 use blz_core::{
     FetchResult, Fetcher, MarkdownParser, PerformanceMetrics, SearchIndex, Source, Storage,
+    build_llms_json,
 };
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::utils::count_headings;
-use crate::utils::json_builder::build_llms_json;
 use crate::utils::resolver;
-use crate::utils::url_resolver;
+use blz_core::url_resolver;
 
 /// Abstraction over storage interactions used by the update command.
 pub trait UpdateStorage {
