@@ -6,7 +6,7 @@
 # Complete aliases for commands that need them
 function __fish_blz_complete_aliases
     # Get sources from blz list --format json and print canonical + metadata aliases
-    blz list --format json 2>/dev/null | python3 -c "
+    blz list --json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -36,7 +36,7 @@ function __fish_blz_complete_anchors_for_alias
     if test -z "$alias"
         return
     end
-    blz toc $alias --format json 2>/dev/null | python3 -c "
+    blz toc $alias --json 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -80,6 +80,7 @@ complete -c blz -n "__fish_seen_subcommand_from search" -l alias -xa "(__fish_bl
 complete -c blz -n "__fish_seen_subcommand_from get" -xa "(__fish_blz_complete_aliases)"
 
 # Complete for update command
+complete -c blz -n "__fish_seen_subcommand_from refresh" -xa "(__fish_blz_complete_aliases)"
 complete -c blz -n "__fish_seen_subcommand_from update" -xa "(__fish_blz_complete_aliases)"
 
 # Complete for diff command
