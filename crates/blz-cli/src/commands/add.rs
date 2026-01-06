@@ -376,7 +376,8 @@ async fn fetch_and_index(
         spinner.finish_and_clear();
         eprintln!(
             "{} This appears to be a navigation index only ({} lines).\n\
-             BLZ works best with full documentation files (llms-full.txt).",
+             BLZ works best with full documentation files (llms-full.txt).\n\
+             If this is a hub or registry, add the downstream source URL instead.",
             "⚠".yellow(),
             resolved.line_count
         );

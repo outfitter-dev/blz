@@ -37,6 +37,8 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
         Some(base_url.to_string()),
         try_base_variant(base_url),
     ];
+    let mut blocked_statuses: Vec<u16> = Vec::new();
+    let mut rejected_statuses: Vec<u16> = Vec::new();
 
     for (idx, maybe_url) in variants.iter().enumerate() {
         if let Some(url) = maybe_url {
@@ -53,6 +55,11 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
                         );
                         true
                     } else {
+                        if matches!(status, 401 | 403 | 429) {
+                            blocked_statuses.push(status);
+                        } else {
+                            rejected_statuses.push(status);
+                        }
                         debug!(
                             %status,
                             %url,
@@ -107,10 +114,33 @@ pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<Resol
         }
     }
 
-    Err(Error::NotFound(format!(
+    let mut message = format!(
         "Failed to resolve any llms.txt variant for '{base_url}'. \
          Tried: llms-full.txt, exact URL, and llms.txt fallback."
-    )))
+    );
+
+    if !blocked_statuses.is_empty() {
+        let statuses = blocked_statuses
+            .iter()
+            .map(u16::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        message.push_str(&format!(
+            " HEAD returned {statuses}; the host may be blocking automated requests. \
+             Try a direct llms.txt/llms-full.txt URL or add a local file via a manifest."
+        ));
+    } else if !rejected_statuses.is_empty() {
+        let statuses = rejected_statuses
+            .iter()
+            .map(u16::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        message.push_str(&format!(
+            " HEAD returned non-success status codes ({statuses})."
+        ));
+    }
+
+    Err(Error::NotFound(message))
 }
 
 fn try_full_variant(url: &str) -> Option<String> {
