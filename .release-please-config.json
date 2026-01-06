@@ -18,8 +18,10 @@
   "packages": {
     ".": {
       "package-name": "@outfitter/blz",
+      "release-as": "1.5.0",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
+        {"type": "json", "path": "package.json", "jsonpath": "$.version"},
         {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version"},
         {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.dependencies['blz-core'].version"},
         {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.dependencies['blz-mcp'].version"}
