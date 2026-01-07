@@ -8,6 +8,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [1.5.0](https://github.com/outfitter-dev/blz/compare/v1.3.0...v1.5.0) (2026-01-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** MCP server command renamed from `blz mcp` to `blz mcp-server`
+
+### Features
+
+* **cli:** add --reindex flag to refresh command [BLZ-265] ([#329](https://github.com/outfitter-dev/blz/issues/329)) ([2739ce7](https://github.com/outfitter-dev/blz/commit/2739ce75580b6676fee64d12a7315d0bd9ea0064))
+* **cli:** add boolean filtering to toc ([#320](https://github.com/outfitter-dev/blz/issues/320)) ([a48c2cb](https://github.com/outfitter-dev/blz/commit/a48c2cb7a62d26c53e151d13a535a00ae6f2da0a))
+* **cli:** add pagination state to toc command [BLZ-249] ([#325](https://github.com/outfitter-dev/blz/issues/325)) ([437b93b](https://github.com/outfitter-dev/blz/commit/437b93bb36462593fbf0a7e7b75d577744096c3f))
+* **cli:** add pagination state to toc command [BLZ-250] ([#324](https://github.com/outfitter-dev/blz/issues/324)) ([f357e6f](https://github.com/outfitter-dev/blz/commit/f357e6f548beafc5a66d6e1997dcd9bc8638ffef))
+* **cli:** add toc limit and depth controls ([#318](https://github.com/outfitter-dev/blz/issues/318)) ([04b4729](https://github.com/outfitter-dev/blz/commit/04b47290344004abf435529afbab76b99961de85))
+* **cli:** add unified find command with pattern-based dispatch ([#339](https://github.com/outfitter-dev/blz/issues/339)) ([bcb94c6](https://github.com/outfitter-dev/blz/commit/bcb94c689a7151bb363df598830ce7eab0d08dab))
+* **cli:** enhance toc with heading level operators and tree view [BLZ-256] ([#323](https://github.com/outfitter-dev/blz/issues/323)) ([207245e](https://github.com/outfitter-dev/blz/commit/207245e70db60d11181e38e3da8742910086b53a))
+* **cli:** make --filter flag extensible for future filters [BLZ-266] ([#330](https://github.com/outfitter-dev/blz/issues/330)) ([6c77420](https://github.com/outfitter-dev/blz/commit/6c7742008950c93436e99168f4dcb2ba7c6ca093))
+* **cli:** rename anchors command to toc ([#317](https://github.com/outfitter-dev/blz/issues/317)) ([b814b45](https://github.com/outfitter-dev/blz/commit/b814b459aeee41ffe5175bde28c64712b577544d))
+* **cli:** show filter status and reason in info command [BLZ-267] ([#331](https://github.com/outfitter-dev/blz/issues/331)) ([55218af](https://github.com/outfitter-dev/blz/commit/55218af5ed6e48bc764f9422101a63bccd878adb))
+* **cli:** support boolean toc filters ([#343](https://github.com/outfitter-dev/blz/issues/343)) ([3beb640](https://github.com/outfitter-dev/blz/commit/3beb640b34ebda76fd09ab0ff57099b8c2ecc2b9))
+* **core:** normalize heading display and search aliases [BLZ-243] ([#314](https://github.com/outfitter-dev/blz/issues/314)) ([7980d4a](https://github.com/outfitter-dev/blz/commit/7980d4ad36152cc2fd4f4e902e7fb32fb056d130))
+* **core:** persist language filter preference per-source [BLZ-263] ([#327](https://github.com/outfitter-dev/blz/issues/327)) ([ca12f56](https://github.com/outfitter-dev/blz/commit/ca12f56a477795e8fa6415ee52ef3bb73453a87c))
+* **mcp:** simplify claude plugin to single command and agent ([#338](https://github.com/outfitter-dev/blz/issues/338)) ([8ebd32b](https://github.com/outfitter-dev/blz/commit/8ebd32bf66fd779e12e187bbe69367f261399571))
+* **search:** add headings-only flag [BLZ-228] ([#316](https://github.com/outfitter-dev/blz/issues/316)) ([c9fb032](https://github.com/outfitter-dev/blz/commit/c9fb0327e53649a6a91818ae1219086e006dd25e))
+* **search:** boost heading matches with # prefix ([#315](https://github.com/outfitter-dev/blz/issues/315)) ([7f9152b](https://github.com/outfitter-dev/blz/commit/7f9152b012e49ff7cb3e9bc95301f11a79c4561d))
+
+
+### Bug Fixes
+
+* **add:** improve llms.txt resolution guidance ([#387](https://github.com/outfitter-dev/blz/issues/387)) ([9c2a0ff](https://github.com/outfitter-dev/blz/commit/9c2a0ff60702544666cecb60c2f1fead04b52e37))
+* **ci:** resolve clippy and release-please token ([#391](https://github.com/outfitter-dev/blz/issues/391)) ([fd79c53](https://github.com/outfitter-dev/blz/commit/fd79c53b67510eb0e00d4ce603f3455abb577e9c))
+* **ci:** skip claude review for bot-created PRs ([#367](https://github.com/outfitter-dev/blz/issues/367)) ([57e942a](https://github.com/outfitter-dev/blz/commit/57e942a513997e12cd915f14f83d0cd26436817c))
+* **cli:** allow multiple inputs to find ([#369](https://github.com/outfitter-dev/blz/issues/369)) ([6569a57](https://github.com/outfitter-dev/blz/commit/6569a5743c77557a8abce003f680b326e756388e))
+* **cli:** apply language filtering in refresh command [BLZ-264] ([#328](https://github.com/outfitter-dev/blz/issues/328)) ([eb474f0](https://github.com/outfitter-dev/blz/commit/eb474f0a814eb80b214a58a716114b3df6cbfb2e))
+* **cli:** improve shell completions and docs ([#388](https://github.com/outfitter-dev/blz/issues/388)) ([6efee25](https://github.com/outfitter-dev/blz/commit/6efee25ae0058c07e9e9782bc4d99f24cad4d035))
+* **cli:** include headings count in info output [BLZ-152] ([#273](https://github.com/outfitter-dev/blz/issues/273)) ([80870dd](https://github.com/outfitter-dev/blz/commit/80870dd72bd9c51cc58829627f2521109246367e))
+* **cli:** rename mcp command to mcp-server, allow mcp as source alias [BLZ-258] ([#333](https://github.com/outfitter-dev/blz/issues/333)) ([9997dfd](https://github.com/outfitter-dev/blz/commit/9997dfd03b587706c619178a4bcd121711380c31))
+* **core:** improve language filtering with hybrid url+text detection [BLZ-236] ([#302](https://github.com/outfitter-dev/blz/issues/302)) ([93ee123](https://github.com/outfitter-dev/blz/commit/93ee123e3b14d3cbb6a996a7d137b1464237c2a6))
+* **core:** refactor url resolver error message ([#390](https://github.com/outfitter-dev/blz/issues/390)) ([dbe585f](https://github.com/outfitter-dev/blz/commit/dbe585f5d3563cff82e2b47fe4a1fedf68c043ab))
+* hook syntax error and skill MCP documentation ([#365](https://github.com/outfitter-dev/blz/issues/365)) ([4c888b6](https://github.com/outfitter-dev/blz/commit/4c888b6b86091730477b0f40317c332959f50088))
+* **release:** enable cargo-workspace plugin ([#399](https://github.com/outfitter-dev/blz/issues/399)) ([b3d4df8](https://github.com/outfitter-dev/blz/commit/b3d4df871beedc79522c418a6e9cbaa088f08775))
+* **release:** switch release-please to node strategy ([#400](https://github.com/outfitter-dev/blz/issues/400)) ([4aa010a](https://github.com/outfitter-dev/blz/commit/4aa010a578b8a8519d1f88dada2e900c0c7f09c0))
+* **tests:** improve test error handling with panic instead of assert(false) ([#370](https://github.com/outfitter-dev/blz/issues/370)) ([7361c61](https://github.com/outfitter-dev/blz/commit/7361c61bc2b675d5894c9ca78b018eae7f7237af))
+* unblock v1.3 crate publishing ([#298](https://github.com/outfitter-dev/blz/issues/298)) ([fd64be7](https://github.com/outfitter-dev/blz/commit/fd64be70c85cc6647addf43405b0cf1e3f2ea884))
+
+
+### Performance
+
+* **dx:** optimize build and test performance [BLZ-237] ([#303](https://github.com/outfitter-dev/blz/issues/303)) ([e97dc67](https://github.com/outfitter-dev/blz/commit/e97dc67017dbebb74e060df0932b59a3662a5691))
+* **dx:** Optimize git hooks for faster development workflow [BLZ-235] ([#301](https://github.com/outfitter-dev/blz/issues/301)) ([a9bf0f3](https://github.com/outfitter-dev/blz/commit/a9bf0f3d294934f52bbe0f090cd36485cef5ca9e))
+* **hooks:** defer fetcher network tests to CI ([#382](https://github.com/outfitter-dev/blz/issues/382)) ([b1646a6](https://github.com/outfitter-dev/blz/commit/b1646a6b5a42b9b58c66a99b9a36de69b4d0d694))
+
+
+### Refactoring
+
+* **cli:** migrate prompts from dialoguer to inquire [BLZ-240] ([#311](https://github.com/outfitter-dev/blz/issues/311)) ([6edc3f8](https://github.com/outfitter-dev/blz/commit/6edc3f81dd7f530fa4a404116dec3d5328e46072))
+* **cli:** rename --mappings to --anchors in toc command ([#322](https://github.com/outfitter-dev/blz/issues/322)) ([830e78b](https://github.com/outfitter-dev/blz/commit/830e78b305295fa9e2c570fe6bdd6b89e2a9508a))
+* **cli:** rename update to refresh command [BLZ-262] ([#326](https://github.com/outfitter-dev/blz/issues/326)) ([f0ad6bb](https://github.com/outfitter-dev/blz/commit/f0ad6bb0d1c8b5f8f2cebbe03afdcecb5a5ca1a6))
+* **core:** extract refresh helpers for MCP reuse ([#374](https://github.com/outfitter-dev/blz/issues/374)) ([3107eee](https://github.com/outfitter-dev/blz/commit/3107eee30b029c6f5835608a19f4af32989eefdf))
+* **mcp:** add action-based find tool ([#375](https://github.com/outfitter-dev/blz/issues/375)) ([8acf93e](https://github.com/outfitter-dev/blz/commit/8acf93e123f303e525eb5ccf2852dc2c79043a88))
+* **mcp:** add blz tool for source actions ([#377](https://github.com/outfitter-dev/blz/issues/377)) ([b0bb471](https://github.com/outfitter-dev/blz/commit/b0bb4711b8e40f677eef4c36df4bfe5d158e903f))
+
+
+### Documentation
+
+* add comprehensive release flow migration plan ([#344](https://github.com/outfitter-dev/blz/issues/344)) ([d8b2888](https://github.com/outfitter-dev/blz/commit/d8b2888756bcd9ec18deef89084d7b23948fb3be))
+* add language filtering migration guide [BLZ-268] ([#332](https://github.com/outfitter-dev/blz/issues/332)) ([073f42d](https://github.com/outfitter-dev/blz/commit/073f42dd08a276165c945d836df0ad1e603c963f))
+* **changelog:** add unified find command [BLZ-229] ([8e63a6d](https://github.com/outfitter-dev/blz/commit/8e63a6de6f60783d3c24c588fe1fe717069e82ef))
+* **cli:** document toc filtering ([#321](https://github.com/outfitter-dev/blz/issues/321)) ([9708486](https://github.com/outfitter-dev/blz/commit/97084860f89142418a45ce6ccebe9eaede58cd4c))
+* **factory:** add Factory command templates [BLZ-138] ([#275](https://github.com/outfitter-dev/blz/issues/275)) ([0842935](https://github.com/outfitter-dev/blz/commit/0842935eabd9985fd23835c394eedf40db7cc24d))
+* improve MCP documentation ([#299](https://github.com/outfitter-dev/blz/issues/299)) ([2195a92](https://github.com/outfitter-dev/blz/commit/2195a9219337085f529c1ca8f2bcbd87235a4fa1))
+* **release:** align docs with release-please ([#350](https://github.com/outfitter-dev/blz/issues/350)) ([0d8a9b9](https://github.com/outfitter-dev/blz/commit/0d8a9b91cea2462a372f5b9e734de3e15ede7f3d))
+* **release:** align release-please docs ([#381](https://github.com/outfitter-dev/blz/issues/381)) ([e9dc394](https://github.com/outfitter-dev/blz/commit/e9dc394451edede34dbf6274f21e65f43f737792))
+* **release:** archive prerelease notes ([#345](https://github.com/outfitter-dev/blz/issues/345)) ([b0b704f](https://github.com/outfitter-dev/blz/commit/b0b704ff82ef2d3d9f0bbde9da3ab98b20c0fcde))
+* **release:** document release-please flow and archive legacy workflows ([#354](https://github.com/outfitter-dev/blz/issues/354)) ([f82c177](https://github.com/outfitter-dev/blz/commit/f82c1770031541942d1864374484a0006660d884))
+* **release:** draft 1.4.0 changelog ([#378](https://github.com/outfitter-dev/blz/issues/378)) ([d207ef8](https://github.com/outfitter-dev/blz/commit/d207ef8778f21aca42945e263e5b9509ab0fd06e))
+* replace deprecated 'blz get' with 'blz find' in documentation ([#364](https://github.com/outfitter-dev/blz/issues/364)) ([a6023a3](https://github.com/outfitter-dev/blz/commit/a6023a3890aeb5caf33cfd785320744713950d75))
+* streamline blazer.md and use-blz.md for agents ([#366](https://github.com/outfitter-dev/blz/issues/366)) ([6a49f3c](https://github.com/outfitter-dev/blz/commit/6a49f3c377b3c955b07f4492af89611f8703e5fc))
+* **workflows:** align version management with release-please ([#380](https://github.com/outfitter-dev/blz/issues/380)) ([7b097b9](https://github.com/outfitter-dev/blz/commit/7b097b94312bc621cc7d2b76f8d74638b4deb8e8))
+
 ## [Unreleased]
 
 ## [1.4.0] - 2026-01-05
