@@ -1,0 +1,34 @@
+name: Version Sync
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'package.json'
+      - '.release-please-config.json'
+      - '.release-please-manifest.json'
+      - 'scripts/check-version-sync.py'
+      - '.github/workflows/version-sync.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.toml'
+      - 'package.json'
+      - '.release-please-config.json'
+      - '.release-please-manifest.json'
+      - 'scripts/check-version-sync.py'
+      - '.github/workflows/version-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version-sync:
+    name: Check version alignment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify version alignment
+        run: python3 scripts/check-version-sync.py
