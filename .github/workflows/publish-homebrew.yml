@@ -312,6 +312,7 @@ jobs:
           branch: bump-blz-${{ steps.resolve.outputs.version }}
           commit-message: "blz ${{ steps.resolve.outputs.version }}"
           title: "blz ${{ steps.resolve.outputs.version }}"
+          labels: pr-pull
           body: |
             Bump blz formula to ${{ steps.resolve.outputs.version }}.
             - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 || steps.resolve.outputs.sha_arm64 }}
