@@ -3,7 +3,7 @@
   "release-type": "node",
   "include-v-in-tag": true,
   "include-component-in-tag": false,
-  "draft": true,
+  "draft": false,
   "pull-request-title-pattern": "chore: release ${version}",
   "changelog-sections": [
     {"type": "feat", "section": "Features"},
