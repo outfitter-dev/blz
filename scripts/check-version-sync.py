@@ -21,11 +21,31 @@ def read_toml(path: Path) -> dict:
         return tomllib.load(handle)
 
 
+def workspace_package_names(root: Path, cargo: dict) -> list[str]:
+    members = cargo.get("workspace", {}).get("members", [])
+    if not isinstance(members, list):
+        return []
+
+    names: list[str] = []
+    for member in members:
+        if not isinstance(member, str):
+            continue
+        manifest = root / member / "Cargo.toml"
+        if not manifest.exists():
+            continue
+        data = read_toml(manifest)
+        name = data.get("package", {}).get("name")
+        if isinstance(name, str):
+            names.append(name)
+    return names
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     package_path = root / "package.json"
     cargo_path = root / "Cargo.toml"
     manifest_path = root / ".release-please-manifest.json"
+    lock_path = root / "Cargo.lock"
 
     errors: list[str] = []
 
@@ -46,6 +66,12 @@ def main() -> int:
     except FileNotFoundError:
         errors.append(".release-please-manifest.json not found.")
         manifest = {}
+
+    try:
+        lock = read_toml(lock_path)
+    except FileNotFoundError:
+        errors.append("Cargo.lock not found.")
+        lock = {}
 
     package_version = package.get("version")
     cargo_version = (
@@ -74,7 +100,7 @@ def main() -> int:
 
     workspace_deps = cargo.get("workspace", {}).get("dependencies", {})
     if isinstance(workspace_deps, dict) and cargo_version:
-        for dep in ("blz-core", "blz-mcp", "blz-cli"):
+        for dep in ("blz-core", "blz-mcp", "blz-cli", "blz-registry-build"):
             dep_entry = workspace_deps.get(dep)
             if isinstance(dep_entry, dict):
                 dep_version = dep_entry.get("version")
@@ -84,6 +110,16 @@ def main() -> int:
                         f"version ({dep_version}) does not match workspace.package.version "
                         f"({cargo_version})."
                     )
+
+    if isinstance(lock, dict) and cargo_version and cargo:
+        packages = {pkg.get("name"): pkg.get("version") for pkg in lock.get("package", []) if isinstance(pkg, dict)}
+        for name in workspace_package_names(root, cargo):
+            lock_version = packages.get(name)
+            if lock_version and lock_version != cargo_version:
+                errors.append(
+                    f"Cargo.lock package {name} version ({lock_version}) does not match "
+                    f"workspace.package.version ({cargo_version})."
+                )
 
     if errors:
         print("Version sync check failed:")
