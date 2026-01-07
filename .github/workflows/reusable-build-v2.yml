@@ -37,7 +37,7 @@ on:
 jobs:
   build:
     name: Build ${{ inputs.target }}
-    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || inputs.target == 'darwin-x64' && 'macos-13' || 'macos-14' }}
+    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || 'macos-14' }}
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       artifact_id: ${{ steps.upload.outputs['artifact-id'] }}
@@ -97,11 +97,11 @@ jobs:
           set -euo pipefail
           cd target/release
           if [[ "${{ inputs.target }}" == "windows-x64" ]]; then
-            7z a blz-${{ inputs.version }}-${{ inputs.target }}.zip ${{ steps.vars.outputs.binary_name }}
-            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.zip" >> $GITHUB_ENV
+            7z a "blz-${{ inputs.version }}-${{ inputs.target }}.zip" "${{ steps.vars.outputs.binary_name }}"
+            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.zip" >> "$GITHUB_ENV"
           else
-            tar czf blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz ${{ steps.vars.outputs.binary_name }}
-            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz" >> $GITHUB_ENV
+            tar czf "blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz" "${{ steps.vars.outputs.binary_name }}"
+            echo "ARCHIVE_PATH=target/release/blz-${{ inputs.version }}-${{ inputs.target }}.tar.gz" >> "$GITHUB_ENV"
           fi
 
       - name: Set artifact metadata
