@@ -18,7 +18,6 @@
   "packages": {
     ".": {
       "package-name": "@outfitter/blz",
-      "release-as": "1.5.0",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         {"type": "json", "path": "package.json", "jsonpath": "$.version"},
