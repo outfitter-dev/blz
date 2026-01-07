@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [1.5.1](https://github.com/outfitter-dev/blz/compare/v1.5.0...v1.5.1) (2026-01-07)
+
+
+### Bug Fixes
+
+* **release:** disable draft releases ([#403](https://github.com/outfitter-dev/blz/issues/403)) ([d9dc1a2](https://github.com/outfitter-dev/blz/commit/d9dc1a227a418f2d111a64e31e757ff5d6a70d2c))
+* **release:** sync Cargo.lock on release PRs ([#406](https://github.com/outfitter-dev/blz/issues/406)) ([7cf94f0](https://github.com/outfitter-dev/blz/commit/7cf94f071ebf8bbf4a2a78a74ba061838640064b))
+
 ## [1.5.0](https://github.com/outfitter-dev/blz/compare/v1.3.0...v1.5.0) (2026-01-07)
 
 
