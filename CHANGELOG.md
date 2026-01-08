@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [1.5.2](https://github.com/outfitter-dev/blz/compare/v1.5.1...v1.5.2) (2026-01-08)
+
+
+### Bug Fixes
+
+* **ci:** use macos-14 for darwin builds ([#410](https://github.com/outfitter-dev/blz/issues/410)) ([196eb8b](https://github.com/outfitter-dev/blz/commit/196eb8b85d294616899d0c3e8950b9a138d480d8))
+* **mcp:** default prompts capability fields ([#411](https://github.com/outfitter-dev/blz/issues/411)) ([7b8094c](https://github.com/outfitter-dev/blz/commit/7b8094c1ea170c70f47957088c85b8bb02e53989))
+* **release:** auto-label homebrew tap PRs ([#408](https://github.com/outfitter-dev/blz/issues/408)) ([e20abdf](https://github.com/outfitter-dev/blz/commit/e20abdf444fd83d931987ebeda25fa3adba00872))
+
 ## [1.5.1](https://github.com/outfitter-dev/blz/compare/v1.5.0...v1.5.1) (2026-01-07)
 
 
