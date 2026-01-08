@@ -281,7 +281,7 @@ dependencies = [
 
 [[package]]
 name = "blz-cli"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "blz-core"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "base64",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "blz-mcp"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "blz-core",
@@ -375,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "blz-registry-build"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "chrono",
