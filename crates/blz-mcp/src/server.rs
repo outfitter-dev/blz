@@ -73,7 +73,7 @@ impl ServerHandler for McpServer {
                 }),
                 prompts: Some(PromptsCapability {
                     list_changed: None,
-                    get: Some(true),
+                    ..Default::default()
                 }),
                 ..Default::default()
             },
