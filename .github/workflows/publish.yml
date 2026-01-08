@@ -456,9 +456,6 @@ jobs:
           sha_arm64=$(sha256sum "dist/blz-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
           sha_x64=$(sha256sum "dist/blz-${VERSION}-darwin-x64.tar.gz" | awk '{print $1}')
           sha_linux=$(sha256sum "dist/blz-${VERSION}-linux-x64.tar.gz" | awk '{print $1}')
-          echo "::add-mask::$sha_arm64"
-          echo "::add-mask::$sha_x64"
-          echo "::add-mask::$sha_linux"
           {
             echo "sha_arm64=$sha_arm64"
             echo "sha_x64=$sha_x64"

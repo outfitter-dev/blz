@@ -71,11 +71,6 @@ jobs:
         with:
           ref: ${{ steps.resolve.outputs.tag }}
 
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
       - name: Validate Cargo.toml version matches tag
         id: ver
         shell: bash
@@ -96,7 +91,27 @@ jobs:
         run: |
           set -euo pipefail
           V='${{ steps.resolve.outputs.version }}'
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+          index_has_version() {
+            local crate="$1"
+            local version="$2"
+            local name
+            name=$(echo "$crate" | tr '[:upper:]' '[:lower:]')
+            local len=${#name}
+            local path
+            if (( len == 1 )); then
+              path="1/$name"
+            elif (( len == 2 )); then
+              path="2/$name"
+            elif (( len == 3 )); then
+              path="3/${name:0:1}/$name"
+            else
+              path="${name:0:2}/${name:2:2}/$name"
+            fi
+            local url="https://index.crates.io/$path"
+            curl --retry 3 --retry-delay 1 -fsSL -H "User-Agent: blz-release-bot" "$url" \
+              | grep -Fq "\"vers\":\"$version\""
+          }
+          if index_has_version "blz-core" "$V"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -137,14 +152,29 @@ jobs:
           MAX_ATTEMPTS=${INPUT_MAX_ATTEMPTS:-30}
           DELAY=${INPUT_DELAY_SECONDS:-5}
           echo "Waiting for blz-core $V to propagate (max ${MAX_ATTEMPTS} attempts, delay ${DELAY}s)..."
-          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            # Check both API and cargo search for better reliability
-            if cargo search blz-core | grep -Fq "blz-core = \"$V\""; then
-              echo "blz-core $V available via cargo search on attempt $attempt"
-              exit 0
+          index_has_version() {
+            local crate="$1"
+            local version="$2"
+            local name
+            name=$(echo "$crate" | tr '[:upper:]' '[:lower:]')
+            local len=${#name}
+            local path
+            if (( len == 1 )); then
+              path="1/$name"
+            elif (( len == 2 )); then
+              path="2/$name"
+            elif (( len == 3 )); then
+              path="3/${name:0:1}/$name"
+            else
+              path="${name:0:2}/${name:2:2}/$name"
             fi
-            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-core/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-              echo "blz-core $V available via API on attempt $attempt"
+            local url="https://index.crates.io/$path"
+            curl --retry 3 --retry-delay 1 -fsSL -H "User-Agent: blz-release-bot" "$url" \
+              | grep -Fq "\"vers\":\"$version\""
+          }
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if index_has_version "blz-core" "$V"; then
+              echo "blz-core $V available via index on attempt $attempt"
               exit 0
             fi
             echo "Attempt $attempt: Not yet available, waiting ${DELAY}s..."
@@ -159,7 +189,27 @@ jobs:
         run: |
           set -euo pipefail
           V='${{ steps.resolve.outputs.version }}'
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-mcp/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+          index_has_version() {
+            local crate="$1"
+            local version="$2"
+            local name
+            name=$(echo "$crate" | tr '[:upper:]' '[:lower:]')
+            local len=${#name}
+            local path
+            if (( len == 1 )); then
+              path="1/$name"
+            elif (( len == 2 )); then
+              path="2/$name"
+            elif (( len == 3 )); then
+              path="3/${name:0:1}/$name"
+            else
+              path="${name:0:2}/${name:2:2}/$name"
+            fi
+            local url="https://index.crates.io/$path"
+            curl --retry 3 --retry-delay 1 -fsSL -H "User-Agent: blz-release-bot" "$url" \
+              | grep -Fq "\"vers\":\"$version\""
+          }
+          if index_has_version "blz-mcp" "$V"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -200,13 +250,29 @@ jobs:
           MAX_ATTEMPTS=${INPUT_MAX_ATTEMPTS:-30}
           DELAY=${INPUT_DELAY_SECONDS:-5}
           echo "Waiting for blz-mcp $V to propagate (max ${MAX_ATTEMPTS} attempts, delay ${DELAY}s)..."
-          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            if cargo search blz-mcp | grep -Fq "blz-mcp = \"$V\""; then
-              echo "blz-mcp $V available via cargo search on attempt $attempt"
-              exit 0
+          index_has_version() {
+            local crate="$1"
+            local version="$2"
+            local name
+            name=$(echo "$crate" | tr '[:upper:]' '[:lower:]')
+            local len=${#name}
+            local path
+            if (( len == 1 )); then
+              path="1/$name"
+            elif (( len == 2 )); then
+              path="2/$name"
+            elif (( len == 3 )); then
+              path="3/${name:0:1}/$name"
+            else
+              path="${name:0:2}/${name:2:2}/$name"
             fi
-            if curl --retry 3 --retry-delay 1 -fsSL https://crates.io/api/v1/crates/blz-mcp/versions | jq -r '.versions[].num' | grep -qx "$V"; then
-              echo "blz-mcp $V available via API on attempt $attempt"
+            local url="https://index.crates.io/$path"
+            curl --retry 3 --retry-delay 1 -fsSL -H "User-Agent: blz-release-bot" "$url" \
+              | grep -Fq "\"vers\":\"$version\""
+          }
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if index_has_version "blz-mcp" "$V"; then
+              echo "blz-mcp $V available via index on attempt $attempt"
               exit 0
             fi
             echo "Attempt $attempt: Not yet available, waiting ${DELAY}s..."
@@ -221,7 +287,27 @@ jobs:
         run: |
           set -euo pipefail
           V='${{ steps.resolve.outputs.version }}'
-          if curl --retry 3 --retry-delay 1 --fail --silent --show-error https://crates.io/api/v1/crates/blz-cli/versions | jq -r '.versions[].num' | grep -qx "$V"; then
+          index_has_version() {
+            local crate="$1"
+            local version="$2"
+            local name
+            name=$(echo "$crate" | tr '[:upper:]' '[:lower:]')
+            local len=${#name}
+            local path
+            if (( len == 1 )); then
+              path="1/$name"
+            elif (( len == 2 )); then
+              path="2/$name"
+            elif (( len == 3 )); then
+              path="3/${name:0:1}/$name"
+            else
+              path="${name:0:2}/${name:2:2}/$name"
+            fi
+            local url="https://index.crates.io/$path"
+            curl --retry 3 --retry-delay 1 -fsSL -H "User-Agent: blz-release-bot" "$url" \
+              | grep -Fq "\"vers\":\"$version\""
+          }
+          if index_has_version "blz-cli" "$V"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
