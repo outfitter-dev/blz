@@ -1,5 +1,6 @@
 [package]
 name = "blz-mcp"
+description = "MCP server for blz documentation search"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
