@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [1.5.5](https://github.com/outfitter-dev/blz/compare/v1.5.4...v1.5.5) (2026-01-09)
+
+
+### Bug Fixes
+
+* **ci:** build linux on ubuntu-22.04 ([#417](https://github.com/outfitter-dev/blz/issues/417)) ([84ad65f](https://github.com/outfitter-dev/blz/commit/84ad65f1145667e1859a75dbbeafbd754c0c455a))
+
 ## [1.5.4](https://github.com/outfitter-dev/blz/compare/v1.5.3...v1.5.4) (2026-01-09)
 
 
