@@ -37,7 +37,7 @@ on:
 jobs:
   build:
     name: Build ${{ inputs.target }}
-    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-latest' || 'macos-14' }}
+    runs-on: ${{ inputs.target == 'windows-x64' && 'windows-latest' || inputs.target == 'linux-x64' && 'ubuntu-22.04' || 'macos-14' }}
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       artifact_id: ${{ steps.upload.outputs['artifact-id'] }}
