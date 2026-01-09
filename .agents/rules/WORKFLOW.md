@@ -240,39 +240,36 @@ gt merge --dry-run
 gt sync  # Prune merged branches and update
 ```
 
-## Release Process
+## Release Process (release-please)
 
-1. Update version in Cargo.toml files (see notes below for auto-release shorthand)
-2. Update CHANGELOG.md
-3. Run full test suite
-4. Create release stack:
+1. Merge all release-intent changes to `main`.
+2. Run the release readiness checks:
+   - `python3 scripts/check-version-sync.py`
+   - Ensure every published crate has `description`, `license`, and `repository` in its `Cargo.toml` (crates.io rejects missing metadata).
+   - Confirm required secrets are present (`RELEASE_PLEASE_TOKEN`, `CARGO_REGISTRY_TOKEN`, `HOMEBREW_TAP_TOKEN`; `NPM_TOKEN` optional when using trusted publishing).
+3. Trigger or wait for `release-please.yml` to open/update the release PR.
+4. Review the release PR:
+   - `CHANGELOG.md` entries
+   - `Cargo.toml` / `Cargo.lock` version bumps
+   - `package.json` / `package-lock.json` version bumps
+5. Merge the release PR. The tag (`vX.Y.Z`) is created automatically and triggers `publish.yml`.
+6. Monitor the `publish.yml` run and confirm:
+   - Build + upload of release assets succeeds
+   - crates.io publishes `blz-core`, `blz-mcp`, `blz-cli`
+   - npm publish completes (or is intentionally skipped)
+   - Homebrew tap PR is created with SHAs and auto-merged
+7. Verify post-release:
+   - `gh run list --workflow "publish.yml"` shows success
+   - crates.io versions visible for all crates
+   - npm shows the expected dist-tag
+   - Homebrew tap formula updated
 
-```bash
-# Create release preparation branch
-gt create release/v0.1.0 -am "chore: prepare release v0.1.0"
+### Release Automation Notes (2026-01 refresh)
 
-# Submit for review
-gt submit --stack
-
-# After merge via gt merge
-gt sync
-git tag -a v0.1.0 -m "Release version 0.1.0"   # or: -s if signing
-git push origin v0.1.0                         # or: git push --follow-tags
-
-### Release Automation Notes (2025-09 refresh)
-
-- **Auto-release vs manual bumps:** Adding a `release:*` label to a PR tells `auto-release.yml` to bump versions on `main` by running `scripts/release/semver-bump.sh`. If you already bumped versions in the PR, remove the label before merge or the workflow will bump again (e.g., it attempted `0.2.3` immediately after `0.2.2`). Conversely, if you want auto-release to own the bump, leave versions untouched in the PR and let the workflow commit it after merge.
-- **Release labels:** The automation only fires for labels matching `release:(major|minor|patch|canary)` (see `.github/workflows/auto-release.yml`, `allowed` array). Use one of those exact labels per PR; anything else is ignored.
-- **Required secrets:**
-  - `secrets.GITHUB_TOKEN` (GitHub-provided) — used across auto-release, publish, and manual workflows for repo access.
-  - `secrets.NPM_TOKEN` — consumed by `publish.yml` when pushing npm packages (also wired as `NODE_AUTH_TOKEN`).
-  - `secrets.CARGO_REGISTRY_TOKEN` — required for crates.io publishes in `publish.yml`.
-  - `secrets.cargo-token` — legacy name referenced in `publish-crates.yml`; point it at the same value as `CARGO_REGISTRY_TOKEN` until we consolidate on one secret.
-  - Homebrew flows (`publish-homebrew.yml`) require `secrets.homebrew-token` (for tap checkout + PR creation) in addition to the default `GITHUB_TOKEN` (`GH_TOKEN`).
-- **Raw binaries for npm:** The publish workflow now extracts archives and uploads platform-specific binaries (`blz-darwin-arm64`, etc.). Without those, npm global installs hit 404s (observed on v0.2.1). Do not remove this extraction step.
-- **Homebrew gating:** `publish-homebrew.yml` checks release assets with `gh release view --repo "$GITHUB_REPOSITORY" …`. This repo flag is required when running on tag pushes; otherwise `gh` emits `fatal: not a git repository` and the job fails.
-- **Idempotent publish retries:** When re-running `publish.yml` (e.g., after retagging), crates.io publishes may fail with “already exists” and npm/homebrew jobs may skip. That is expected; ensure the initial publish succeeded before treating subsequent runs as failures.
-```
+- **Release-please is the source of truth:** Do not manually tag releases.
+- **Crates index propagation:** `publish-crates.yml` uses the sparse index to detect versions; a 404 is normal for brand-new crates until the first publish lands.
+- **Homebrew SHAs:** `publish.yml` must pass SHA outputs to `publish-homebrew.yml`; missing SHAs will fail the tap update.
+- **Idempotent re-runs:** Re-running `publish.yml` after a partial failure is expected; crates.io may report already published and npm/homebrew may skip.
 
 ## Troubleshooting
 
