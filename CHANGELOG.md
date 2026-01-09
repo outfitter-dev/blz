@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [1.5.4](https://github.com/outfitter-dev/blz/compare/v1.5.3...v1.5.4) (2026-01-09)
+
+
+### Bug Fixes
+
+* **mcp:** add crates.io description ([#415](https://github.com/outfitter-dev/blz/issues/415)) ([f13422c](https://github.com/outfitter-dev/blz/commit/f13422ccc4d81578808e4f0a1aa7c03eefd5f3d3))
+
+
+### Documentation
+
+* **workflow:** refresh release checklist ([#414](https://github.com/outfitter-dev/blz/issues/414)) ([896d277](https://github.com/outfitter-dev/blz/commit/896d27702331821103016ca935bf90988b64028e))
+
 ## [1.5.3](https://github.com/outfitter-dev/blz/compare/v1.5.2...v1.5.3) (2026-01-08)
 
 
