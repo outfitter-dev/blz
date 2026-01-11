@@ -262,6 +262,7 @@ impl<'a> HistoryEntryBuilder<'a> {
     }
 }
 
+/// Convert an output format to its canonical string representation.
 pub fn format_to_string(format: OutputFormat) -> String {
     match format {
         OutputFormat::Text => "text".to_string(),
@@ -271,6 +272,7 @@ pub fn format_to_string(format: OutputFormat) -> String {
     }
 }
 
+/// Convert show components into their string identifiers.
 pub fn components_to_strings(components: &[ShowComponent]) -> Vec<String> {
     components
         .iter()
@@ -279,6 +281,7 @@ pub fn components_to_strings(components: &[ShowComponent]) -> Vec<String> {
         .collect()
 }
 
+/// Map a show component to its stable identifier.
 pub const fn component_to_str(component: ShowComponent) -> &'static str {
     match component {
         ShowComponent::Url => "url",
@@ -289,6 +292,7 @@ pub const fn component_to_str(component: ShowComponent) -> &'static str {
     }
 }
 
+/// Parse a show component from a string identifier.
 pub fn component_from_str(s: &str) -> Option<ShowComponent> {
     match s.to_ascii_lowercase().as_str() {
         "url" => Some(ShowComponent::Url),
@@ -300,6 +304,7 @@ pub fn component_from_str(s: &str) -> Option<ShowComponent> {
     }
 }
 
+/// Parse a comma/whitespace-separated show list into components.
 pub fn parse_show_list(raw: &str) -> Vec<ShowComponent> {
     raw.split(',')
         .flat_map(|entry| entry.split_whitespace())
@@ -314,6 +319,7 @@ pub fn parse_show_list(raw: &str) -> Vec<ShowComponent> {
         .collect()
 }
 
+/// Format show components as a comma-separated string.
 pub fn format_show_components(components: &[ShowComponent]) -> String {
     components
         .iter()
@@ -322,6 +328,7 @@ pub fn format_show_components(components: &[ShowComponent]) -> String {
         .join(", ")
 }
 
+/// Collect show components from boolean toggles.
 pub fn collect_show_components(url: bool, lines: bool, anchor: bool) -> Vec<ShowComponent> {
     let mut components = Vec::new();
     if url {
@@ -337,6 +344,7 @@ pub fn collect_show_components(url: bool, lines: bool, anchor: bool) -> Vec<Show
 }
 
 #[allow(clippy::fn_params_excessive_bools)]
+/// Collect show components, optionally including raw scores.
 pub fn collect_show_components_extended(
     url: bool,
     lines: bool,
@@ -350,6 +358,7 @@ pub fn collect_show_components_extended(
     components
 }
 
+/// Build the scope chain from global to the most specific scope.
 pub fn scope_chain() -> Vec<String> {
     let mut chain = vec![GLOBAL_SCOPE_KEY.to_string()];
     if let Some(project) = project_scope_key() {
@@ -361,6 +370,7 @@ pub fn scope_chain() -> Vec<String> {
     chain
 }
 
+/// Return the most specific scope key to use for persistence.
 pub fn active_scope_key() -> String {
     scope_chain()
         .into_iter()
@@ -368,6 +378,7 @@ pub fn active_scope_key() -> String {
         .unwrap_or_else(|| GLOBAL_SCOPE_KEY.to_string())
 }
 
+/// Derive the project scope key from config paths, if available.
 pub fn project_scope_key() -> Option<String> {
     if let Ok(file) = env::var("BLZ_CONFIG") {
         let trimmed = file.trim();
@@ -389,6 +400,7 @@ pub fn project_scope_key() -> Option<String> {
     None
 }
 
+/// Derive the local scope key from the current working directory.
 pub fn local_scope_key() -> Option<String> {
     env::current_dir()
         .ok()

@@ -7,6 +7,7 @@ use crate::output::OutputFormat;
 
 static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
+/// Return whether deprecation warnings are suppressed via environment.
 pub fn deprecation_warnings_suppressed() -> bool {
     match std::env::var("BLZ_SUPPRESS_DEPRECATIONS") {
         Ok(value) => {

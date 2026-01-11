@@ -7,6 +7,7 @@ use crate::output::OutputFormat;
 use crate::utils::history_log;
 use crate::utils::preferences::{self, CliPreferences};
 
+/// Display search history, optionally clearing entries.
 pub fn show(
     prefs: &CliPreferences,
     limit: usize,

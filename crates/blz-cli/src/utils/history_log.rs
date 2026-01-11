@@ -21,6 +21,7 @@ struct HistoryRecord {
     entry: SearchHistoryEntry,
 }
 
+/// Append a search history entry to the scoped history log.
 pub fn append(entry: &SearchHistoryEntry) -> std::io::Result<()> {
     let scope = active_scope_key();
     let mut records = load_all();
@@ -32,10 +33,12 @@ pub fn append(entry: &SearchHistoryEntry) -> std::io::Result<()> {
     write_all(&records)
 }
 
+/// Return recent history entries for the active scope.
 pub fn recent_for_active_scope(limit: usize) -> Vec<SearchHistoryEntry> {
     recent_for_scope(&active_scope_key(), limit)
 }
 
+/// Return recent history entries for a specific scope.
 pub fn recent_for_scope(scope: &str, limit: usize) -> Vec<SearchHistoryEntry> {
     let records = load_all();
     records
