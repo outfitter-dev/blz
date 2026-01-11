@@ -8,12 +8,12 @@ BLZ uses an action-based dispatch pattern with two consolidated tools:
 
 | Tool | Purpose | Actions |
 |------|---------|---------|
-| [`blz_find`](#blz_find) | Search, retrieve & browse documentation | `search`, `get`, `toc` |
+| [`find`](#find) | Search, retrieve & browse documentation | `search`, `get`, `toc` |
 | [`blz`](#blz) | Source management & metadata | `list`, `add`, `remove`, `refresh`, `info`, `validate`, `history`, `help` |
 
 ---
 
-## `blz_find`
+## `find`
 
 Unified tool for searching documentation, retrieving exact content spans, and browsing table of contents.
 
@@ -21,7 +21,7 @@ Unified tool for searching documentation, retrieving exact content spans, and br
 
 ```json
 {
-  "name": "blz_find",
+  "name": "find",
   "description": "Search & retrieve documentation snippets",
   "inputSchema": {
     "type": "object",
@@ -50,27 +50,32 @@ Unified tool for searching documentation, retrieving exact content spans, and br
       "contextMode": {
         "type": "string",
         "enum": ["none", "symmetric", "all"],
+        "default": "none",
         "description": "Snippet expansion mode"
       },
       "context": {
         "type": "integer",
         "minimum": 0,
         "maximum": 50,
+        "default": 0,
         "description": "Lines of padding (alias: linePadding)"
       },
       "maxResults": {
         "type": "integer",
         "minimum": 1,
         "maximum": 1000,
+        "default": 10,
         "description": "Limit search hits (default: 10)"
       },
       "format": {
         "type": "string",
         "enum": ["concise", "detailed"],
+        "default": "concise",
         "description": "Response format (default: concise)"
       },
       "headingsOnly": {
         "type": "boolean",
+        "default": false,
         "description": "Restrict matches to heading text only"
       },
       "maxLines": {
@@ -83,6 +88,7 @@ Unified tool for searching documentation, retrieving exact content spans, and br
       },
       "tree": {
         "type": "boolean",
+        "default": false,
         "description": "Return hierarchical TOC tree (default: false)"
       },
       "maxDepth": {
@@ -146,7 +152,7 @@ The tool auto-infers the action based on parameters:
 
 ```json
 {
-  "name": "blz_find",
+  "name": "find",
   "arguments": {
     "query": "test runner",
     "source": "bun",
@@ -159,7 +165,7 @@ The tool auto-infers the action based on parameters:
 
 ```json
 {
-  "name": "blz_find",
+  "name": "find",
   "arguments": {
     "snippets": ["bun:304-324"],
     "contextMode": "symmetric"
@@ -171,7 +177,7 @@ The tool auto-infers the action based on parameters:
 
 ```json
 {
-  "name": "blz_find",
+  "name": "find",
   "arguments": {
     "action": "toc",
     "source": "bun",
@@ -185,7 +191,7 @@ The tool auto-infers the action based on parameters:
 
 ```json
 {
-  "name": "blz_find",
+  "name": "find",
   "arguments": {
     "query": "authentication",
     "source": ["bun", "node", "deno"],
@@ -449,7 +455,7 @@ The action is auto-inferred from parameters:
 
 ```javascript
 // Step 1: Search
-const search = await callTool("blz_find", {
+const search = await callTool("find", {
   query: "test runner",
   source: "bun",
   maxResults: 5
@@ -457,7 +463,7 @@ const search = await callTool("blz_find", {
 
 // Step 2: Get full content
 const citation = `${search.searchResults[0].source}:${search.searchResults[0].lines}`;
-const content = await callTool("blz_find", {
+const content = await callTool("find", {
   snippets: [citation],
   contextMode: "symmetric"
 });
@@ -483,7 +489,7 @@ if (astro?.kind === "registry") {
 
 ```javascript
 // Cross-source search with array
-const results = await callTool("blz_find", {
+const results = await callTool("find", {
   query: "authentication",
   source: ["bun", "react", "next"],
   maxResults: 15
@@ -496,14 +502,14 @@ const results = await callTool("blz_find", {
 
 ```javascript
 // Start with minimal context
-let content = await callTool("blz_find", {
+let content = await callTool("find", {
   snippets: ["bun:304-324"],
   contextMode: "none"
 });
 
 // If not enough info, expand to full section
 if (needsMoreContext(content)) {
-  content = await callTool("blz_find", {
+  content = await callTool("find", {
     snippets: ["bun:304-324"],
     contextMode: "all",
     maxLines: 200
@@ -515,7 +521,7 @@ if (needsMoreContext(content)) {
 
 ```javascript
 // Get high-level TOC
-const toc = await callTool("blz_find", {
+const toc = await callTool("find", {
   action: "toc",
   source: "bun",
   headings: "<=2",

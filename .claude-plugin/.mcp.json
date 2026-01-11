@@ -2,7 +2,7 @@
   "mcpServers": {
     "blz": {
       "command": "blz",
-      "args": ["mcp"]
+      "args": ["mcp-server"]
     }
   }
 }
