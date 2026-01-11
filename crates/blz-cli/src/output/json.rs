@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, anyhow};
 use blz_core::SearchHit;
 
+/// JSON formatter for search output.
 pub struct JsonFormatter;
 
 impl JsonFormatter {
