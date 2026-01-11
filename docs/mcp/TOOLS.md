@@ -202,12 +202,12 @@ The tool auto-infers the action based on parameters:
 
 ### Error Handling
 
-| Error Code | Reason | Example |
-|------------|--------|---------|
-| `-32000` | Source not found | `{"source": "invalid"}` |
-| `-32002` | Invalid citation format | `{"snippets": ["bun:abc-def"]}` |
-| `-32010` | Index error | Corrupted index |
-| `-32602` | Invalid params | `{"context": 100}` (exceeds max) |
+| Error Code | Reason | Message | Example |
+|------------|--------|---------|---------|
+| `-32000` | Source not found | Source alias not found | `{"source": "invalid"}` |
+| `-32002` | Invalid citation format | Invalid citation format | `{"snippets": ["bun:abc-def"]}` |
+| `-32010` | Index error | Failed to access or query index | Corrupted index |
+| `-32602` | Invalid params | Invalid params: context exceeds max | `{"context": 100}` (exceeds max) |
 
 ---
 
@@ -351,7 +351,13 @@ The action is auto-inferred from parameters:
     etag?: string;
     checksum?: string;
     cachePath: string;
-    filterStats?: { ... };
+    filterStats?: {
+      enabled: boolean;
+      headings_total: number;
+      headings_accepted: number;
+      headings_rejected: number;
+      reason: string;
+    };
   };
 
   // For validate/history actions
@@ -440,12 +446,12 @@ The action is auto-inferred from parameters:
 
 ### Error Handling
 
-| Error Code | Reason | Solution |
-|------------|--------|----------|
-| `-32000` | Source not found | Check alias or add source first |
-| `-32001` | Source already exists | Use `force: true` |
-| `-32602` | Missing required parameter | Provide `alias` for action |
-| `-32010` | Fetch/index failed | Check network, URL validity |
+| Error Code | Reason | Message | Solution |
+|------------|--------|---------|----------|
+| `-32000` | Source not found | Source alias not found | Check alias or add source first |
+| `-32001` | Source already exists | Source already exists | Use `force: true` |
+| `-32602` | Missing required parameter | Missing required parameter: alias | Provide `alias` for action |
+| `-32010` | Fetch/index failed | Fetch or index failed | Check network, URL validity |
 
 ---
 
