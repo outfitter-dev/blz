@@ -135,7 +135,11 @@ pub struct IndexStats {
 }
 
 impl OptimizedSearchIndex {
-    /// Create a new optimized search index
+    /// Create a new optimized search index.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index directory cannot be created or initialized.
     pub async fn create(index_path: &Path) -> Result<Self> {
         // Build schema
         let mut schema_builder = Schema::builder();
@@ -166,7 +170,11 @@ impl OptimizedSearchIndex {
         Self::new_with_index(index, fields).await
     }
 
-    /// Open an existing optimized search index
+    /// Open an existing optimized search index.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index cannot be opened or the schema is invalid.
     pub async fn open(index_path: &Path) -> Result<Self> {
         let index = Index::open_in_dir(index_path)
             .map_err(|e| Error::Index(format!("Failed to open index: {}", e)))?;
@@ -844,7 +852,11 @@ impl OptimizedSearchIndex {
         }
     }
 
-    /// Optimize index for better search performance
+    /// Optimize index for better search performance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if segment merging fails.
     pub async fn optimize(&self) -> Result<()> {
         let writer = self.writer_pool.get_writer().await?;
 

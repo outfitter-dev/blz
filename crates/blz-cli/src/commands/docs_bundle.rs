@@ -61,6 +61,10 @@ pub enum SyncStatus {
 }
 
 /// Ensure the bundled `blz-docs` source is installed and indexed.
+///
+/// # Errors
+///
+/// Returns an error if storage access, parsing, or indexing fails.
 pub fn sync(force: bool, metrics: PerformanceMetrics) -> Result<SyncStatus> {
     let storage = Storage::new()?;
     let needs_install = if force {

@@ -58,7 +58,11 @@ pub struct ConnectionPoolStats {
 }
 
 impl ConnectionPool {
-    /// Create a new connection pool
+    /// Create a new connection pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the default HTTP client cannot be constructed.
     pub fn new(max_total_connections: usize, max_per_domain: usize) -> Result<Self> {
         let default_client = Client::builder()
             .timeout(Duration::from_secs(30))
@@ -80,7 +84,11 @@ impl ConnectionPool {
         })
     }
 
-    /// Get an HTTP client optimized for the given domain
+    /// Get an HTTP client optimized for the given domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a client cannot be created for the target domain.
     pub async fn get_client(&self, url: &str) -> Result<Client> {
         self.stats.total_requests.fetch_add(1, Ordering::Relaxed);
 
@@ -182,7 +190,11 @@ impl ConnectionPool {
         }
     }
 
-    /// Perform an HTTP GET with connection pooling and timeout
+    /// Perform an HTTP GET with connection pooling and timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails, times out, or returns a non-success status.
     pub async fn get(&self, url: &str) -> Result<String> {
         self.perform_request(url, |client| async move {
             let response = client.get(url).send().await?;
@@ -197,7 +209,11 @@ impl ConnectionPool {
         }).await
     }
 
-    /// Perform an HTTP HEAD request to check resource existence
+    /// Perform an HTTP HEAD request to check resource existence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or times out.
     pub async fn head(&self, url: &str) -> Result<reqwest::Response> {
         self.perform_request(url, |client| async move {
             let response = client.head(url).send().await?;
@@ -296,7 +312,11 @@ pub struct ConnectionPoolStatsSummary {
 pub struct AsyncFileOps;
 
 impl AsyncFileOps {
-    /// Read entire file contents asynchronously with buffering
+    /// Read entire file contents asynchronously with buffering.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or read.
     pub async fn read_to_string(path: &std::path::Path) -> Result<String> {
         let file = File::open(path).await
             .map_err(|e| Error::Io(format!("Failed to open file {}: {}", path.display(), e)))?;
@@ -310,7 +330,11 @@ impl AsyncFileOps {
         Ok(contents)
     }
 
-    /// Read file contents in chunks with progress callback
+    /// Read file contents in chunks with progress callback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or read.
     pub async fn read_with_progress<F>(
         path: &std::path::Path,
         mut progress_fn: F,
@@ -348,7 +372,11 @@ impl AsyncFileOps {
         Ok(contents)
     }
 
-    /// Write string to file asynchronously with atomic operation
+    /// Write string to file asynchronously with atomic operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the temporary file cannot be written or renamed.
     pub async fn write_atomic(
         path: &std::path::Path, 
         contents: &str,
@@ -380,7 +408,11 @@ impl AsyncFileOps {
         Ok(())
     }
 
-    /// Read file bytes with memory-mapped optimization for large files
+    /// Read file bytes with memory-mapped optimization for large files.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or read.
     pub async fn read_bytes_optimized(path: &std::path::Path) -> Result<Vec<u8>> {
         let metadata = tokio::fs::metadata(path).await
             .map_err(|e| Error::Io(format!("Failed to get file metadata: {}", e)))?;
@@ -407,7 +439,11 @@ impl AsyncFileOps {
         }
     }
 
-    /// Batch file operations to reduce syscall overhead
+    /// Batch file operations to reduce syscall overhead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file write fails.
     pub async fn write_multiple_files(
         files: Vec<(&std::path::Path, &str)>,
     ) -> Result<()> {
@@ -461,7 +497,11 @@ impl ConcurrentFileProcessor {
         }
     }
 
-    /// Process multiple files concurrently with a processing function
+    /// Process multiple files concurrently with a processing function.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any task fails or the semaphore cannot be acquired.
     pub async fn process_files<F, Fut, T>(
         &self,
         files: Vec<std::path::PathBuf>,
@@ -489,7 +529,11 @@ impl ConcurrentFileProcessor {
         try_join_all(tasks).await
     }
 
-    /// Read multiple files concurrently
+    /// Read multiple files concurrently.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file cannot be read.
     pub async fn read_files(
         &self,
         paths: Vec<std::path::PathBuf>,

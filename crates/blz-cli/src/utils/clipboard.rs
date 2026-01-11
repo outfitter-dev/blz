@@ -21,6 +21,10 @@ use std::io::{self, Write};
 /// Returns `Ok(())` if the escape sequence was successfully written to stdout,
 /// or an `io::Error` if writing failed.
 ///
+/// # Errors
+///
+/// Returns an error if writing to stderr fails.
+///
 /// # Examples
 /// ```rust,ignore
 /// use crate::utils::clipboard::copy_to_clipboard;

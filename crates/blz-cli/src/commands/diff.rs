@@ -5,9 +5,13 @@ use blz_core::{LlmsJson, Storage, compute_anchor_mappings};
 use serde_json::json;
 use std::fs;
 
+#[allow(clippy::too_many_lines)]
 /// Show diffs for a source between the latest archived snapshot and current
 /// state. If no archive exists, a helpful message is printed.
-#[allow(clippy::too_many_lines)]
+///
+/// # Errors
+///
+/// Returns an error if storage access, file reads, or JSON parsing fails.
 pub async fn show(alias: &str, since: Option<&str>) -> Result<()> {
     let storage = Storage::new()?;
     let canonical = crate::utils::resolver::resolve_source(&storage, alias)?
