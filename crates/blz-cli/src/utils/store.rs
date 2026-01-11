@@ -11,18 +11,24 @@ use tracing::warn;
 const STORE_FILENAME: &str = "data.json";
 const CURRENT_SCHEMA_VERSION: u32 = 1;
 
+/// Root persisted store for CLI preferences and settings.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlzStore {
+    /// Schema version for on-disk migrations.
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
+    /// Per-scope records keyed by scope name.
     #[serde(default)]
     pub scopes: HashMap<String, ScopeRecord>,
 }
 
+/// Persisted values for a single scope.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScopeRecord {
+    /// Serialized CLI preferences.
     #[serde(default)]
     pub cli_preferences: Value,
+    /// Serialized user settings.
     #[serde(default)]
     pub user_settings: Value,
     // sources HashMap removed in v1.0.0-beta.1 - was only used for flavor overrides
