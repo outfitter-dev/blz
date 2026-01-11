@@ -187,4 +187,4 @@ Found an issue or want to improve the plugin? Contributions are welcome!
 
 ## License
 
-MIT License - see [LICENSE](../LICENSE) for details.
+MIT License - see [LICENSE](../../LICENSE) for details.
