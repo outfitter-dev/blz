@@ -62,6 +62,7 @@ impl McpServer {
 }
 
 impl ServerHandler for McpServer {
+    /// Describe server capabilities and implementation metadata.
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::default(),
@@ -90,6 +91,10 @@ impl ServerHandler for McpServer {
 
     #[tracing::instrument(skip(self, _context))]
     #[allow(clippy::too_many_lines)]
+    /// List the tools supported by the BLZ MCP server.
+    ///
+    /// Provides minimal JSON schemas for tool parameters to keep the MCP
+    /// handshake payload small.
     async fn list_tools(
         &self,
         #[allow(clippy::used_underscore_binding)] _request: Option<PaginatedRequestParam>,
@@ -260,6 +265,7 @@ impl ServerHandler for McpServer {
 
     #[tracing::instrument(skip(self, _context))]
     #[allow(clippy::too_many_lines)]
+    /// Execute a tool call and return the response payload.
     async fn call_tool(
         &self,
         request: CallToolRequestParam,
@@ -388,6 +394,7 @@ impl ServerHandler for McpServer {
 
     #[tracing::instrument(skip(self, _context))]
     #[allow(clippy::used_underscore_binding)]
+    /// List cached documentation sources as MCP resources.
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParam>,
@@ -441,6 +448,7 @@ impl ServerHandler for McpServer {
     }
 
     #[tracing::instrument(skip(self, _context))]
+    /// Read the contents of a single MCP resource.
     async fn read_resource(
         &self,
         request: ReadResourceRequestParam,
@@ -501,6 +509,7 @@ impl ServerHandler for McpServer {
 
     #[tracing::instrument(skip(self, _context))]
     #[allow(clippy::used_underscore_binding)]
+    /// List available prompt templates.
     async fn list_prompts(
         &self,
         _request: Option<PaginatedRequestParam>,
@@ -529,6 +538,7 @@ impl ServerHandler for McpServer {
     }
 
     #[tracing::instrument(skip(self, _context))]
+    /// Retrieve a prompt template and expand its arguments.
     async fn get_prompt(
         &self,
         request: GetPromptRequestParam,
