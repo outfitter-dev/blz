@@ -25,6 +25,7 @@ use crate::utils::toc::{
 
 pub(super) const ALL_RESULTS_LIMIT: usize = 10_000;
 pub(super) const DEFAULT_SCORE_PRECISION: u8 = 1;
+/// Default maximum characters in a snippet before truncation.
 pub const DEFAULT_MAX_CHARS: usize = DEFAULT_SNIPPET_CHAR_LIMIT;
 /// Default limit for search results. Can be overridden via `BLZ_DEFAULT_LIMIT` env var.
 pub(super) const DEFAULT_SEARCH_LIMIT: usize = 50;
@@ -92,6 +93,7 @@ pub(super) fn resolve_show_components(components: &[ShowComponent]) -> ShowToggl
     toggles
 }
 
+/// Clamp snippet character limits to the supported range.
 pub fn clamp_max_chars(value: usize) -> usize {
     value.clamp(MIN_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT)
 }
