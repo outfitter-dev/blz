@@ -45,6 +45,7 @@ def main() -> int:
     package_path = root / "package.json"
     cargo_path = root / "Cargo.toml"
     manifest_path = root / ".release-please-manifest.json"
+    plugin_path = root / ".claude-plugin" / "plugin.json"
     lock_path = root / "Cargo.lock"
 
     errors: list[str] = []
@@ -68,6 +69,12 @@ def main() -> int:
         manifest = {}
 
     try:
+        plugin = read_json(plugin_path)
+    except FileNotFoundError:
+        errors.append(".claude-plugin/plugin.json not found.")
+        plugin = {}
+
+    try:
         lock = read_toml(lock_path)
     except FileNotFoundError:
         errors.append("Cargo.lock not found.")
@@ -80,11 +87,14 @@ def main() -> int:
         else None
     )
     manifest_version = manifest.get(".") if isinstance(manifest, dict) else None
+    plugin_version = plugin.get("version") if isinstance(plugin, dict) else None
 
     if not package_version:
         errors.append("package.json version is missing.")
     if not cargo_version:
         errors.append("Cargo.toml workspace.package.version is missing.")
+    if not plugin_version:
+        errors.append(".claude-plugin/plugin.json version is missing.")
 
     if package_version and cargo_version and package_version != cargo_version:
         errors.append(
@@ -95,6 +105,12 @@ def main() -> int:
     if manifest_version and cargo_version and manifest_version != cargo_version:
         errors.append(
             f".release-please-manifest.json version ({manifest_version}) does not match "
+            f"Cargo.toml workspace.package.version ({cargo_version})."
+        )
+
+    if plugin_version and cargo_version and plugin_version != cargo_version:
+        errors.append(
+            f".claude-plugin/plugin.json version ({plugin_version}) does not match "
             f"Cargo.toml workspace.package.version ({cargo_version})."
         )
 
