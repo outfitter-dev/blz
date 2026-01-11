@@ -22,6 +22,10 @@ struct HistoryRecord {
 }
 
 /// Append a search history entry to the scoped history log.
+///
+/// # Errors
+///
+/// Returns an error if the history file cannot be created, locked, or written.
 pub fn append(entry: &SearchHistoryEntry) -> std::io::Result<()> {
     let scope = active_scope_key();
     let mut records = load_all();
@@ -163,7 +167,11 @@ fn history_path() -> PathBuf {
     store::active_config_dir().join(HISTORY_FILENAME)
 }
 
-/// Clear all search history
+/// Clear all search history.
+///
+/// # Errors
+///
+/// Returns an error if the history file cannot be removed.
 pub fn clear_all() -> std::io::Result<()> {
     let path = history_path();
     if path.exists() {
@@ -172,7 +180,11 @@ pub fn clear_all() -> std::io::Result<()> {
     Ok(())
 }
 
-/// Clear search history before a specific date
+/// Clear search history before a specific date.
+///
+/// # Errors
+///
+/// Returns an error if the history file cannot be rewritten.
 pub fn clear_before(cutoff: &chrono::DateTime<chrono::Utc>) -> std::io::Result<()> {
     let mut records = load_all();
 

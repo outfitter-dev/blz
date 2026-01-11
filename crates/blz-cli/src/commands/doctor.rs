@@ -74,6 +74,11 @@ pub enum HealthStatus {
     Error,
 }
 
+/// Execute the doctor command.
+///
+/// # Errors
+///
+/// Returns an error if health checks, fixes, or output serialization fails.
 pub async fn execute(format: OutputFormat, fix: bool) -> Result<()> {
     let storage = Storage::new()?;
     let mut report = run_health_checks(&storage)?;

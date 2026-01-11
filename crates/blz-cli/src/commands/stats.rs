@@ -35,7 +35,11 @@ struct OldestSource {
     age_days: i64,
 }
 
-/// Execute the stats command
+/// Execute the stats command.
+///
+/// # Errors
+///
+/// Returns an error if cached metadata or files cannot be read.
 pub fn execute(format: OutputFormat, limit: Option<usize>) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();

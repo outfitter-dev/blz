@@ -33,10 +33,14 @@ impl StringPool {
         }
     }
 
-    /// Intern a string, returning a reference-counted shared string
-    /// 
+    /// Intern a string, returning a reference-counted shared string.
+    ///
     /// If the string is already interned, returns the existing Arc<str>.
     /// Otherwise, interns the string and returns a new Arc<str>.
+    ///
+    /// # Errors
+    ///
+    /// This method does not return errors.
     pub async fn intern(&self, s: &str) -> Arc<str> {
         // Fast path: check if already interned
         {

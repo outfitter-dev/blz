@@ -240,9 +240,13 @@ fn create_spinner(message: &str) -> ProgressBar {
     pb
 }
 
-/// Execute update for a specific source.
 #[deprecated(since = "1.4.0", note = "use refresh::execute instead")]
 #[allow(dead_code, clippy::too_many_lines)]
+/// Execute update for a specific source.
+///
+/// # Errors
+///
+/// Returns an error if storage access, fetching, or indexing fails.
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let canonical_alias =
@@ -384,9 +388,13 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
     Ok(())
 }
 
-/// Execute update for all sources.
 #[deprecated(since = "1.4.0", note = "use refresh::execute_all instead")]
 #[allow(dead_code)]
+/// Execute update for all sources.
+///
+/// # Errors
+///
+/// Returns an error if storage access, fetching, or indexing fails.
 pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();

@@ -34,6 +34,10 @@ pub enum ClearOutcome {
 }
 
 /// Core clear implementation with injectable dependencies to enable deterministic tests.
+///
+/// # Errors
+///
+/// Returns an error if listing sources, confirmation, or cache deletion fails.
 pub fn execute_clear<S, W, C>(
     storage: &S,
     mut writer: W,
@@ -81,6 +85,10 @@ where
 }
 
 /// Clears the entire cache directory using the real storage and terminal IO.
+///
+/// # Errors
+///
+/// Returns an error if storage access, user confirmation, or deletion fails.
 pub fn run(force: bool) -> Result<()> {
     let storage = Storage::new()?;
     let stdout = io::stdout();
