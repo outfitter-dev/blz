@@ -2,6 +2,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 
+/// Helpers for displaying progress spinners and bars.
 #[allow(dead_code)]
 pub struct ProgressDisplay;
 
