@@ -45,10 +45,15 @@ struct ClientEntry {
 /// Statistics for connection pool
 #[derive(Default)]
 pub struct ConnectionPoolStats {
+    /// Total client requests handled by the pool.
     pub total_requests: AtomicUsize,
+    /// Requests served from a cached per-domain client.
     pub cache_hits: AtomicUsize,
+    /// Requests that required creating a new client.
     pub cache_misses: AtomicUsize,
+    /// Requests that exceeded the configured timeout.
     pub timeouts: AtomicUsize,
+    /// Requests that failed with an error.
     pub errors: AtomicUsize,
 }
 
@@ -273,11 +278,17 @@ fn extract_domain(url: &str) -> String {
 /// Statistics summary for connection pool
 #[derive(Debug, Clone)]
 pub struct ConnectionPoolStatsSummary {
+    /// Total number of client requests observed.
     pub total_requests: usize,
+    /// Requests served from the per-domain client cache.
     pub cache_hits: usize,
+    /// Requests that missed the client cache.
     pub cache_misses: usize,
+    /// Requests that timed out.
     pub timeouts: usize,
+    /// Requests that failed with an error.
     pub errors: usize,
+    /// Cache hit rate as `hits / total_requests`.
     pub hit_rate: f64,
 }
 
@@ -424,8 +435,11 @@ impl AsyncFileOps {
 /// Basic file information
 #[derive(Debug, Clone)]
 pub struct FileInfo {
+    /// File size in bytes.
     pub size: u64,
+    /// Whether the path points to a regular file.
     pub is_file: bool,
+    /// Last modification time, if available.
     pub modified: Option<std::time::SystemTime>,
 }
 

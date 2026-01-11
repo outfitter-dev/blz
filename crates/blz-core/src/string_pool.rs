@@ -214,13 +214,20 @@ impl Default for StringPool {
 /// Statistics about string pool usage
 #[derive(Debug, Clone)]
 pub struct StringPoolStats {
+    /// Number of unique interned strings.
     pub unique_strings: usize,
+    /// Total usage count across all interned strings.
     pub total_usage: usize,
+    /// Estimated memory usage in bytes.
     pub memory_bytes: usize,
+    /// Cache hit rate as `hits / (hits + misses)`.
     pub hit_rate: f64,
 }
 
-/// Zero-copy string operations for search operations
+/// Zero-copy string operations for search operations.
+///
+/// These helpers favor `Cow` and preallocated buffers to avoid allocations in
+/// tight search loops.
 pub struct ZeroCopyStrings;
 
 impl ZeroCopyStrings {
