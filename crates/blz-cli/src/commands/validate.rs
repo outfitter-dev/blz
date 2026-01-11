@@ -13,23 +13,36 @@ use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 
 #[derive(Debug, Serialize)]
 pub struct ValidationResult {
+    /// Source alias being validated.
     pub alias: String,
+    /// Overall validation status.
     pub status: ValidationStatus,
+    /// Source URL.
     pub url: String,
+    /// Whether the URL was reachable.
     pub url_accessible: bool,
+    /// HTTP status code returned by the URL, if available.
     pub url_status_code: Option<u16>,
+    /// Whether the stored checksum matches the fetched content.
     pub checksum_matches: bool,
+    /// Checksum stored in metadata.
     pub expected_checksum: String,
+    /// Checksum calculated from fetched content.
     pub actual_checksum: Option<String>,
+    /// Days since the source was last updated.
     pub days_since_update: i64,
+    /// Human-readable issues found during validation.
     pub issues: Vec<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ValidationStatus {
+    /// No issues detected.
     Healthy,
+    /// Non-fatal issues detected.
     Warning,
+    /// Validation failed.
     Error,
 }
 
