@@ -10,6 +10,7 @@ use crate::utils::formatting::{format_heading_path, get_alias_color, terminal_wi
 const PATH_PREFIX_WIDTH: usize = 5; // "  in "
 const DEFAULT_TERMINAL_WIDTH: usize = 80;
 
+/// Text formatter for CLI output.
 pub struct TextFormatter;
 
 impl TextFormatter {
