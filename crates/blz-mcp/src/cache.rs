@@ -6,7 +6,15 @@ use blz_core::{SearchIndex, Storage};
 
 use crate::{error::McpResult, types::IndexCache};
 
-/// Get or load an index from cache with double-checked locking pattern
+/// Get or load an index from cache using a double-checked locking pattern.
+///
+/// This minimizes contention by allowing concurrent reads while ensuring only
+/// one task updates the cache on a miss. Concurrent cache misses may still
+/// perform redundant loads; only one result is retained.
+///
+/// # Errors
+///
+/// Returns an error if the index directory cannot be resolved or opened.
 #[tracing::instrument(skip(cache, storage))]
 pub async fn get_or_load_index(
     cache: &IndexCache,
@@ -42,7 +50,9 @@ pub async fn get_or_load_index(
     Ok(index_arc)
 }
 
-/// Invalidate cache entry for a source
+/// Invalidate cache entry for a source.
+///
+/// This removes the cached index so the next access reloads it from disk.
 #[tracing::instrument(skip(cache))]
 pub async fn invalidate_cache(cache: &IndexCache, source: &str) {
     let mut write_lock = cache.write().await;
