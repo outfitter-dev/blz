@@ -99,3 +99,6 @@ test_output-*.txt
 /outfitter-blz-*.tgz
 test_parser
 /npm/bin/test_parser
+
+# Scratch workspace for agent work
+.scratch/

@@ -28,5 +28,6 @@
   ],
   "skills": [
     "./packages/agents/skills/"
-  ]
+  ],
+  "mcpServers": "./.mcp.json"
 }
