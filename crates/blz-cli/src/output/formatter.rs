@@ -451,6 +451,10 @@ impl SourceInfoFormatter {
     /// Returns `Ok(())` on successful formatting, or an error if JSON serialization
     /// or output fails.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails while emitting JSON/JSONL output.
+    ///
     /// # JSON Structure
     ///
     /// Each source info object contains:
@@ -489,11 +493,6 @@ impl SourceInfoFormatter {
     /// SourceInfoFormatter::format(&sources, OutputFormat::Jsonl)?;
     /// ```
     #[allow(dead_code)]
-    /// Format source metadata for list/info outputs.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if JSON serialization fails while emitting JSON/JSONL output.
     pub fn format(source_info: &[serde_json::Value], format: OutputFormat) -> Result<()> {
         match format {
             OutputFormat::Json => {

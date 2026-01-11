@@ -387,12 +387,12 @@ impl ResourceMonitor {
     }
 }
 
-#[cfg(feature = "flamegraph")]
 /// Start CPU profiling (requires --features=flamegraph).
 ///
 /// # Errors
 ///
 /// Returns an error if the profiler cannot be initialized.
+#[cfg(feature = "flamegraph")]
 pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::error::Error>> {
     let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(1000) // 1kHz sampling
@@ -401,12 +401,12 @@ pub fn start_profiling() -> Result<pprof::ProfilerGuard<'static>, Box<dyn std::e
     Ok(guard)
 }
 
-#[cfg(feature = "flamegraph")]
 /// Stop profiling and generate flamegraph.
 ///
 /// # Errors
 ///
 /// Returns an error if the report cannot be generated or written.
+#[cfg(feature = "flamegraph")]
 pub fn stop_profiling_and_report(
     guard: &pprof::ProfilerGuard,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -427,24 +427,24 @@ pub fn stop_profiling_and_report(
     Ok(())
 }
 
-#[cfg(not(feature = "flamegraph"))]
 /// Fallback profiling stubs when flamegraph feature is disabled.
 ///
 /// # Errors
 ///
 /// Returns `Ok(())` because profiling is disabled.
+#[cfg(not(feature = "flamegraph"))]
 #[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn start_profiling() -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
     Ok(())
 }
 
-#[cfg(not(feature = "flamegraph"))]
 /// Stops CPU profiling and generates a flamegraph report (no-op when flamegraph feature is disabled).
 ///
 /// # Errors
 ///
 /// Returns `Ok(())` because profiling is disabled.
+#[cfg(not(feature = "flamegraph"))]
 #[allow(clippy::unnecessary_wraps)] // Need to match the API of the feature-enabled version
 pub fn stop_profiling_and_report(_guard: ()) -> Result<(), Box<dyn std::error::Error>> {
     debug!("CPU profiling not available (flamegraph feature not enabled)");
