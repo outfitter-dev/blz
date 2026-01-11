@@ -25,8 +25,11 @@ impl ClearStorage for Storage {
 /// High-level outcome produced by [`execute_clear`]. Useful for assertions in tests.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClearOutcome {
+    /// No sources were present to clear.
     AlreadyEmpty,
+    /// User cancelled the clear operation.
     Cancelled,
+    /// Cache cleared with the number of sources removed.
     Cleared { cleared: usize },
 }
 

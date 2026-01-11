@@ -39,9 +39,13 @@ impl RemoveStorage for Storage {
 /// Summary displayed before a source is removed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RemovalInfo {
+    /// Source alias.
     pub alias: String,
+    /// Source URL.
     pub url: String,
+    /// Total number of lines in the cached document.
     pub total_lines: usize,
+    /// Timestamp when the source was fetched.
     pub fetched_at: String,
 }
 
@@ -63,8 +67,11 @@ impl RemovalInfo {
 /// Result of attempting to remove a source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoveOutcome {
+    /// Source was not found in storage.
     NotFound,
+    /// User cancelled removal.
     Cancelled,
+    /// Source removed successfully.
     Removed { alias: String },
 }
 
