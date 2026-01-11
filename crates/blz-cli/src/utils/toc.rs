@@ -71,19 +71,29 @@ pub fn heading_level_from_line(line: &str) -> Option<usize> {
     }
 }
 
+/// Raw block slice extracted from a document.
 #[derive(Debug, Clone)]
 pub struct BlockSlice {
+    /// Starting line number for the block (1-based).
     pub start: usize,
+    /// Line numbers included in the block.
     pub line_numbers: Vec<usize>,
+    /// Raw lines extracted from the document.
     pub lines: Vec<String>,
+    /// Whether the block was truncated to a limit.
     pub truncated: bool,
 }
 
+/// Finalized block with cleaned content lines.
 #[derive(Debug, Clone)]
 pub struct FinalizedBlock {
+    /// Line number of the heading.
     pub heading_line: usize,
+    /// Line numbers for content lines (excluding heading).
     pub content_line_numbers: Vec<usize>,
+    /// Content lines after trimming trailing blanks.
     pub content_lines: Vec<String>,
+    /// Whether the block was truncated to a limit.
     pub truncated: bool,
 }
 
