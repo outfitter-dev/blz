@@ -1,4 +1,9 @@
-// Async I/O optimizations and connection pooling
+//! Async I/O helpers and connection pooling.
+//!
+//! [`ConnectionPool`] manages shared `reqwest::Client` instances with per-domain
+//! caching, bounded concurrency, and basic statistics. The module also provides
+//! async file utilities and concurrent processors optimized for large
+//! llms.txt payloads while enforcing timeouts to prevent stalls.
 use crate::{Error, Result};
 use reqwest::Client;
 use std::collections::HashMap;

@@ -1,3 +1,8 @@
+//! Tantivy-backed search index for llms.txt content.
+//!
+//! [`SearchIndex`] encapsulates schema creation, indexing, and querying for
+//! documentation sources. It provides snippet sizing helpers and integrates
+//! optional performance metrics for profiling search operations.
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
 use crate::{Error, HeadingBlock, Result, SearchHit, normalize_text_for_search};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
