@@ -2,7 +2,10 @@
 
 use thiserror::Error;
 
-/// Errors that can occur in the MCP server
+/// Errors that can occur in the MCP server.
+///
+/// These variants map to MCP/JSON-RPC error codes and provide structured
+/// failure context for tool, prompt, and resource handlers.
 #[derive(Debug, Error)]
 pub enum McpError {
     /// Storage operation failed
@@ -59,7 +62,9 @@ pub enum McpError {
 }
 
 impl McpError {
-    /// Map error to MCP error code
+    /// Map error to the MCP/JSON-RPC error code.
+    ///
+    /// This ensures consistent error responses across MCP handlers.
     pub const fn error_code(&self) -> i32 {
         match self {
             Self::Storage(_) | Self::Index(_) | Self::Internal(_) | Self::LearnPayloadError(_) => {
@@ -80,6 +85,7 @@ impl McpError {
     }
 }
 
+/// Convert an arbitrary error into an internal MCP error.
 impl From<anyhow::Error> for McpError {
     fn from(err: anyhow::Error) -> Self {
         Self::Internal(err.to_string())
