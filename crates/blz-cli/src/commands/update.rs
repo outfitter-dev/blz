@@ -117,7 +117,7 @@ pub struct UpdatePayload {
     pub content: String,
     /// SHA256 checksum for the content.
     pub sha256: String,
-    /// Optional ETag header.
+    /// Optional `ETag` header.
     pub etag: Option<String>,
     /// Optional Last-Modified header value.
     pub last_modified: Option<String>,
