@@ -1,4 +1,8 @@
-// String interning and zero-copy optimizations
+//! String interning and zero-copy helpers.
+//!
+//! [`StringPool`] interns frequently repeated strings (aliases, headings,
+//! field names) to reduce allocation and enable cheap clones via `Arc<str>`.
+//! Batch APIs favor fewer lock acquisitions on hot paths.
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -2,7 +2,16 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 // SAFETY: This module follows the project unsafe policy:
 // .agents/rules/conventions/rust/unsafe-policy.md
-// Advanced caching strategies with LRU, TTL, and multi-level caching
+//! Multi-level caching with LRU eviction and TTL-based entries.
+//!
+//! The cache is split into a fast L1 LRU layer and a larger L2 TTL layer with
+//! size limits. [`MultiLevelCache`] coordinates lookups, promotions, and
+//! evictions while tracking [`CacheStats`] for observability. Callers configure
+//! cache behavior with [`CacheConfig`] and provide a size function for accurate
+//! memory accounting.
+//!
+//! This module is performance-critical and uses a hand-rolled LRU
+//! implementation with unsafe pointer operations to minimize overhead.
 use crate::{Error, Result, SearchHit};
 use chrono::Utc;
 use std::borrow::Cow;

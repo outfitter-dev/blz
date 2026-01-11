@@ -1,5 +1,9 @@
 #![allow(unsafe_code)] // Core module requires unsafe for performance-critical arena allocations
-// Memory pool for efficient buffer reuse and allocation management
+//! Memory pooling for reusable buffers and strings.
+//!
+//! [`MemoryPool`] maintains size-classed buffer queues and a string pool to
+//! reduce allocation churn during parsing and indexing. Pooled wrappers return
+//! buffers to the pool on drop, keeping hot-path allocations predictable.
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

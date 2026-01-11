@@ -1,4 +1,9 @@
-// Optimized search index with reader pooling, batch operations, and parallel processing
+//! Optimized Tantivy index with pooling and caching.
+//!
+//! [`OptimizedSearchIndex`] wraps Tantivy with reader/writer pools, search
+//! result caching, and memory/string pools to support high-throughput indexing
+//! and concurrent queries. This module is tuned for low-latency search and
+//! amortized index writer creation costs.
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
