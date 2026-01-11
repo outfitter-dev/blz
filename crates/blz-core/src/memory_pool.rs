@@ -65,7 +65,11 @@ impl MemoryPool {
         }
     }
 
-    /// Get a byte buffer of at least the specified size
+    /// Get a byte buffer of at least the specified size.
+    ///
+    /// # Errors
+    ///
+    /// This method does not return errors.
     pub async fn get_buffer(&self, min_size: usize) -> PooledBuffer<'_> {
         self.stats.allocations.fetch_add(1, Ordering::Relaxed);
 

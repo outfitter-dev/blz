@@ -12,6 +12,11 @@ pub enum AliasCommand {
     Rm { source: String, alias: String },
 }
 
+/// Execute an alias add or remove command.
+///
+/// # Errors
+///
+/// Returns an error if storage access, validation, or persistence fails.
 pub async fn execute(cmd: AliasCommand) -> Result<()> {
     match cmd {
         AliasCommand::Add { source, alias } => add_alias(&source, &alias)?,

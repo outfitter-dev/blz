@@ -11,6 +11,11 @@ pub enum DocsFormat {
     Json,
 }
 
+/// Render CLI documentation in the requested format.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails when emitting JSON output.
 pub fn execute(format: DocsFormat) -> Result<()> {
     match format {
         DocsFormat::Markdown => {

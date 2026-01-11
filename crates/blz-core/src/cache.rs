@@ -185,7 +185,11 @@ where
         }
     }
 
-    /// Get value from cache (tries L1 then L2)
+    /// Get value from cache (tries L1 then L2).
+    ///
+    /// # Errors
+    ///
+    /// This method does not return errors.
     pub async fn get(&self, key: &K) -> Option<V> {
         self.stats.requests.fetch_add(1, Ordering::Relaxed);
 
@@ -215,7 +219,11 @@ where
         None
     }
 
-    /// Put value in cache (goes to L1 and L2)
+    /// Put value in cache (goes to L1 and L2).
+    ///
+    /// # Errors
+    ///
+    /// This method does not return errors.
     pub async fn put(&self, key: K, value: V) {
         self.put_with_ttl(key, value, self.config.default_ttl).await;
     }

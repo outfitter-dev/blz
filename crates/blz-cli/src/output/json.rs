@@ -134,7 +134,11 @@ impl JsonFormatter {
         Ok(())
     }
 
-    /// Format search results as newline-delimited JSON
+    /// Format search results as newline-delimited JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a search hit cannot be serialized to JSON.
     pub fn format_search_results_jsonl(hits: &[SearchHit]) -> Result<()> {
         for hit in hits {
             let mut value = serde_json::to_value(hit).context("serialize SearchHit to JSON")?;

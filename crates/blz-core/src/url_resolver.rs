@@ -33,6 +33,10 @@ pub struct ResolvedUrl {
 /// 3. Exact URL as provided
 ///
 /// Uses HEAD requests to check availability before fetching content.
+///
+/// # Errors
+///
+/// Returns an error if no candidate URL can be fetched successfully.
 pub async fn resolve_best_url(fetcher: &Fetcher, base_url: &str) -> Result<ResolvedUrl> {
     let variants = [
         try_full_variant(base_url),

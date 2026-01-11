@@ -395,6 +395,10 @@ fn classify_search_flag(arg: &str) -> SearchFlagMatch {
 }
 
 /// Execute the blz CLI with the currently configured environment.
+///
+/// # Errors
+///
+/// Returns an error if CLI initialization, prompt emission, or command execution fails.
 pub async fn run() -> Result<()> {
     // Convert Broken pipe panics into a clean exit
     std::panic::set_hook(Box::new(|info| {

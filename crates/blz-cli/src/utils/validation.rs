@@ -36,7 +36,11 @@ pub fn normalize_alias(alias: &str) -> String {
         .join("-")
 }
 
-/// Validate an alias to ensure it's not a reserved keyword
+/// Validate an alias to ensure it's not a reserved keyword.
+///
+/// # Errors
+///
+/// Returns an error if the alias is empty or reserved.
 pub fn validate_alias(alias: &str) -> Result<()> {
     if RESERVED_KEYWORDS.contains(&alias.to_lowercase().as_str()) {
         return Err(anyhow::anyhow!(
@@ -58,6 +62,10 @@ pub fn validate_alias(alias: &str) -> Result<()> {
 /// - Length <= 100
 /// - Disallow control characters
 /// - Disallow reserved keywords used by the CLI
+///
+/// # Errors
+///
+/// Returns an error if the alias is empty, too long, or contains disallowed characters.
 pub fn validate_relaxed_alias(alias: &str) -> Result<()> {
     let trimmed = alias.trim();
     if trimmed.is_empty() {

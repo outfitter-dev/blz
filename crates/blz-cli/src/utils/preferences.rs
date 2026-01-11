@@ -171,6 +171,11 @@ fn sanitize(mut prefs: CliPreferences) -> CliPreferences {
     prefs
 }
 
+/// Persist CLI preferences for the active scope.
+///
+/// # Errors
+///
+/// Returns an error if the preferences store cannot be written.
 pub fn save(prefs: &CliPreferences) -> std::io::Result<()> {
     let mut store = store::load_store();
     let key = active_scope_key();
@@ -447,7 +452,11 @@ pub fn load_last_toc_entry() -> Option<TocHistoryEntry> {
     })
 }
 
-/// Save TOC history entry for pagination state persistence
+/// Save TOC history entry for pagination state persistence.
+///
+/// # Errors
+///
+/// Returns an error if the preferences store cannot be written.
 pub fn save_toc_history(entry: &TocHistoryEntry) -> std::io::Result<()> {
     let mut store = store::load_store();
     let key = active_scope_key();

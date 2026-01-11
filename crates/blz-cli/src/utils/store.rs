@@ -77,6 +77,10 @@ pub fn load_store() -> BlzStore {
 }
 
 /// Persist the store to disk.
+///
+/// # Errors
+///
+/// Returns an error if the store directory cannot be created or the file cannot be written.
 pub fn save_store(store: &BlzStore) -> std::io::Result<()> {
     let path = store_path();
     if let Some(parent) = path.parent() {

@@ -177,6 +177,10 @@ pub async fn resolve_refresh_url(
 }
 
 /// Refresh a source using its current metadata.
+///
+/// # Errors
+///
+/// Returns an error if storage access, fetching, or indexing fails.
 pub async fn refresh_source<S, I>(
     storage: &S,
     fetcher: &Fetcher,
@@ -208,6 +212,10 @@ where
 }
 
 /// Refresh a source using preloaded metadata and URL resolution.
+///
+/// # Errors
+///
+/// Returns an error if fetching, parsing, or indexing fails.
 #[allow(clippy::too_many_arguments)]
 pub async fn refresh_source_with_metadata<S, I>(
     storage: &S,
@@ -275,6 +283,10 @@ where
 }
 
 /// Re-parse and re-index a source using cached content.
+///
+/// # Errors
+///
+/// Returns an error if cached content cannot be parsed or indexed.
 pub fn reindex_source<S, I>(
     storage: &S,
     alias: &str,
@@ -311,6 +323,10 @@ where
 }
 
 /// Apply a refresh: persist content and re-index the source.
+///
+/// # Errors
+///
+/// Returns an error if parsing, persistence, or indexing fails.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
 pub fn apply_refresh<S, I>(

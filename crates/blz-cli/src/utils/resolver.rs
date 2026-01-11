@@ -8,6 +8,10 @@ use blz_core::Storage;
 /// 2) Unique match across metadata aliases
 /// - Returns Ok(None) if not found
 /// - Returns Err if ambiguous across multiple sources
+///
+/// # Errors
+///
+/// Returns an error if the alias maps to more than one source.
 pub fn resolve_source(storage: &Storage, requested: &str) -> Result<Option<String>> {
     let requested_str = requested.to_string();
     let known = storage.list_sources();
