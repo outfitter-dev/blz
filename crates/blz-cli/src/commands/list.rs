@@ -53,7 +53,7 @@ pub struct SourceSummary {
     pub fetched_at: String,
     /// Content checksum.
     pub checksum: String,
-    /// Optional ETag for conditional fetching.
+    /// Optional `ETag` for conditional fetching.
     pub etag: Option<String>,
     /// Optional Last-Modified header value.
     pub last_modified: Option<String>,
