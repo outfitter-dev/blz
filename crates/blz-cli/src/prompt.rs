@@ -24,9 +24,12 @@ const DOCTOR_PROMPT: &str = include_str!("prompts/doctor.prompt.json");
 const DIFF_PROMPT: &str = include_str!("prompts/diff.prompt.json");
 const TOC_PROMPT: &str = include_str!("prompts/toc.prompt.json");
 
+/// Channel selection for prompt emission output.
 #[derive(Clone, Copy)]
 pub enum NoteChannel {
+    /// Emit to stdout unless a caller overrides behavior.
     Auto,
+    /// Force emission to stderr.
     ForceStderr,
 }
 

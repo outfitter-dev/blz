@@ -5,7 +5,9 @@ use std::fmt::Write as _;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum DocsFormat {
+    /// Render CLI documentation as Markdown.
     Markdown,
+    /// Render CLI documentation as JSON.
     Json,
 }
 
