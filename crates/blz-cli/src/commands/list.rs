@@ -41,21 +41,37 @@ impl ListStorage for Storage {
 /// Summary information for each source returned by `collect_source_summaries`.
 #[derive(Debug, Clone)]
 pub struct SourceSummary {
+    /// Source alias.
     pub alias: String,
+    /// Source URL.
     pub url: String,
+    /// Source tags.
     pub tags: Vec<String>,
+    /// Additional aliases for this source.
     pub aliases: Vec<String>,
+    /// Fetch timestamp in RFC3339 format.
     pub fetched_at: String,
+    /// Content checksum.
     pub checksum: String,
+    /// Optional ETag for conditional fetching.
     pub etag: Option<String>,
+    /// Optional Last-Modified header value.
     pub last_modified: Option<String>,
+    /// Total line count in the document.
     pub lines: usize,
+    /// Total heading count in the document.
     pub headings: usize,
+    /// Optional description from metadata or descriptor.
     pub description: Option<String>,
+    /// Optional category from metadata or descriptor.
     pub category: Option<String>,
+    /// NPM aliases associated with the source.
     pub npm_aliases: Vec<String>,
+    /// GitHub aliases associated with the source.
     pub github_aliases: Vec<String>,
+    /// Source origin metadata.
     pub origin: SourceOrigin,
+    /// Optional descriptor metadata.
     pub descriptor: Option<SourceDescriptor>,
 }
 
