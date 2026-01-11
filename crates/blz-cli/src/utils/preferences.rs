@@ -11,57 +11,85 @@ use chrono::Utc;
 
 const GLOBAL_SCOPE_KEY: &str = "global";
 
+/// Stored CLI defaults for search output behavior.
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CliPreferences {
+    /// Default `show` components for search output.
     #[serde(default)]
     default_show: Vec<String>,
+    /// Default score precision for search output.
     #[serde(default = "default_precision")]
     default_score_precision: u8,
+    /// Default snippet line count for search output.
     #[serde(default = "default_snippet")]
     default_snippet_lines: u8,
 }
 
+/// Persisted search invocation metadata for history outputs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHistoryEntry {
+    /// Timestamp of the search (RFC3339).
     pub timestamp: String,
+    /// Query string.
     pub query: String,
+    /// Optional source alias.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// Output format name.
     pub format: String,
+    /// Selected `show` components.
     pub show: Vec<String>,
+    /// Snippet lines requested.
     pub snippet_lines: u8,
+    /// Score precision used.
     pub score_precision: u8,
+    /// Page number when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<usize>,
+    /// Limit value when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
+    /// Total pages when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_pages: Option<usize>,
+    /// Total results when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_results: Option<usize>,
+    /// Whether the search was restricted to headings.
     #[serde(default)]
     pub headings_only: bool,
 }
 
+/// Persisted TOC invocation metadata for history outputs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TocHistoryEntry {
+    /// Timestamp of the TOC request (RFC3339).
     pub timestamp: String,
+    /// Optional source alias.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// Output format name.
     pub format: String,
+    /// Page number when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<usize>,
+    /// Limit value when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
+    /// Total pages when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_pages: Option<usize>,
+    /// Total results when paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_results: Option<usize>,
+    /// Optional heading filter expression.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
+    /// Optional maximum depth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_depth: Option<u8>,
+    /// Optional heading level filter.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heading_level: Option<String>,
 }
@@ -163,12 +191,16 @@ pub struct HistoryEntryBuilder<'a> {
     headings_only: bool,
 }
 
-/// Pagination information for search history
+/// Pagination information for search history.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PaginationInfo {
+    /// Page number when paginated.
     pub page: Option<usize>,
+    /// Limit value when paginated.
     pub limit: Option<usize>,
+    /// Total pages when paginated.
     pub total_pages: Option<usize>,
+    /// Total results when paginated.
     pub total_results: Option<usize>,
 }
 
