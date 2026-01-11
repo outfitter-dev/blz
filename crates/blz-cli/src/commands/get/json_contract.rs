@@ -48,14 +48,20 @@ impl SnippetRange {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnippetRequest {
+    /// User-facing alias for the source.
     pub alias: String,
+    /// Source name as stored in the registry/cache.
     pub source: String,
+    /// Optional snippet payload for this response entry.
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub payload: Option<SnippetPayload>,
+    /// Optional checksum for the source content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checksum: Option<String>,
+    /// Optional number of context lines included with the snippet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_applied: Option<usize>,
+    /// Whether the snippet output was truncated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub truncated: Option<bool>,
 }
@@ -104,30 +110,42 @@ impl SnippetRequest {
     }
 }
 
+/// Payload for snippet responses (single or multi-range).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnippetPayload {
+    /// Single contiguous snippet with `line_start`/`line_end`.
     Single(SingleSnippet),
+    /// Multiple non-overlapping snippet ranges.
     Multi(SnippetRanges),
 }
 
+/// A single contiguous snippet payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SingleSnippet {
+    /// Snippet content.
     pub snippet: String,
+    /// Inclusive line where the snippet starts (1-based).
     pub line_start: NonZeroUsize,
+    /// Inclusive line where the snippet ends (1-based).
     pub line_end: NonZeroUsize,
 }
 
+/// Multiple snippet ranges returned for a single request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnippetRanges {
+    /// Ordered snippet ranges for the request.
     pub ranges: Vec<SnippetRange>,
 }
 
+/// Validation errors when assembling snippet responses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContractError {
+    /// The start line is greater than the end line.
     LineOrder,
+    /// Ranges are overlapping or not strictly ordered.
     OverlappingRanges,
 }
 
@@ -174,17 +192,37 @@ fn ensure_ordered_ranges(ranges: &[SnippetRange]) -> Result<(), ContractError> {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionMetadata {
+    /// Execution time in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub execution_time_ms: Option<u64>,
+    /// Total number of sources consulted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_sources: Option<usize>,
 }
 
 /// Top-level payload for JSON/JSONL outputs.
+///
+/// ```json
+/// {
+///   "requests": [
+///     {
+///       "alias": "bun",
+///       "source": "bun",
+///       "snippet": "# Workspaces",
+///       "lineStart": 7105,
+///       "lineEnd": 7164
+///     }
+///   ],
+///   "executionTimeMs": 12,
+///   "totalSources": 1
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetResponse {
+    /// Snippet requests returned for this invocation.
     pub requests: Vec<SnippetRequest>,
+    /// Execution metadata for the response.
     #[serde(flatten)]
     pub metadata: ExecutionMetadata,
 }
