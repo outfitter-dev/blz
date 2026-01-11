@@ -30,6 +30,12 @@
       "Bash(mkfs:*)"
     ]
   },
+  "plugins": [
+    "github.com/outfitter-dev/blz"
+  ],
+  "pluginDirs": [
+    "."
+  ],
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "sequential-thinking"

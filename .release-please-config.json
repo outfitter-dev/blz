@@ -23,7 +23,8 @@
         {"type": "json", "path": "package.json", "jsonpath": "$.version"},
         {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version"},
         {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.dependencies['blz-core'].version"},
-        {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.dependencies['blz-mcp'].version"}
+        {"type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.dependencies['blz-mcp'].version"},
+        {"type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version"}
       ]
     }
   }
