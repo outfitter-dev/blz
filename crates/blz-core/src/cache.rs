@@ -688,16 +688,27 @@ struct CacheStats {
 /// Cache statistics summary
 #[derive(Debug, Clone)]
 pub struct CacheStatsSummary {
+    /// Total cache lookups across all levels.
     pub requests: usize,
+    /// Hits served from the L1 LRU cache.
     pub l1_hits: usize,
+    /// Hits served from the L2 TTL cache.
     pub l2_hits: usize,
+    /// Lookups that missed both cache levels.
     pub misses: usize,
+    /// Cache insertions.
     pub puts: usize,
+    /// Evictions across both cache tiers.
     pub evictions: usize,
+    /// Current L1 entry count.
     pub l1_entries: usize,
+    /// Current L1 memory usage in bytes.
     pub l1_memory_bytes: usize,
+    /// Current L2 entry count.
     pub l2_entries: usize,
+    /// Current L2 memory usage in bytes.
     pub l2_memory_bytes: usize,
+    /// Hit rate as `(l1_hits + l2_hits) / requests`.
     pub hit_rate: f64,
 }
 
@@ -713,7 +724,7 @@ struct CacheLevel2Stats {
     memory_bytes: usize,
 }
 
-/// Search result cache specialized for SearchHit values
+/// Search result cache specialized for `SearchHit` values.
 pub type SearchCache = MultiLevelCache<String, Vec<SearchHit>>;
 
 impl SearchCache {
@@ -986,16 +997,23 @@ impl QueryAnalyzer {
 
 #[derive(Debug, Clone)]
 pub struct QueryAnalyzerStats {
+    /// Total number of queries observed.
     pub total_queries: usize,
+    /// Number of unique query strings seen.
     pub unique_queries: usize,
+    /// Most frequent queries, ordered by count.
     pub popular_queries: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct QueryCacheStats {
+    /// Snapshot of the underlying cache statistics.
     pub cache_stats: CacheStatsSummary,
+    /// Total number of queries observed.
     pub total_queries: usize,
+    /// Number of unique query strings seen.
     pub unique_queries: usize,
+    /// Most frequent queries, ordered by count.
     pub popular_queries: Vec<String>,
 }
 

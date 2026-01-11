@@ -118,12 +118,19 @@ struct WriterPoolStats {
 /// Index performance statistics
 #[derive(Default)]
 pub struct IndexStats {
+    /// Total number of searches executed.
     pub searches: AtomicUsize,
+    /// Search cache hits.
     pub cache_hits: AtomicUsize,
+    /// Search cache misses.
     pub cache_misses: AtomicUsize,
+    /// Total index operations (add/update/delete).
     pub index_operations: AtomicUsize,
+    /// Total documents indexed.
     pub documents_indexed: AtomicUsize,
+    /// Accumulated search time in milliseconds.
     pub total_search_time_ms: AtomicUsize,
+    /// Accumulated index time in milliseconds.
     pub total_index_time_ms: AtomicUsize,
 }
 
@@ -1023,26 +1030,43 @@ impl WriterPool {
 
 #[derive(Debug, Clone)]
 pub struct PoolStats {
+    /// Total pool requests.
     pub requests: usize,
+    /// Requests served from the pool.
     pub hits: usize,
+    /// Requests that required creating a new entry.
     pub misses: usize,
+    /// Total entries created for the pool.
     pub created: usize,
+    /// Hit rate as `hits / requests`.
     pub hit_rate: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct IndexStatsSummary {
+    /// Total number of searches executed.
     pub searches: usize,
+    /// Search cache hits.
     pub cache_hits: usize,
+    /// Search cache misses.
     pub cache_misses: usize,
+    /// Total index operations (add/update/delete).
     pub index_operations: usize,
+    /// Total documents indexed.
     pub documents_indexed: usize,
+    /// Average search time in milliseconds.
     pub avg_search_time_ms: usize,
+    /// Average index operation time in milliseconds.
     pub avg_index_time_ms: usize,
+    /// Search cache hit rate.
     pub cache_hit_rate: f64,
+    /// Reader pool hit rate.
     pub reader_pool_hit_rate: f64,
+    /// Writer pool hit rate.
     pub writer_pool_hit_rate: f64,
+    /// Memory pool hit rate.
     pub memory_pool_hit_rate: f64,
+    /// String pool hit rate.
     pub string_pool_hit_rate: f64,
 }
 
