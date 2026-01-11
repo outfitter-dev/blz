@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "blz": {
+      "command": "blz",
+      "args": ["mcp"]
+    }
+  }
+}
