@@ -99,7 +99,7 @@ pub struct FormatParams<'a> {
     /// Number of context lines per snippet.
     pub snippet_lines: usize,
     /// Optional fuzzy suggestions (JSON output only).
-    pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
+    pub suggestions: Option<Vec<serde_json::Value>>,
 }
 
 impl<'a> FormatParams<'a> {
@@ -426,7 +426,6 @@ impl SearchResultFormatter {
 ///   }
 /// ]
 /// ```
-/// Formatter for source information outputs.
 #[allow(dead_code)]
 pub struct SourceInfoFormatter;
 
