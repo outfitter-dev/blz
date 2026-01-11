@@ -47,6 +47,7 @@ impl Default for BlzStore {
     }
 }
 
+/// Load the persisted store or return defaults if missing/unreadable.
 pub fn load_store() -> BlzStore {
     let path = store_path();
     match fs::read(&path) {
@@ -75,6 +76,7 @@ pub fn load_store() -> BlzStore {
     }
 }
 
+/// Persist the store to disk.
 pub fn save_store(store: &BlzStore) -> std::io::Result<()> {
     let path = store_path();
     if let Some(parent) = path.parent() {
@@ -94,6 +96,7 @@ fn store_path() -> PathBuf {
     active_config_dir().join(STORE_FILENAME)
 }
 
+/// Resolve the active config directory (scoped or global).
 pub fn active_config_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("BLZ_CONFIG_DIR") {
         let trimmed = dir.trim();
@@ -105,6 +108,7 @@ pub fn active_config_dir() -> PathBuf {
     global_config_dir()
 }
 
+/// Resolve the global config directory for BLZ.
 pub fn global_config_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("BLZ_GLOBAL_CONFIG_DIR") {
         let trimmed = dir.trim();
