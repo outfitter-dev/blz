@@ -9,7 +9,8 @@ use crate::{error::McpResult, types::IndexCache};
 /// Get or load an index from cache using a double-checked locking pattern.
 ///
 /// This minimizes contention by allowing concurrent reads while ensuring only
-/// one task performs the load on a cache miss.
+/// one task updates the cache on a miss. Concurrent cache misses may still
+/// perform redundant loads; only one result is retained.
 ///
 /// # Errors
 ///
