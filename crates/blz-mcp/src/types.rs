@@ -7,7 +7,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-/// Type alias for the index cache
+/// Shared, async-safe cache for loaded search indices.
+///
+/// Used with a double-checked locking pattern to reduce redundant index loads
+/// while allowing concurrent readers (concurrent cache misses may still load
+/// in parallel).
 pub type IndexCache = Arc<RwLock<std::collections::HashMap<String, Arc<SearchIndex>>>>;
 
 /// Response format for tool outputs
