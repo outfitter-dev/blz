@@ -64,24 +64,42 @@ use super::{json::JsonFormatter, text::TextFormatter};
 #[allow(clippy::struct_excessive_bools)]
 #[non_exhaustive]
 pub struct FormatParams<'a> {
+    /// Search hits to render.
     pub hits: &'a [SearchHit],
+    /// Raw query string.
     pub query: &'a str,
+    /// Total hits across all pages.
     pub total_results: usize,
+    /// Total lines searched for the query.
     pub total_lines_searched: usize,
+    /// Wall-clock search duration.
     pub search_time: Duration,
+    /// Source aliases included in the search.
     pub sources: &'a [String],
+    /// Zero-based index of the first hit on this page.
     pub start_idx: usize,
+    /// Current page number (1-based).
     pub page: usize,
+    /// Total pages available.
     pub total_pages: usize,
+    /// Page size used for pagination.
     pub page_size: usize,
+    /// Whether to include source URLs.
     pub show_url: bool,
+    /// Whether to include line numbers.
     pub show_lines: bool,
+    /// Whether to include heading anchors.
     pub show_anchor: bool,
+    /// Whether to display raw relevance scores.
     pub show_raw_score: bool,
+    /// Whether to suppress the summary footer.
     pub no_summary: bool,
+    /// Decimal precision used for scores.
     pub score_precision: u8,
+    /// Number of context lines per snippet.
     pub snippet_lines: usize,
-    pub suggestions: Option<Vec<serde_json::Value>>, // optional fuzzy suggestions (JSON only)
+    /// Optional fuzzy suggestions (JSON output only).
+    pub suggestions: Option<Vec<serde_json::Value>>,
 }
 
 impl<'a> FormatParams<'a> {
