@@ -94,12 +94,18 @@ impl UpdateIndexer for DefaultIndexer {
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateOutcome {
+    /// Source was updated and re-indexed.
     Updated {
+        /// Source alias.
         alias: String,
+        /// Total headings parsed.
         headings: usize,
+        /// Total lines parsed.
         lines: usize,
     },
+    /// Source content was unchanged.
     Unchanged {
+        /// Source alias.
         alias: String,
     },
 }
@@ -107,9 +113,13 @@ pub enum UpdateOutcome {
 /// Data describing remote changes.
 #[derive(Debug, Clone)]
 pub struct UpdatePayload {
+    /// Retrieved content to store.
     pub content: String,
+    /// SHA256 checksum for the content.
     pub sha256: String,
+    /// Optional `ETag` header.
     pub etag: Option<String>,
+    /// Optional Last-Modified header value.
     pub last_modified: Option<String>,
 }
 

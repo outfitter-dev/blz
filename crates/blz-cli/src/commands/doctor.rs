@@ -11,44 +11,66 @@ use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 
 #[derive(Debug, Serialize)]
 pub struct HealthReport {
+    /// Overall status derived from all checks.
     pub overall_status: HealthStatus,
+    /// Individual check results.
     pub checks: Vec<HealthCheck>,
+    /// Suggested remediation steps.
     pub recommendations: Vec<String>,
+    /// Cache directory metadata and sizes.
     pub cache_info: CacheInfo,
+    /// Aggregate source health statistics.
     pub source_health: SourceHealth,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CacheInfo {
+    /// Root cache directory.
     pub cache_dir: PathBuf,
+    /// Configuration directory.
     pub config_dir: PathBuf,
+    /// Total size of cached files in bytes.
     pub total_size_bytes: u64,
+    /// Number of cached sources.
     pub total_sources: usize,
+    /// Number of cached files.
     pub total_files: usize,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SourceHealth {
+    /// Total sources inspected.
     pub total: usize,
+    /// Sources with no issues.
     pub healthy: usize,
+    /// Sources that are stale.
     pub stale: usize,
+    /// Sources with corrupted caches.
     pub corrupted: usize,
+    /// Aliases of stale sources.
     pub stale_sources: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct HealthCheck {
+    /// Human-friendly check name.
     pub name: String,
+    /// Status of the check.
     pub status: HealthStatus,
+    /// Message describing the result.
     pub message: String,
+    /// Whether the issue can be auto-fixed.
     pub fixable: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
+    /// Check passed with no issues.
     Healthy,
+    /// Check passed with warnings.
     Warning,
+    /// Check failed with an error.
     Error,
 }
 
