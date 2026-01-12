@@ -9,7 +9,21 @@ The BLZ Claude Code plugin integrates local documentation search directly into y
 
 ## Installation
 
-### Local Development
+### Local Marketplace (recommended for local development)
+
+```bash
+# From the blz repository root
+./scripts/install-claude-plugin-local.sh
+
+# Add the local marketplace and install the plugin
+claude plugin marketplace add "/path/to/blz-data"
+claude plugin install blz@blz-local --scope user
+```
+
+The script prints the exact data path. You can also run it with `--install` to execute the
+`claude plugin` commands automatically.
+
+### Direct Installation
 
 ```bash
 # From the blz repository root
@@ -292,21 +306,22 @@ For discovering new sources:
 ```
 .claude-plugin/
 ├── README.md
-├── plugin.json
+└── plugin.json
+packages/agents/
 ├── agents/
 │   └── blazer.md                 # Unified BLZ agent
 ├── commands/
 │   └── blz.md
-├── skills/
-│   ├── blz-docs-search/          # Core search skill
-│   └── blz-source-management/    # Source management skill
+└── skills/
+    ├── blz-docs-search/          # Core search skill
+    └── blz-source-management/    # Source management skill
 ```
 
 ### Canonical Sources
 
-- **Agents**: `.claude-plugin/agents/`
-- **Commands**: `.claude-plugin/commands/`
-- **Skills**: `.claude-plugin/skills/`
+- **Agents**: `packages/agents/agents/`
+- **Commands**: `packages/agents/commands/`
+- **Skills**: `packages/agents/skills/`
 
 Build script can sync plugin files into a separate output directory when needed.
 
