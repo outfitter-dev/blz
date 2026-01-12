@@ -16,7 +16,7 @@
 /// ## Commands
 /// Primary CLI commands that users can invoke:
 /// - `add`, `search`, `get`, `list`, `sources`, `update`, `remove`, `rm`, `delete`
-/// - `help`, `version`, `completions`, `diff`, `lookup`, `plugin`
+/// - `help`, `version`, `completions`, `diff`, `lookup`, `plugin`, `claude-plugin`
 ///
 /// ## Meta Operations
 /// Configuration and system-level operations (may be added in future versions):
@@ -86,6 +86,7 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "diff",
     "lookup",
     "plugin",
+    "claude-plugin",
     // Meta
     "config",
     "settings",

@@ -191,7 +191,7 @@ fi
 cat <<EOF
 
 Next steps:
-  blz plugin install --scope ${SCOPE} --data-dir "${DATA_DIR}"
+  blz claude-plugin install --scope ${SCOPE} --data-dir "${DATA_DIR}"
   # or run the Claude CLI directly:
   claude plugin marketplace add "${DATA_DIR}"
   claude plugin install ${PLUGIN_NAME}@${MARKETPLACE_NAME} --scope ${SCOPE}

@@ -257,10 +257,10 @@ pub enum Commands {
     },
 
     /// Manage the BLZ Claude plugin
-    #[command(display_order = 56)]
-    Plugin {
+    #[command(name = "claude-plugin", display_order = 56)]
+    ClaudePlugin {
         #[command(subcommand)]
-        command: PluginCommands,
+        command: ClaudePluginCommands,
     },
 
     /// Legacy anchor utilities (use `toc` instead)
@@ -1071,7 +1071,7 @@ pub enum DocsCommands {
 
 /// Installation scope for Claude plugin installs.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
-pub enum PluginScope {
+pub enum ClaudePluginScope {
     /// Install for the current user.
     #[value(name = "user")]
     User,
@@ -1080,14 +1080,14 @@ pub enum PluginScope {
     Project,
 }
 
-/// Subcommands for `blz plugin`.
+/// Subcommands for `blz claude-plugin`.
 #[derive(Subcommand, Clone, Debug)]
-pub enum PluginCommands {
+pub enum ClaudePluginCommands {
     /// Install the local Claude plugin from this repository.
     Install {
         /// Installation scope for Claude Code.
         #[arg(long, value_enum, default_value = "user")]
-        scope: PluginScope,
+        scope: ClaudePluginScope,
         /// Override the BLZ data directory used for the local marketplace.
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,

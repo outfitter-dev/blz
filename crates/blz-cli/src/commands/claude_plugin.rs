@@ -4,11 +4,11 @@ use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::cli::PluginScope;
+use crate::cli::ClaudePluginScope;
 
 const INSTALL_SCRIPT: &str = "scripts/install-claude-plugin-local.sh";
 
-impl PluginScope {
+impl ClaudePluginScope {
     const fn as_str(self) -> &'static str {
         match self {
             Self::User => "user",
@@ -17,7 +17,7 @@ impl PluginScope {
     }
 }
 
-pub fn install_local_plugin(scope: PluginScope, data_dir: Option<PathBuf>) -> Result<()> {
+pub fn install_local_plugin(scope: ClaudePluginScope, data_dir: Option<PathBuf>) -> Result<()> {
     let cwd = std::env::current_dir().context("Failed to resolve current directory")?;
     let repo_root = find_repo_root(&cwd).ok_or_else(|| {
         anyhow::anyhow!(

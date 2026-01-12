@@ -28,7 +28,7 @@ Fast local documentation search with llms.txt indexing. Search 12K+ line docs in
 
 ```bash
 # From the repo root (runs the installer + Claude CLI)
-blz plugin install --scope user
+blz claude-plugin install --scope user
 
 # Or run the installer script and Claude CLI manually
 ./scripts/install-claude-plugin-local.sh
@@ -40,7 +40,7 @@ claude plugin install blz@blz-local --scope user
 
 The script prints the exact data path. You can also run it with `--install` to execute the
 `claude plugin` commands automatically.
-The `blz plugin install` helper expects to run from inside the repo.
+The `blz claude-plugin install` helper expects to run from inside the repo.
 
 ## Prerequisites
 
