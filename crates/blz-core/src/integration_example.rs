@@ -30,7 +30,11 @@ pub struct HighPerformanceSearchSystem {
 }
 
 impl HighPerformanceSearchSystem {
-    /// Create a new high-performance search system
+    /// Create a new high-performance search system.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index or connection pool cannot be initialized.
     pub async fn new(index_path: &std::path::Path) -> Result<Self> {
         // Create optimized search index
         let index = OptimizedSearchIndex::create(index_path).await?;
@@ -52,7 +56,11 @@ impl HighPerformanceSearchSystem {
         })
     }
     
-    /// Index documents from a URL with full optimization pipeline
+    /// Index documents from a URL with full optimization pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fetching, parsing, or indexing fails.
     pub async fn index_from_url(&self, alias: &str, url: &str) -> Result<()> {
         info!("Starting optimized indexing for alias: {}", alias);
         
@@ -69,7 +77,11 @@ impl HighPerformanceSearchSystem {
         Ok(())
     }
     
-    /// Perform optimized search with full pipeline
+    /// Perform optimized search with full pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the search query cannot be executed.
     pub async fn search(
         &self,
         query: &str,
@@ -83,7 +95,11 @@ impl HighPerformanceSearchSystem {
             .await
     }
     
-    /// Batch index multiple sources concurrently
+    /// Batch index multiple sources concurrently.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any source fails to fetch or index.
     pub async fn index_multiple_sources(&self, sources: &[(String, String)]) -> Result<()> {
         let mut index_tasks = Vec::new();
         
@@ -97,7 +113,11 @@ impl HighPerformanceSearchSystem {
         Ok(())
     }
     
-    /// Warm up the system with common queries
+    /// Warm up the system with common queries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if warm-up queries fail to execute.
     pub async fn warm_up(
         &self,
         common_queries: &[(&str, Option<&str>, Option<&str>)],

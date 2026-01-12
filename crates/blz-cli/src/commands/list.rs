@@ -76,6 +76,10 @@ pub struct SourceSummary {
 }
 
 /// Gather source summaries from storage.
+///
+/// # Errors
+///
+/// Returns an error if metadata or cached content cannot be loaded.
 pub fn collect_source_summaries<S: ListStorage>(storage: &S) -> Result<Vec<SourceSummary>> {
     let aliases = storage.list_sources()?;
     let mut summaries = Vec::new();
@@ -150,6 +154,10 @@ pub fn render_list<W: Write>(
 }
 
 /// Execute the list command using production storage and stdout.
+///
+/// # Errors
+///
+/// Returns an error if storage access or output rendering fails.
 pub async fn execute(
     format: OutputFormat,
     status: bool,
@@ -163,6 +171,10 @@ pub async fn execute(
 }
 
 /// Testable entry point allowing storage and writer injection.
+///
+/// # Errors
+///
+/// Returns an error if storage access or output rendering fails.
 pub fn execute_with_writer<S, W>(
     storage: &S,
     writer: &mut W,

@@ -33,6 +33,12 @@ pub enum NoteChannel {
     ForceStderr,
 }
 
+/// Emit a prompt payload for the requested CLI command.
+///
+/// # Errors
+///
+/// Returns an error if the prompt target is unknown or if JSON serialization
+/// of the error payload fails.
 pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
     let normalized = normalize_target(target, command);
     let prompt = match normalized.as_str() {
@@ -149,6 +155,7 @@ fn available_targets() -> Vec<&'static str> {
     ]
 }
 
+/// Emit the registry disclaimer note based on output format and quiet flags.
 pub fn emit_registry_note(format: OutputFormat, quiet: bool, channel: NoteChannel) {
     const NOTE: &str = "Note: BLZ's built-in llms.txt registry is nascent. For now you can still take any llms-full.txt you find and add it locally. If you want to submit one to the BLZ registry, just file a PR at https://github.com/outfitter-dev/blz!";
     match channel {

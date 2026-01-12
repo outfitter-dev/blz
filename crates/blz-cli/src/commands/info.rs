@@ -41,7 +41,11 @@ pub struct SourceInfo {
     pub filter_stats: Option<HeadingFilterStats>,
 }
 
-/// Execute the info command
+/// Execute the info command.
+///
+/// # Errors
+///
+/// Returns an error if storage access, metadata loading, or serialization fails.
 pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
     let storage = Storage::new()?;
 

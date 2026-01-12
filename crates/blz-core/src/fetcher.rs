@@ -12,12 +12,20 @@ pub struct Fetcher {
 }
 
 impl Fetcher {
-    /// Creates a new fetcher with configured HTTP client
+    /// Creates a new fetcher with configured HTTP client.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be constructed.
     pub fn new() -> Result<Self> {
         Self::with_timeout(Duration::from_secs(30))
     }
 
-    /// Creates a new fetcher with a custom request timeout (primarily for tests)
+    /// Creates a new fetcher with a custom request timeout (primarily for tests).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be constructed.
     pub fn with_timeout(timeout: Duration) -> Result<Self> {
         let client = Client::builder()
             .timeout(timeout)
@@ -29,7 +37,11 @@ impl Fetcher {
         Ok(Self { client })
     }
 
-    /// Fetches a URL with conditional request support using `ETag` and `Last-Modified` headers
+    /// Fetches a URL with conditional request support using `ETag` and `Last-Modified` headers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or the server response is unsuccessful.
     pub async fn fetch_with_cache(
         &self,
         url: &str,
@@ -113,7 +125,11 @@ impl Fetcher {
         })
     }
 
-    /// Fetches a URL without conditional request support, returning content and `SHA256` hash
+    /// Fetches a URL without conditional request support, returning content and `SHA256` hash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or the server response is unsuccessful.
     pub async fn fetch(&self, url: &str) -> Result<(String, String)> {
         let response = self.client.get(url).send().await?;
         let status = response.status();
@@ -139,7 +155,11 @@ impl Fetcher {
         Ok((content, sha256))
     }
 
-    /// Perform a HEAD request to retrieve basic metadata for a URL without downloading content
+    /// Perform a HEAD request to retrieve basic metadata for a URL without downloading content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails.
     pub async fn head_metadata(&self, url: &str) -> Result<HeadInfo> {
         let response = self.client.head(url).send().await?;
         let status = response.status();

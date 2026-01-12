@@ -46,6 +46,11 @@ pub enum ValidationStatus {
     Error,
 }
 
+/// Execute the validation command for one or more sources.
+///
+/// # Errors
+///
+/// Returns an error if storage access, network checks, or serialization fails.
 pub async fn execute(alias: Option<String>, all: bool, format: OutputFormat) -> Result<()> {
     let storage = Storage::new()?;
 

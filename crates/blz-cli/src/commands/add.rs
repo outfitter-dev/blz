@@ -197,10 +197,14 @@ struct ManifestAliases {
     github: Vec<String>,
 }
 
-/// Add a new documentation source
+/// Add a new documentation source.
 ///
 /// # Arguments
 /// Execute the add flow given a prepared request.
+///
+/// # Errors
+///
+/// Returns an error if validation, fetching, or indexing fails.
 pub async fn execute(request: AddRequest) -> Result<()> {
     let AddRequest {
         alias,

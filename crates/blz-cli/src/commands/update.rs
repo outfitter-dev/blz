@@ -241,6 +241,10 @@ fn create_spinner(message: &str) -> ProgressBar {
 }
 
 /// Execute update for a specific source.
+///
+/// # Errors
+///
+/// Returns an error if storage access, fetching, or indexing fails.
 #[deprecated(since = "1.4.0", note = "use refresh::execute instead")]
 #[allow(dead_code, clippy::too_many_lines)]
 pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> Result<()> {
@@ -385,6 +389,10 @@ pub async fn execute(alias: &str, metrics: PerformanceMetrics, quiet: bool) -> R
 }
 
 /// Execute update for all sources.
+///
+/// # Errors
+///
+/// Returns an error if storage access, fetching, or indexing fails.
 #[deprecated(since = "1.4.0", note = "use refresh::execute_all instead")]
 #[allow(dead_code)]
 pub async fn execute_all(metrics: PerformanceMetrics, quiet: bool) -> Result<()> {

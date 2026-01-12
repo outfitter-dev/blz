@@ -76,6 +76,10 @@ pub enum RemoveOutcome {
 }
 
 /// Core removal logic with injectable dependencies for testing.
+///
+/// # Errors
+///
+/// Returns an error if storage access, confirmation, or deletion fails.
 pub fn execute_remove<S, W, F>(
     storage: &S,
     alias: &str,
@@ -128,6 +132,10 @@ where
 }
 
 /// Execute the remove command to delete a source.
+///
+/// # Errors
+///
+/// Returns an error if storage access, user confirmation, or deletion fails.
 pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
 

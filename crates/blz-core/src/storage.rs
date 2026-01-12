@@ -51,7 +51,11 @@ impl Storage {
     // - llms.json for parsed data
     // - metadata.json for source metadata
 
-    /// Creates a new storage instance with the default root directory
+    /// Creates a new storage instance with the default root directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data or config directories cannot be resolved or created.
     pub fn new() -> Result<Self> {
         // Test/dev override: allow BLZ_DATA_DIR to set the root directory explicitly
         if let Ok(dir) = std::env::var("BLZ_DATA_DIR") {
@@ -119,13 +123,21 @@ impl Storage {
         ))
     }
 
-    /// Creates a new storage instance with a custom root directory
+    /// Creates a new storage instance with a custom root directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data or config directories cannot be created.
     pub fn with_root(root_dir: PathBuf) -> Result<Self> {
         let config_dir = root_dir.join("config");
         Self::with_paths(root_dir, config_dir)
     }
 
-    /// Creates a new storage instance with explicit data and config directories
+    /// Creates a new storage instance with explicit data and config directories.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data or config directories cannot be created.
     pub fn with_paths(root_dir: PathBuf, config_dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root_dir)
             .map_err(|e| Error::Storage(format!("Failed to create root directory: {e}")))?;
@@ -154,13 +166,21 @@ impl Storage {
         self.config_dir.join("sources")
     }
 
-    /// Returns the path to the descriptor TOML for a source
+    /// Returns the path to the descriptor TOML for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn descriptor_path(&self, alias: &str) -> Result<PathBuf> {
         Self::validate_alias(alias)?;
         Ok(self.descriptors_dir().join(format!("{alias}.toml")))
     }
 
-    /// Persist a descriptor to disk, creating parent directories if necessary
+    /// Persist a descriptor to disk, creating parent directories if necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the descriptor cannot be serialized or written.
     pub fn save_descriptor(&self, descriptor: &SourceDescriptor) -> Result<()> {
         let path = self.descriptor_path(&descriptor.alias)?;
         if let Some(parent) = path.parent() {
@@ -175,7 +195,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Load a descriptor if it exists
+    /// Load a descriptor if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the descriptor cannot be read or parsed.
     pub fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
         let path = self.descriptor_path(alias)?;
         if !path.exists() {
@@ -189,7 +213,11 @@ impl Storage {
         Ok(Some(descriptor))
     }
 
-    /// Remove descriptor file for an alias if present
+    /// Remove descriptor file for an alias if present.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the descriptor cannot be removed.
     pub fn remove_descriptor(&self, alias: &str) -> Result<()> {
         let path = self.descriptor_path(alias)?;
         if path.exists() {
@@ -199,7 +227,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Returns the directory path for a given alias
+    /// Returns the directory path for a given alias.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn tool_dir(&self, source: &str) -> Result<PathBuf> {
         // Validate alias to prevent directory traversal attacks
         Self::validate_alias(source)?;
@@ -212,7 +244,11 @@ impl Storage {
         Ok(self.tool_dir(source)?.join(sanitized))
     }
 
-    /// Ensures the directory for an alias exists and returns its path
+    /// Ensures the directory for an alias exists and returns its path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid or the directory cannot be created.
     pub fn ensure_tool_dir(&self, source: &str) -> Result<PathBuf> {
         let dir = self.tool_dir(source)?;
         fs::create_dir_all(&dir)
@@ -289,37 +325,65 @@ impl Storage {
         Ok(())
     }
 
-    /// Returns the path to the llms.txt file for a source
+    /// Returns the path to the llms.txt file for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn llms_txt_path(&self, source: &str) -> Result<PathBuf> {
         self.variant_file_path(source, "llms.txt")
     }
 
-    /// Returns the path to the llms.json file for a source
+    /// Returns the path to the llms.json file for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn llms_json_path(&self, source: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(source)?.join("llms.json"))
     }
 
-    /// Returns the path to the search index directory for a source
+    /// Returns the path to the search index directory for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn index_dir(&self, source: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(source)?.join(".index"))
     }
 
-    /// Returns the path to the archive directory for a source
+    /// Returns the path to the archive directory for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn archive_dir(&self, source: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(source)?.join(".archive"))
     }
 
-    /// Returns the path to the metadata file for a source
+    /// Returns the path to the metadata file for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn metadata_path(&self, source: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(source)?.join("metadata.json"))
     }
 
-    /// Returns the path to the anchors mapping file for a source
+    /// Returns the path to the anchors mapping file for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the alias is invalid.
     pub fn anchors_map_path(&self, source: &str) -> Result<PathBuf> {
         Ok(self.tool_dir(source)?.join("anchors.json"))
     }
 
-    /// Saves the llms.txt content for a source
+    /// Saves the llms.txt content for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be written or renamed.
     pub fn save_llms_txt(&self, source: &str, content: &str) -> Result<()> {
         self.ensure_tool_dir(source)?;
         let path = self.llms_txt_path(source)?;
@@ -341,14 +405,22 @@ impl Storage {
         Ok(())
     }
 
-    /// Loads the llms.txt content for a source
+    /// Loads the llms.txt content for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read.
     pub fn load_llms_txt(&self, source: &str) -> Result<String> {
         let path = self.llms_txt_path(source)?;
         fs::read_to_string(&path)
             .map_err(|e| Error::Storage(format!("Failed to read llms.txt: {e}")))
     }
 
-    /// Saves the parsed llms.json data for a source
+    /// Saves the parsed llms.json data for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the JSON cannot be serialized or written.
     pub fn save_llms_json(&self, source: &str, data: &LlmsJson) -> Result<()> {
         self.ensure_tool_dir(source)?;
         let path = self.llms_json_path(source)?;
@@ -371,7 +443,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Loads the parsed llms.json data for a source
+    /// Loads the parsed llms.json data for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or the JSON is invalid.
     pub fn load_llms_json(&self, source: &str) -> Result<LlmsJson> {
         let path = self.llms_json_path(source)?;
         if !path.exists() {
@@ -405,7 +481,11 @@ impl Storage {
         Ok(data)
     }
 
-    /// Saves source metadata for a source
+    /// Saves source metadata for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the metadata cannot be serialized or written.
     pub fn save_source_metadata(&self, source: &str, metadata: &Source) -> Result<()> {
         self.ensure_tool_dir(source)?;
         let path = self.metadata_path(source)?;
@@ -430,7 +510,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Save anchors remap JSON for a source
+    /// Save anchors remap JSON for a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the anchors map cannot be serialized or written.
     pub fn save_anchors_map(&self, source: &str, map: &crate::AnchorsMap) -> Result<()> {
         self.ensure_tool_dir(source)?;
         let path = self.anchors_map_path(source)?;
@@ -441,7 +525,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Loads source metadata for a source if it exists
+    /// Loads source metadata for a source if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the metadata cannot be read or parsed.
     pub fn load_source_metadata(&self, source: &str) -> Result<Option<Source>> {
         let path = self.metadata_path(source)?;
         if !path.exists() {
@@ -505,7 +593,11 @@ impl Storage {
         Ok(())
     }
 
-    /// Archives the current version of a source
+    /// Archives the current version of a source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the archive directory cannot be created or files cannot be copied.
     pub fn archive(&self, source: &str) -> Result<()> {
         let archive_dir = self.archive_dir(source)?;
         fs::create_dir_all(&archive_dir)
