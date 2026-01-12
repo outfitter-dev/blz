@@ -1081,7 +1081,7 @@ pub enum ClaudePluginScope {
 }
 
 /// Subcommands for `blz claude-plugin`.
-#[derive(Subcommand, Clone, Debug)]
+#[derive(Subcommand, Clone, Copy, Debug)]
 pub enum ClaudePluginCommands {
     /// Install the local Claude plugin from this repository.
     Install {
