@@ -43,15 +43,24 @@ struct ContentAnalysis {
     content_type: String,
 }
 
+/// Descriptor metadata collected from CLI inputs or manifests.
 #[derive(Debug, Clone, Default)]
 pub struct DescriptorInput {
+    /// Display name for the source.
     name: Option<String>,
+    /// Optional description for the source.
     description: Option<String>,
+    /// Optional category for grouping.
     category: Option<String>,
+    /// Tag list for discovery.
     tags: Vec<String>,
+    /// Additional aliases for the source.
     aliases: Vec<String>,
+    /// NPM aliases for the source.
     npm_aliases: Vec<String>,
+    /// GitHub aliases for the source.
     github_aliases: Vec<String>,
+    /// Optional manifest origin metadata.
     manifest: Option<blz_core::ManifestOrigin>,
 }
 
@@ -86,20 +95,32 @@ impl DescriptorInput {
     }
 }
 
+/// Prepared request for running the add flow.
 pub struct AddRequest {
+    /// Alias to store the source under.
     pub alias: String,
+    /// Source URL to fetch.
     pub url: String,
+    /// Descriptor metadata for the source.
     pub descriptor: DescriptorInput,
+    /// Whether to skip writes and indexing.
     pub dry_run: bool,
+    /// Suppress non-essential output.
     pub quiet: bool,
+    /// Performance metrics collector.
     pub metrics: PerformanceMetrics,
+    /// Disable language filtering for this add.
     pub no_language_filter: bool,
 }
 
+/// Options controlling add flow behavior.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AddFlowOptions {
+    /// Whether to skip writes and indexing.
     pub dry_run: bool,
+    /// Suppress non-essential output.
     pub quiet: bool,
+    /// Disable language filtering for this add.
     pub no_language_filter: bool,
 }
 
