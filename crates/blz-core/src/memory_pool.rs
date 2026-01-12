@@ -295,9 +295,13 @@ enum BufferSize {
 
 /// RAII wrapper for pooled byte buffer
 pub struct PooledBuffer<'a> {
+    /// Owned buffer returned from the pool.
     buffer: Vec<u8>,
+    /// Pool that owns this buffer.
     pool: &'a MemoryPool,
+    /// Size class used for reuse placement.
     size_class: BufferSize,
+    /// Capacity recorded at checkout for accounting.
     capacity: usize,
 }
 
@@ -349,8 +353,11 @@ impl Drop for PooledBuffer<'_> {
 
 /// RAII wrapper for pooled string buffer
 pub struct PooledString<'a> {
+    /// Owned string returned from the pool.
     buffer: String,
+    /// Pool that owns this string.
     pool: &'a MemoryPool,
+    /// Capacity recorded at checkout for accounting.
     capacity: usize,
 }
 
@@ -399,12 +406,19 @@ impl Drop for PooledString<'_> {
 /// Summary of memory pool statistics
 #[derive(Debug, Clone)]
 pub struct MemoryPoolStatsSummary {
+    /// Total buffer allocations requested.
     pub allocations: usize,
+    /// Total buffers returned to the pool.
     pub deallocations: usize,
+    /// Cache hits when reusing existing buffers.
     pub cache_hits: usize,
+    /// Cache misses that required new allocations.
     pub cache_misses: usize,
+    /// Current tracked memory usage in bytes.
     pub current_usage_bytes: usize,
+    /// Peak tracked memory usage in bytes.
     pub peak_usage_bytes: usize,
+    /// Cache hit rate as `hits / (hits + misses)`.
     pub hit_rate: f64,
 }
 
