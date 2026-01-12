@@ -1088,9 +1088,6 @@ pub enum ClaudePluginCommands {
         /// Installation scope for Claude Code.
         #[arg(long, value_enum, default_value = "user")]
         scope: ClaudePluginScope,
-        /// Override the BLZ data directory used for the local marketplace.
-        #[arg(long, value_name = "DIR")]
-        data_dir: Option<PathBuf>,
     },
 }
 

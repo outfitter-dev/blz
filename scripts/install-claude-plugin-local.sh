@@ -29,7 +29,6 @@ Usage:
 Options:
   --install           Run "claude plugin" commands after setup
   --scope <scope>     Install scope when using --install (user|project). Default: user
-  --data-dir <path>   Override BLZ data directory for the local marketplace
   -h, --help          Show this help message
 USAGE
 }
@@ -191,7 +190,7 @@ fi
 cat <<EOF
 
 Next steps:
-  blz claude-plugin install --scope ${SCOPE} --data-dir "${DATA_DIR}"
+  blz claude-plugin install --scope ${SCOPE}
   # or run the Claude CLI directly:
   claude plugin marketplace add "${DATA_DIR}"
   claude plugin install ${PLUGIN_NAME}@${MARKETPLACE_NAME} --scope ${SCOPE}

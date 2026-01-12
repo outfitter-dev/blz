@@ -994,8 +994,8 @@ async fn handle_docs(
 
 fn handle_claude_plugin(command: ClaudePluginCommands) -> Result<()> {
     match command {
-        ClaudePluginCommands::Install { scope, data_dir } => {
-            commands::install_local_plugin(scope, data_dir)?;
+        ClaudePluginCommands::Install { scope } => {
+            commands::install_local_plugin(scope)?;
         },
     }
 

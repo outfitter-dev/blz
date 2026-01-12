@@ -17,7 +17,7 @@ impl ClaudePluginScope {
     }
 }
 
-pub fn install_local_plugin(scope: ClaudePluginScope, data_dir: Option<PathBuf>) -> Result<()> {
+pub fn install_local_plugin(scope: ClaudePluginScope) -> Result<()> {
     let cwd = std::env::current_dir().context("Failed to resolve current directory")?;
     let repo_root = find_repo_root(&cwd).ok_or_else(|| {
         anyhow::anyhow!(
@@ -38,10 +38,6 @@ pub fn install_local_plugin(scope: ClaudePluginScope, data_dir: Option<PathBuf>)
     command.arg("--install");
     command.arg("--scope");
     command.arg(scope.as_str());
-    if let Some(dir) = data_dir {
-        command.arg("--data-dir");
-        command.arg(dir);
-    }
 
     let status = command
         .current_dir(&repo_root)
