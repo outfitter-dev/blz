@@ -27,7 +27,8 @@ use crate::commands::{
 
 use crate::utils::preferences::{self, CliPreferences};
 use cli::{
-    AliasCommands, AnchorCommands, Cli, Commands, DocsCommands, DocsSearchArgs, RegistryCommands,
+    AliasCommands, AnchorCommands, Cli, Commands, DocsCommands, DocsSearchArgs, PluginCommands,
+    RegistryCommands,
 };
 
 #[cfg(feature = "flamegraph")]
@@ -561,6 +562,9 @@ async fn execute_command(
         Some(Commands::Docs { command }) => {
             handle_docs(command, cli.quiet, metrics.clone(), prefs).await?;
         },
+        Some(Commands::Plugin { command }) => {
+            handle_plugin(command).await?;
+        },
         Some(Commands::Alias { command }) => handle_alias(command).await?,
         Some(Commands::Add(args)) => {
             if let Some(manifest) = &args.manifest {
@@ -982,6 +986,16 @@ async fn handle_docs(
         None => {
             // When no subcommand is provided, show overview
             docs_overview(quiet, metrics.clone())?;
+        },
+    }
+
+    Ok(())
+}
+
+async fn handle_plugin(command: PluginCommands) -> Result<()> {
+    match command {
+        PluginCommands::Install { scope, data_dir } => {
+            commands::install_local_plugin(scope, data_dir)?;
         },
     }
 

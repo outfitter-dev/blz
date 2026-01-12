@@ -12,7 +12,10 @@ The BLZ Claude Code plugin integrates local documentation search directly into y
 ### Local Marketplace (recommended for local development)
 
 ```bash
-# From the blz repository root
+# From the blz repository root (runs the installer + Claude CLI)
+blz plugin install --scope user
+
+# Or run the installer script and Claude CLI manually
 ./scripts/install-claude-plugin-local.sh
 
 # Add the local marketplace and install the plugin
@@ -22,6 +25,7 @@ claude plugin install blz@blz-local --scope user
 
 The script prints the exact data path. You can also run it with `--install` to execute the
 `claude plugin` commands automatically.
+The `blz plugin install` helper expects to run from inside the repo.
 
 ### Direct Installation
 
@@ -332,6 +336,9 @@ Build script can sync plugin files into a separate output directory when needed.
 ./scripts/build-plugin.sh
 
 # Reinstall in Claude Code
+blz plugin install --scope user
+
+# Or reinstall directly
 /plugin uninstall blz
 /plugin install /path/to/blz/.claude-plugin
 
