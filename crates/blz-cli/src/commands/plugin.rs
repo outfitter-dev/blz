@@ -9,10 +9,10 @@ use crate::cli::PluginScope;
 const INSTALL_SCRIPT: &str = "scripts/install-claude-plugin-local.sh";
 
 impl PluginScope {
-    fn as_str(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            PluginScope::User => "user",
-            PluginScope::Project => "project",
+            Self::User => "user",
+            Self::Project => "project",
         }
     }
 }
