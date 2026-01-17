@@ -9,6 +9,7 @@ mod clear;
 mod completions;
 mod toc;
 // config module removed in v1.0.0-beta.1 - flavor preferences eliminated
+mod claude_plugin;
 mod create_source;
 mod diff;
 pub mod docs;
@@ -39,6 +40,7 @@ pub use completions::generate;
 pub use completions::list_supported;
 pub use toc::{execute as show_toc, get_by_anchor};
 // config command removed in v1.0.0-beta.1 - flavor preferences eliminated
+pub use claude_plugin::install_local_plugin;
 pub use create_source::execute as create_registry_source;
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};

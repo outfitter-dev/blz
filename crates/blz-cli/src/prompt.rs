@@ -42,7 +42,7 @@ pub enum NoteChannel {
 pub fn emit(target: &str, command: Option<&Commands>) -> anyhow::Result<()> {
     let normalized = normalize_target(target, command);
     let prompt = match normalized.as_str() {
-        "blz" | "global" => Some(GLOBAL_PROMPT),
+        "blz" | "global" | "plugin" | "claude-plugin" => Some(GLOBAL_PROMPT),
         "add" => Some(ADD_PROMPT),
         "search" => Some(SEARCH_PROMPT),
         "get" => Some(GET_PROMPT),
@@ -91,6 +91,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Completions { .. } => "completions".into(),
                 Commands::Alias { .. } => "alias".into(),
                 Commands::Docs { .. } => "docs".into(),
+                Commands::ClaudePlugin { .. } => "claude-plugin".into(),
                 Commands::Registry { .. } => "registry".into(),
                 Commands::Search { .. } => "search".into(),
                 Commands::Instruct => "blz".into(),
@@ -131,6 +132,8 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
 fn available_targets() -> Vec<&'static str> {
     vec![
         "blz",
+        "plugin",
+        "claude-plugin",
         "add",
         "find",
         "search",

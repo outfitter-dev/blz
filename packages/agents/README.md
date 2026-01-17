@@ -24,6 +24,24 @@ Fast local documentation search with llms.txt indexing. Search 12K+ line docs in
 /plugin install blz@blz
 ```
 
+### Local Marketplace (preferred for local development)
+
+```bash
+# From the repo root (runs the installer + Claude CLI)
+blz claude-plugin install --scope user
+
+# Or run the installer script and Claude CLI manually
+./scripts/install-claude-plugin-local.sh
+
+# Add the local marketplace and install the plugin
+claude plugin marketplace add "/path/to/blz-data"
+claude plugin install blz@blz-local --scope user
+```
+
+The script prints the exact data path. You can also run it with `--install` to execute the
+`claude plugin` commands automatically.
+The `blz claude-plugin install` helper expects to run from inside the repo.
+
 ## Prerequisites
 
 The BLZ CLI must be installed on your system:

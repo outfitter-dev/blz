@@ -256,6 +256,13 @@ pub enum Commands {
         command: Option<DocsCommands>,
     },
 
+    /// Manage the BLZ Claude plugin
+    #[command(name = "claude-plugin", display_order = 56)]
+    ClaudePlugin {
+        #[command(subcommand)]
+        command: ClaudePluginCommands,
+    },
+
     /// Legacy anchor utilities (use `toc` instead)
     #[command(display_order = 53, hide = true)]
     Anchor {
@@ -1059,6 +1066,28 @@ pub enum DocsCommands {
         /// Output format for docs export (defaults to markdown).
         #[arg(long = "format", value_enum, default_value = "markdown")]
         format: crate::commands::DocsFormat,
+    },
+}
+
+/// Installation scope for Claude plugin installs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub enum ClaudePluginScope {
+    /// Install for the current user.
+    #[value(name = "user")]
+    User,
+    /// Install for the current project.
+    #[value(name = "project")]
+    Project,
+}
+
+/// Subcommands for `blz claude-plugin`.
+#[derive(Subcommand, Clone, Copy, Debug)]
+pub enum ClaudePluginCommands {
+    /// Install the local Claude plugin from this repository.
+    Install {
+        /// Installation scope for Claude Code.
+        #[arg(long, value_enum, default_value = "user")]
+        scope: ClaudePluginScope,
     },
 }
 
