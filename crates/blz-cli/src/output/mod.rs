@@ -70,8 +70,16 @@
 mod formatter;
 mod json;
 mod progress;
+pub mod shapes;
 mod text;
 
 pub use formatter::{FormatParams, OutputFormat, SearchResultFormatter};
+// TODO(BLZ-339): Remove allow once commands adopt these shapes.
+#[allow(unused_imports)]
+pub use shapes::{
+    CheckOutput, CheckResult, GenericOutput, OutputShape, RetrieveOutput, RetrievedContent,
+    SearchHitOutput, SearchOutput, SourceInfoOutput, SourceListOutput, SourceStatus, SourceSummary,
+    TocEntry, TocOutput,
+};
 
 // Re-export commonly used formatters
