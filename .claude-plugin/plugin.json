@@ -1,6 +1,6 @@
 {
   "name": "blz",
-  "version": "1.5.5",
+  "version": "2.0.0-beta.1",
   "description": "Fast local documentation search with llms.txt indexing. Search 12K+ line docs in 6ms with line-accurate citations. One command (/blz) and one agent (@blz:blazer) for all documentation operations.",
   "author": {
     "name": "Outfitter",
