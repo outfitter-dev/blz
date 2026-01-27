@@ -13,16 +13,44 @@
 //!
 //! # Available Types
 //!
+//! ## Core Types
+//!
 //! - [`Verbosity`] - Output verbosity level (quiet/normal/verbose/debug)
 //!
-//! # Future Additions
+//! ## Argument Groups
 //!
-//! Planned for future phases:
-//! - `PaginationArgs` - Shared limit/offset arguments
-//! - `ContextArgs` - Context line settings for retrieval
-//! - `OutputArgs` - Format and color settings
-//! - `SearchArgs` - Search-specific options
+//! - [`PaginationArgs`] - Limit and offset for result pagination
+//! - [`ContextArgs`] - Context lines for content retrieval (grep-style)
+//! - [`OutputArgs`] - Format selection with TTY auto-detection
+//!
+//! # Examples
+//!
+//! ```ignore
+//! use blz_cli::args::{ContextArgs, OutputArgs, PaginationArgs, Verbosity};
+//! use clap::{Args, Parser};
+//!
+//! #[derive(Parser)]
+//! struct SearchCommand {
+//!     /// Search query
+//!     query: String,
+//!
+//!     #[command(flatten)]
+//!     pagination: PaginationArgs,
+//!
+//!     #[command(flatten)]
+//!     context: ContextArgs,
+//!
+//!     #[command(flatten)]
+//!     output: OutputArgs,
+//! }
+//! ```
 
+mod context;
+mod output;
+mod pagination;
 mod verbosity;
 
+pub use context::{ContextArgs, ContextMode};
+pub use output::{OutputArgs, OutputFormat};
+pub use pagination::PaginationArgs;
 pub use verbosity::Verbosity;
