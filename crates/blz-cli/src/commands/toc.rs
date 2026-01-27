@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use anyhow::{Context, Result, anyhow};
-use blz_core::{AnchorsMap, LlmsJson, Storage};
+use blz_core::{AnchorsMap, HeadingLevel, LlmsJson, Storage};
 use chrono::Utc;
 use colored::Colorize;
 
@@ -717,8 +717,8 @@ fn print_text_with_limit(
 
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
-    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let level_matches =
+        level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
     let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
     let mut printed = if text_matches && level_matches {
@@ -777,8 +777,8 @@ fn collect_entries(
             continue;
         }
         let display_path = display_path(e);
-        #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
-        let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+        let level_matches =
+            level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
         let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
         if text_matches && level_matches {
@@ -822,8 +822,8 @@ fn print_text(
     }
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
-    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let level_matches =
+        level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
     let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
     if text_matches && level_matches {
         let indent = "  ".repeat(depth);
@@ -876,8 +876,8 @@ fn print_tree(
 
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    #[allow(clippy::cast_possible_truncation)] // depth is limited to 1-6 for markdown headings
-    let level_matches = level_filter.is_none_or(|f| f.matches((depth + 1) as u8));
+    let level_matches =
+        level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
     let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
     if text_matches && level_matches {

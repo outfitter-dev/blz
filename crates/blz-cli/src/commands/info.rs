@@ -1,6 +1,7 @@
 //! Command to display detailed information about a cached source
 
 use anyhow::{Context, Result};
+use blz_core::numeric::{safe_percentage, u64_to_f64_lossy};
 use blz_core::{HeadingFilterStats, Storage};
 use colored::Colorize;
 use serde::Serialize;
@@ -167,13 +168,7 @@ fn print_text_info(info: &SourceInfo) {
 }
 
 fn percentage(count: usize, total: usize) -> f64 {
-    if total == 0 {
-        0.0
-    } else {
-        #[allow(clippy::cast_precision_loss)]
-        let result = (count as f64 / total as f64) * 100.0;
-        result
-    }
+    safe_percentage(count, total)
 }
 
 fn format_number(n: usize) -> String {
@@ -206,9 +201,8 @@ fn format_bytes(bytes: u64) -> String {
     if unit_index == 0 {
         format!("{bytes} {}", UNITS[unit_index])
     } else {
-        // Use f64 for fractional display
-        #[allow(clippy::cast_precision_loss)]
-        let size_f64 = bytes as f64 / divisor as f64;
+        // Use f64 for fractional display (lossy conversion acceptable for display)
+        let size_f64 = u64_to_f64_lossy(bytes) / u64_to_f64_lossy(divisor);
         format!("{size_f64:.1} {}", UNITS[unit_index])
     }
 }

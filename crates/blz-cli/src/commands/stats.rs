@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use blz_core::Storage;
+use blz_core::numeric::u64_to_f64_lossy;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -184,12 +185,10 @@ fn format_size(bytes: u64) -> String {
     const GB: u64 = MB * 1024;
 
     if bytes >= GB {
-        #[allow(clippy::cast_precision_loss)]
-        let result = bytes as f64 / GB as f64;
+        let result = u64_to_f64_lossy(bytes) / u64_to_f64_lossy(GB);
         format!("{result:.1} GB")
     } else if bytes >= MB {
-        #[allow(clippy::cast_precision_loss)]
-        let result = bytes as f64 / MB as f64;
+        let result = u64_to_f64_lossy(bytes) / u64_to_f64_lossy(MB);
         format!("{result:.1} MB")
     } else if bytes >= KB {
         format!("{} KB", bytes / KB)

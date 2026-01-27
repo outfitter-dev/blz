@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use blz_core::numeric::safe_percentage;
 use blz_core::{
     Fetcher, LanguageFilter, MarkdownParser, ParseResult, PerformanceMetrics, SearchIndex, Source,
     SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage, build_llms_json,
@@ -848,13 +849,8 @@ fn dedupe_sorted(values: Vec<String>) -> Vec<String> {
     cleaned
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn percentage(part: usize, total: usize) -> f64 {
-    if total == 0 {
-        0.0
-    } else {
-        (part as f64 / total as f64) * 100.0
-    }
+    safe_percentage(part, total)
 }
 
 fn non_empty_string(value: Option<&String>) -> Option<String> {

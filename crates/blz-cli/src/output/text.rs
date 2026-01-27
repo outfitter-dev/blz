@@ -1,6 +1,7 @@
 //! Text output formatting
 
 use super::formatter::FormatParams;
+use blz_core::numeric::percent_to_u8;
 use blz_core::{SearchHit, Storage};
 use colored::Colorize;
 use std::collections::{BTreeSet, HashMap};

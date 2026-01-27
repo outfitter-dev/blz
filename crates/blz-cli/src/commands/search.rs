@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result};
 use blz_core::index::{DEFAULT_SNIPPET_CHAR_LIMIT, MAX_SNIPPET_CHAR_LIMIT, MIN_SNIPPET_CHAR_LIMIT};
+use blz_core::numeric::percentile_count;
 use blz_core::{
     HitContext, LlmsJson, PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Source,
     Storage,
@@ -618,15 +619,8 @@ fn apply_percentile_filter(
     is_text_output: bool,
 ) {
     if let Some(percentile) = top_percentile {
-        let len = hits.len();
-        let percentile_f = f64::from(percentile) / 100.0;
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            clippy::cast_precision_loss
-        )]
-        let percentile_count = ((len as f64) * percentile_f).ceil().min(len as f64) as usize;
-        hits.truncate(percentile_count.max(1));
+        let count = percentile_count(hits.len(), percentile);
+        hits.truncate(count);
 
         if is_text_output && hits.len() < 10 {
             eprintln!(

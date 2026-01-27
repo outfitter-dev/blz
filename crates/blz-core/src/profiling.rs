@@ -1,4 +1,3 @@
-#![allow(clippy::cast_precision_loss)] // Performance metrics inherently lose precision when converting to f64
 #![allow(clippy::cast_possible_wrap)] // Wrapping is acceptable for memory delta calculations
 
 use std::collections::HashMap;
@@ -7,6 +6,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use sysinfo::System;
 use tracing::{Level, debug, info, span};
+
+use crate::numeric::{duration_to_micros_saturating, safe_average, u64_to_f64_lossy, usize_to_u64};
 
 /// Global performance metrics collector
 #[derive(Debug, Clone)]
@@ -40,68 +41,57 @@ impl Default for PerformanceMetrics {
 
 impl PerformanceMetrics {
     /// Record a search operation
-    #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_search(&self, duration: Duration, lines_count: usize) {
         self.search_count.fetch_add(1, Ordering::Relaxed);
-        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let inc = duration_to_micros_saturating(duration);
         let _ = self
             .total_search_time
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
                 Some(cur.saturating_add(inc))
             });
         self.lines_searched
-            .fetch_add(lines_count as u64, Ordering::Relaxed);
+            .fetch_add(usize_to_u64(lines_count), Ordering::Relaxed);
     }
 
     /// Record an index build operation
-    #[allow(clippy::cast_possible_truncation)] // Saturating at u64::MAX is acceptable for timing metrics
     pub fn record_index_build(&self, duration: Duration, bytes_count: usize) {
         self.index_build_count.fetch_add(1, Ordering::Relaxed);
-        let inc = duration.as_micros().min(u128::from(u64::MAX)) as u64;
+        let inc = duration_to_micros_saturating(duration);
         let _ = self
             .total_index_time
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
                 Some(cur.saturating_add(inc))
             });
         self.bytes_processed
-            .fetch_add(bytes_count as u64, Ordering::Relaxed);
+            .fetch_add(usize_to_u64(bytes_count), Ordering::Relaxed);
     }
 
     /// Get average search time in microseconds
-    #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
     #[must_use]
     pub fn avg_search_time_micros(&self) -> f64 {
         let count = self.search_count.load(Ordering::Relaxed);
         let total = self.total_search_time.load(Ordering::Relaxed);
-        if count == 0 {
-            0.0
-        } else {
-            total as f64 / count as f64
-        }
+        safe_average(total, count)
     }
 
     /// Get average index build time in milliseconds
-    #[allow(clippy::cast_precision_loss)] // Precision loss is acceptable for performance metrics
     #[must_use]
     pub fn avg_index_time_millis(&self) -> f64 {
         let count = self.index_build_count.load(Ordering::Relaxed);
         let total = self.total_index_time.load(Ordering::Relaxed);
-        if count == 0 {
-            0.0
-        } else {
-            (total as f64 / count as f64) / 1000.0
-        }
+        safe_average(total, count) / 1000.0
     }
 
     /// Get throughput in lines per second for search operations
     #[must_use]
     pub fn search_throughput_lines_per_sec(&self) -> f64 {
         let lines = self.lines_searched.load(Ordering::Relaxed);
-        let time_seconds = (self.total_search_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
+        let time_seconds =
+            u64_to_f64_lossy(self.total_search_time.load(Ordering::Relaxed)) / 1_000_000.0;
         if time_seconds == 0.0 {
             0.0
         } else {
-            lines as f64 / time_seconds
+            u64_to_f64_lossy(lines) / time_seconds
         }
     }
 
@@ -109,11 +99,12 @@ impl PerformanceMetrics {
     #[must_use]
     pub fn index_throughput_mbps(&self) -> f64 {
         let bytes = self.bytes_processed.load(Ordering::Relaxed);
-        let time_seconds = (self.total_index_time.load(Ordering::Relaxed) as f64) / 1_000_000.0;
+        let time_seconds =
+            u64_to_f64_lossy(self.total_index_time.load(Ordering::Relaxed)) / 1_000_000.0;
         if time_seconds == 0.0 {
             0.0
         } else {
-            (bytes as f64 / (1024.0 * 1024.0)) / time_seconds
+            (u64_to_f64_lossy(bytes) / (1024.0 * 1024.0)) / time_seconds
         }
     }
 
@@ -289,6 +280,7 @@ impl ComponentTimings {
         sorted_timings.sort_by(|a, b| b.1.cmp(a.1));
 
         for (component, duration) in sorted_timings {
+            #[allow(clippy::cast_precision_loss)] // Display-only percentage calculation
             let percentage = if total.as_micros() > 0 {
                 (duration.as_micros() as f64 / total.as_micros() as f64) * 100.0
             } else {
@@ -348,6 +340,7 @@ impl ResourceMonitor {
     }
 
     /// Gets the current memory usage in megabytes
+    #[allow(clippy::cast_precision_loss)] // Memory values far below f64 precision limit
     pub fn current_memory_mb(&mut self) -> f64 {
         self.refresh();
         self.system
@@ -356,6 +349,7 @@ impl ResourceMonitor {
     }
 
     /// Gets the memory usage change since initialization in megabytes
+    #[allow(clippy::cast_precision_loss)] // Memory values far below f64 precision limit
     pub fn memory_delta_mb(&mut self) -> f64 {
         self.refresh();
         if let Some(process) = self.system.process(sysinfo::Pid::from(self.pid as usize)) {
@@ -453,8 +447,9 @@ pub fn stop_profiling_and_report(_guard: ()) -> Result<(), Box<dyn std::error::E
 
 /// Format bytes in human-readable format
 fn format_bytes(bytes: u64) -> String {
+    use crate::numeric::u64_to_f64_lossy;
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut size = bytes as f64;
+    let mut size = u64_to_f64_lossy(bytes);
     let mut unit_index = 0;
 
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
