@@ -137,8 +137,9 @@ rm -rf ~/.local/share/blz/
 
 ### Linux
 
-- Uses XDG Base Directory specification
-- Supports custom `XDG_DATA_HOME` environment variable
+- Uses XDG Base Directory specification when `XDG_DATA_HOME` is set
+- **Fallback**: When `XDG_DATA_HOME` is not set, falls back to `~/.blz/`
+- Override with `BLZ_DATA_DIR` environment variable
 - Optimized for ext4/btrfs filesystems
 
 ### macOS

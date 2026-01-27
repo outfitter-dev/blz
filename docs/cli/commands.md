@@ -21,50 +21,291 @@ For shell integration, see [Shell Integration](shell_integration.md). For task-o
 
 | Command | Alias | Description |
 |---------|-------|-------------|
+| `query` | | Full-text search across cached documentation |
+| `get` | | Retrieve exact lines from a source by citation |
+| `map` | `toc` *(deprecated)*, `anchors` *(deprecated)* | Browse documentation structure (headings and sections) |
 | `add` | | Add a new llms.txt source |
 | `lookup` | | Search registries for documentation to add |
-| `search` | | Search across indexed documentation |
-| `get` | | Get exact lines from a source |
 | `list` | `sources` | List all indexed sources |
-| `update` | | Update indexed sources |
-| `upgrade` | | Upgrade sources from llms.txt to llms-full.txt |
-| `remove` | `rm`, `delete` | Remove an indexed source |
-| `diff` | | View changes in sources (hidden/experimental) |
+| `sync` | `refresh` *(deprecated)*, `update` *(deprecated)* | Fetch latest documentation from sources |
+| `rm` | `remove`, `delete` | Remove a source and its cached content |
+| `info` | | Show detailed information about a source |
+| `check` | | Validate source integrity and availability |
 | `completions` | | Generate shell completions |
-| `docs` | | Generate CLI docs (Markdown/JSON) |
+| `docs` | | Bundled documentation hub and CLI reference |
 | `alias` | | Manage aliases for a source |
-| `toc` | `anchors` | Inspect headings / anchor mappings for a source |
 | `--prompt` | | Emit agent-focused JSON guidance for the CLI or specific commands |
 | `history` | | Show recent searches and CLI defaults |
-| `config` | | Manage configuration (global/local/project scopes) |
+| `stats` | | Show cache statistics and overview |
+| `doctor` | | Run health checks on cache and sources |
+| `find` | `search` *(deprecated)* | *(deprecated)* Unified search/retrieve command |
 
 ## Table of Contents
 
 - [Global Options](#global-options)
 - [Commands Overview](#commands-overview)
-- [Core Commands](#core-commands)
+- [Querying Commands](#querying-commands)
+  - [blz query](#blz-query)
+  - [blz get](#blz-get)
+  - [blz map](#blz-map)
+- [Source Management Commands](#source-management-commands)
   - [blz add](#blz-add)
   - [blz lookup](#blz-lookup)
-  - [blz search](#blz-search)
-  - [blz get](#blz-get)
-- [Management Commands](#management-commands)
   - [blz list](#blz-list--blz-sources)
-  - [blz refresh](#blz-refresh)
-  - [blz remove](#blz-remove--blz-rm--blz-delete)
+  - [blz sync](#blz-sync)
+  - [blz rm](#blz-rm--blz-remove--blz-delete)
+  - [blz info](#blz-info)
+  - [blz check](#blz-check)
 - [Utility Commands](#utility-commands)
-  - [blz diff](#blz-diff)
   - [blz completions](#blz-completions)
   - [blz docs](#blz-docs)
   - [blz history](#blz-history)
-  - [blz config](#blz-config)
   - [blz alias](#blz-alias)
-  - [blz toc](#blz-toc)
   - [blz --prompt](#blz---prompt)
+  - [blz stats](#blz-stats)
+  - [blz doctor](#blz-doctor)
+- [Deprecated Commands](#deprecated-commands)
+  - [blz find](#blz-find-deprecated)
+  - [blz search](#blz-search-deprecated)
+  - [blz toc](#blz-toc-deprecated)
+  - [blz refresh](#blz-refresh-deprecated)
 - [Output Formats](#output-formats)
 
 ---
 
-## Core Commands
+## Querying Commands
+
+### `blz query`
+
+Full-text search across cached documentation. Use this for text queries; for retrieving specific lines by citation, use `blz get` instead.
+
+```bash
+blz query <QUERY>... [OPTIONS]
+```
+
+**Arguments:**
+
+- `<QUERY>...` - Search query terms (not citations)
+
+**Query Syntax:**
+
+- `"exact phrase"` - Match exact phrase (use single quotes: `blz query '"exact phrase"'`)
+- `+term` - Require term (AND)
+- `term1 term2` - Match any term (OR - default)
+- `+api +key` - Require both terms
+
+**Options:**
+
+- `-s, --source <SOURCE>` - Filter to specific source(s), comma-separated
+- `-n, --limit <N>` - Maximum results per page
+- `--all` - Show all results (no limit)
+- `--page <N>` - Page number for pagination (default: 1)
+- `--top <N>` - Show only top N percentile of results (1-100)
+- `-H, --heading-level <FILTER>` - Filter by heading level (e.g., `-H 2,3`, `-H <=2`, `-H 1-3`)
+- `--headings-only` - Restrict matches to heading text only
+- `-C, --context <N>` - Lines of context around matches
+- `--max-chars <CHARS>` - Maximum snippet length (50-1000, default: 200)
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`, `raw`
+- `--json` - Shorthand for `--format json`
+- `--show <COLUMNS>` - Additional columns: `rank`, `url`, `lines`, `anchor`, `raw-score`
+
+**Examples:**
+
+```bash
+# Basic search
+blz query "test runner"                   # Search all sources
+blz query "react hooks"                   # Search for phrase
+blz query useEffect cleanup               # Search for terms (OR)
+blz query +async +await                   # Require both terms (AND)
+
+# Filter by source
+blz query "useEffect" -s react            # Search in specific source
+blz query "bundler" -s bun,node           # Search multiple sources
+
+# Filter by heading level
+blz query "api" -H 2,3                    # Only h2/h3 headings
+blz query "config" -H <=2 --headings-only # Match h1/h2 heading text only
+
+# Output control
+blz query "performance" --json            # JSON for scripting
+blz query "database" --top 10             # Top 10% of results only
+blz query "error handling" -C 3           # With 3 lines context
+
+# Can omit 'query' - it's the default for text queries
+blz "test runner"                         # Implicit search
+```
+
+> **Note**: The `find` and `search` commands are deprecated. Use `query` for searching and `get` for retrieval.
+
+### `blz get`
+
+Retrieve exact lines from a source by citation. Use for fetching specific line ranges from indexed documentation.
+
+```bash
+blz get <ALIAS:LINES>... [OPTIONS]
+blz get <ALIAS> --lines <RANGE> [OPTIONS]
+```
+
+**Arguments:**
+
+- `<ALIAS:LINES>...` - One or more `alias:start-end` targets (e.g., `bun:120-142`)
+- Multiple spans can be comma-separated: `bun:120-142,200-210`
+- Multiple sources: `bun:120-142 deno:5-10`
+
+**Line Range Formats:**
+
+- Single line: `42`
+- Range: `120-142`
+- Multiple ranges: `36-43,320-350`
+- Relative: `36+20` (36 plus next 20 lines)
+
+**Options:**
+
+- `-s, --source <SOURCE>` - Explicit source alias (when positional is ambiguous)
+- `-l, --lines <RANGE>` - Line range(s) to retrieve (alternative to colon syntax)
+- `-C, --context <N>` - Lines of context before and after (or `all` for full section)
+- `-A, --after-context <N>` - Lines of context after only
+- `-B, --before-context <N>` - Lines of context before only
+- `--max-lines <N>` - Cap output when using `--context all`
+- `--copy` - Copy output to clipboard using OSC 52
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`, `raw`
+- `--json` - Shorthand for `--format json`
+
+**Context Flags (grep-style):**
+
+The context flags follow grep/ripgrep conventions and can be combined:
+
+- `-C 5` - 5 lines before and after (symmetric context)
+- `-A 3` - 3 lines after only
+- `-B 5` - 5 lines before only
+- `-A 3 -B 5` - 5 lines before, 3 lines after (asymmetric context)
+
+**Examples:**
+
+```bash
+# Basic retrieval (matches search output format)
+blz get bun:120-142                       # Single range
+blz get bun:120-142 -C 5                  # With 5 lines context
+blz get bun:120-142 -C all                # Full section expansion
+blz get bun:120-142 -C all --max-lines 80 # Full section, capped
+
+# Multiple spans
+blz get bun:120-142,200-210               # Same source, multiple ranges
+blz get bun:120-142 deno:5-10             # Multiple sources
+
+# Asymmetric context
+blz get bun:120-142 -B 5 -A 3             # 5 before, 3 after
+
+# JSON for scripting
+blz get bun:120-142 --json | jq -r '.requests[0].snippet'
+
+# Iterate ranges for multi-span request
+blz get bun:120-142,200-210 --json \
+  | jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd)"'
+
+# Can omit 'get' - it's the default for citation patterns
+blz bun:120-142                           # Implicit retrieve
+```
+
+**JSON Response (single range):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "snippet": "...",
+      "lineStart": 120,
+      "lineEnd": 142,
+      "checksum": "...",
+      "contextApplied": 0
+    }
+  ],
+  "executionTimeMs": 6,
+  "totalSources": 1
+}
+```
+
+**JSON Response (multi-range):**
+
+```json
+{
+  "requests": [
+    {
+      "alias": "bun",
+      "source": "bun",
+      "ranges": [
+        { "lineStart": 120, "lineEnd": 142, "snippet": "..." },
+        { "lineStart": 200, "lineEnd": 210, "snippet": "..." }
+      ],
+      "checksum": "..."
+    }
+  ],
+  "executionTimeMs": 9,
+  "totalSources": 1
+}
+```
+
+### `blz map`
+
+Browse documentation structure (headings and sections). Navigate the table of contents for indexed sources.
+
+```bash
+blz map [ALIAS] [OPTIONS]
+```
+
+**Arguments:**
+
+- `[ALIAS]` - Source alias (optional when using `--source` or `--all`)
+
+**Options:**
+
+- `--filter <EXPR>` - Boolean expression for heading text (AND/OR/NOT supported)
+- `--max-depth <1-6>` - Limit to headings at or above this level
+- `-H, --heading-level <FILTER>` - Filter by heading level (e.g., `<=2`, `>3`, `1-3`, `1,2,3`)
+- `-s, --source <ALIASES>` - Search specific sources (comma-separated)
+- `--all` - Include all sources
+- `--tree` - Display as hierarchical tree with box-drawing characters
+- `--anchors` - Show anchor metadata and remap history
+- `-a, --show-anchors` - Show anchor slugs in normal output
+- `-n, --limit <N>` - Headings per page (enables pagination)
+- `--page <N>` - Jump to specific page
+- `--next`, `--previous`, `--last` - Navigate relative to last paginated view
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`
+- `--json` - Shorthand for `--format json`
+
+**Examples:**
+
+```bash
+# Browse structure
+blz map bun                               # Browse bun docs structure
+blz map bun --tree                        # Hierarchical tree view
+blz map bun --tree -H 1-2                 # Tree with h1/h2 only
+
+# Filter headings
+blz map react --filter "API AND NOT deprecated"
+blz map astro --max-depth 1               # Top-level headings only
+blz map bun -H <=2                        # H1 and H2 only
+
+# Multi-source
+blz map --all -H 1-2 --json               # All sources, outline
+blz map -s bun,node,deno --tree           # Specific sources
+
+# Pagination
+blz map bun --limit 20                    # First 20 headings
+blz map bun --limit 20 --page 2           # Second page
+blz map bun --next                        # Continue to next page
+
+# Inspect anchors
+blz map bun --anchors --json              # Anchor metadata
+```
+
+> **Note**: The `toc` and `anchors` commands are deprecated aliases for `map`.
+
+---
+
+## Source Management Commands
 
 ### `blz add`
 
@@ -172,238 +413,7 @@ blz lookup typescript
 blz lookup react --json | jq '.[0]'
 ```
 
-### `blz search`
-
-Search across all indexed documentation sources.
-
-```bash
-blz search <QUERY> [OPTIONS]
-```
-
-**Arguments:**
-
-- `<QUERY>` - Search terms
-
-**Options:**
-
-- `--source <SOURCE>` - Filter results to specific source (also supports `-s`)
-- `-n, --limit <N>` - Maximum results to show (default: 50)
-- `--all` - Show all results (no limit)
-- `--page <N>` - Page number for pagination (default: 1)
-- `--top <N>` - Show only top N percentile of results (1-100)
-- `--max-chars <CHARS>` - Limit snippet length (default 200; clamps between 50 and 1000).
-  - Environment: `BLZ_MAX_CHARS` adjusts the default for implicit searches.
-- `-C, --context <N>` - Print N lines of context (both before and after) for each result
-- `-A, --after-context <N>` - Print N lines of context after each result
-- `-B, --before-context <N>` - Print N lines of context before each result
-- `--flavor <MODE>` - Override flavor for this run (`current`, `auto`, `full`, `txt`)
-- `-f, --format <FORMAT>` - Output format: `text` (default), `json`, or `jsonl`
-  - Environment default: set `BLZ_OUTPUT_FORMAT=json|text|jsonl` to avoid passing `--format` each time (alias `ndjson` still accepted)
-
-> ⚠️ Compatibility: `--output`/`-o` is deprecated starting in v0.3. Use `--format`/`-f`. The alias remains temporarily for compatibility but emits a warning and will be removed in a future release.
-
-**Context Flags (grep-style):**
-
-The context flags follow grep/ripgrep conventions and can be combined:
-
-- `-C 5` - 5 lines before and after each match (symmetric context)
-- `-A 3` - 3 lines after each match only
-- `-B 5` - 5 lines before each match only
-- `-A 3 -B 5` - 5 lines before, 3 lines after (asymmetric context)
-- When multiple flags are specified, the maximum value for each direction is used
-
-**Examples:**
-
-```bash
-# Basic search
-blz "test runner"
-
-# Search only in Bun docs
-blz "bundler" -s bun
-
-# Get more results
-blz "performance" -n100
-
-# JSON output for scripting
-blz "async" --json
-
-# Top 10% of results only
-blz "database" --top 10
-
-# Search with context (grep-style)
-blz "error handling" -C 3       # 3 lines before and after
-blz "async await" -A 5          # 5 lines after only
-blz "config options" -B 3       # 3 lines before only
-blz "api docs" -B 5 -A 3        # Asymmetric: 5 before, 3 after
-
-# Exact phrase (Unix shells - single quotes around double quotes)
-blz '"test runner"'
-
-# Require both phrases
-blz '+"test runner" +"cli output"'
-
-# Windows CMD (use backslash escaping)
-blz "\"test runner\""
-blz "+\"test runner\" +\"cli output\""
-
-# PowerShell (single quotes work as literals)
-blz '"test runner"'
-blz '+"test runner" +"cli output"'
-```
-
-> **Query tips:** Space-separated terms are ORed by default. Prefix them with `+`
-> or use `AND` to require all words. Keep phrase searches intact by wrapping the
-> phrase in double quotes and surrounding the whole query with single quotes (Unix)
-> or escaping with backslashes (Windows CMD).
-
-Aliases and resolution
-
-- Use `--source <SOURCE>` (or `-s`) with either the canonical source or a metadata alias added via `blz alias add`.
-- When running `blz QUERY SOURCE` or `blz SOURCE QUERY` without a subcommand, SOURCE may be a canonical name or a metadata alias; the CLI resolves it to the canonical source.
-
-### `blz get`
-
-Retrieve exact line ranges from an indexed source.
-
-```bash
-blz get <SOURCE:LINES> [OPTIONS]
-
-# Back-compat form if you prefer flags:
-blz get <SOURCE> --lines <RANGE> [OPTIONS]
-```
-
-**Arguments:**
-
-- `<SOURCE:LINES>` - Preferred shorthand (matches search output, e.g., `bun:120-142`)
-- `<SOURCE>` - Canonical source or metadata alias (use with `--lines`)
-
-**Options:**
-
-- `-l, --lines <RANGE>` – Line range(s) to retrieve (optional when using `source:lines`)
-- `-C, --context <N>` – Print N lines of context (both before and after). Use `all` to expand to the entire heading block
-- `-A, --after-context <N>` – Print N lines of context after each line/range
-- `-B, --before-context <N>` – Print N lines of context before each line/range
-- `--context all` – Expand to the entire heading block that contains the first requested range
-- `--block` – Legacy alias for `--context all`
-- `--max-lines <N>` – Optional hard cap when using `--context all` (prevents oversized spans)
-- `-f, --format <FORMAT>` – Output format: `text` (default), `json`, `jsonl`, or `raw`
-- `--json`, `--jsonl` – Convenience shorthands for their respective formats
-- `--copy` – Copy results to the clipboard via OSC 52 (useful in interactive shells)
-- `--prompt` – Emit agent guidance JSON (e.g. `blz get --prompt`)
-
-**Context Flags (grep-style):**
-
-The context flags follow grep/ripgrep conventions and can be combined:
-
-- `-C 5` – 5 lines before and after (symmetric context)
-- `-A 3` – 3 lines after only
-- `-B 5` – 5 lines before only
-- `-A 3 -B 5` – 5 lines before, 3 lines after (asymmetric context)
-- When multiple flags are specified, the maximum value for each direction is used
-
-**Line Range Formats:**
-
-- Single line: `42`
-- Range: `120-142`
-- Multiple ranges: `36-43,320-350`
-- Relative: `36+20` (36 plus next 20 lines)
-
-> ℹ️ Whether you comma-separate spans (`bun:36-43,320-350`) or repeat the alias (`bun:36-43 bun:320-350`), BLZ merges distinct ranges, removes duplicates, and keeps line numbers sorted. In JSON/JSONL mode, multi-range responses omit the top-level `snippet`/`lineStart`/`lineEnd` fields and instead expose a `ranges[]` array where each entry carries its own `lineStart`, `lineEnd`, and `snippet`. Passing multiple aliases returns one entry per source in `requests[]`. Pairing either style with `--context all` is supported—the enclosing heading becomes the snippet (subject to `--max-lines`).
-
-> Tip: Comma-separated spans (`bun:36-43,320-350`) and additional aliases (`turbo:2656-2729`) can be mixed in a single call.
-
-**Examples:**
-
-```bash
-# Preferred shorthand (matches search output)
-blz get bun:41994-42009
-
-# Retrieve multiple spans for the same source (inspect requests[0].ranges[])
-blz get bun:41994-42009,42010-42020 -C 2 --json
-
-# Retrieve spans from multiple sources in one call
-blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json
-
-# Expand to the entire heading section (capped at 80 lines)
-blz get bun:41994-42009 -C all --max-lines 80 --json
-
-# Single line with two lines of context
-blz get bun:7105 -C 2 --json
-
-# Include 3 lines of context around the range (symmetric)
-blz get bun:25760-25780 -C 3
-
-# Include context after only (grep-style)
-blz get bun:25760-25780 -A 5
-
-# Include context before only (grep-style)
-blz get bun:25760-25780 -B 3
-
-# Asymmetric context: 5 before, 3 after
-blz get bun:25760-25780 -B 5 -A 3
-
-# Pipe structured output to jq
-blz get bun:41994-42009 --json | jq -r '.requests[0].snippet'
-
-# Iterate ranges for a multi-span request
-blz get bun:41994-42009,42010-42020 -C 2 --json \
-  | jq -r '.requests[0].ranges[] | "\(.lineStart)-\(.lineEnd):\n\(.snippet)"'
-
-# Inspect each source when querying multiple aliases
-blz get bun:41994-42009,42010-42020 turbo:2656-2729 -C 2 --json \
-  | jq -r '.requests[] | "\(.alias):\n" + (.snippet // ((.ranges // []) | map(.snippet) | join("\n\n")))'
-
-**Example response (single range; produced with `-C3`):**
-
-```json
-{
-  "requests": [
-    {
-      "alias": "bun",
-      "source": "bun",
-      "snippet": "...",
-      "lineStart": 41994,
-      "lineEnd": 42009,
-      "checksum": "...",
-      "contextApplied": 3
-    }
-  ],
-  "executionTimeMs": 12,
-  "totalSources": 1
-}
-```
-
-**Example response (multi-range; two spans, no extra context):**
-
-```json
-{
-  "requests": [
-    {
-      "alias": "bun",
-      "source": "bun",
-      "ranges": [
-        {
-          "lineStart": 41994,
-          "lineEnd": 42009,
-          "snippet": "# Cache Storage\n..."
-        },
-        {
-          "lineStart": 42010,
-          "lineEnd": 42020,
-          "snippet": "### Cache API\n..."
-        }
-      ],
-      "checksum": "checksum123"
-    }
-  ],
-  "executionTimeMs": 9,
-  "totalSources": 1
-}
-```
-
-```
-
-## Management Commands
+### `blz list` / `blz sources`
 
 ### `blz list` / `blz sources`
 
@@ -435,84 +445,129 @@ blz list --json
 blz list --details
 ```
 
-### `blz refresh`
+### `blz sync`
 
-Refresh indexed sources with the latest content.
+Fetch latest documentation from sources. Syncs cached documentation with upstream llms.txt files.
 
-> The `blz update` command remains available as a deprecated alias and will emit a warning when used.
+> The `blz refresh` and `blz update` commands remain available as deprecated aliases and will emit warnings when used.
 
 ```bash
-blz refresh [ALIAS] [OPTIONS]
+blz sync [ALIAS]... [OPTIONS]
 ```
 
 **Arguments:**
 
-- `[SOURCE]` - Specific source to update (canonical or metadata alias; optional)
+- `[ALIAS]...` - Source aliases to sync (syncs all if omitted)
 
 **Options:**
 
-- `--all` - Update all sources
+- `--all` - Sync all sources
+- `-y, --yes` - Apply changes without prompting (e.g., auto-upgrade to llms-full)
+- `--reindex` - Force re-index even if content unchanged
 
 **Examples:**
 
 ```bash
-# Refresh specific source
-blz refresh bun
+# Sync all sources
+blz sync
 
-# Refresh all sources
-blz refresh --all
+# Sync specific sources
+blz sync bun react
+
+# Force re-index
+blz sync bun --reindex
 ```
 
-### `blz remove` / `blz rm` / `blz delete`
+### `blz rm` / `blz remove` / `blz delete`
 
-Remove an indexed source.
+Remove a source and its cached content.
 
 ```bash
-blz remove <ALIAS> [--yes]
+blz rm <ALIAS> [OPTIONS]
 ```
 
 By default BLZ prompts before deleting a source. Supply `--yes` in headless or scripted workflows.
 
 **Arguments:**
 
-- `<SOURCE>` - Source to remove (canonical or metadata alias)
+- `<ALIAS>` - Source to remove (canonical or metadata alias)
+
+**Options:**
+
+- `-y, --yes` - Skip confirmation prompt
 
 **Examples:**
 
 ```bash
 # Remove Bun documentation
-blz remove bun
+blz rm bun
+
+# Remove without confirmation (for scripts)
+blz rm bun --yes
 
 # Alternative commands (same effect)
-blz rm bun
+blz remove bun
 blz delete bun
 ```
 
-## Utility Commands
+### `blz info`
 
-### `blz diff` (Hidden/Experimental)
+Show detailed information about a source.
 
-View changes in indexed sources.
-
-**Note**: This command is experimental and hidden from help output. Its output format may change in future releases.
+```bash
+blz info <ALIAS> [OPTIONS]
+```
 
 **Arguments:**
 
-- `<ALIAS>` - Source alias to check
+- `<ALIAS>` - Source alias to inspect
 
 **Options:**
 
-- `--since <TIMESTAMP>` - Show changes since specific time
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`
+- `--json` - Shorthand for `--format json`
 
 **Examples:**
 
 ```bash
-# View changes in Bun docs
-blz diff bun
+# Show source details
+blz info bun
 
-# Changes since specific date
-blz diff node --since "2025-08-20"
+# JSON for scripting
+blz info bun --json
 ```
+
+### `blz check`
+
+Validate source integrity and availability.
+
+```bash
+blz check [ALIAS]... [OPTIONS]
+```
+
+**Arguments:**
+
+- `[ALIAS]...` - Sources to check (checks all if omitted)
+
+**Options:**
+
+- `--all` - Check all sources
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`
+
+**Examples:**
+
+```bash
+# Check all sources
+blz check --all
+
+# Check specific source
+blz check bun
+
+# JSON output for CI
+blz check --all --json
+```
+
+## Utility Commands
 
 ### `blz completions`
 
@@ -580,66 +635,66 @@ blz docs --format json  # Equivalent to: blz docs export --json
 - Use `blz docs search` to query this source specifically
 - Legacy `blz docs --format <FORMAT>` is mapped to `blz docs export --format <FORMAT>`
 
-### `blz toc`
+### `blz stats`
 
-Inspect the table of contents (headings) for a cached source. The legacy `blz anchors` subcommand remains as a hidden alias for backward compatibility.
+Show cache statistics and overview.
 
 ```bash
-blz toc <ALIAS> [OPTIONS]
+blz stats [OPTIONS]
 ```
-
-**Arguments:**
-
-- `<ALIAS>` – Source alias (canonical or metadata alias)
 
 **Options:**
 
-- `-f, --format <FORMAT>` – Output format: `text` (default), `json`, or `jsonl`
-- `-n, --limit <COUNT>` – Display up to COUNT headings per page (enable pagination)
-- `--page <NUMBER>` – Jump directly to the given page (1-indexed, defaults to 1)
-- `--next`, `--previous`, `--last` – Navigate relative to the most recent paginated toc
-- `--all` – Ignore the saved limit and return every heading in one response
-- `--filter <EXPR>` – Boolean expression for heading text/anchors:
-  - Default OR semantics between terms
-  - Use `AND`, `OR`, and `NOT` (case-insensitive) for complex expressions
-  - Parentheses are supported for grouping
-  - Quote expressions that include spaces or parentheses
-- `--max-depth <1-6>` – Restrict results to headings at or above the specified level
-- `--anchors` – Show anchor metadata and remap history (ignores other filters)
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`
+- `--json` - Shorthand for `--format json`
 
 **Examples:**
 
 ```bash
-# Preview nested headings for a source
-blz toc bun --limit 20
+# Show cache overview
+blz stats
 
-# Jump directly to the second page of results
-blz toc bun --limit 20 --page 2
+# JSON for scripting
+blz stats --json
+```
 
-# Continue to the next page using saved pagination state
-blz toc bun --next --format json
+### `blz doctor`
 
-# Filter headings that mention API but exclude deprecated sections
-blz toc react --filter "API AND NOT deprecated" --format json
+Run health checks on cache and sources.
 
-# Show only top-level headings
-blz toc astro --max-depth 1
+```bash
+blz doctor [OPTIONS]
+```
 
-# Inspect stored anchor remap metadata
-blz toc bun --anchors --format json
+**Options:**
 
-# Override pagination and dump every heading at once
-blz toc bun --all --format json
+- `-f, --format <FORMAT>` - Output format: `text`, `json`, `jsonl`
+- `--fix` - Attempt to fix detected issues
+
+**Examples:**
+
+```bash
+# Run health checks
+blz doctor
+
+# Attempt auto-fixes
+blz doctor --fix
 ```
 
 ## Default Behavior
 
-When you run `blz` without a subcommand, it acts as a search:
+When you run `blz` without a subcommand, it automatically detects the mode:
+
+- **Text queries** run as `blz query` (search)
+- **Citation patterns** (e.g., `alias:123-456`) run as `blz get` (retrieve)
 
 ```bash
 # These are equivalent
-blz "test runner"
-blz search "test runner"
+blz "test runner"                         # Implicit search
+blz query "test runner"                   # Explicit search
+
+blz bun:120-142                           # Implicit retrieve
+blz get bun:120-142                       # Explicit retrieve
 
 # SOURCE may be canonical or a metadata alias
 blz bun "install"
@@ -767,7 +822,7 @@ Config discovery order:
 2. **Combine with shell tools** - `blz "test" | grep -i jest`
 3. **JSON output for scripts** - Easy to parse with `jq` or similar tools
 4. **Set up completions** - Tab completion makes the CLI much more productive
-5. **Regular refreshes** - Run `blz refresh --all` periodically for fresh docs (the deprecated `blz update` alias still works)
+5. **Regular syncs** - Run `blz sync --all` periodically for fresh docs
 
 ### `blz --prompt`
 
@@ -973,3 +1028,81 @@ export BLZ_OUTPUT_FORMAT=json   # or text, jsonl
 blz "async"
 blz list --status
 ```
+
+---
+
+## Deprecated Commands
+
+The following commands are deprecated and will be removed in a future release. They remain available for backward compatibility but emit deprecation warnings.
+
+### `blz find` *(deprecated)*
+
+> **Deprecated**: Use `blz query` for searches and `blz get` for retrievals instead.
+
+The unified `find` command that auto-detected search vs retrieve mode based on input pattern. Now split into explicit `query` and `get` commands for clarity.
+
+```bash
+# Old (deprecated)
+blz find "test runner"                    # Search mode
+blz find bun:120-142                      # Retrieve mode
+
+# New (preferred)
+blz query "test runner"                   # Explicit search
+blz get bun:120-142                       # Explicit retrieve
+```
+
+### `blz search` *(deprecated)*
+
+> **Deprecated**: Use `blz query` instead.
+
+Legacy search command. Replaced by `blz query` with improved query syntax and options.
+
+```bash
+# Old (deprecated)
+blz search "test runner"
+
+# New (preferred)
+blz query "test runner"
+```
+
+### `blz toc` *(deprecated)*
+
+> **Deprecated**: Use `blz map` instead.
+
+Legacy table of contents command. Replaced by `blz map` with improved tree visualization and filtering.
+
+```bash
+# Old (deprecated)
+blz toc bun --limit 20
+
+# New (preferred)
+blz map bun --limit 20
+```
+
+### `blz refresh` *(deprecated)*
+
+> **Deprecated**: Use `blz sync` instead.
+
+Legacy refresh command. Replaced by `blz sync` with improved options.
+
+```bash
+# Old (deprecated)
+blz refresh bun
+blz refresh --all
+
+# New (preferred)
+blz sync bun
+blz sync --all
+```
+
+### `blz update` *(deprecated)*
+
+> **Deprecated**: Use `blz sync` instead.
+
+Legacy alias for `refresh`, now both replaced by `blz sync`.
+
+### `blz anchors` *(deprecated)*
+
+> **Deprecated**: Use `blz map --anchors` instead.
+
+Legacy command for viewing anchor metadata. Now available as a flag on `blz map`.
