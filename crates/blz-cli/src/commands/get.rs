@@ -299,28 +299,17 @@ fn range_bounds(range: &LineRange, file_len: usize) -> (usize, usize) {
     }
 }
 
-#[allow(clippy::missing_const_for_fn)]
-fn nz(value: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(value).context("line numbers must be at least 1")
-}
-
-#[allow(clippy::too_many_lines)]
-fn process_single_request(
-    storage: &Storage,
-    spec: &RequestSpec,
-    before_context: usize,
-    after_context: usize,
-    block_mode: bool,
-    max_block_lines: Option<usize>,
-) -> Result<ProcessedRequest> {
-    let alias = spec.alias.trim();
+/// Validate and resolve a source alias to its canonical name.
+///
+/// Returns the canonical source name if valid, or an error with helpful suggestions.
+fn validate_and_resolve_source(storage: &Storage, alias: &str) -> Result<String> {
+    let alias = alias.trim();
     if alias.is_empty() {
         anyhow::bail!("Alias cannot be empty. Use format: alias[:ranges]");
     }
-    let alias_string = alias.to_string();
 
     let canonical = crate::utils::resolver::resolve_source(storage, alias)?
-        .unwrap_or_else(|| alias_string.clone());
+        .unwrap_or_else(|| alias.to_string());
 
     if !storage.exists(&canonical) {
         let available = storage.list_sources();
@@ -347,7 +336,12 @@ fn process_single_request(
         );
     }
 
-    let file_path = storage.llms_txt_path(&canonical)?;
+    Ok(canonical)
+}
+
+/// Load source file content and return as vector of lines.
+fn load_source_file(storage: &Storage, canonical: &str) -> Result<Vec<String>> {
+    let file_path = storage.llms_txt_path(canonical)?;
     let file_content = std::fs::read_to_string(&file_path).with_context(|| {
         format!(
             "Failed to read llms.txt for source '{}' at {}",
@@ -356,15 +350,14 @@ fn process_single_request(
         )
     })?;
 
-    let file_lines: Vec<String> = file_content
+    Ok(file_content
         .lines()
         .map(std::string::ToString::to_string)
-        .collect();
+        .collect())
+}
 
-    let ranges = parse_line_ranges(&spec.line_expression)
-        .map_err(|err| anyhow::anyhow!("Invalid line specification for '{alias}': {err}"))?;
-
-    let max_line = file_lines.len();
+/// Validate that requested line ranges are within file bounds.
+fn validate_line_ranges(ranges: &[LineRange], max_line: usize, alias: &str) -> Result<()> {
     let all_out_of_range = ranges.iter().all(|range| {
         let (start, _end) = match range {
             LineRange::Single(n) => (*n, *n),
@@ -381,51 +374,47 @@ fn process_single_request(
             None => 1,
         };
         anyhow::bail!(
-            "Line range starts at line {first_requested}, but source '{canonical}' only has {max_line} lines.\n\
-             Use 'blz info {canonical}' to see source details."
+            "Line range starts at line {first_requested}, but source '{alias}' only has {max_line} lines.\n\
+             Use 'blz info {alias}' to see source details."
         );
     }
 
-    let block_result = if block_mode {
-        Some(compute_block_result(
-            storage,
-            &canonical,
-            &file_lines,
-            &ranges,
-            max_block_lines,
-        ))
-    } else {
-        None
-    };
+    Ok(())
+}
 
-    let (heading_line, line_numbers, mut content_lines, truncated_flag) =
-        if let Some(result) = block_result {
-            (
-                result.heading_line,
-                result.line_numbers,
-                result.content_lines,
-                result.truncated,
-            )
-        } else {
-            let line_numbers =
-                gather_requested_lines(&ranges, before_context, after_context, file_lines.len());
-            (0, line_numbers, Vec::new(), false)
-        };
+/// Build snippet ranges for non-block mode retrieval.
+fn build_non_block_snippet_ranges(
+    ranges: &[LineRange],
+    file_lines: &[String],
+    before_context: usize,
+    after_context: usize,
+) -> Result<Vec<SnippetRange>> {
+    let safe_len = file_lines.len().max(1);
+    ranges
+        .iter()
+        .map(|range| {
+            let (base_start, base_end) = range_bounds(range, safe_len);
+            let context_start = base_start.saturating_sub(before_context).max(1);
+            let context_end = (base_end + after_context).min(safe_len);
+            let snippet = if context_start <= context_end {
+                file_lines[context_start - 1..context_end.min(file_lines.len())].join("\n")
+            } else {
+                String::new()
+            };
+            let line_start = nz(context_start)?;
+            let line_end = nz(context_end)?;
+            SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)
+        })
+        .collect()
+}
 
-    if !block_mode {
-        content_lines = line_numbers
-            .iter()
-            .filter_map(|&line_idx| file_lines.get(line_idx.saturating_sub(1)).cloned())
-            .collect();
-    }
-
-    let heading = if block_mode && heading_line > 0 && heading_line <= file_lines.len() {
-        Some((heading_line, file_lines[heading_line - 1].clone()))
-    } else {
-        None
-    };
-
-    let mut lines_with_content = Vec::new();
+/// Build lines with their content from line numbers and content arrays.
+fn build_lines_with_content(
+    line_numbers: &[usize],
+    content_lines: &[String],
+    file_lines: &[String],
+) -> Vec<(usize, String)> {
+    let mut result = Vec::new();
     for (idx, &line_num) in line_numbers.iter().enumerate() {
         if line_num == 0 || line_num > file_lines.len() {
             continue;
@@ -434,58 +423,113 @@ fn process_single_request(
             .get(idx)
             .cloned()
             .unwrap_or_else(|| file_lines[line_num - 1].clone());
-        lines_with_content.push((line_num, content));
+        result.push((line_num, content));
+    }
+    result
+}
+
+/// Build snippet ranges for block mode retrieval.
+fn build_block_snippet_ranges(
+    heading: Option<&(usize, String)>,
+    lines_with_content: &[(usize, String)],
+    file_lines: &[String],
+) -> Result<Vec<SnippetRange>> {
+    let line_start = heading
+        .map(|(line, _)| *line)
+        .or_else(|| lines_with_content.first().map(|(line, _)| *line))
+        .unwrap_or(1);
+    let line_end = lines_with_content
+        .last()
+        .map_or(line_start, |(line, _)| *line);
+
+    let snippet = if line_start <= line_end && line_end <= file_lines.len() {
+        file_lines[line_start - 1..line_end].join("\n")
+    } else {
+        lines_with_content
+            .iter()
+            .map(|(_, text)| text.clone())
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let line_start = nz(line_start)?;
+    let line_end = nz(line_end)?;
+    Ok(vec![
+        SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)?,
+    ])
+}
+
+#[allow(clippy::missing_const_for_fn)]
+fn nz(value: usize) -> Result<NonZeroUsize> {
+    NonZeroUsize::new(value).context("line numbers must be at least 1")
+}
+
+fn process_single_request(
+    storage: &Storage,
+    spec: &RequestSpec,
+    before_context: usize,
+    after_context: usize,
+    block_mode: bool,
+    max_block_lines: Option<usize>,
+) -> Result<ProcessedRequest> {
+    let alias = spec.alias.trim();
+    let canonical = validate_and_resolve_source(storage, alias)?;
+    let file_lines = load_source_file(storage, &canonical)?;
+
+    let ranges = parse_line_ranges(&spec.line_expression)
+        .map_err(|err| anyhow::anyhow!("Invalid line specification for '{alias}': {err}"))?;
+
+    validate_line_ranges(&ranges, file_lines.len(), &canonical)?;
+
+    // Compute block or line-based results
+    let (heading_line, line_numbers, mut content_lines, truncated_flag) = if block_mode {
+        let result =
+            compute_block_result(storage, &canonical, &file_lines, &ranges, max_block_lines);
+        (
+            result.heading_line,
+            result.line_numbers,
+            result.content_lines,
+            result.truncated,
+        )
+    } else {
+        let line_numbers =
+            gather_requested_lines(&ranges, before_context, after_context, file_lines.len());
+        (0, line_numbers, Vec::new(), false)
+    };
+
+    // For non-block mode, populate content_lines from file
+    if !block_mode {
+        content_lines = line_numbers
+            .iter()
+            .filter_map(|&line_idx| file_lines.get(line_idx.saturating_sub(1)).cloned())
+            .collect();
     }
 
-    let snippet_ranges = if block_mode {
-        let line_start = heading
-            .as_ref()
-            .map(|(line, _)| *line)
-            .or_else(|| lines_with_content.first().map(|(line, _)| *line))
-            .unwrap_or(1);
-        let line_end = lines_with_content
-            .last()
-            .map_or(line_start, |(line, _)| *line);
-        let snippet = if line_start <= line_end && line_end <= file_lines.len() {
-            file_lines[line_start - 1..line_end].join("\n")
-        } else {
-            lines_with_content
-                .iter()
-                .map(|(_, text)| text.clone())
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-
-        let line_start = nz(line_start)?;
-        let line_end = nz(line_end)?;
-        vec![SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)?]
+    // Extract heading if in block mode
+    let heading = if block_mode && heading_line > 0 && heading_line <= file_lines.len() {
+        Some((heading_line, file_lines[heading_line - 1].clone()))
     } else {
-        let safe_len = file_lines.len().max(1);
-        ranges
-            .iter()
-            .map(|range| {
-                let (base_start, base_end) = range_bounds(range, safe_len);
-                let context_start = base_start.saturating_sub(before_context).max(1);
-                let context_end = (base_end + after_context).min(safe_len);
-                let snippet = if context_start <= context_end {
-                    file_lines[context_start - 1..context_end.min(file_lines.len())].join("\n")
-                } else {
-                    String::new()
-                };
-                let line_start = nz(context_start)?;
-                let line_end = nz(context_end)?;
-                SnippetRange::try_new(line_start, line_end, snippet).map_err(anyhow::Error::from)
-            })
-            .collect::<Result<Vec<_>>>()?
+        None
     };
 
-    let checksum = match storage.load_source_metadata(&canonical) {
-        Ok(Some(metadata)) => Some(metadata.sha256),
-        _ => None,
+    // Build lines with content
+    let lines_with_content = build_lines_with_content(&line_numbers, &content_lines, &file_lines);
+
+    // Build snippet ranges
+    let snippet_ranges = if block_mode {
+        build_block_snippet_ranges(heading.as_ref(), &lines_with_content, &file_lines)?
+    } else {
+        build_non_block_snippet_ranges(&ranges, &file_lines, before_context, after_context)?
     };
+
+    let checksum = storage
+        .load_source_metadata(&canonical)
+        .ok()
+        .flatten()
+        .map(|m| m.sha256);
 
     Ok(ProcessedRequest {
-        alias: alias_string,
+        alias: alias.to_string(),
         canonical,
         heading,
         lines_with_content,
@@ -496,14 +540,127 @@ fn process_single_request(
     })
 }
 
+/// Parse context mode into a tuple of (before, after, block) context values.
+const fn parse_context_mode(
+    context_mode: Option<&crate::cli::ContextMode>,
+    block: bool,
+) -> (usize, usize, bool) {
+    match context_mode {
+        Some(crate::cli::ContextMode::All) => (0, 0, true),
+        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
+        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
+        None => (0, 0, block),
+    }
+}
+
+/// Build JSON response from processed requests.
+fn build_json_response(
+    processed: &[ProcessedRequest],
+    specs_len: usize,
+    block_mode: bool,
+    before_context: usize,
+    after_context: usize,
+    elapsed_ms: u64,
+) -> GetResponse {
+    let context_applied = if block_mode {
+        None
+    } else if before_context > 0 || after_context > 0 {
+        Some(before_context.max(after_context))
+    } else {
+        None
+    };
+
+    let requests = processed
+        .iter()
+        .map(|result| {
+            let payload = match result.snippet_ranges.as_slice() {
+                [] => None,
+                [range] => Some(SnippetPayload::Single(SingleSnippet {
+                    snippet: range.snippet.clone(),
+                    line_start: range.line_start,
+                    line_end: range.line_end,
+                })),
+                ranges => Some(SnippetPayload::Multi(SnippetRanges {
+                    ranges: ranges.to_vec(),
+                })),
+            };
+
+            SnippetRequest {
+                alias: result.alias.clone(),
+                source: result.canonical.clone(),
+                payload,
+                checksum: result.checksum.clone(),
+                context_applied,
+                truncated: result.truncated.then_some(true),
+            }
+        })
+        .collect();
+
+    GetResponse {
+        requests,
+        metadata: ExecutionMetadata {
+            execution_time_ms: Some(elapsed_ms),
+            total_sources: Some(specs_len),
+        },
+    }
+}
+
+/// Output results in text format with line numbers.
+fn output_text_format(processed: &[ProcessedRequest], block_mode: bool) {
+    for (idx, result) in processed.iter().enumerate() {
+        if idx > 0 {
+            println!();
+        }
+        if block_mode {
+            if let Some((line_num, heading)) = &result.heading {
+                println!("{:>5} | {}", line_num.to_string().blue(), heading);
+            }
+        }
+        for (line_num, content) in &result.lines_with_content {
+            if should_skip_line(
+                *line_num,
+                result.heading.as_ref(),
+                result.file_len,
+                block_mode,
+            ) {
+                continue;
+            }
+            println!("{:>5} | {}", line_num.to_string().blue(), content);
+        }
+    }
+}
+
+/// Output results in raw format without line numbers.
+fn output_raw_format(processed: &[ProcessedRequest], block_mode: bool) {
+    for (idx, result) in processed.iter().enumerate() {
+        if idx > 0 {
+            println!();
+        }
+        if block_mode {
+            if let Some((_, heading)) = &result.heading {
+                println!("{heading}");
+            }
+        }
+        for (line_num, content) in &result.lines_with_content {
+            if should_skip_line(
+                *line_num,
+                result.heading.as_ref(),
+                result.file_len,
+                block_mode,
+            ) {
+                continue;
+            }
+            println!("{content}");
+        }
+    }
+}
+
 /// Execute the get command to retrieve specific lines from a source
 ///
 /// **Deprecated**: Use `blz find` instead. The `get` command will be removed in a future release.
 ///
 /// Note: The `find` command handles both search and retrieval with the same options.
 /// Use `blz find bun:120-142` instead of `blz get bun:120-142`.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::cognitive_complexity)]
 pub async fn execute(
     specs: &[RequestSpec],
     context_mode: Option<&crate::cli::ContextMode>,
@@ -522,8 +679,6 @@ pub async fn execute(
 ///
 /// This is the actual retrieval logic, separated from `execute` to allow `find` to call
 /// it without triggering the deprecation warning.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::unused_async)] // Keep async for API consistency with execute()
 pub(super) async fn execute_internal(
     specs: &[RequestSpec],
@@ -538,28 +693,76 @@ pub(super) async fn execute_internal(
     }
 
     let start = Instant::now();
-
-    // Convert ContextMode to before/after context and block flag
-    let (before_context, after_context, block_mode) = match context_mode {
-        Some(crate::cli::ContextMode::All) => (0, 0, true),
-        Some(crate::cli::ContextMode::Symmetric(n)) => (*n, *n, false),
-        Some(crate::cli::ContextMode::Asymmetric { before, after }) => (*before, *after, false),
-        None => (0, 0, block),
-    };
+    let (before_context, after_context, block_mode) = parse_context_mode(context_mode, block);
     let storage = Storage::new()?;
 
+    // Process all requests
+    let (processed, clipboard_segments) = process_all_requests(
+        &storage,
+        specs,
+        before_context,
+        after_context,
+        block_mode,
+        max_block_lines,
+        copy,
+    )?;
+
+    // Output in requested format
+    match format {
+        OutputFormat::Text => output_text_format(&processed, block_mode),
+        OutputFormat::Raw => output_raw_format(&processed, block_mode),
+        OutputFormat::Json | OutputFormat::Jsonl => {
+            let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(0);
+            let response = build_json_response(
+                &processed,
+                specs.len(),
+                block_mode,
+                before_context,
+                after_context,
+                elapsed_ms,
+            );
+            if matches!(format, OutputFormat::Json) {
+                println!("{}", serde_json::to_string_pretty(&response)?);
+            } else {
+                println!("{}", serde_json::to_string(&response)?);
+            }
+        },
+    }
+
+    // Handle clipboard copy
+    if copy && !clipboard_segments.is_empty() {
+        use crate::utils::clipboard;
+        let payload = clipboard_segments.join("\n\n");
+        clipboard::copy_to_clipboard(&payload).context("Failed to copy content to clipboard")?;
+    }
+
+    Ok(())
+}
+
+/// Process all request specs and return processed results with optional clipboard segments.
+#[allow(clippy::too_many_arguments)]
+fn process_all_requests(
+    storage: &Storage,
+    specs: &[RequestSpec],
+    before_context: usize,
+    after_context: usize,
+    block_mode: bool,
+    max_block_lines: Option<usize>,
+    copy: bool,
+) -> Result<(Vec<ProcessedRequest>, Vec<String>)> {
     let mut processed = Vec::with_capacity(specs.len());
     let mut clipboard_segments = Vec::new();
 
     for spec in specs {
         let result = process_single_request(
-            &storage,
+            storage,
             spec,
             before_context,
             after_context,
             block_mode,
             max_block_lines,
         )?;
+
         if copy {
             let clip = result
                 .lines_with_content
@@ -571,122 +774,9 @@ pub(super) async fn execute_internal(
                 clipboard_segments.push(clip);
             }
         }
+
         processed.push(result);
     }
 
-    let context_applied = if block_mode {
-        None
-    } else if before_context > 0 || after_context > 0 {
-        Some(before_context.max(after_context))
-    } else {
-        None
-    };
-
-    let response_payload = if matches!(format, OutputFormat::Json | OutputFormat::Jsonl) {
-        let requests = processed
-            .iter()
-            .map(|result| {
-                let payload = match result.snippet_ranges.as_slice() {
-                    [] => None,
-                    [range] => Some(SnippetPayload::Single(SingleSnippet {
-                        snippet: range.snippet.clone(),
-                        line_start: range.line_start,
-                        line_end: range.line_end,
-                    })),
-                    ranges => Some(SnippetPayload::Multi(SnippetRanges {
-                        ranges: ranges.to_vec(),
-                    })),
-                };
-
-                SnippetRequest {
-                    alias: result.alias.clone(),
-                    source: result.canonical.clone(),
-                    payload,
-                    checksum: result.checksum.clone(),
-                    context_applied,
-                    truncated: result.truncated.then_some(true),
-                }
-            })
-            .collect();
-
-        let execution_time_ms = u64::try_from(start.elapsed().as_millis()).ok();
-
-        Some(GetResponse {
-            requests,
-            metadata: ExecutionMetadata {
-                execution_time_ms,
-                total_sources: Some(specs.len()),
-            },
-        })
-    } else {
-        None
-    };
-
-    match format {
-        OutputFormat::Text => {
-            for (idx, result) in processed.iter().enumerate() {
-                if idx > 0 {
-                    println!();
-                }
-                if block_mode {
-                    if let Some((line_num, heading)) = &result.heading {
-                        println!("{:>5} | {}", line_num.to_string().blue(), heading);
-                    }
-                }
-                for (line_num, content) in &result.lines_with_content {
-                    if should_skip_line(
-                        *line_num,
-                        result.heading.as_ref(),
-                        result.file_len,
-                        block_mode,
-                    ) {
-                        continue;
-                    }
-                    println!("{:>5} | {}", line_num.to_string().blue(), content);
-                }
-            }
-        },
-        OutputFormat::Raw => {
-            for (idx, result) in processed.iter().enumerate() {
-                if idx > 0 {
-                    println!();
-                }
-                if block_mode {
-                    if let Some((_, heading)) = &result.heading {
-                        println!("{heading}");
-                    }
-                }
-                for (line_num, content) in &result.lines_with_content {
-                    if should_skip_line(
-                        *line_num,
-                        result.heading.as_ref(),
-                        result.file_len,
-                        block_mode,
-                    ) {
-                        continue;
-                    }
-                    println!("{content}");
-                }
-            }
-        },
-        OutputFormat::Json => {
-            if let Some(response) = response_payload {
-                println!("{}", serde_json::to_string_pretty(&response)?);
-            }
-        },
-        OutputFormat::Jsonl => {
-            if let Some(response) = response_payload {
-                println!("{}", serde_json::to_string(&response)?);
-            }
-        },
-    }
-
-    if copy && !clipboard_segments.is_empty() {
-        use crate::utils::clipboard;
-
-        let payload = clipboard_segments.join("\n\n");
-        clipboard::copy_to_clipboard(&payload).context("Failed to copy content to clipboard")?;
-    }
-
-    Ok(())
+    Ok((processed, clipboard_segments))
 }

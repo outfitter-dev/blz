@@ -313,71 +313,68 @@ fn get_max_concurrent_searches() -> usize {
     std::thread::available_parallelism().map_or(8, |n| (n.get().saturating_mul(2)).min(16))
 }
 
-#[allow(clippy::too_many_lines)]
-pub(super) async fn perform_search(
-    options: &SearchOptions,
-    metrics: PerformanceMetrics,
-) -> Result<SearchResults> {
-    let start_time = Instant::now();
-    let storage = Arc::new(Storage::new()?);
-    // Resolve requested sources (supports metadata aliases)
-    let explicit_sources_requested = !options.sources.is_empty();
+/// Resolve requested source aliases, providing fuzzy suggestions for unknown sources.
+///
+/// Returns the list of canonical source names to search.
+fn resolve_requested_sources(
+    storage: &Storage,
+    requested: &[String],
+    quiet: bool,
+) -> Result<Vec<String>> {
+    let mut resolved = Vec::new();
+    for alias in requested {
+        match crate::utils::resolver::resolve_source(storage, alias) {
+            Ok(Some(canonical)) => resolved.push(canonical),
+            Ok(None) => {
+                // Source not found - use fuzzy matching to suggest similar sources
+                let known = storage.list_sources();
+                if !known.contains(alias) && !quiet {
+                    let matcher = SkimMatcherV2::default();
+                    let mut suggestions: Vec<(i64, String)> = known
+                        .iter()
+                        .filter_map(|source| {
+                            matcher
+                                .fuzzy_match(source, alias)
+                                .filter(|&score| score > 0)
+                                .map(|score| (score, source.clone()))
+                        })
+                        .collect();
 
-    let sources = if explicit_sources_requested {
-        let mut resolved = Vec::new();
-        for requested in &options.sources {
-            match crate::utils::resolver::resolve_source(&storage, requested) {
-                Ok(Some(canonical)) => resolved.push(canonical),
-                Ok(None) => {
-                    // Source not found - use fuzzy matching to suggest similar sources
-                    let known = storage.list_sources();
-                    if !known.contains(requested) {
-                        let matcher = SkimMatcherV2::default();
-                        let mut suggestions: Vec<(i64, String)> = known
+                    // Sort by score descending and take top 3
+                    suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    suggestions.truncate(3);
+
+                    if suggestions.is_empty() {
+                        eprintln!("Warning: Source '{alias}' not found.");
+                    } else {
+                        let suggestion_list = suggestions
                             .iter()
-                            .filter_map(|source| {
-                                matcher
-                                    .fuzzy_match(source, requested)
-                                    .filter(|&score| score > 0)
-                                    .map(|score| (score, source.clone()))
-                            })
-                            .collect();
-
-                        // Sort by score descending and take top 3
-                        suggestions.sort_by(|a, b| b.0.cmp(&a.0));
-                        suggestions.truncate(3);
-
-                        if !options.quiet {
-                            if suggestions.is_empty() {
-                                eprintln!("Warning: Source '{requested}' not found.");
-                            } else {
-                                let suggestion_list = suggestions
-                                    .iter()
-                                    .map(|(_, name)| name.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                eprintln!(
-                                    "Warning: Source '{requested}' not found. Did you mean: {suggestion_list}?"
-                                );
-                            }
-                            eprintln!("Run 'blz list' to see all sources.");
-                        }
+                            .map(|(_, name)| name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        eprintln!(
+                            "Warning: Source '{alias}' not found. Did you mean: {suggestion_list}?"
+                        );
                     }
-                    resolved.push(requested.clone());
-                },
-                Err(e) => return Err(e),
-            }
+                    eprintln!("Run 'blz list' to see all sources.");
+                }
+                resolved.push(alias.clone());
+            },
+            Err(e) => return Err(e),
         }
-        resolved
-    } else {
-        storage.list_sources()
-    };
+    }
+    Ok(resolved)
+}
 
-    // Filter out index-only sources (navigation-only, no searchable content)
-    let sources: Vec<String> = sources
+/// Filter out sources that aren't searchable (index-only or internal).
+fn filter_searchable_sources(
+    storage: &Storage,
+    sources: Vec<String>,
+    explicit_sources_requested: bool,
+) -> Vec<String> {
+    sources
         .into_iter()
         .filter(|alias| {
-            // Load source metadata and check if it's index-only
             match storage.load_source_metadata(alias) {
                 Ok(Some(metadata)) => {
                     if metadata.is_index_only() {
@@ -391,7 +388,47 @@ pub(super) async fn perform_search(
                 Ok(None) | Err(_) => true, // Allow search when metadata missing or failed
             }
         })
-        .collect();
+        .collect()
+}
+
+/// Enrich search hits with source metadata (URL, checksum, staleness).
+fn enrich_hits_with_source_metadata(hits: &mut [SearchHit], storage: &Storage) {
+    let mut metadata_cache: HashMap<String, Option<Source>> = HashMap::new();
+    for hit in hits {
+        let entry = metadata_cache
+            .entry(hit.source.clone())
+            .or_insert_with(|| storage.load_source_metadata(&hit.source).ok().flatten());
+        if let Some(meta) = entry {
+            hit.source_url = Some(meta.url.clone());
+            hit.checksum = meta.sha256.clone();
+            hit.fetched_at = Some(meta.fetched_at);
+            hit.is_stale = staleness::is_stale(meta.fetched_at, DEFAULT_STALE_AFTER_DAYS);
+        } else {
+            hit.source_url = None;
+            hit.fetched_at = None;
+            hit.is_stale = false;
+        }
+        hit.context = None;
+    }
+}
+
+pub(super) async fn perform_search(
+    options: &SearchOptions,
+    metrics: PerformanceMetrics,
+) -> Result<SearchResults> {
+    let start_time = Instant::now();
+    let storage = Arc::new(Storage::new()?);
+
+    // Resolve requested sources (supports metadata aliases)
+    let explicit_sources_requested = !options.sources.is_empty();
+    let sources = if explicit_sources_requested {
+        resolve_requested_sources(&storage, &options.sources, options.quiet)?
+    } else {
+        storage.list_sources()
+    };
+
+    // Filter out index-only sources (navigation-only, no searchable content)
+    let sources = filter_searchable_sources(&storage, sources, explicit_sources_requested);
 
     if sources.is_empty() {
         return Err(anyhow::anyhow!(
@@ -399,29 +436,81 @@ pub(super) async fn perform_search(
         ));
     }
 
+    // Execute parallel searches across all sources
+    let (mut all_hits, total_lines_searched, sources_searched) =
+        execute_parallel_searches(&storage, sources, options, metrics).await?;
+
+    // Process results
+    deduplicate_hits(&mut all_hits);
+    sort_by_score(&mut all_hits);
+    apply_percentile_filter(
+        &mut all_hits,
+        options.top_percentile,
+        matches!(options.format, OutputFormat::Text),
+    );
+
+    // Enrich results with metadata for provenance and staleness calculations
+    enrich_hits_with_source_metadata(&mut all_hits, &storage);
+
+    // Enrich with context if requested
+    let mut llms_cache: HashMap<String, Option<LlmsJson>> = HashMap::new();
+    let mut line_cache: HashMap<String, Vec<String>> = HashMap::new();
+
+    if options.block {
+        enrich_hits_with_blocks(
+            &mut all_hits,
+            options.max_block_lines,
+            &storage,
+            &mut llms_cache,
+            &mut line_cache,
+        );
+    } else if options.before_context > 0 || options.after_context > 0 {
+        enrich_hits_with_context(
+            &mut all_hits,
+            options.before_context,
+            options.after_context,
+            &storage,
+            &mut line_cache,
+        );
+    }
+
+    let mut sources_searched = sources_searched;
+    sources_searched.sort();
+    Ok(SearchResults {
+        hits: all_hits,
+        total_lines_searched,
+        search_time: start_time.elapsed(),
+        sources: sources_searched,
+    })
+}
+
+/// Execute parallel searches across multiple sources.
+///
+/// Returns a tuple of (hits, total lines searched, sources searched).
+async fn execute_parallel_searches(
+    storage: &Arc<Storage>,
+    sources: Vec<String>,
+    options: &SearchOptions,
+    metrics: PerformanceMetrics,
+) -> Result<(Vec<SearchHit>, usize, Vec<String>)> {
     // Calculate effective limit to prevent over-fetching
-    // If we want all results, use 10k limit. Otherwise, use (limit * 3) capped at 1000
-    // The 3x multiplier provides buffer for good results after deduplication/sorting
     let effective_limit = if options.all {
         ALL_RESULTS_LIMIT
     } else {
         (options.limit * 3).clamp(1, 1000)
     };
 
-    // Set max concurrent searches adaptive to host CPUs, capped at reasonable limits
     let max_concurrent_searches = get_max_concurrent_searches();
-
-    // Create futures that spawn blocking tasks for parallel search across sources
-    // This ensures bounded concurrency by only spawning tasks when polled
     let snippet_limit = options.max_chars;
     let headings_only = options.headings_only;
-    let storage_for_tasks = Arc::clone(&storage);
+    let storage_for_tasks = Arc::clone(storage);
+    let query = options.query.clone();
+
+    // Create futures that spawn blocking tasks for parallel search across sources
     let search_tasks = sources.into_iter().map(move |source| {
         let storage = Arc::clone(&storage_for_tasks);
         let metrics = metrics.clone();
-        let query = options.query.clone();
-        let snippet_limit = snippet_limit;
-        let headings_only = headings_only;
+        let query = query.clone();
 
         async move {
             tokio::task::spawn_blocking(
@@ -496,63 +585,7 @@ pub(super) async fn perform_search(
         }
     }
 
-    // Process results
-    deduplicate_hits(&mut all_hits);
-    sort_by_score(&mut all_hits);
-    apply_percentile_filter(
-        &mut all_hits,
-        options.top_percentile,
-        matches!(options.format, OutputFormat::Text),
-    );
-
-    // Enrich results with metadata for provenance and staleness calculations
-    // Best-effort: metadata loading failures are ignored so search results still display
-    let mut metadata_cache: HashMap<String, Option<Source>> = HashMap::new();
-    for hit in &mut all_hits {
-        let entry = metadata_cache
-            .entry(hit.source.clone())
-            .or_insert_with(|| storage.load_source_metadata(&hit.source).ok().flatten());
-        if let Some(meta) = entry {
-            hit.source_url = Some(meta.url.clone());
-            hit.checksum = meta.sha256.clone();
-            hit.fetched_at = Some(meta.fetched_at);
-            hit.is_stale = staleness::is_stale(meta.fetched_at, DEFAULT_STALE_AFTER_DAYS);
-        } else {
-            hit.source_url = None;
-            hit.fetched_at = None;
-            hit.is_stale = false;
-        }
-        hit.context = None;
-    }
-
-    let mut llms_cache: HashMap<String, Option<LlmsJson>> = HashMap::new();
-    let mut line_cache: HashMap<String, Vec<String>> = HashMap::new();
-
-    if options.block {
-        enrich_hits_with_blocks(
-            &mut all_hits,
-            options.max_block_lines,
-            &storage,
-            &mut llms_cache,
-            &mut line_cache,
-        );
-    } else if options.before_context > 0 || options.after_context > 0 {
-        enrich_hits_with_context(
-            &mut all_hits,
-            options.before_context,
-            options.after_context,
-            &storage,
-            &mut line_cache,
-        );
-    }
-
-    sources_searched.sort();
-    Ok(SearchResults {
-        hits: all_hits,
-        total_lines_searched,
-        search_time: start_time.elapsed(),
-        sources: sources_searched,
-    })
+    Ok((all_hits, total_lines_searched, sources_searched))
 }
 
 fn deduplicate_hits(hits: &mut Vec<SearchHit>) {
@@ -776,30 +809,12 @@ fn ensure_llms<'a>(
 /// // This will not panic even with empty results due to .max(1) guard
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
-#[allow(clippy::too_many_lines)]
 pub(super) fn format_and_display(
     results: &SearchResults,
     options: &SearchOptions,
 ) -> Result<((usize, usize, usize), usize)> {
     let total_results = results.hits.len();
-    let mut storage_cache: Option<Storage> = None;
-    let mut resolve_suggestions = |need: bool| -> Option<Vec<serde_json::Value>> {
-        if !matches!(options.format, OutputFormat::Json) || !need {
-            return None;
-        }
-        if storage_cache.is_none() {
-            storage_cache = match Storage::new() {
-                Ok(storage) => Some(storage),
-                Err(err) => {
-                    warn!("suggestions disabled: failed to open storage: {err}");
-                    None
-                },
-            };
-        }
-        storage_cache
-            .as_ref()
-            .map(|storage| compute_suggestions(&options.query, storage, &results.sources))
-    };
+    let mut suggestion_resolver = SuggestionResolver::new(options, results);
 
     // Apply pagination
     let actual_limit = if options.limit >= ALL_RESULTS_LIMIT {
@@ -819,31 +834,19 @@ pub(super) fn format_and_display(
         options.page
     };
 
+    // Handle empty results
     if total_results == 0 {
-        // Let formatter print the "No results" message
-        let formatter = SearchResultFormatter::new(options.format);
-        let suggestions = resolve_suggestions(true);
-        let params = FormatParams {
-            hits: &[],
-            query: &options.query,
-            total_results,
-            total_lines_searched: results.total_lines_searched,
-            search_time: results.search_time,
-            sources: &results.sources,
-            start_idx: 0,
-            page: 0,
+        let suggestions = suggestion_resolver.resolve(true);
+        format_page(
+            &[],
+            results,
+            options,
+            0,
+            0,
+            actual_limit,
             total_pages,
-            page_size: actual_limit,
-            show_url: options.show_url,
-            show_lines: options.show_lines,
-            show_anchor: options.show_anchor,
-            show_raw_score: options.show_raw_score,
-            no_summary: options.no_summary,
-            score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
-            snippet_lines: usize::from(options.snippet_lines.max(1)),
             suggestions,
-        };
-        formatter.format(&params)?;
+        )?;
         return Ok(((0, actual_limit, total_pages), total_results));
     }
 
@@ -851,6 +854,7 @@ pub(super) fn format_and_display(
     let start_idx = (page - 1) * actual_limit;
     let end_idx = (start_idx + actual_limit).min(results.hits.len());
 
+    // Handle out-of-range page
     if start_idx >= results.hits.len() {
         if matches!(options.format, OutputFormat::Text) {
             eprintln!(
@@ -859,51 +863,97 @@ pub(super) fn format_and_display(
             );
             eprintln!("Tip: use --last to jump to the final page.");
         }
-        let formatter = SearchResultFormatter::new(options.format);
-        let suggestions = resolve_suggestions(true);
-        let params = FormatParams {
-            hits: &[],
-            query: &options.query,
-            total_results,
-            total_lines_searched: results.total_lines_searched,
-            search_time: results.search_time,
-            sources: &results.sources,
-            start_idx: start_idx.min(results.hits.len()),
+        let suggestions = suggestion_resolver.resolve(true);
+        format_page(
+            &[],
+            results,
+            options,
+            start_idx.min(results.hits.len()),
             page,
+            actual_limit,
             total_pages,
-            page_size: actual_limit,
-            show_url: options.show_url,
-            show_lines: options.show_lines,
-            show_anchor: options.show_anchor,
-            show_raw_score: options.show_raw_score,
-            no_summary: options.no_summary,
-            score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
-            snippet_lines: usize::from(options.snippet_lines.max(1)),
             suggestions,
-        };
-        formatter.format(&params)?;
+        )?;
         return Ok(((page, actual_limit, total_pages), total_results));
     }
 
+    // Normal case: format the current page
     let page_hits = &results.hits[start_idx..end_idx];
+    let need_suggest = results.hits.first().map_or(0.0, |h| h.score) < 2.0;
+    let suggestions = suggestion_resolver.resolve(need_suggest);
+    format_page(
+        page_hits,
+        results,
+        options,
+        start_idx,
+        page,
+        actual_limit,
+        total_pages,
+        suggestions,
+    )?;
 
+    Ok(((page, actual_limit, total_pages), total_results))
+}
+
+/// Helper to lazily resolve suggestions for JSON output.
+struct SuggestionResolver<'a> {
+    options: &'a SearchOptions,
+    results: &'a SearchResults,
+    storage_cache: Option<Storage>,
+}
+
+impl<'a> SuggestionResolver<'a> {
+    const fn new(options: &'a SearchOptions, results: &'a SearchResults) -> Self {
+        Self {
+            options,
+            results,
+            storage_cache: None,
+        }
+    }
+
+    fn resolve(&mut self, need: bool) -> Option<Vec<serde_json::Value>> {
+        if !matches!(self.options.format, OutputFormat::Json) || !need {
+            return None;
+        }
+        if self.storage_cache.is_none() {
+            self.storage_cache = match Storage::new() {
+                Ok(storage) => Some(storage),
+                Err(err) => {
+                    warn!("suggestions disabled: failed to open storage: {err}");
+                    None
+                },
+            };
+        }
+        self.storage_cache
+            .as_ref()
+            .map(|storage| compute_suggestions(&self.options.query, storage, &self.results.sources))
+    }
+}
+
+/// Format and display a page of search results.
+#[allow(clippy::too_many_arguments)]
+fn format_page(
+    hits: &[SearchHit],
+    results: &SearchResults,
+    options: &SearchOptions,
+    start_idx: usize,
+    page: usize,
+    page_size: usize,
+    total_pages: usize,
+    suggestions: Option<Vec<serde_json::Value>>,
+) -> Result<()> {
     let formatter = SearchResultFormatter::new(options.format);
-    // Compute simple fuzzy suggestions for JSON output when few/low-quality results
-    let need_suggest = total_results == 0 || results.hits.first().map_or(0.0, |h| h.score) < 2.0;
-    let suggestions = resolve_suggestions(need_suggest);
-
     let params = FormatParams {
-        hits: page_hits,
+        hits,
         query: &options.query,
-        total_results,
+        total_results: results.hits.len(),
         total_lines_searched: results.total_lines_searched,
         search_time: results.search_time,
         sources: &results.sources,
         start_idx,
         page,
         total_pages,
-        page_size: actual_limit,
-        // TODO(release-polish): revisit `show_lines` default and pagination story (docs/notes/release-polish-followups.md)
+        page_size,
         show_url: options.show_url,
         show_lines: options.show_lines,
         show_anchor: options.show_anchor,
@@ -913,9 +963,7 @@ pub(super) fn format_and_display(
         snippet_lines: usize::from(options.snippet_lines.max(1)),
         suggestions,
     };
-    formatter.format(&params)?;
-
-    Ok(((page, actual_limit, total_pages), total_results))
+    formatter.format(&params)
 }
 
 fn compute_suggestions(

@@ -30,49 +30,24 @@ fn serialize_heading_level_filter(
     }
 }
 
-#[allow(
-    dead_code,
-    clippy::unused_async,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools,
-    clippy::cognitive_complexity
-)]
-pub async fn execute(
-    alias: Option<&str>,
-    sources: &[String],
-    all: bool,
-    output: OutputFormat,
-    anchors: bool,
-    show_anchors: bool,
-    mut limit: Option<usize>,
-    max_depth: Option<u8>,
-    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
-    filter_expr: Option<&str>,
-    tree: bool,
+/// Restore pagination state from history when using --next, --previous, or --last
+#[allow(clippy::ref_option)]
+fn restore_pagination_state(
+    last_entry: &Option<TocHistoryEntry>,
     next: bool,
     previous: bool,
     last: bool,
+    mut limit: Option<usize>,
     mut page: usize,
-) -> Result<()> {
-    let storage = Storage::new()?;
-    let all_sources_mode = all && alias.is_none() && sources.is_empty();
-
-    let last_entry = if next || previous || last {
-        preferences::load_last_toc_entry()
-    } else {
-        None
-    };
-
+) -> Result<(Option<usize>, usize)> {
     if last_entry.is_none() && ((next || previous) || (last && limit.is_none())) {
         return Err(anyhow!(
             "No saved pagination state found. Run `blz toc <alias> --limit <COUNT>` first."
         ));
     }
 
-    // Restore limit from history if navigating
     if (next || previous || last) && limit.is_none() {
-        if let Some(entry) = &last_entry {
+        if let Some(entry) = last_entry {
             limit = entry.limit;
         }
         if limit.is_none() {
@@ -85,32 +60,6 @@ pub async fn execute(
     if matches!(limit, Some(0)) {
         anyhow::bail!("--limit must be at least 1; use --all to show everything.");
     }
-
-    // Restore filter parameters from history if navigating and not explicitly provided
-    // Note: heading_level restoration is handled separately since it needs parsing
-    let (filter_expr, max_depth) = if next || previous || last {
-        let saved_filter = last_entry.as_ref().and_then(|e| e.filter.as_deref());
-        let saved_max_depth = last_entry.as_ref().and_then(|e| e.max_depth);
-
-        (filter_expr.or(saved_filter), max_depth.or(saved_max_depth))
-    } else {
-        (filter_expr, max_depth)
-    };
-
-    // Handle heading_level separately - parse from history string if needed
-    let mut heading_level_owner: Option<crate::utils::heading_filter::HeadingLevelFilter> = None;
-    let heading_level = heading_level.or_else(|| {
-        if next || previous || last {
-            // Try to restore from history
-            heading_level_owner = last_entry
-                .as_ref()
-                .and_then(|e| e.heading_level.as_deref())
-                .and_then(|saved_str| saved_str.parse().ok());
-            heading_level_owner.as_ref()
-        } else {
-            None
-        }
-    });
 
     if next {
         page = last_entry
@@ -129,20 +78,44 @@ pub async fn execute(
         page = usize::MAX;
     }
 
-    if anchors && filter_expr.is_some() {
-        return Err(anyhow!("--filter cannot be combined with --anchors"));
+    Ok((limit, page))
+}
+
+/// Restore filter parameters from history when navigating
+#[allow(clippy::ref_option)]
+fn restore_filter_params<'a>(
+    last_entry: &'a Option<TocHistoryEntry>,
+    filter_expr: Option<&'a str>,
+    max_depth: Option<u8>,
+    next: bool,
+    previous: bool,
+    last: bool,
+) -> (Option<&'a str>, Option<u8>) {
+    if next || previous || last {
+        let saved_filter = last_entry.as_ref().and_then(|e| e.filter.as_deref());
+        let saved_max_depth = last_entry.as_ref().and_then(|e| e.max_depth);
+        (filter_expr.or(saved_filter), max_depth.or(saved_max_depth))
+    } else {
+        (filter_expr, max_depth)
     }
+}
 
-    let filter = filter_expr
-        .map(HeadingFilter::parse)
-        .transpose()
-        .context("Failed to parse filter expression")?;
-
-    // Use provided heading level filter, or convert --max-depth for backward compat
-    let level_filter = heading_level.cloned().or_else(|| {
-        max_depth.map(crate::utils::heading_filter::HeadingLevelFilter::LessThanOrEqual)
-    });
-
+/// Resolve the list of sources to process
+#[allow(
+    clippy::ref_option,
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools
+)]
+fn resolve_source_list(
+    storage: &Storage,
+    alias: Option<&str>,
+    sources: &[String],
+    all_sources_mode: bool,
+    last_entry: &Option<TocHistoryEntry>,
+    next: bool,
+    previous: bool,
+    last: bool,
+) -> Result<Vec<String>> {
     let mut source_list = if !sources.is_empty() {
         sources.to_vec()
     } else if let Some(single) = alias {
@@ -154,7 +127,7 @@ pub async fn execute(
     };
 
     if source_list.is_empty() && (next || previous || last) {
-        if let Some(entry) = &last_entry {
+        if let Some(entry) = last_entry {
             if let Some(saved_sources) = &entry.source {
                 source_list = saved_sources
                     .split(',')
@@ -176,85 +149,69 @@ pub async fn execute(
         ));
     }
 
-    if anchors {
-        if source_list.len() > 1 {
-            return Err(anyhow!("--anchors can only be used with a single source"));
-        }
-        let canonical = crate::utils::resolver::resolve_source(&storage, &source_list[0])?
-            .unwrap_or_else(|| source_list[0].clone());
-        let path = storage.anchors_map_path(&canonical)?;
-        if !path.exists() {
-            println!("No heading remap metadata found for '{canonical}'");
-            return Ok(());
-        }
-        let txt = std::fs::read_to_string(&path)?;
-        let map: AnchorsMap = serde_json::from_str(&txt)?;
-        match output {
-            OutputFormat::Json => {
-                println!("{}", serde_json::to_string_pretty(&map)?);
-            },
-            OutputFormat::Jsonl => {
-                for m in map.mappings {
-                    println!("{}", serde_json::to_string(&m)?);
-                }
-            },
-            OutputFormat::Text => {
-                println!(
-                    "Remap metadata for {} (updated {})
-",
-                    canonical.green(),
-                    map.updated_at
-                );
-                for m in map.mappings {
-                    let path_str = m.heading_path.join(" > ");
-                    println!(
-                        "  {}
-    {} → {}
-    {}",
-                        path_str,
-                        m.old_lines,
-                        m.new_lines,
-                        m.anchor.bright_black()
-                    );
-                }
-            },
-            OutputFormat::Raw => {
-                return Err(anyhow!(
-                    "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
-                ));
-            },
-        }
+    Ok(source_list)
+}
+
+/// Handle --anchors mode output
+fn handle_anchors_mode(
+    storage: &Storage,
+    source_list: &[String],
+    output: OutputFormat,
+) -> Result<()> {
+    if source_list.len() > 1 {
+        return Err(anyhow!("--anchors can only be used with a single source"));
+    }
+    let canonical = crate::utils::resolver::resolve_source(storage, &source_list[0])?
+        .unwrap_or_else(|| source_list[0].clone());
+    let path = storage.anchors_map_path(&canonical)?;
+    if !path.exists() {
+        println!("No heading remap metadata found for '{canonical}'");
         return Ok(());
     }
-
-    let mut all_entries = Vec::new();
-
-    for source_alias in &source_list {
-        let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-            .unwrap_or_else(|| source_alias.clone());
-
-        let llms: LlmsJson = storage
-            .load_llms_json(&canonical)
-            .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
-
-        collect_entries(
-            &mut all_entries,
-            &llms.toc,
-            max_depth.map(usize::from),
-            0,
-            filter.as_ref(),
-            level_filter.as_ref(),
-            source_alias,
-            &canonical,
-        );
+    let txt = std::fs::read_to_string(&path)?;
+    let map: AnchorsMap = serde_json::from_str(&txt)?;
+    match output {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&map)?);
+        },
+        OutputFormat::Jsonl => {
+            for m in map.mappings {
+                println!("{}", serde_json::to_string(&m)?);
+            }
+        },
+        OutputFormat::Text => {
+            println!(
+                "Remap metadata for {} (updated {})\n",
+                canonical.green(),
+                map.updated_at
+            );
+            for m in map.mappings {
+                let path_str = m.heading_path.join(" > ");
+                println!(
+                    "  {}\n    {} → {}\n    {}",
+                    path_str,
+                    m.old_lines,
+                    m.new_lines,
+                    m.anchor.bright_black()
+                );
+            }
+        },
+        OutputFormat::Raw => {
+            return Err(anyhow!(
+                "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+            ));
+        },
     }
+    Ok(())
+}
 
-    let pagination_limit = if all && !all_sources_mode {
-        None
-    } else {
-        limit
-    };
-
+/// Calculate pagination for TOC entries
+#[allow(clippy::needless_pass_by_value)]
+fn calculate_pagination(
+    all_entries: Vec<serde_json::Value>,
+    pagination_limit: Option<usize>,
+    page: usize,
+) -> (Vec<serde_json::Value>, usize, usize, usize) {
     let total_results = all_entries.len();
     let (page_entries, actual_page, total_pages) = pagination_limit.map_or_else(
         || (all_entries.clone(), 1, 1),
@@ -283,174 +240,283 @@ pub async fn execute(
             (page_entries, actual_page, total_pages)
         },
     );
+    (page_entries, actual_page, total_pages, total_results)
+}
 
-    if limit.is_some() {
-        let source_str = if source_list.len() == 1 {
-            Some(source_list[0].clone())
-        } else if !source_list.is_empty() {
-            Some(source_list.join(","))
+/// Save TOC history entry for pagination state
+#[allow(clippy::too_many_arguments)]
+fn save_toc_history_entry(
+    source_list: &[String],
+    output: OutputFormat,
+    actual_page: usize,
+    limit: Option<usize>,
+    total_pages: usize,
+    total_results: usize,
+    filter_expr: Option<&str>,
+    max_depth: Option<u8>,
+    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+) {
+    let source_str = if source_list.len() == 1 {
+        Some(source_list[0].clone())
+    } else if !source_list.is_empty() {
+        Some(source_list.join(","))
+    } else {
+        None
+    };
+
+    let history_entry = TocHistoryEntry {
+        timestamp: Utc::now().to_rfc3339(),
+        source: source_str,
+        format: preferences::format_to_string(output),
+        page: Some(actual_page),
+        limit,
+        total_pages: Some(total_pages),
+        total_results: Some(total_results),
+        filter: filter_expr.map(str::to_string),
+        max_depth,
+        heading_level: heading_level.map(serialize_heading_level_filter),
+    };
+
+    if let Err(err) = preferences::save_toc_history(&history_entry) {
+        tracing::warn!("failed to save TOC history: {err}");
+    }
+}
+
+/// Format and print JSON output
+fn format_json_output(
+    page_entries: &[serde_json::Value],
+    actual_page: usize,
+    total_pages: usize,
+    total_results: usize,
+    pagination_limit: Option<usize>,
+) -> Result<()> {
+    let payload = serde_json::json!({
+        "entries": page_entries,
+        "page": actual_page,
+        "total_pages": total_pages.max(1),
+        "total_results": total_results,
+        "page_size": pagination_limit,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&payload)
+            .context("Failed to serialize table of contents to JSON")?
+    );
+    Ok(())
+}
+
+/// Format and print JSONL output
+fn format_jsonl_output(
+    page_entries: &[serde_json::Value],
+    actual_page: usize,
+    total_pages: usize,
+    total_results: usize,
+    pagination_limit: Option<usize>,
+) -> Result<()> {
+    let metadata = serde_json::json!({
+        "page": actual_page,
+        "total_pages": total_pages.max(1),
+        "total_results": total_results,
+        "page_size": pagination_limit,
+    });
+    println!(
+        "{}",
+        serde_json::to_string(&metadata)
+            .context("Failed to serialize table of contents metadata to JSONL")?
+    );
+
+    for e in page_entries {
+        println!(
+            "{}",
+            serde_json::to_string(e).context("Failed to serialize table of contents to JSONL")?
+        );
+    }
+    Ok(())
+}
+
+/// Print paginated flat list text output
+fn print_paginated_flat_list(
+    storage: &Storage,
+    source_list: &[String],
+    page_entries: &[serde_json::Value],
+    actual_page: usize,
+    total_pages: usize,
+    total_results: usize,
+    show_anchors: bool,
+) -> Result<()> {
+    // Print header
+    if source_list.len() > 1 {
+        println!("Table of contents (showing {} sources)", source_list.len());
+    } else if let Some(first) = source_list.first() {
+        let canonical = crate::utils::resolver::resolve_source(storage, first)?
+            .unwrap_or_else(|| first.clone());
+        println!("Table of contents for {}\n", canonical.green());
+    }
+
+    // Print entries from page_entries (which already has pagination applied)
+    for entry in page_entries {
+        let heading_path = entry["headingPath"]
+            .as_array()
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        let name = heading_path.last().unwrap_or(&"");
+        let lines = entry["lines"].as_str().unwrap_or("");
+        let heading_level = entry["headingLevel"]
+            .as_u64()
+            .and_then(|v| usize::try_from(v).ok())
+            .unwrap_or(1);
+
+        let indent = "  ".repeat(heading_level.saturating_sub(1));
+        let lines_display = format!("[{lines}]").dimmed();
+
+        if show_anchors {
+            let anchor = entry["anchor"].as_str().unwrap_or("");
+            println!("{indent}- {name} {lines_display} {}", anchor.bright_black());
         } else {
-            None
-        };
-
-        let history_entry = TocHistoryEntry {
-            timestamp: Utc::now().to_rfc3339(),
-            source: source_str,
-            format: preferences::format_to_string(output),
-            page: Some(actual_page),
-            limit,
-            total_pages: Some(total_pages),
-            total_results: Some(total_results),
-            filter: filter_expr.map(str::to_string),
-            max_depth,
-            heading_level: heading_level.map(serialize_heading_level_filter),
-        };
-
-        if let Err(err) = preferences::save_toc_history(&history_entry) {
-            tracing::warn!("failed to save TOC history: {err}");
+            println!("{indent}- {name} {lines_display}");
         }
     }
 
+    // Print footer with pagination info
+    println!(
+        "\nPage {} of {} ({} total results)",
+        actual_page,
+        total_pages.max(1),
+        total_results
+    );
+    Ok(())
+}
+
+/// Restore heading level filter from history when navigating
+#[allow(clippy::ref_option)]
+fn restore_heading_level<'a>(
+    heading_level: Option<&'a crate::utils::heading_filter::HeadingLevelFilter>,
+    last_entry: &Option<TocHistoryEntry>,
+    heading_level_owner: &'a mut Option<crate::utils::heading_filter::HeadingLevelFilter>,
+    is_navigating: bool,
+) -> Option<&'a crate::utils::heading_filter::HeadingLevelFilter> {
+    heading_level.or_else(|| {
+        if is_navigating {
+            *heading_level_owner = last_entry
+                .as_ref()
+                .and_then(|e| e.heading_level.as_deref())
+                .and_then(|saved_str| saved_str.parse().ok());
+            heading_level_owner.as_ref()
+        } else {
+            None
+        }
+    })
+}
+
+/// Parse filter expression and compute level filter
+fn parse_filters(
+    filter_expr: Option<&str>,
+    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    max_depth: Option<u8>,
+) -> Result<(
+    Option<HeadingFilter>,
+    Option<crate::utils::heading_filter::HeadingLevelFilter>,
+)> {
+    let filter = filter_expr
+        .map(HeadingFilter::parse)
+        .transpose()
+        .context("Failed to parse filter expression")?;
+
+    let level_filter = heading_level.cloned().or_else(|| {
+        max_depth.map(crate::utils::heading_filter::HeadingLevelFilter::LessThanOrEqual)
+    });
+
+    Ok((filter, level_filter))
+}
+
+/// Collect TOC entries from all sources
+fn collect_all_entries(
+    storage: &Storage,
+    source_list: &[String],
+    max_depth: Option<u8>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+) -> Result<Vec<serde_json::Value>> {
+    let mut all_entries = Vec::new();
+    for source_alias in source_list {
+        let canonical = crate::utils::resolver::resolve_source(storage, source_alias)?
+            .unwrap_or_else(|| source_alias.clone());
+
+        let llms: LlmsJson = storage
+            .load_llms_json(&canonical)
+            .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+
+        collect_entries(
+            &mut all_entries,
+            &llms.toc,
+            max_depth.map(usize::from),
+            0,
+            filter,
+            level_filter,
+            source_alias,
+            &canonical,
+        );
+    }
+    Ok(all_entries)
+}
+
+/// Format and display TOC output based on output format
+#[allow(clippy::too_many_arguments)]
+fn format_toc_output(
+    storage: &Storage,
+    output: OutputFormat,
+    source_list: &[String],
+    page_entries: &[serde_json::Value],
+    actual_page: usize,
+    total_pages: usize,
+    total_results: usize,
+    pagination_limit: Option<usize>,
+    tree: bool,
+    show_anchors: bool,
+    max_depth: Option<u8>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+) -> Result<()> {
     match output {
         OutputFormat::Json => {
-            // Always return object with pagination metadata for consistency
-            let payload = serde_json::json!({
-                "entries": page_entries,
-                "page": actual_page,
-                "total_pages": total_pages.max(1),
-                "total_results": total_results,
-                "page_size": pagination_limit,
-            });
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&payload)
-                    .context("Failed to serialize table of contents to JSON")?
-            );
+            format_json_output(
+                page_entries,
+                actual_page,
+                total_pages,
+                total_results,
+                pagination_limit,
+            )?;
         },
         OutputFormat::Jsonl => {
-            let metadata = serde_json::json!({
-                "page": actual_page,
-                "total_pages": total_pages.max(1),
-                "total_results": total_results,
-                "page_size": pagination_limit,
-            });
-            println!(
-                "{}",
-                serde_json::to_string(&metadata)
-                    .context("Failed to serialize table of contents metadata to JSONL")?
-            );
-
-            for e in &page_entries {
-                println!(
-                    "{}",
-                    serde_json::to_string(e)
-                        .context("Failed to serialize table of contents to JSONL")?
-                );
-            }
+            format_jsonl_output(
+                page_entries,
+                actual_page,
+                total_pages,
+                total_results,
+                pagination_limit,
+            )?;
         },
         OutputFormat::Text => {
-            // For paginated text output with flat list rendering
             if pagination_limit.is_some() && !tree {
-                // Print header
-                if source_list.len() > 1 {
-                    println!("Table of contents (showing {} sources)", source_list.len());
-                } else if let Some(first) = source_list.first() {
-                    let canonical = crate::utils::resolver::resolve_source(&storage, first)?
-                        .unwrap_or_else(|| first.clone());
-                    println!("Table of contents for {}\n", canonical.green());
-                }
-
-                // Print entries from page_entries (which already has pagination applied)
-                for entry in &page_entries {
-                    // Extract values from JSON
-                    let heading_path = entry["headingPath"]
-                        .as_array()
-                        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
-                        .unwrap_or_default();
-                    let name = heading_path.last().unwrap_or(&"");
-                    let lines = entry["lines"].as_str().unwrap_or("");
-                    let heading_level = entry["headingLevel"]
-                        .as_u64()
-                        .and_then(|v| usize::try_from(v).ok())
-                        .unwrap_or(1);
-
-                    // Print with proper indentation
-                    let indent = "  ".repeat(heading_level.saturating_sub(1));
-                    let lines_display = format!("[{lines}]").dimmed();
-
-                    if show_anchors {
-                        let anchor = entry["anchor"].as_str().unwrap_or("");
-                        println!("{indent}- {name} {lines_display} {}", anchor.bright_black());
-                    } else {
-                        println!("{indent}- {name} {lines_display}");
-                    }
-                }
-
-                // Print footer with pagination info
-                println!(
-                    "\nPage {} of {} ({} total results)",
+                print_paginated_flat_list(
+                    storage,
+                    source_list,
+                    page_entries,
                     actual_page,
-                    total_pages.max(1),
-                    total_results
-                );
+                    total_pages,
+                    total_results,
+                    show_anchors,
+                )?;
             } else {
-                // Use original tree/hierarchical rendering for non-paginated or tree mode
-                for source_alias in &source_list {
-                    let canonical = crate::utils::resolver::resolve_source(&storage, source_alias)?
-                        .unwrap_or_else(|| source_alias.clone());
-
-                    let llms: LlmsJson = storage
-                        .load_llms_json(&canonical)
-                        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
-
-                    if source_list.len() > 1 {
-                        println!(
-                            "
-{}:",
-                            canonical.green()
-                        );
-                    } else {
-                        println!(
-                            "Table of contents for {}
-",
-                            canonical.green()
-                        );
-                    }
-
-                    if tree {
-                        let mut count = 0;
-                        let mut prev_depth: Option<usize> = None;
-                        let mut prev_h1_had_children = false;
-                        for (i, e) in llms.toc.iter().enumerate() {
-                            let is_last = i == llms.toc.len() - 1;
-                            print_tree(
-                                e,
-                                0,
-                                is_last,
-                                "",
-                                max_depth.map(usize::from),
-                                filter.as_ref(),
-                                level_filter.as_ref(),
-                                &mut count,
-                                None, // No limit for tree mode
-                                show_anchors,
-                                &mut prev_depth,
-                                &mut prev_h1_had_children,
-                            );
-                        }
-                    } else {
-                        for e in &llms.toc {
-                            print_text(
-                                e,
-                                0,
-                                max_depth.map(usize::from),
-                                filter.as_ref(),
-                                level_filter.as_ref(),
-                                show_anchors,
-                            );
-                        }
-                    }
-                }
+                print_tree_or_hierarchical(
+                    storage,
+                    source_list,
+                    max_depth,
+                    filter,
+                    level_filter,
+                    tree,
+                    show_anchors,
+                )?;
             }
         },
         OutputFormat::Raw => {
@@ -460,6 +526,179 @@ pub async fn execute(
         },
     }
     Ok(())
+}
+
+/// Print tree or hierarchical text output
+fn print_tree_or_hierarchical(
+    storage: &Storage,
+    source_list: &[String],
+    max_depth: Option<u8>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    tree: bool,
+    show_anchors: bool,
+) -> Result<()> {
+    for source_alias in source_list {
+        let canonical = crate::utils::resolver::resolve_source(storage, source_alias)?
+            .unwrap_or_else(|| source_alias.clone());
+
+        let llms: LlmsJson = storage
+            .load_llms_json(&canonical)
+            .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+
+        if source_list.len() > 1 {
+            println!("\n{}:", canonical.green());
+        } else {
+            println!("Table of contents for {}\n", canonical.green());
+        }
+
+        if tree {
+            let mut count = 0;
+            let mut prev_depth: Option<usize> = None;
+            let mut prev_h1_had_children = false;
+            for (i, e) in llms.toc.iter().enumerate() {
+                let is_last = i == llms.toc.len() - 1;
+                print_tree(
+                    e,
+                    0,
+                    is_last,
+                    "",
+                    max_depth.map(usize::from),
+                    filter,
+                    level_filter,
+                    &mut count,
+                    None, // No limit for tree mode
+                    show_anchors,
+                    &mut prev_depth,
+                    &mut prev_h1_had_children,
+                );
+            }
+        } else {
+            for e in &llms.toc {
+                print_text(
+                    e,
+                    0,
+                    max_depth.map(usize::from),
+                    filter,
+                    level_filter,
+                    show_anchors,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(
+    dead_code,
+    clippy::unused_async,
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools
+)]
+pub async fn execute(
+    alias: Option<&str>,
+    sources: &[String],
+    all: bool,
+    output: OutputFormat,
+    anchors: bool,
+    show_anchors: bool,
+    limit: Option<usize>,
+    max_depth: Option<u8>,
+    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    filter_expr: Option<&str>,
+    tree: bool,
+    next: bool,
+    previous: bool,
+    last: bool,
+    page: usize,
+) -> Result<()> {
+    let storage = Storage::new()?;
+    let all_sources_mode = all && alias.is_none() && sources.is_empty();
+    let is_navigating = next || previous || last;
+
+    let last_entry = if is_navigating {
+        preferences::load_last_toc_entry()
+    } else {
+        None
+    };
+
+    let (limit, page) = restore_pagination_state(&last_entry, next, previous, last, limit, page)?;
+    let (filter_expr, max_depth) =
+        restore_filter_params(&last_entry, filter_expr, max_depth, next, previous, last);
+
+    let mut heading_level_owner: Option<crate::utils::heading_filter::HeadingLevelFilter> = None;
+    let heading_level = restore_heading_level(
+        heading_level,
+        &last_entry,
+        &mut heading_level_owner,
+        is_navigating,
+    );
+
+    if anchors && filter_expr.is_some() {
+        return Err(anyhow!("--filter cannot be combined with --anchors"));
+    }
+
+    let source_list = resolve_source_list(
+        &storage,
+        alias,
+        sources,
+        all_sources_mode,
+        &last_entry,
+        next,
+        previous,
+        last,
+    )?;
+
+    if anchors {
+        return handle_anchors_mode(&storage, &source_list, output);
+    }
+
+    let (filter, level_filter) = parse_filters(filter_expr, heading_level, max_depth)?;
+    let all_entries = collect_all_entries(
+        &storage,
+        &source_list,
+        max_depth,
+        filter.as_ref(),
+        level_filter.as_ref(),
+    )?;
+
+    let pagination_limit = if all && !all_sources_mode {
+        None
+    } else {
+        limit
+    };
+    let (page_entries, actual_page, total_pages, total_results) =
+        calculate_pagination(all_entries, pagination_limit, page);
+
+    if limit.is_some() {
+        save_toc_history_entry(
+            &source_list,
+            output,
+            actual_page,
+            limit,
+            total_pages,
+            total_results,
+            filter_expr,
+            max_depth,
+            heading_level,
+        );
+    }
+
+    format_toc_output(
+        &storage,
+        output,
+        &source_list,
+        &page_entries,
+        actual_page,
+        total_pages,
+        total_results,
+        pagination_limit,
+        tree,
+        show_anchors,
+        max_depth,
+        filter.as_ref(),
+        level_filter.as_ref(),
+    )
 }
 
 #[allow(dead_code)]

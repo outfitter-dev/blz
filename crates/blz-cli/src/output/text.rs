@@ -15,7 +15,6 @@ pub struct TextFormatter;
 
 impl TextFormatter {
     /// Format search results in the brief, colorized layout
-    #[allow(clippy::too_many_lines)]
     pub fn format_search_results(params: &FormatParams) {
         if params.hits.is_empty() {
             println!("No results found for '{}'", params.query);
@@ -25,156 +24,212 @@ impl TextFormatter {
         let mut content_cache: HashMap<String, Vec<String>> = HashMap::new();
         let storage = Storage::new().ok();
 
-        // Assign stable colors to aliases on this page (sorted by alias for determinism)
-        let mut alias_colors: HashMap<String, usize> = HashMap::new();
-        let mut sorted_aliases: Vec<String> = params
-            .hits
-            .iter()
-            .map(|h| h.source.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        sorted_aliases.sort();
-        for (idx, alias) in sorted_aliases.iter().enumerate() {
-            alias_colors.insert(alias.clone(), idx);
-        }
+        let mut alias_colors = assign_alias_colors(params.hits);
         let mut color_index = alias_colors.len();
 
-        // Group contiguous hits with the same alias + heading path
-        let mut groups: Vec<(String, Vec<String>, Vec<&SearchHit>)> = Vec::new();
-        for hit in params.hits {
-            if let Some((last_alias, last_path, grouped_hits)) = groups.last_mut() {
-                if *last_alias == hit.source && *last_path == hit.heading_path {
-                    grouped_hits.push(hit);
-                    continue;
-                }
-            }
-            groups.push((hit.source.clone(), hit.heading_path.clone(), vec![hit]));
-        }
+        let groups = group_hits_by_source_and_heading(params.hits);
 
         let mut rendered_groups: Vec<String> = Vec::with_capacity(groups.len());
         let term_width = terminal_width().unwrap_or(DEFAULT_TERMINAL_WIDTH);
         let path_width = term_width.saturating_sub(PATH_PREFIX_WIDTH);
-
         let page_max_score = params.hits.first().map_or(0.0, |h| h.score);
 
         for (group_idx, (alias, heading_path, hits)) in groups.iter().enumerate() {
-            let global_index = params.start_idx + group_idx + 1;
             let alias_idx = *alias_colors.entry(alias.clone()).or_insert_with(|| {
                 let idx = color_index;
                 color_index = color_index.saturating_add(1);
                 idx
             });
-            let alias_colored = get_alias_color(alias, alias_idx);
-            let first = hits[0];
 
-            // Calculate max score for percentage display
-            let max_score = page_max_score.max(first.score);
-
-            let score_display = if params.show_raw_score {
-                let score_formatted = format_score_value(first.score, params.score_precision);
-                format!("Score {}", score_formatted.bright_blue())
-            } else {
-                // Show percentage by default
-                let percentage = if max_score > 0.0 {
-                    let percent = (first.score / max_score) * 100.0;
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    let clamped = percent.round().clamp(0.0, 100.0) as u8;
-                    clamped
-                } else {
-                    100
-                };
-                format!("{}%", percentage.to_string().bright_blue())
-            };
-
-            let mut block: Vec<String> = Vec::new();
-
-            block.push(format!("◆ Rank {global_index} ─ {score_display}"));
-
-            block.push(format!("  {}:{}", alias_colored.bold(), first.lines));
-
-            if params.show_anchor {
-                if let Some(anchor) = first.anchor.as_deref() {
-                    block.push(format!("  #{}", anchor.bright_black()));
-                }
-            }
-
-            if !heading_path.is_empty() {
-                let path_line = format_heading_path(heading_path, path_width);
-                if !path_line.is_empty() {
-                    block.push(format!("  in {path_line}"));
-                }
-            }
-
-            let mut printed: BTreeSet<usize> = BTreeSet::new();
-            let mut last_printed: Option<usize> = None;
-            for hit in hits {
-                for (line_no, line_text) in extract_context_lines(
-                    storage.as_ref(),
-                    &mut content_cache,
-                    hit,
-                    params.query,
-                    params.snippet_lines,
-                ) {
-                    if printed.insert(line_no) {
-                        if let Some(prev) = last_printed {
-                            if line_no > prev + 1 {
-                                let gap = line_no - prev - 1;
-                                let gap_line = format!("... {gap} more lines").bright_black();
-                                block.push(format!("  {gap_line}"));
-                            }
-                        }
-                        if params.show_lines {
-                            let label = format!("{line_no:>6}:").bright_black();
-                            block.push(format!("  {label} {line_text}"));
-                        } else {
-                            block.push(format!("  {line_text}"));
-                        }
-                        last_printed = Some(line_no);
-                    }
-                }
-            }
-
-            if params.show_url {
-                // TODO(release-polish): include cached canonical URL without hitting storage (docs/notes/release-polish-followups.md)
-                if let Some(url) = resolve_group_url(hits, storage.as_ref(), alias) {
-                    block.push(format!("  {}", url.bright_black()));
-                }
-            }
-
-            rendered_groups.push(block.join("\n"));
+            let rendered = render_group(
+                &RenderGroupParams {
+                    group_idx,
+                    alias,
+                    alias_idx,
+                    heading_path,
+                    hits,
+                    page_max_score,
+                    path_width,
+                    params,
+                },
+                storage.as_ref(),
+                &mut content_cache,
+            );
+            rendered_groups.push(rendered);
         }
 
         println!("{}", rendered_groups.join("\n\n"));
 
-        if params.no_summary {
-            return;
+        if !params.no_summary {
+            print_summary(params);
         }
+    }
+}
 
-        let shown = params.hits.len();
-        let total = params.total_results;
-        let lines = params.total_lines_searched;
-        let time_ms = params.search_time.as_millis();
-        let sources = params.sources.len();
+/// Assign stable colors to aliases (sorted for determinism).
+fn assign_alias_colors(hits: &[SearchHit]) -> HashMap<String, usize> {
+    let mut alias_colors: HashMap<String, usize> = HashMap::new();
+    let mut sorted_aliases: Vec<String> = hits
+        .iter()
+        .map(|h| h.source.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    sorted_aliases.sort();
+    for (idx, alias) in sorted_aliases.iter().enumerate() {
+        alias_colors.insert(alias.clone(), idx);
+    }
+    alias_colors
+}
 
-        println!(
-            "\n→ {}/{} results shown",
-            shown.to_string().green(),
-            total.to_string().green()
-        );
-        println!(
-            "  {} lines searched, {} source{}, took {}",
-            lines.to_string().cyan(),
-            sources,
-            if sources == 1 { "" } else { "s" },
-            format!("{time_ms}ms").blue()
-        );
-        if total > shown && params.page < params.total_pages {
-            let next_page = params.page.saturating_add(1);
-            println!(
-                "  Tip: See more with \"blz search --next\" or \"blz search --page {next_page}\""
-            );
+/// Group contiguous hits with the same alias + heading path.
+fn group_hits_by_source_and_heading(
+    hits: &[SearchHit],
+) -> Vec<(String, Vec<String>, Vec<&SearchHit>)> {
+    let mut groups: Vec<(String, Vec<String>, Vec<&SearchHit>)> = Vec::new();
+    for hit in hits {
+        if let Some((last_alias, last_path, grouped_hits)) = groups.last_mut() {
+            if *last_alias == hit.source && *last_path == hit.heading_path {
+                grouped_hits.push(hit);
+                continue;
+            }
         }
+        groups.push((hit.source.clone(), hit.heading_path.clone(), vec![hit]));
+    }
+    groups
+}
+
+/// Parameters for rendering a single group.
+struct RenderGroupParams<'a> {
+    group_idx: usize,
+    alias: &'a str,
+    alias_idx: usize,
+    heading_path: &'a [String],
+    hits: &'a [&'a SearchHit],
+    page_max_score: f32,
+    path_width: usize,
+    params: &'a FormatParams<'a>,
+}
+
+/// Render a single result group into a formatted string.
+fn render_group(
+    rg: &RenderGroupParams<'_>,
+    storage: Option<&Storage>,
+    content_cache: &mut HashMap<String, Vec<String>>,
+) -> String {
+    let global_index = rg.params.start_idx + rg.group_idx + 1;
+    let alias_colored = get_alias_color(rg.alias, rg.alias_idx);
+    let first = rg.hits[0];
+
+    let max_score = rg.page_max_score.max(first.score);
+    let score_display = format_score_display(first.score, max_score, rg.params);
+
+    let mut block: Vec<String> = Vec::new();
+    block.push(format!("◆ Rank {global_index} ─ {score_display}"));
+    block.push(format!("  {}:{}", alias_colored.bold(), first.lines));
+
+    if rg.params.show_anchor {
+        if let Some(anchor) = first.anchor.as_deref() {
+            block.push(format!("  #{}", anchor.bright_black()));
+        }
+    }
+
+    if !rg.heading_path.is_empty() {
+        let path_line = format_heading_path(rg.heading_path, rg.path_width);
+        if !path_line.is_empty() {
+            block.push(format!("  in {path_line}"));
+        }
+    }
+
+    render_context_lines(&mut block, rg, storage, content_cache);
+
+    if rg.params.show_url {
+        // TODO(release-polish): include cached canonical URL without hitting storage (docs/notes/release-polish-followups.md)
+        if let Some(url) = resolve_group_url(rg.hits, storage, rg.alias) {
+            block.push(format!("  {}", url.bright_black()));
+        }
+    }
+
+    block.join("\n")
+}
+
+/// Format the score display (percentage or raw score).
+fn format_score_display(score: f32, max_score: f32, params: &FormatParams<'_>) -> String {
+    if params.show_raw_score {
+        let score_formatted = format_score_value(score, params.score_precision);
+        format!("Score {}", score_formatted.bright_blue())
+    } else {
+        let percentage = if max_score > 0.0 {
+            let percent = f64::from(score) / f64::from(max_score) * 100.0;
+            percent_to_u8(percent)
+        } else {
+            100
+        };
+        format!("{}%", percentage.to_string().bright_blue())
+    }
+}
+
+/// Render context lines for all hits in a group.
+fn render_context_lines(
+    block: &mut Vec<String>,
+    rg: &RenderGroupParams<'_>,
+    storage: Option<&Storage>,
+    content_cache: &mut HashMap<String, Vec<String>>,
+) {
+    let mut printed: BTreeSet<usize> = BTreeSet::new();
+    let mut last_printed: Option<usize> = None;
+
+    for hit in rg.hits {
+        for (line_no, line_text) in extract_context_lines(
+            storage,
+            content_cache,
+            hit,
+            rg.params.query,
+            rg.params.snippet_lines,
+        ) {
+            if printed.insert(line_no) {
+                if let Some(prev) = last_printed {
+                    if line_no > prev + 1 {
+                        let gap = line_no - prev - 1;
+                        let gap_line = format!("... {gap} more lines").bright_black();
+                        block.push(format!("  {gap_line}"));
+                    }
+                }
+                if rg.params.show_lines {
+                    let label = format!("{line_no:>6}:").bright_black();
+                    block.push(format!("  {label} {line_text}"));
+                } else {
+                    block.push(format!("  {line_text}"));
+                }
+                last_printed = Some(line_no);
+            }
+        }
+    }
+}
+
+/// Print the summary footer with result counts and timing.
+fn print_summary(params: &FormatParams<'_>) {
+    let shown = params.hits.len();
+    let total = params.total_results;
+    let lines = params.total_lines_searched;
+    let time_ms = params.search_time.as_millis();
+    let sources = params.sources.len();
+
+    println!(
+        "\n→ {}/{} results shown",
+        shown.to_string().green(),
+        total.to_string().green()
+    );
+    println!(
+        "  {} lines searched, {} source{}, took {}",
+        lines.to_string().cyan(),
+        sources,
+        if sources == 1 { "" } else { "s" },
+        format!("{time_ms}ms").blue()
+    );
+    if total > shown && params.page < params.total_pages {
+        let next_page = params.page.saturating_add(1);
+        println!("  Tip: See more with \"blz search --next\" or \"blz search --page {next_page}\"");
     }
 }
 
