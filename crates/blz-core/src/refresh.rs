@@ -274,7 +274,7 @@ where
                 alias,
                 updated_metadata,
                 existing_aliases,
-                payload,
+                &payload,
                 metrics,
                 indexer,
             )
@@ -322,19 +322,89 @@ where
     })
 }
 
+/// Merge aliases from existing metadata with any already-known aliases.
+fn merge_aliases(existing_aliases: Vec<String>, metadata_aliases: &[String]) -> Vec<String> {
+    let mut merged = existing_aliases;
+    for alias_value in metadata_aliases {
+        if !merged.contains(alias_value) {
+            merged.push(alias_value.clone());
+        }
+    }
+    merged.sort();
+    merged.dedup();
+    merged
+}
+
+/// Copy preserved fields from existing metadata into the new `llms_json`.
+fn copy_preserved_metadata_fields(llms_json: &mut crate::LlmsJson, existing: &Source) {
+    llms_json.metadata.tags.clone_from(&existing.tags);
+    llms_json
+        .metadata
+        .description
+        .clone_from(&existing.description);
+    llms_json.metadata.category.clone_from(&existing.category);
+    llms_json
+        .metadata
+        .npm_aliases
+        .clone_from(&existing.npm_aliases);
+    llms_json
+        .metadata
+        .github_aliases
+        .clone_from(&existing.github_aliases);
+    llms_json.metadata.variant = existing.variant.clone();
+}
+
+/// Resolve the source origin based on existing metadata.
+fn resolve_origin(existing: &Source) -> crate::SourceOrigin {
+    let mut origin = existing.origin.clone();
+    origin.source_type = match (&origin.source_type, &existing.origin.source_type) {
+        (Some(SourceType::Remote { .. }), _) | (None, None) => Some(SourceType::Remote {
+            url: existing.url.clone(),
+        }),
+        (Some(SourceType::LocalFile { path }), _) => {
+            Some(SourceType::LocalFile { path: path.clone() })
+        },
+        (None, Some(existing_type)) => Some(existing_type.clone()),
+    };
+    origin
+}
+
+/// Build the updated Source metadata for a refresh.
+fn build_refresh_metadata(
+    existing: Source,
+    payload: &RefreshPayload,
+    origin: crate::SourceOrigin,
+) -> Source {
+    Source {
+        url: existing.url,
+        etag: payload.etag.clone(),
+        last_modified: payload.last_modified.clone(),
+        fetched_at: chrono::Utc::now(),
+        sha256: payload.sha256.clone(),
+        variant: existing.variant,
+        aliases: existing.aliases,
+        tags: existing.tags,
+        description: existing.description,
+        category: existing.category,
+        npm_aliases: existing.npm_aliases,
+        github_aliases: existing.github_aliases,
+        origin,
+        filter_non_english: existing.filter_non_english,
+    }
+}
+
 /// Apply a refresh: persist content and re-index the source.
 ///
 /// # Errors
 ///
 /// Returns an error if parsing, persistence, or indexing fails.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_lines)]
 pub fn apply_refresh<S, I>(
     storage: &S,
     alias: &str,
     existing_metadata: Source,
     existing_aliases: Vec<String>,
-    payload: RefreshPayload,
+    payload: &RefreshPayload,
     metrics: PerformanceMetrics,
     indexer: &I,
 ) -> Result<RefreshOutcome>
@@ -360,66 +430,16 @@ where
         &parse_result,
     );
 
-    let mut metadata_aliases = existing_aliases;
-    for alias_value in &existing_metadata.aliases {
-        if !metadata_aliases.contains(alias_value) {
-            metadata_aliases.push(alias_value.clone());
-        }
-    }
-    metadata_aliases.sort();
-    metadata_aliases.dedup();
-    llms_json.metadata.aliases = metadata_aliases;
-    llms_json.metadata.tags.clone_from(&existing_metadata.tags);
-    llms_json
-        .metadata
-        .description
-        .clone_from(&existing_metadata.description);
-    llms_json
-        .metadata
-        .category
-        .clone_from(&existing_metadata.category);
-    llms_json
-        .metadata
-        .npm_aliases
-        .clone_from(&existing_metadata.npm_aliases);
-    llms_json
-        .metadata
-        .github_aliases
-        .clone_from(&existing_metadata.github_aliases);
-    llms_json.metadata.variant = existing_metadata.variant.clone();
+    llms_json.metadata.aliases = merge_aliases(existing_aliases, &existing_metadata.aliases);
+    copy_preserved_metadata_fields(&mut llms_json, &existing_metadata);
     llms_json.filter_stats = filter_stats;
 
     storage.save_llms_json(alias, &llms_json)?;
 
-    let mut origin = existing_metadata.origin.clone();
-    origin.source_type = match (&origin.source_type, &existing_metadata.origin.source_type) {
-        (Some(SourceType::Remote { .. }), _) | (None, None) => Some(SourceType::Remote {
-            url: existing_metadata.url.clone(),
-        }),
-        (Some(SourceType::LocalFile { path }), _) => {
-            Some(SourceType::LocalFile { path: path.clone() })
-        },
-        (None, Some(existing)) => Some(existing.clone()),
-    };
-
+    let origin = resolve_origin(&existing_metadata);
     llms_json.metadata.origin = origin.clone();
 
-    let metadata = Source {
-        url: existing_metadata.url,
-        etag: payload.etag,
-        last_modified: payload.last_modified,
-        fetched_at: chrono::Utc::now(),
-        sha256: payload.sha256,
-        variant: existing_metadata.variant,
-        aliases: existing_metadata.aliases,
-        tags: existing_metadata.tags,
-        description: existing_metadata.description,
-        category: existing_metadata.category,
-        npm_aliases: existing_metadata.npm_aliases,
-        github_aliases: existing_metadata.github_aliases,
-        origin,
-        filter_non_english: existing_metadata.filter_non_english,
-    };
+    let metadata = build_refresh_metadata(existing_metadata, payload, origin);
     storage.save_metadata(alias, &metadata)?;
 
     let index_path = storage.index_path(alias)?;
@@ -663,7 +683,7 @@ mod tests {
             "test",
             sample_source(),
             Vec::new(),
-            sample_payload(),
+            &sample_payload(),
             PerformanceMetrics::default(),
             &indexer,
         )?;

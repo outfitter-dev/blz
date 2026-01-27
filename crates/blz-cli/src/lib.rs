@@ -68,16 +68,28 @@ enum SearchFlagMatch {
     FormatAlias(&'static str),
 }
 
-#[allow(clippy::too_many_lines)] // Flag normalization requires explicit tables for clarity
 fn preprocess_args_from(raw: &[String]) -> Vec<String> {
     if raw.len() <= 1 {
         return raw.to_vec();
     }
 
+    let (first_non_global_idx, search_flag_found) = scan_args_for_search_flags(raw);
+    let explicit_subcommand =
+        first_non_global_idx < raw.len() && is_known_subcommand(raw[first_non_global_idx].as_str());
+    let should_inject_search = search_flag_found && !explicit_subcommand;
+
+    build_preprocessed_result(raw, first_non_global_idx, should_inject_search)
+}
+
+/// Scan arguments to find the first non-global index and detect search flags.
+///
+/// Returns (`first_non_global_idx`, `search_flag_found`).
+fn scan_args_for_search_flags(raw: &[String]) -> (usize, bool) {
     let mut first_non_global_idx = raw.len();
     let mut search_flag_found = false;
     let mut idx = 1;
 
+    // Phase 1: Skip global flags, find first non-global
     while idx < raw.len() {
         let arg = raw[idx].as_str();
         if arg == "--" {
@@ -96,9 +108,7 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
             first_non_global_idx = idx;
         }
 
-        if matches!(classify_search_flag(arg), SearchFlagMatch::None) {
-            // keep scanning
-        } else {
+        if !matches!(classify_search_flag(arg), SearchFlagMatch::None) {
             search_flag_found = true;
         }
 
@@ -109,7 +119,7 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
         first_non_global_idx = idx;
     }
 
-    // Continue scanning from the first non-global argument for additional search flags
+    // Phase 2: Continue scanning for additional search flags
     for arg in raw.iter().skip(first_non_global_idx) {
         if arg == "--" {
             break;
@@ -119,88 +129,119 @@ fn preprocess_args_from(raw: &[String]) -> Vec<String> {
         }
     }
 
-    let explicit_subcommand =
-        first_non_global_idx < raw.len() && is_known_subcommand(raw[first_non_global_idx].as_str());
+    (first_non_global_idx, search_flag_found)
+}
+
+/// Build the preprocessed result vector with optional search injection.
+fn build_preprocessed_result(
+    raw: &[String],
+    first_non_global_idx: usize,
+    should_inject_search: bool,
+) -> Vec<String> {
     let mut result = Vec::with_capacity(raw.len() + 4);
 
     result.push(raw[0].clone());
 
-    // Copy leading global flags so we can insert `search` after them if needed
+    // Copy leading global flags
     for arg in raw.iter().take(first_non_global_idx).skip(1) {
         result.push(arg.clone());
     }
 
-    let should_inject_search = search_flag_found && !explicit_subcommand;
     if should_inject_search {
         result.push("search".to_string());
     }
 
-    let mut idx = first_non_global_idx;
-    let mut encountered_sentinel = false;
+    let (processed_idx, encountered_sentinel) =
+        normalize_remaining_args(raw, first_non_global_idx, should_inject_search, &mut result);
+
+    if encountered_sentinel {
+        result.extend(raw.iter().skip(processed_idx).cloned());
+    }
+
+    result
+}
+
+/// Normalize remaining arguments, handling search flag transformations.
+///
+/// Returns (`final_index`, `encountered_sentinel`).
+fn normalize_remaining_args(
+    raw: &[String],
+    start_idx: usize,
+    should_inject_search: bool,
+    result: &mut Vec<String>,
+) -> (usize, bool) {
+    let mut idx = start_idx;
 
     while idx < raw.len() {
         let arg = raw[idx].as_str();
         if arg == "--" {
             result.push(raw[idx].clone());
-            idx += 1;
-            encountered_sentinel = true;
-            break;
+            return (idx + 1, true);
         }
 
-        match classify_search_flag(arg) {
-            SearchFlagMatch::None => {
+        idx = process_single_arg(raw, idx, should_inject_search, result);
+    }
+
+    (idx, false)
+}
+
+/// Process a single argument, applying normalization as needed.
+///
+/// Returns the next index to process.
+fn process_single_arg(
+    raw: &[String],
+    idx: usize,
+    should_inject_search: bool,
+    result: &mut Vec<String>,
+) -> usize {
+    let arg = raw[idx].as_str();
+
+    match classify_search_flag(arg) {
+        SearchFlagMatch::None => {
+            result.push(raw[idx].clone());
+            idx + 1
+        },
+        SearchFlagMatch::NoValue(flag) => {
+            result.push(flag.to_string());
+            idx + 1
+        },
+        SearchFlagMatch::FormatAlias(format) => {
+            // Only convert format aliases to --format when injecting search
+            if should_inject_search {
+                result.push("--format".to_string());
+                result.push(format.to_string());
+            } else {
                 result.push(raw[idx].clone());
-                idx += 1;
-            },
-            SearchFlagMatch::NoValue(flag) => {
-                result.push(flag.to_string());
-                idx += 1;
-            },
-            SearchFlagMatch::FormatAlias(format) => {
-                // Only convert format aliases to --format when injecting search.
-                // For explicit subcommands, preserve the original flag so Clap can parse it.
-                if should_inject_search {
-                    result.push("--format".to_string());
-                    result.push(format.to_string());
-                } else {
-                    result.push(raw[idx].clone());
-                }
-                idx += 1;
-            },
-            SearchFlagMatch::RequiresValue { flag, attached } => {
-                result.push(flag.to_string());
-                if let Some(value) = attached {
-                    result.push(value);
-                    idx += 1;
-                } else if idx + 1 < raw.len() {
-                    result.push(raw[idx + 1].clone());
-                    idx += 2;
-                } else {
-                    idx += 1;
-                }
-            },
-            SearchFlagMatch::OptionalValue { flag, attached } => {
-                result.push(flag.to_string());
-                if let Some(value) = attached {
-                    result.push(value);
-                    idx += 1;
-                } else if idx + 1 < raw.len() && !raw[idx + 1].starts_with('-') {
-                    // Only consume next argument if it doesn't look like a flag
-                    result.push(raw[idx + 1].clone());
-                    idx += 2;
-                } else {
-                    // No value provided and next arg is a flag, rely on clap's default_missing_value
-                    idx += 1;
-                }
-            },
-        }
+            }
+            idx + 1
+        },
+        SearchFlagMatch::RequiresValue { flag, attached } => {
+            result.push(flag.to_string());
+            if let Some(value) = attached {
+                result.push(value);
+                idx + 1
+            } else if idx + 1 < raw.len() {
+                result.push(raw[idx + 1].clone());
+                idx + 2
+            } else {
+                idx + 1
+            }
+        },
+        SearchFlagMatch::OptionalValue { flag, attached } => {
+            result.push(flag.to_string());
+            if let Some(value) = attached {
+                result.push(value);
+                idx + 1
+            } else if idx + 1 < raw.len() && !raw[idx + 1].starts_with('-') {
+                // Only consume next argument if it doesn't look like a flag
+                result.push(raw[idx + 1].clone());
+                idx + 2
+            } else {
+                // No value, rely on clap's default_missing_value
+                idx + 1
+            }
+        },
     }
-
-    if encountered_sentinel {
-        result.extend(raw.iter().skip(idx).cloned());
-    }
-
-    result
 }
 
 fn is_known_subcommand(value: &str) -> bool {
@@ -292,110 +333,166 @@ fn match_flag_with_value(
 /// assert_eq!(classify_search_flag("-C5"),
 ///            SearchFlagMatch::OptionalValue { flag: "-C", attached: Some("5".to_string()) });
 /// ```
-#[allow(clippy::too_many_lines)] // Exhaustive flag matching keeps clap preprocessing predictable
 fn classify_search_flag(arg: &str) -> SearchFlagMatch {
+    // Try simple flags first (exact matches)
+    if let result @ (SearchFlagMatch::NoValue(_) | SearchFlagMatch::FormatAlias(_)) =
+        classify_simple_search_flag(arg)
+    {
+        return result;
+    }
+
+    // Try format aliases with attached values
+    if let Some(result) = classify_format_alias_with_value(arg) {
+        return result;
+    }
+
+    // Try long flags with values
+    let result = classify_long_search_flags(arg);
+    if !matches!(result, SearchFlagMatch::None) {
+        return result;
+    }
+
+    // Try short flags with optional/required values
+    classify_short_search_flags(arg)
+}
+
+/// Classify simple search flags (exact matches for switches and format aliases).
+fn classify_simple_search_flag(arg: &str) -> SearchFlagMatch {
     match arg {
-        "--last" => return SearchFlagMatch::NoValue("--last"),
-        "--next" => return SearchFlagMatch::NoValue("--next"),
-        "--previous" => return SearchFlagMatch::NoValue("--previous"),
-        "--all" => return SearchFlagMatch::NoValue("--all"),
-        "--no-summary" => return SearchFlagMatch::NoValue("--no-summary"),
-        "--block" => return SearchFlagMatch::NoValue("--block"),
-        "--no-history" => return SearchFlagMatch::NoValue("--no-history"),
-        "--copy" => return SearchFlagMatch::NoValue("--copy"),
-        "--json" => return SearchFlagMatch::FormatAlias("json"),
-        "--jsonl" => return SearchFlagMatch::FormatAlias("jsonl"),
-        "--text" => return SearchFlagMatch::FormatAlias("text"),
-        _ => {},
+        "--last" => SearchFlagMatch::NoValue("--last"),
+        "--next" => SearchFlagMatch::NoValue("--next"),
+        "--previous" => SearchFlagMatch::NoValue("--previous"),
+        "--all" => SearchFlagMatch::NoValue("--all"),
+        "--no-summary" => SearchFlagMatch::NoValue("--no-summary"),
+        "--block" => SearchFlagMatch::NoValue("--block"),
+        "--no-history" => SearchFlagMatch::NoValue("--no-history"),
+        "--copy" => SearchFlagMatch::NoValue("--copy"),
+        "--json" => SearchFlagMatch::FormatAlias("json"),
+        "--jsonl" => SearchFlagMatch::FormatAlias("jsonl"),
+        "--text" => SearchFlagMatch::FormatAlias("text"),
+        _ => SearchFlagMatch::None,
     }
+}
 
-    if let Some(value) = arg.strip_prefix("--json=") {
-        if !value.is_empty() {
-            return SearchFlagMatch::FormatAlias("json");
-        }
-    }
-    if let Some(value) = arg.strip_prefix("--jsonl=") {
-        if !value.is_empty() {
-            return SearchFlagMatch::FormatAlias("jsonl");
-        }
-    }
-    if let Some(value) = arg.strip_prefix("--text=") {
-        if !value.is_empty() {
-            return SearchFlagMatch::FormatAlias("text");
-        }
-    }
-
-    // Handle context flags with optional values
-    let context_flags = [
-        ("--context", "--context"),
-        ("--after-context", "--after-context"),
-        ("--before-context", "--before-context"),
+/// Classify format alias flags with attached values (e.g., --json=true).
+fn classify_format_alias_with_value(arg: &str) -> Option<SearchFlagMatch> {
+    const FORMAT_PREFIXES: &[(&str, &str)] = &[
+        ("--json=", "json"),
+        ("--jsonl=", "jsonl"),
+        ("--text=", "text"),
     ];
-    let result = match_flag_with_value(arg, &context_flags, true);
+
+    for (prefix, format) in FORMAT_PREFIXES {
+        if let Some(value) = arg.strip_prefix(prefix) {
+            if !value.is_empty() {
+                return Some(SearchFlagMatch::FormatAlias(format));
+            }
+        }
+    }
+    None
+}
+
+// Flag tables for classify_long_search_flags
+const LONG_CONTEXT_FLAGS: &[(&str, &str)] = &[
+    ("--context", "--context"),
+    ("--after-context", "--after-context"),
+    ("--before-context", "--before-context"),
+];
+
+const LONG_REQUIRED_VALUE_FLAGS: &[(&str, &str)] = &[
+    ("--max-lines", "--max-lines"),
+    ("--max-chars", "--max-chars"),
+];
+
+const LONG_SEARCH_FLAGS: &[(&str, &str)] = &[
+    ("--alias", "--alias"),
+    ("--source", "--source"),
+    ("--limit", "--limit"),
+    ("--page", "--page"),
+    ("--top", "--top"),
+    ("--format", "--format"),
+    ("--output", "--output"),
+    ("--show", "--show"),
+    ("--score-precision", "--score-precision"),
+    ("--snippet-lines", "--snippet-lines"),
+];
+
+// Flag tables for classify_short_search_flags
+const SHORT_OPTIONAL_FLAGS: &[(&str, &str)] =
+    &[("-C", "-C"), ("-c", "-c"), ("-A", "-A"), ("-B", "-B")];
+
+const SHORT_REQUIRED_FLAGS: &[(&str, &str)] =
+    &[("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")];
+
+/// Classify long search flags that take values.
+fn classify_long_search_flags(arg: &str) -> SearchFlagMatch {
+    // Try context flags (optional values)
+    let result = match_flag_with_value(arg, LONG_CONTEXT_FLAGS, true);
     if !matches!(result, SearchFlagMatch::None) {
         return result;
     }
 
-    // Handle flags that require explicit values
-    let required_value_flags = [
-        ("--max-lines", "--max-lines"),
-        ("--max-chars", "--max-chars"),
-    ];
-    let result = match_flag_with_value(arg, &required_value_flags, false);
+    // Try flags that require explicit values
+    let result = match_flag_with_value(arg, LONG_REQUIRED_VALUE_FLAGS, false);
     if !matches!(result, SearchFlagMatch::None) {
         return result;
     }
 
-    let search_flags = [
-        ("--alias", "--alias"),
-        ("--source", "--source"),
-        ("--limit", "--limit"),
-        ("--page", "--page"),
-        ("--top", "--top"),
-        ("--format", "--format"),
-        ("--output", "--output"),
-        ("--show", "--show"),
-        ("--score-precision", "--score-precision"),
-        ("--snippet-lines", "--snippet-lines"),
-    ];
-    let result = match_flag_with_value(arg, &search_flags, false);
-    if !matches!(result, SearchFlagMatch::None) {
+    // Try general search flags
+    match_flag_with_value(arg, LONG_SEARCH_FLAGS, false)
+}
+
+/// Classify short search flags (e.g., -C5, -s bun).
+fn classify_short_search_flags(arg: &str) -> SearchFlagMatch {
+    // Try short context flags with optional attached values
+    if let Some(result) = match_short_flag(arg, SHORT_OPTIONAL_FLAGS, true) {
         return result;
     }
 
-    // Handle short context flags with optional attached values (-C5, -A3, -B2, etc.)
-    for (prefix, canonical) in [("-C", "-C"), ("-c", "-c"), ("-A", "-A"), ("-B", "-B")] {
-        if arg == prefix {
-            return SearchFlagMatch::OptionalValue {
-                flag: canonical,
-                attached: None,
-            };
-        }
-        if arg.starts_with(prefix) && arg.len() > prefix.len() {
-            return SearchFlagMatch::OptionalValue {
-                flag: canonical,
-                attached: Some(arg[prefix.len()..].to_string()),
-            };
-        }
-    }
-
-    // Handle other short flags that require values
-    for (prefix, canonical) in [("-s", "-s"), ("-n", "-n"), ("-f", "-f"), ("-o", "-o")] {
-        if arg == prefix {
-            return SearchFlagMatch::RequiresValue {
-                flag: canonical,
-                attached: None,
-            };
-        }
-        if arg.starts_with(prefix) && arg.len() > prefix.len() {
-            return SearchFlagMatch::RequiresValue {
-                flag: canonical,
-                attached: Some(arg[prefix.len()..].to_string()),
-            };
-        }
+    // Try short flags that require values
+    if let Some(result) = match_short_flag(arg, SHORT_REQUIRED_FLAGS, false) {
+        return result;
     }
 
     SearchFlagMatch::None
+}
+
+/// Match a short flag with optional/required value attachment.
+fn match_short_flag(
+    arg: &str,
+    flags: &[(&'static str, &'static str)],
+    optional: bool,
+) -> Option<SearchFlagMatch> {
+    for (prefix, canonical) in flags {
+        if arg == *prefix {
+            return Some(if optional {
+                SearchFlagMatch::OptionalValue {
+                    flag: canonical,
+                    attached: None,
+                }
+            } else {
+                SearchFlagMatch::RequiresValue {
+                    flag: canonical,
+                    attached: None,
+                }
+            });
+        }
+        if arg.starts_with(prefix) && arg.len() > prefix.len() {
+            let attached = Some(arg[prefix.len()..].to_string());
+            return Some(if optional {
+                SearchFlagMatch::OptionalValue {
+                    flag: canonical,
+                    attached,
+                }
+            } else {
+                SearchFlagMatch::RequiresValue {
+                    flag: canonical,
+                    attached,
+                }
+            });
+        }
+    }
+    None
 }
 
 /// Execute the blz CLI with the currently configured environment.
@@ -541,12 +638,12 @@ fn stop_flamegraph_if_started(guard: Option<pprof::ProfilerGuard<'static>>) {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn execute_command(
     cli: Cli,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
+    let quiet = cli.quiet;
     match cli.command {
         Some(Commands::Instruct) => {
             prompt::emit("__global__", Some(&Commands::Instruct))?;
@@ -557,391 +654,45 @@ async fn execute_command(
             list,
             format,
         }) => {
-            let resolved_format = format.resolve(cli.quiet);
-            if list {
-                commands::list_supported(resolved_format);
-            } else if let Some(shell) = shell {
-                commands::generate(shell);
-            } else {
-                commands::list_supported(resolved_format);
-            }
+            handle_completions(shell, list, format.resolve(quiet));
         },
         Some(Commands::Docs { command }) => {
-            handle_docs(command, cli.quiet, metrics.clone(), prefs).await?;
+            handle_docs(command, quiet, metrics.clone(), prefs).await?;
         },
-        Some(Commands::ClaudePlugin { command }) => {
-            handle_claude_plugin(command)?;
-        },
+        Some(Commands::ClaudePlugin { command }) => handle_claude_plugin(command)?,
         Some(Commands::Alias { command }) => handle_alias(command).await?,
-        Some(Commands::Add(args)) => {
-            if let Some(manifest) = &args.manifest {
-                commands::add_manifest(
-                    manifest,
-                    &args.only,
-                    metrics,
-                    commands::AddFlowOptions::new(args.dry_run, cli.quiet, args.no_language_filter),
-                )
-                .await?;
-            } else {
-                let alias = args
-                    .alias
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("alias is required when manifest is not provided"))?;
-                let url = args
-                    .url
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("url is required when manifest is not provided"))?;
-
-                let descriptor = DescriptorInput::from_cli_inputs(
-                    &args.aliases,
-                    args.name.as_deref(),
-                    args.description.as_deref(),
-                    args.category.as_deref(),
-                    &args.tags,
-                );
-
-                let request = AddRequest::new(
-                    alias.to_string(),
-                    url.to_string(),
-                    descriptor,
-                    args.dry_run,
-                    cli.quiet,
-                    metrics,
-                    args.no_language_filter,
-                );
-
-                commands::add_source(request).await?;
-            }
-        },
+        Some(Commands::Add(args)) => handle_add(args, quiet, metrics).await?,
         Some(Commands::Lookup {
             query,
             format,
             limit,
         }) => {
-            commands::lookup_registry(&query, metrics, cli.quiet, format.resolve(cli.quiet), limit)
-                .await?;
+            dispatch_lookup(query, format, limit, quiet, metrics).await?;
         },
-        Some(Commands::Registry { command }) => {
-            handle_registry(command, cli.quiet, metrics).await?;
-        },
-        Some(Commands::Search {
-            query,
-            sources,
-            next,
-            previous,
-            last,
-            limit,
-            all,
-            page,
-            top,
-            heading_level,
-            format,
-            show,
-            no_summary,
-            score_precision,
-            snippet_lines,
-            max_chars,
-            context,
-            context_deprecated,
-            after_context,
-            before_context,
-            block,
-            max_lines,
-            headings_only,
-            no_history,
-            copy,
-        }) => {
-            let resolved_format = format.resolve(cli.quiet);
-            // Merge all context flags into a single ContextMode
-            let merged_context = crate::cli::merge_context_flags(
-                context,
-                context_deprecated,
-                after_context,
-                before_context,
-            );
-            handle_search(
-                query,
-                sources,
-                next,
-                previous,
-                last,
-                limit,
-                all,
-                page,
-                top,
-                heading_level,
-                resolved_format,
-                show,
-                no_summary,
-                score_precision,
-                snippet_lines,
-                max_chars,
-                merged_context,
-                block,
-                max_lines,
-                headings_only,
-                no_history,
-                copy,
-                cli.quiet,
-                metrics,
-                prefs,
-            )
-            .await?;
-        },
+        Some(Commands::Registry { command }) => handle_registry(command, quiet, metrics).await?,
+        Some(cmd @ Commands::Search { .. }) => dispatch_search(cmd, quiet, metrics, prefs).await?,
         Some(Commands::History {
             limit,
             format,
             clear,
             clear_before,
         }) => {
-            commands::show_history(
-                prefs,
-                limit,
-                format.resolve(cli.quiet),
-                clear,
-                clear_before.as_deref(),
-            )?;
+            dispatch_history(limit, &format, clear, clear_before.as_deref(), quiet, prefs)?;
         },
-        // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
-        Some(Commands::Get {
-            targets,
-            lines,
-            source,
-            context,
-            context_deprecated,
-            after_context,
-            before_context,
-            block,
-            max_lines,
-            format,
-            copy,
-        }) => {
-            if targets.is_empty() {
-                anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
-            }
-
-            if lines.is_some() && targets.len() > 1 {
-                anyhow::bail!(
-                    "--lines can only be combined with a single alias. \
-                     Provide explicit ranges via colon syntax for each additional target."
-                );
-            }
-
-            let mut request_specs = Vec::with_capacity(targets.len());
-            for (idx, target) in targets.iter().enumerate() {
-                let trimmed = target.trim();
-                if trimmed.is_empty() {
-                    anyhow::bail!("Alias at position {} cannot be empty.", idx + 1);
-                }
-
-                if let Some((alias_part, range_part)) = trimmed.split_once(':') {
-                    let trimmed_alias = alias_part.trim();
-                    if trimmed_alias.is_empty() {
-                        anyhow::bail!(
-                            "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
-                            idx + 1
-                        );
-                    }
-                    if range_part.is_empty() {
-                        anyhow::bail!(
-                            "Alias '{trimmed_alias}' is missing a range. \
-                             Use syntax like '{trimmed_alias}:120-142'."
-                        );
-                    }
-                    request_specs.push(RequestSpec {
-                        alias: trimmed_alias.to_string(),
-                        line_expression: range_part.trim().to_string(),
-                    });
-                } else {
-                    let Some(line_expr) = lines.clone() else {
-                        anyhow::bail!(
-                            "Missing line specification for alias '{trimmed}'. \
-                             Use '{trimmed}:1-3' or provide --lines."
-                        );
-                    };
-                    request_specs.push(RequestSpec {
-                        alias: trimmed.to_string(),
-                        line_expression: line_expr,
-                    });
-                }
-            }
-
-            if let Some(explicit_source) = source {
-                if request_specs.len() > 1 {
-                    anyhow::bail!("--source cannot be combined with multiple alias targets.");
-                }
-                if let Some(first) = request_specs.first_mut() {
-                    first.alias = explicit_source;
-                }
-            }
-
-            // Merge all context flags into a single ContextMode
-            let merged_context = crate::cli::merge_context_flags(
-                context,
-                context_deprecated,
-                after_context,
-                before_context,
-            );
-
-            commands::get_lines(
-                &request_specs,
-                merged_context.as_ref(),
-                block,
-                max_lines,
-                format.resolve(cli.quiet),
-                copy,
-            )
-            .await?;
-        },
-        Some(Commands::Query(args)) => {
-            let resolved_format = args.format.resolve(cli.quiet);
-
-            // Merge all context flags into a single ContextMode
-            let merged_context = crate::cli::merge_context_flags(
-                args.context,
-                args.context_deprecated,
-                args.after_context,
-                args.before_context,
-            );
-
-            commands::query(
-                &args.inputs,
-                &args.sources,
-                args.limit,
-                args.all,
-                args.page,
-                false, // last - query command doesn't support --last flag
-                args.top,
-                args.heading_level.clone(),
-                resolved_format,
-                &args.show,
-                args.no_summary,
-                args.score_precision,
-                args.snippet_lines,
-                args.max_chars,
-                merged_context.as_ref(),
-                args.block,
-                args.max_lines,
-                args.no_history,
-                args.copy,
-                cli.quiet,
-                args.headings_only,
-                Some(prefs),
-                metrics.clone(),
-                None, // resource_monitor
-            )
-            .await?;
-        },
-        Some(Commands::Map(args)) => {
-            commands::show_map(
-                args.alias.as_deref(),
-                &args.sources,
-                args.all,
-                args.format.resolve(cli.quiet),
-                args.anchors,
-                args.show_anchors,
-                args.limit,
-                args.max_depth,
-                args.heading_level.as_ref(),
-                args.filter.as_deref(),
-                args.tree,
-                args.next,
-                args.previous,
-                args.last,
-                args.page,
-            )
-            .await?;
-        },
-        Some(Commands::Sync(args)) => {
-            commands::sync_source(
-                args.aliases,
-                args.all,
-                args.reindex,
-                args.filter,
-                args.no_filter,
-                metrics,
-                cli.quiet,
-            )
-            .await?;
-        },
+        Some(cmd @ Commands::Get { .. }) => dispatch_get(cmd, quiet).await?,
+        Some(Commands::Query(args)) => handle_query(args, quiet, prefs, metrics.clone()).await?,
+        Some(Commands::Map(args)) => dispatch_map(args, quiet).await?,
+        Some(Commands::Sync(args)) => dispatch_sync(args, quiet, metrics).await?,
         Some(Commands::Check(args)) => {
-            commands::check_source(args.alias, args.all, args.format.resolve(cli.quiet)).await?;
+            commands::check_source(args.alias, args.all, args.format.resolve(quiet)).await?;
         },
-        Some(Commands::Rm(args)) => {
-            commands::rm_source(vec![args.alias], args.yes).await?;
-        },
+        Some(Commands::Rm(args)) => commands::rm_source(vec![args.alias], args.yes).await?,
         #[allow(deprecated)]
-        Some(Commands::Find {
-            inputs,
-            sources,
-            limit,
-            all,
-            page,
-            top,
-            heading_level,
-            format,
-            show,
-            no_summary,
-            score_precision,
-            snippet_lines,
-            max_chars,
-            context,
-            context_deprecated,
-            after_context,
-            before_context,
-            block,
-            max_lines,
-            headings_only,
-            no_history,
-            copy,
-        }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'find' is deprecated, use 'query' or 'get' instead".yellow()
-                );
-            }
-            let resolved_format = format.resolve(cli.quiet);
-
-            // Merge all context flags into a single ContextMode
-            let merged_context = crate::cli::merge_context_flags(
-                context,
-                context_deprecated,
-                after_context,
-                before_context,
-            );
-
-            // Execute find with smart dispatch
-            commands::find(
-                &inputs,
-                &sources,
-                limit,
-                all,
-                page,
-                false, // last - find command doesn't support --last flag
-                top,
-                heading_level.clone(),
-                resolved_format,
-                &show,
-                no_summary,
-                score_precision,
-                snippet_lines,
-                max_chars,
-                merged_context.as_ref(),
-                block,
-                max_lines,
-                no_history,
-                copy,
-                cli.quiet,
-                headings_only,
-                Some(prefs),
-                metrics.clone(),
-                None, // resource_monitor
-            )
-            .await?;
+        Some(cmd @ Commands::Find { .. }) => {
+            dispatch_find(cmd, quiet, prefs, metrics.clone()).await?;
         },
         Some(Commands::Info { alias, format }) => {
-            commands::execute_info(&alias, format.resolve(cli.quiet)).await?;
+            commands::execute_info(&alias, format.resolve(quiet)).await?;
         },
         Some(Commands::List {
             format,
@@ -949,136 +700,731 @@ async fn execute_command(
             details,
             limit,
         }) => {
-            commands::list_sources(format.resolve(cli.quiet), status, details, limit).await?;
+            dispatch_list(format, status, details, limit, quiet).await?;
         },
         Some(Commands::Stats { format, limit }) => {
-            commands::show_stats(format.resolve(cli.quiet), limit)?;
+            commands::show_stats(format.resolve(quiet), limit)?;
         },
         #[allow(deprecated)]
         Some(Commands::Validate { alias, all, format }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'validate' is deprecated, use 'check' instead".yellow()
-                );
-            }
-            commands::validate_source(alias.clone(), all, format.resolve(cli.quiet)).await?;
+            dispatch_validate(alias, all, format, quiet).await?;
         },
         Some(Commands::Doctor { format, fix }) => {
-            commands::run_doctor(format.resolve(cli.quiet), fix).await?;
+            commands::run_doctor(format.resolve(quiet), fix).await?;
         },
         #[allow(deprecated)]
-        Some(Commands::Refresh {
-            aliases,
-            all,
-            yes: _, // Ignored - kept for CLI backward compat
-            reindex,
-            filter,
-            no_filter,
-        }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'refresh' is deprecated, use 'sync' instead".yellow()
-                );
-            }
-            handle_refresh(
-                aliases,
-                all,
-                reindex,
-                filter.clone(),
-                no_filter,
-                metrics,
-                cli.quiet,
-            )
-            .await?;
-        },
+        Some(cmd @ Commands::Refresh { .. }) => dispatch_refresh(cmd, quiet, metrics).await?,
         #[allow(deprecated)]
+        Some(cmd @ Commands::Update { .. }) => dispatch_update(cmd, quiet, metrics).await?,
         #[allow(deprecated)]
-        Some(Commands::Update {
-            aliases,
-            all,
-            yes: _, // Ignored - kept for CLI backward compat
-        }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
-                );
-            }
-            handle_refresh(aliases, all, false, None, false, metrics, cli.quiet).await?;
-        },
-        #[allow(deprecated)]
-        Some(Commands::Remove { alias, yes }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'remove' is deprecated, use 'rm' instead".yellow()
-                );
-            }
-            commands::remove_source(&alias, yes, cli.quiet).await?;
-        },
-        Some(Commands::Clear { force }) => {
-            commands::clear_cache(force)?;
-        },
+        Some(Commands::Remove { alias, yes }) => dispatch_remove(alias, yes, quiet).await?,
+        Some(Commands::Clear { force }) => commands::clear_cache(force)?,
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
         },
-        Some(Commands::McpServer) => {
-            commands::mcp_server().await?;
-        },
-        Some(Commands::Anchor { command }) => {
-            handle_anchor(command, cli.quiet).await?;
-        },
+        Some(Commands::McpServer) => commands::mcp_server().await?,
+        Some(Commands::Anchor { command }) => handle_anchor(command, quiet).await?,
         #[allow(deprecated)]
-        Some(Commands::Toc {
-            alias,
-            format,
-            filter,
-            max_depth,
-            heading_level,
-            sources,
-            all,
-            tree,
-            anchors,
-            show_anchors,
-            next,
-            previous,
-            last,
-            limit,
-            page,
-        }) => {
-            if !utils::cli_args::deprecation_warnings_suppressed() {
-                eprintln!(
-                    "{}",
-                    "Warning: 'toc' is deprecated, use 'map' instead".yellow()
-                );
-            }
-            commands::show_toc(
-                alias.as_deref(),
-                &sources,
-                all,
-                format.resolve(cli.quiet),
-                anchors,
-                show_anchors,
-                limit,
-                max_depth,
-                heading_level.as_ref(),
-                filter.as_deref(),
-                tree,
-                next,
-                previous,
-                last,
-                page,
-            )
-            .await?;
-        },
-        None => {
-            commands::handle_default_search(&cli.query, metrics, None, prefs, cli.quiet).await?;
-        },
+        Some(cmd @ Commands::Toc { .. }) => dispatch_toc(cmd, quiet).await?,
+        None => commands::handle_default_search(&cli.query, metrics, None, prefs, quiet).await?,
+    }
+    Ok(())
+}
+
+/// Dispatch a Search command variant, handling destructuring internally.
+///
+/// This function extracts all fields from the `Commands::Search` variant and
+/// forwards them to the underlying `handle_search` implementation.
+#[allow(clippy::too_many_lines)]
+async fn dispatch_search(
+    cmd: Commands,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    prefs: &mut CliPreferences,
+) -> Result<()> {
+    let Commands::Search {
+        query,
+        sources,
+        next,
+        previous,
+        last,
+        limit,
+        all,
+        page,
+        top,
+        heading_level,
+        format,
+        show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        headings_only,
+        no_history,
+        copy,
+    } = cmd
+    else {
+        unreachable!("dispatch_search called with non-Search command");
+    };
+
+    let resolved_format = format.resolve(quiet);
+    let merged_context =
+        crate::cli::merge_context_flags(context, context_deprecated, after_context, before_context);
+
+    handle_search(
+        query,
+        sources,
+        next,
+        previous,
+        last,
+        limit,
+        all,
+        page,
+        top,
+        heading_level,
+        resolved_format,
+        show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        merged_context,
+        block,
+        max_lines,
+        headings_only,
+        no_history,
+        copy,
+        quiet,
+        metrics,
+        prefs,
+    )
+    .await
+}
+
+/// Dispatch a Get command variant, handling destructuring internally.
+#[allow(clippy::too_many_lines)]
+async fn dispatch_get(cmd: Commands, quiet: bool) -> Result<()> {
+    let Commands::Get {
+        targets,
+        lines,
+        source,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        format,
+        copy,
+    } = cmd
+    else {
+        unreachable!("dispatch_get called with non-Get command");
+    };
+
+    handle_get(
+        targets,
+        lines,
+        source,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        format.resolve(quiet),
+        copy,
+    )
+    .await
+}
+
+/// Dispatch a Find command variant, handling destructuring internally.
+#[allow(clippy::too_many_lines)]
+async fn dispatch_find(
+    cmd: Commands,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    #[allow(deprecated)]
+    let Commands::Find {
+        inputs,
+        sources,
+        limit,
+        all,
+        page,
+        top,
+        heading_level,
+        format,
+        show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        headings_only,
+        no_history,
+        copy,
+    } = cmd
+    else {
+        unreachable!("dispatch_find called with non-Find command");
+    };
+
+    handle_find(
+        inputs,
+        sources,
+        limit,
+        all,
+        page,
+        top,
+        heading_level,
+        format.resolve(quiet),
+        show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        headings_only,
+        no_history,
+        copy,
+        quiet,
+        prefs,
+        metrics,
+    )
+    .await
+}
+
+/// Dispatch a Toc command variant, handling destructuring internally.
+#[allow(deprecated)]
+async fn dispatch_toc(cmd: Commands, quiet: bool) -> Result<()> {
+    let Commands::Toc {
+        alias,
+        format,
+        filter,
+        max_depth,
+        heading_level,
+        sources,
+        all,
+        tree,
+        anchors,
+        show_anchors,
+        next,
+        previous,
+        last,
+        limit,
+        page,
+    } = cmd
+    else {
+        unreachable!("dispatch_toc called with non-Toc command");
+    };
+
+    handle_toc(
+        alias,
+        sources,
+        all,
+        format.resolve(quiet),
+        anchors,
+        show_anchors,
+        limit,
+        max_depth,
+        heading_level,
+        filter,
+        tree,
+        next,
+        previous,
+        last,
+        page,
+    )
+    .await
+}
+
+/// Dispatch a Refresh command variant, handling destructuring internally.
+#[allow(deprecated)]
+async fn dispatch_refresh(cmd: Commands, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let Commands::Refresh {
+        aliases,
+        all,
+        yes: _,
+        reindex,
+        filter,
+        no_filter,
+    } = cmd
+    else {
+        unreachable!("dispatch_refresh called with non-Refresh command");
+    };
+
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'refresh' is deprecated, use 'sync' instead".yellow()
+        );
     }
 
+    handle_refresh(aliases, all, reindex, filter, no_filter, metrics, quiet).await
+}
+
+/// Dispatch a Map command.
+async fn dispatch_map(args: crate::cli::MapArgs, quiet: bool) -> Result<()> {
+    commands::show_map(
+        args.alias.as_deref(),
+        &args.sources,
+        args.all,
+        args.format.resolve(quiet),
+        args.anchors,
+        args.show_anchors,
+        args.limit,
+        args.max_depth,
+        args.heading_level.as_ref(),
+        args.filter.as_deref(),
+        args.tree,
+        args.next,
+        args.previous,
+        args.last,
+        args.page,
+    )
+    .await
+}
+
+/// Dispatch a Sync command.
+async fn dispatch_sync(
+    args: crate::cli::SyncArgs,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    commands::sync_source(
+        args.aliases,
+        args.all,
+        args.yes,
+        args.reindex,
+        args.filter,
+        args.no_filter,
+        metrics,
+        quiet,
+    )
+    .await
+}
+
+/// Dispatch a History command.
+fn dispatch_history(
+    limit: usize,
+    format: &crate::utils::cli_args::FormatArg,
+    clear: bool,
+    clear_before: Option<&str>,
+    quiet: bool,
+    prefs: &CliPreferences,
+) -> Result<()> {
+    commands::show_history(prefs, limit, format.resolve(quiet), clear, clear_before)
+}
+
+/// Dispatch a List command.
+async fn dispatch_list(
+    format: crate::utils::cli_args::FormatArg,
+    status: bool,
+    details: bool,
+    limit: Option<usize>,
+    quiet: bool,
+) -> Result<()> {
+    commands::list_sources(format.resolve(quiet), status, details, limit).await
+}
+
+/// Dispatch a Validate command (deprecated).
+#[allow(deprecated)]
+async fn dispatch_validate(
+    alias: Option<String>,
+    all: bool,
+    format: crate::utils::cli_args::FormatArg,
+    quiet: bool,
+) -> Result<()> {
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'validate' is deprecated, use 'check' instead".yellow()
+        );
+    }
+    commands::validate_source(alias, all, format.resolve(quiet)).await
+}
+
+/// Dispatch an Update command (deprecated).
+#[allow(deprecated)]
+async fn dispatch_update(cmd: Commands, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let Commands::Update {
+        aliases,
+        all,
+        yes: _,
+    } = cmd
+    else {
+        unreachable!("dispatch_update called with non-Update command");
+    };
+
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
+        );
+    }
+    handle_refresh(aliases, all, false, None, false, metrics, quiet).await
+}
+
+/// Dispatch a Remove command (deprecated).
+#[allow(deprecated)]
+async fn dispatch_remove(alias: String, yes: bool, quiet: bool) -> Result<()> {
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'remove' is deprecated, use 'rm' instead".yellow()
+        );
+    }
+    commands::remove_source(&alias, yes, quiet).await
+}
+
+/// Dispatch a Lookup command.
+async fn dispatch_lookup(
+    query: String,
+    format: crate::utils::cli_args::FormatArg,
+    limit: Option<usize>,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    commands::lookup_registry(&query, metrics, quiet, format.resolve(quiet), limit).await
+}
+
+fn handle_completions(
+    shell: Option<clap_complete::Shell>,
+    list: bool,
+    format: crate::output::OutputFormat,
+) {
+    if list {
+        commands::list_supported(format);
+    } else if let Some(shell) = shell {
+        commands::generate(shell);
+    } else {
+        commands::list_supported(format);
+    }
+}
+
+async fn handle_add(
+    args: crate::cli::AddArgs,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    if let Some(manifest) = &args.manifest {
+        commands::add_manifest(
+            manifest,
+            &args.only,
+            metrics,
+            commands::AddFlowOptions::new(args.dry_run, quiet, args.no_language_filter),
+        )
+        .await
+    } else {
+        let alias = args
+            .alias
+            .as_deref()
+            .ok_or_else(|| anyhow!("alias is required when manifest is not provided"))?;
+        let url = args
+            .url
+            .as_deref()
+            .ok_or_else(|| anyhow!("url is required when manifest is not provided"))?;
+
+        let descriptor = DescriptorInput::from_cli_inputs(
+            &args.aliases,
+            args.name.as_deref(),
+            args.description.as_deref(),
+            args.category.as_deref(),
+            &args.tags,
+        );
+
+        let request = AddRequest::new(
+            alias.to_string(),
+            url.to_string(),
+            descriptor,
+            args.dry_run,
+            quiet,
+            metrics,
+            args.no_language_filter,
+        );
+
+        commands::add_source(request).await
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_get(
+    targets: Vec<String>,
+    lines: Option<String>,
+    source: Option<String>,
+    context: Option<crate::cli::ContextMode>,
+    context_deprecated: Option<crate::cli::ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+    block: bool,
+    max_lines: Option<usize>,
+    format: crate::output::OutputFormat,
+    copy: bool,
+) -> Result<()> {
+    let request_specs = parse_get_targets(&targets, lines.as_deref(), source)?;
+
+    let merged_context =
+        crate::cli::merge_context_flags(context, context_deprecated, after_context, before_context);
+
+    commands::get_lines(
+        &request_specs,
+        merged_context.as_ref(),
+        block,
+        max_lines,
+        format,
+        copy,
+    )
+    .await
+}
+
+/// Parse get command targets into request specifications.
+fn parse_get_targets(
+    targets: &[String],
+    lines: Option<&str>,
+    source: Option<String>,
+) -> Result<Vec<RequestSpec>> {
+    if targets.is_empty() {
+        anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
+    }
+
+    if lines.is_some() && targets.len() > 1 {
+        anyhow::bail!(
+            "--lines can only be combined with a single alias. \
+             Provide explicit ranges via colon syntax for each additional target."
+        );
+    }
+
+    let mut request_specs = Vec::with_capacity(targets.len());
+    for (idx, target) in targets.iter().enumerate() {
+        let spec = parse_single_target(target, idx, lines)?;
+        request_specs.push(spec);
+    }
+
+    apply_source_override(&mut request_specs, source)?;
+    Ok(request_specs)
+}
+
+/// Parse a single target string into a `RequestSpec`.
+fn parse_single_target(target: &str, idx: usize, lines: Option<&str>) -> Result<RequestSpec> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("Alias at position {} cannot be empty.", idx + 1);
+    }
+
+    if let Some((alias_part, range_part)) = trimmed.split_once(':') {
+        let trimmed_alias = alias_part.trim();
+        if trimmed_alias.is_empty() {
+            anyhow::bail!(
+                "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
+                idx + 1
+            );
+        }
+        if range_part.is_empty() {
+            anyhow::bail!(
+                "Alias '{trimmed_alias}' is missing a range. \
+                 Use syntax like '{trimmed_alias}:120-142'."
+            );
+        }
+        Ok(RequestSpec {
+            alias: trimmed_alias.to_string(),
+            line_expression: range_part.trim().to_string(),
+        })
+    } else {
+        let Some(line_expr) = lines else {
+            anyhow::bail!(
+                "Missing line specification for alias '{trimmed}'. \
+                 Use '{trimmed}:1-3' or provide --lines."
+            );
+        };
+        Ok(RequestSpec {
+            alias: trimmed.to_string(),
+            line_expression: line_expr.to_string(),
+        })
+    }
+}
+
+/// Apply source override to request specs if provided.
+fn apply_source_override(request_specs: &mut [RequestSpec], source: Option<String>) -> Result<()> {
+    if let Some(explicit_source) = source {
+        if request_specs.len() > 1 {
+            anyhow::bail!("--source cannot be combined with multiple alias targets.");
+        }
+        if let Some(first) = request_specs.first_mut() {
+            first.alias = explicit_source;
+        }
+    }
     Ok(())
+}
+
+async fn handle_query(
+    args: crate::cli::QueryArgs,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    let resolved_format = args.format.resolve(quiet);
+    let merged_context = crate::cli::merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
+
+    commands::query(
+        &args.inputs,
+        &args.sources,
+        args.limit,
+        args.all,
+        args.page,
+        false, // last - query command doesn't support --last flag
+        args.top,
+        args.heading_level.clone(),
+        resolved_format,
+        &args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
+        merged_context.as_ref(),
+        args.block,
+        args.max_lines,
+        args.no_history,
+        args.copy,
+        quiet,
+        args.headings_only,
+        Some(prefs),
+        metrics,
+        None,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+async fn handle_find(
+    inputs: Vec<String>,
+    sources: Vec<String>,
+    limit: Option<usize>,
+    all: bool,
+    page: usize,
+    top: Option<u8>,
+    heading_level: Option<String>,
+    format: crate::output::OutputFormat,
+    show: Vec<crate::cli::ShowComponent>,
+    no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
+    max_chars: Option<usize>,
+    context: Option<crate::cli::ContextMode>,
+    context_deprecated: Option<crate::cli::ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+    block: bool,
+    max_lines: Option<usize>,
+    headings_only: bool,
+    no_history: bool,
+    copy: bool,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'find' is deprecated, use 'query' or 'get' instead".yellow()
+        );
+    }
+
+    let merged_context =
+        crate::cli::merge_context_flags(context, context_deprecated, after_context, before_context);
+
+    commands::find(
+        &inputs,
+        &sources,
+        limit,
+        all,
+        page,
+        false, // last - find command doesn't support --last flag
+        top,
+        heading_level,
+        format,
+        &show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        merged_context.as_ref(),
+        block,
+        max_lines,
+        no_history,
+        copy,
+        quiet,
+        headings_only,
+        Some(prefs),
+        metrics,
+        None,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+async fn handle_toc(
+    alias: Option<String>,
+    sources: Vec<String>,
+    all: bool,
+    format: crate::output::OutputFormat,
+    anchors: bool,
+    show_anchors: bool,
+    limit: Option<usize>,
+    max_depth: Option<u8>,
+    heading_level: Option<crate::utils::heading_filter::HeadingLevelFilter>,
+    filter: Option<String>,
+    tree: bool,
+    next: bool,
+    previous: bool,
+    last: bool,
+    page: usize,
+) -> Result<()> {
+    if !utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'toc' is deprecated, use 'map' instead".yellow()
+        );
+    }
+
+    commands::show_toc(
+        alias.as_deref(),
+        &sources,
+        all,
+        format,
+        anchors,
+        show_anchors,
+        limit,
+        max_depth,
+        heading_level.as_ref(),
+        filter.as_deref(),
+        tree,
+        next,
+        previous,
+        last,
+        page,
+    )
+    .await
 }
 
 async fn handle_docs(
