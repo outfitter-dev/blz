@@ -60,6 +60,39 @@ use clap::{Args, Parser, Subcommand};
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
+/// Custom help template with grouped command sections
+static HELP_TEMPLATE: &str = "\
+{before-help}{name} {version} - {about}
+
+{usage-heading} {usage}
+
+Querying:
+  query          Full-text search across cached documentation
+  get            Retrieve exact lines from a source by citation
+  map            Browse documentation structure (headings and sections)
+
+Source Management:
+  add            Add a new source
+  list           List all cached sources [aliases: sources]
+  sync           Fetch latest documentation from sources
+  rm             Remove a source and its cached content
+  info           Show detailed information about a source
+  check          Validate source integrity and availability
+  lookup         Search registries for documentation to add
+
+Configuration:
+  stats          Show cache statistics and overview
+  history        Show recent search history and defaults
+  doctor         Run health checks on cache and sources
+  clear          Clear the entire cache (removes all sources)
+  docs           Bundled documentation hub and CLI reference
+  completions    Generate shell completions
+  alias          Manage aliases for a source
+  registry       Manage the registry
+  claude-plugin  Manage the BLZ Claude plugin
+
+{options}{after-help}";
+
 /// Validates that limit is at least 1
 fn validate_limit(s: &str) -> Result<usize, String> {
     let value: usize = s
@@ -111,10 +144,12 @@ fn validate_limit(s: &str) -> Result<usize, String> {
 #[derive(Parser, Clone, Debug)]
 #[command(name = "blz")]
 #[command(version)]
-#[command(about = "blz - Fast local search for llms.txt documentation", long_about = None)]
+#[command(about = "Fast local search for llms.txt documentation", long_about = None)]
 #[command(
     override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]\n       blz [CITATION] [OPTIONS]"
 )]
+#[command(help_template = HELP_TEMPLATE)]
+#[command(disable_help_subcommand = true)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
@@ -229,7 +264,7 @@ pub enum Commands {
     #[command(hide = true, display_order = 100)]
     Instruct,
     /// Generate shell completions
-    #[command(display_order = 51)]
+    #[command(display_order = 51, hide = true)]
     Completions {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -243,21 +278,21 @@ pub enum Commands {
     },
 
     /// Manage aliases for a source
-    #[command(display_order = 52)]
+    #[command(display_order = 52, hide = true)]
     Alias {
         #[command(subcommand)]
         command: AliasCommands,
     },
 
     /// Bundled documentation hub and CLI reference export
-    #[command(display_order = 50)]
+    #[command(display_order = 50, hide = true)]
     Docs {
         #[command(subcommand)]
         command: Option<DocsCommands>,
     },
 
     /// Manage the BLZ Claude plugin
-    #[command(name = "claude-plugin", display_order = 56)]
+    #[command(name = "claude-plugin", display_order = 56, hide = true)]
     ClaudePlugin {
         #[command(subcommand)]
         command: ClaudePluginCommands,
@@ -366,7 +401,7 @@ pub enum Commands {
         page: usize,
     },
     /// Add a new source
-    #[command(display_order = 1)]
+    #[command(display_order = 1, hide = true)]
     Add(AddArgs),
 
     /// Full-text search across cached documentation (rejects citations)
@@ -383,7 +418,7 @@ pub enum Commands {
     ///   blz query "react hooks"         # Search for phrase
     ///   blz query useEffect cleanup     # Search for terms (OR)
     ///   blz query +async +await         # Require both terms (AND)
-    #[command(display_order = 5)]
+    #[command(display_order = 5, hide = true)]
     Query(QueryArgs),
 
     /// Browse documentation structure (headings and sections)
@@ -394,7 +429,7 @@ pub enum Commands {
     ///   blz map bun                     # Browse bun docs structure
     ///   blz map bun --tree              # Hierarchical tree view
     ///   blz map --all -H 1-2            # All sources, H1/H2 only
-    #[command(display_order = 7)]
+    #[command(display_order = 7, hide = true)]
     Map(MapArgs),
 
     /// Fetch latest documentation from sources
@@ -405,7 +440,7 @@ pub enum Commands {
     ///   blz sync                        # Sync all sources
     ///   blz sync bun react              # Sync specific sources
     ///   blz sync --reindex              # Force re-index even if unchanged
-    #[command(display_order = 10)]
+    #[command(display_order = 10, hide = true)]
     Sync(SyncArgs),
 
     /// Remove a source and its cached content
@@ -413,7 +448,7 @@ pub enum Commands {
     /// Examples:
     ///   blz rm react                    # Remove with confirmation
     ///   blz rm react -y                 # Remove without prompting
-    #[command(display_order = 11)]
+    #[command(display_order = 11, hide = true)]
     Rm(RmArgs),
 
     /// Validate source integrity and availability
@@ -423,11 +458,11 @@ pub enum Commands {
     /// Examples:
     ///   blz check bun                   # Validate single source
     ///   blz check --all                 # Validate all sources
-    #[command(display_order = 15)]
+    #[command(display_order = 15, hide = true)]
     Check(CheckArgs),
 
     /// Search registries for documentation to add
-    #[command(display_order = 30)]
+    #[command(display_order = 30, hide = true)]
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
@@ -440,7 +475,7 @@ pub enum Commands {
     },
 
     /// Manage the registry (create sources, validate, etc.)
-    #[command(display_order = 55)]
+    #[command(display_order = 55, hide = true)]
     Registry {
         #[command(subcommand)]
         command: RegistryCommands,
@@ -656,7 +691,7 @@ pub enum Commands {
     /// Show recent search history and defaults (last 20 entries by default)
     ///
     /// Displays the last 20 searches unless `--limit` is provided to override the count.
-    #[command(display_order = 14)]
+    #[command(display_order = 14, hide = true)]
     History {
         /// Maximum number of entries to display
         #[arg(long, default_value_t = 20)]
@@ -684,7 +719,7 @@ pub enum Commands {
     ///   blz get bun:120-142 -C 5        # With context
     ///   blz get bun:120-142,200-210     # Multiple ranges
     ///   blz get bun deno:5-10           # Multiple sources
-    #[command(display_order = 6)]
+    #[command(display_order = 6, hide = true)]
     Get {
         /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
@@ -782,7 +817,7 @@ pub enum Commands {
     },
 
     /// Show detailed information about a source
-    #[command(display_order = 12)]
+    #[command(display_order = 12, hide = true)]
     Info {
         /// Source to inspect
         alias: String,
@@ -792,7 +827,7 @@ pub enum Commands {
     },
 
     /// List all cached sources
-    #[command(visible_alias = "sources", display_order = 4)]
+    #[command(visible_alias = "sources", display_order = 4, hide = true)]
     List {
         /// Output format
         #[command(flatten)]
@@ -809,7 +844,7 @@ pub enum Commands {
     },
 
     /// Show cache statistics and overview
-    #[command(display_order = 13)]
+    #[command(display_order = 13, hide = true)]
     Stats {
         /// Output format
         #[command(flatten)]
@@ -834,7 +869,7 @@ pub enum Commands {
     },
 
     /// Run health checks on cache and sources
-    #[command(display_order = 16)]
+    #[command(display_order = 16, hide = true)]
     Doctor {
         /// Output format
         #[command(flatten)]
@@ -911,7 +946,7 @@ pub enum Commands {
     },
 
     /// Clear the entire cache (removes all sources and their data)
-    #[command(display_order = 17)]
+    #[command(display_order = 17, hide = true)]
     Clear {
         /// Skip confirmation prompt
         #[arg(short = 'f', long = "force")]
@@ -928,7 +963,7 @@ pub enum Commands {
         since: Option<String>,
     },
 
-    #[command(name = "mcp-server")]
+    #[command(name = "mcp-server", hide = true)]
     McpServer,
 
     /// Unified find command (deprecated: use `query` or `get` instead)
