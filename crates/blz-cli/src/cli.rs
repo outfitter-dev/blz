@@ -185,20 +185,31 @@ pub struct Cli {
 /// Each variant represents a distinct operation that can be performed by the CLI.
 /// Commands are organized by functionality:
 ///
+/// ## Content Access
+/// - [`Find`]: Unified search and retrieval (primary command)
+/// - [`Toc`]: Browse document structure via headings
+/// - [`History`]: View recent searches
+///
 /// ## Source Management
 /// - [`Add`]: Add a new documentation source
-/// - [`Lookup`]: Search registries for documentation to add
 /// - [`List`]: List all cached sources
-/// - [`Update`]: Update cached content from sources
+/// - [`Info`]: Show detailed source information
+/// - [`Refresh`]: Update cached content from sources
 /// - [`Remove`]: Remove a source and its cached content
+/// - [`Lookup`]: Search registries for documentation to add
+/// - [`Alias`]: Manage source aliases
 ///
-/// ## Content Access
-/// - [`Search`]: Full-text search across cached documentation
-/// - [`Get`]: Retrieve specific lines from a source
-/// - [`Diff`]: View changes between document versions
+/// ## Maintenance
+/// - [`Validate`]: Check source integrity
+/// - [`Doctor`]: Run health diagnostics
+/// - [`Stats`]: View cache statistics
+/// - [`Clear`]: Remove all cached data
 ///
-/// ## Utility
-/// - [`Completions`]: Generate shell completion scripts
+/// ## Integrations
+/// - [`Docs`]: Built-in documentation hub
+/// - [`Registry`]: Manage the source registry
+/// - [`ClaudePlugin`]: Claude Code integration
+/// - [`Completions`]: Shell completion scripts
 ///
 /// # Command Aliases
 ///
@@ -209,16 +220,16 @@ pub struct Cli {
 /// # Examples
 ///
 /// ```bash
+/// # Content access
+/// blz find "useEffect"              # Search
+/// blz find bun:120-142              # Retrieve lines
+/// blz toc react --tree              # Browse structure
+///
 /// # Source management
 /// blz add react https://react.dev/llms.txt
-/// blz sources --format json
+/// blz list --format json
 /// blz refresh react
 /// blz rm react
-///
-/// # Content access
-/// blz search "useEffect" --limit 5
-/// blz get react --lines 120-142 -C 3
-/// blz diff react --since "2024-01-01"
 ///
 /// # Utility
 /// blz completions bash > ~/.bash_completion.d/blz
@@ -226,52 +237,191 @@ pub struct Cli {
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
     /// Deprecated: use `blz --prompt`
-    #[command(hide = true, display_order = 100)]
+    #[command(hide = true)]
     Instruct,
-    /// Generate shell completions
-    #[command(display_order = 51)]
-    Completions {
-        /// Shell to generate completions for
-        #[arg(value_enum)]
-        shell: Option<clap_complete::Shell>,
-        /// List supported shells instead of generating a script
-        #[arg(long)]
-        list: bool,
-        /// Output format for listing
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONTENT ACCESS - Primary user-facing commands for searching and browsing
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Unified find command (search or retrieve based on input pattern)
+    ///
+    /// Smart pattern detection:
+    /// - If input matches `alias:digits-digits` format → retrieve mode (like get)
+    /// - Otherwise → search mode (like search)
+    ///
+    /// Examples:
+    ///   blz find "async patterns"        # Search mode
+    ///   blz find async patterns          # Search mode (unquoted)
+    ///   blz find bun:120-142             # Retrieve mode
+    ///   blz find bun:120-142,200-210     # Multiple ranges
+    ///   blz find bun:120-142 deno:5-10   # Multiple citations
+    #[command(display_order = 1)]
+    Find {
+        /// Query terms or citation(s) (e.g., "query" or "alias:123-456")
+        #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+        inputs: Vec<String>,
+
+        /// Filter by source(s) for search mode - comma-separated for multiple
+        #[arg(
+            long = "source",
+            short = 's',
+            visible_alias = "alias",
+            visible_alias = "sources",
+            value_name = "SOURCE",
+            value_delimiter = ',',
+            num_args = 0..
+        )]
+        sources: Vec<String>,
+
+        /// Maximum number of results per page (search mode only)
+        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+        limit: Option<usize>,
+
+        /// Show all results - no limit (search mode only)
+        #[arg(long, conflicts_with = "limit")]
+        all: bool,
+
+        /// Page number for pagination (search mode only)
+        #[arg(long, default_value = "1")]
+        page: usize,
+
+        /// Show only top N percentile of results (1-100, search mode only)
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+        top: Option<u8>,
+
+        /// Filter results by heading level (search mode only)
+        ///
+        /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+        ///
+        /// Examples:
+        ///   -H <=2       # Level 1 and 2 headings only
+        ///   -H >2        # Level 3+ headings only
+        ///   -H 1,2,3     # Levels 1, 2, and 3 only
+        ///   -H 2-4       # Levels 2, 3, and 4 only
+        #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+        heading_level: Option<String>,
+
+        /// Output format (text, json, jsonl)
         #[command(flatten)]
         format: FormatArg,
-    },
 
-    /// Manage aliases for a source
-    #[command(display_order = 52)]
-    Alias {
-        #[command(subcommand)]
-        command: AliasCommands,
-    },
+        /// Additional columns to include in text output (search mode only)
+        #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+        show: Vec<ShowComponent>,
 
-    /// Bundled documentation hub and CLI reference export
-    #[command(display_order = 50)]
-    Docs {
-        #[command(subcommand)]
-        command: Option<DocsCommands>,
-    },
+        /// Hide the summary/footer line (search mode only)
+        #[arg(long = "no-summary")]
+        no_summary: bool,
 
-    /// Manage the BLZ Claude plugin
-    #[command(name = "claude-plugin", display_order = 56)]
-    ClaudePlugin {
-        #[command(subcommand)]
-        command: ClaudePluginCommands,
-    },
+        /// Number of decimal places to show for scores (0-4, search mode only)
+        #[arg(
+            long = "score-precision",
+            value_name = "PLACES",
+            value_parser = clap::value_parser!(u8).range(0..=4),
+            env = "BLZ_SCORE_PRECISION"
+        )]
+        score_precision: Option<u8>,
 
-    /// Legacy anchor utilities (use `toc` instead)
-    #[command(display_order = 53, hide = true)]
-    Anchor {
-        #[command(subcommand)]
-        command: AnchorCommands,
+        /// Maximum snippet lines to display around a hit (1-10, search mode only)
+        #[arg(
+            long = "snippet-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(u8).range(1..=10),
+            env = "BLZ_SNIPPET_LINES",
+            default_value_t = 3,
+            hide = true
+        )]
+        snippet_lines: u8,
+
+        /// Maximum total characters in snippet (search mode, range: 50-1000, default: 200)
+        #[arg(
+            long = "max-chars",
+            value_name = "CHARS",
+            env = "BLZ_MAX_CHARS",
+            value_parser = clap::value_parser!(usize)
+        )]
+        max_chars: Option<usize>,
+
+        /// Print LINES lines of context (both before and after match). Same as -C.
+        #[arg(
+            short = 'C',
+            long = "context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context_deprecated"],
+            display_order = 30
+        )]
+        context: Option<ContextMode>,
+
+        /// Deprecated: use -C or --context instead
+        #[arg(
+            short = 'c',
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with_all = ["block", "context"],
+            hide = true,
+            display_order = 100
+        )]
+        context_deprecated: Option<ContextMode>,
+
+        /// Print LINES lines of context after each match
+        #[arg(
+            short = 'A',
+            long = "after-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 31
+        )]
+        after_context: Option<usize>,
+
+        /// Print LINES lines of context before each match
+        #[arg(
+            short = 'B',
+            long = "before-context",
+            value_name = "LINES",
+            num_args = 0..=1,
+            default_missing_value = "5",
+            allow_hyphen_values = false,
+            conflicts_with = "block",
+            display_order = 32
+        )]
+        before_context: Option<usize>,
+
+        /// Return the full heading block containing each hit (legacy alias for --context all)
+        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
+        block: bool,
+
+        /// Maximum number of lines to include when using block expansion
+        #[arg(
+            long = "max-lines",
+            value_name = "LINES",
+            value_parser = clap::value_parser!(usize),
+            display_order = 34
+        )]
+        max_lines: Option<usize>,
+
+        /// Restrict matches to heading text only (search mode only)
+        #[arg(long = "headings-only", display_order = 35)]
+        headings_only: bool,
+
+        /// Don't save this search to history (search mode only)
+        #[arg(long = "no-history")]
+        no_history: bool,
+
+        /// Copy results to clipboard using OSC 52 escape sequence
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Show table of contents (headings) for a source
-    #[command(display_order = 54, alias = "anchors")]
+    #[command(display_order = 2, alias = "anchors")]
     Toc {
         /// Source alias (optional when using --source or --all)
         alias: Option<String>,
@@ -364,12 +514,107 @@ pub enum Commands {
         )]
         page: usize,
     },
+
+    /// Show recent search history and defaults (last 20 entries by default)
+    ///
+    /// Displays the last 20 searches unless `--limit` is provided to override the count.
+    #[command(display_order = 3)]
+    History {
+        /// Maximum number of entries to display
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Clear all search history
+        #[arg(long, conflicts_with = "clear_before")]
+        clear: bool,
+        /// Clear search history before the specified date (format: YYYY-MM-DD or ISO 8601)
+        #[arg(long = "clear-before", value_name = "DATE", conflicts_with = "clear")]
+        clear_before: Option<String>,
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SOURCE MANAGEMENT - Adding, listing, updating, and removing sources
+    // ─────────────────────────────────────────────────────────────────────────
     /// Add a new source
-    #[command(display_order = 1)]
+    #[command(display_order = 10)]
     Add(AddArgs),
 
+    /// List all cached sources
+    #[command(visible_alias = "sources", display_order = 11)]
+    List {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Include status/health information (etag, lastModified, checksum)
+        #[arg(long)]
+        status: bool,
+        /// Show descriptor metadata (description, category, tags, origin)
+        #[arg(long)]
+        details: bool,
+        /// Maximum number of sources to display
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
+    },
+
+    /// Show detailed information about a source
+    #[command(display_order = 12)]
+    Info {
+        /// Source to inspect
+        alias: String,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    /// Refresh sources by fetching latest content
+    #[command(display_order = 13)]
+    Refresh {
+        /// Source aliases to refresh (refreshes all if omitted)
+        #[arg(
+            value_name = "ALIAS",
+            num_args = 0..,
+            conflicts_with = "all"
+        )]
+        aliases: Vec<String>,
+        /// Refresh all sources
+        #[arg(long, conflicts_with = "aliases")]
+        all: bool,
+        /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+        /// Force re-parse and re-index even if content unchanged
+        #[arg(long)]
+        reindex: bool,
+        /// Enable content filters (comma-separated: lang). Use --filter with no value to enable all filters.
+        ///
+        /// Available filters:
+        ///   lang,language  - Filter non-English content
+        ///
+        /// Examples:
+        ///   --filter           # Enable all filters
+        ///   --filter lang      # Only language filter
+        ///   --no-filter        # Disable all filters
+        #[arg(long, value_name = "FILTERS", num_args = 0..=1, default_missing_value = "all", conflicts_with = "no_filter")]
+        filter: Option<String>,
+        /// Disable all content filters for this refresh
+        #[arg(long, conflicts_with = "filter")]
+        no_filter: bool,
+    },
+
+    /// Remove/delete a source
+    #[command(alias = "rm", alias = "delete", display_order = 14)]
+    Remove {
+        /// Source to remove
+        alias: String,
+        /// Apply removal without prompting
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
+
     /// Search registries for documentation to add
-    #[command(display_order = 30)]
+    #[command(display_order = 15)]
     Lookup {
         /// Search query (tool name, partial name, etc.)
         query: String,
@@ -381,11 +626,105 @@ pub enum Commands {
         limit: Option<usize>,
     },
 
+    /// Manage aliases for a source
+    #[command(display_order = 16)]
+    Alias {
+        #[command(subcommand)]
+        command: AliasCommands,
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MAINTENANCE - Diagnostics, validation, and cache management
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Validate source integrity and availability
+    #[command(display_order = 20)]
+    Validate {
+        /// Source to validate (validates all if not specified)
+        alias: Option<String>,
+        /// Validate all sources
+        #[arg(long)]
+        all: bool,
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    /// Run health checks on cache and sources
+    #[command(display_order = 21)]
+    Doctor {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Fix issues automatically where possible
+        #[arg(long)]
+        fix: bool,
+    },
+
+    /// Show cache statistics and overview
+    #[command(display_order = 22)]
+    Stats {
+        /// Output format
+        #[command(flatten)]
+        format: FormatArg,
+        /// Maximum number of sources to display in statistics
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
+    },
+
+    /// Clear the entire cache (removes all sources and their data)
+    #[command(display_order = 23)]
+    Clear {
+        /// Skip confirmation prompt
+        #[arg(short = 'f', long = "force")]
+        force: bool,
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // INTEGRATIONS - Plugins, registries, and shell integration
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Bundled documentation hub and CLI reference export
+    #[command(display_order = 30)]
+    Docs {
+        #[command(subcommand)]
+        command: Option<DocsCommands>,
+    },
+
     /// Manage the registry (create sources, validate, etc.)
-    #[command(display_order = 55)]
+    #[command(display_order = 31)]
     Registry {
         #[command(subcommand)]
         command: RegistryCommands,
+    },
+
+    /// Manage the BLZ Claude plugin
+    #[command(name = "claude-plugin", display_order = 32)]
+    ClaudePlugin {
+        #[command(subcommand)]
+        command: ClaudePluginCommands,
+    },
+
+    /// Generate shell completions
+    #[command(display_order = 33)]
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Option<clap_complete::Shell>,
+        /// List supported shells instead of generating a script
+        #[arg(long)]
+        list: bool,
+        /// Output format for listing
+        #[command(flatten)]
+        format: FormatArg,
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DEPRECATED/HIDDEN - Legacy commands for backward compatibility
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Legacy anchor utilities (use `toc` instead)
+    #[command(display_order = 100, hide = true)]
+    Anchor {
+        #[command(subcommand)]
+        command: AnchorCommands,
     },
 
     /// Search across cached docs (deprecated: use `find` instead)
@@ -595,25 +934,6 @@ pub enum Commands {
         copy: bool,
     },
 
-    /// Show recent search history and defaults (last 20 entries by default)
-    ///
-    /// Displays the last 20 searches unless `--limit` is provided to override the count.
-    #[command(display_order = 14)]
-    History {
-        /// Maximum number of entries to display
-        #[arg(long, default_value_t = 20)]
-        limit: usize,
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-        /// Clear all search history
-        #[arg(long, conflicts_with = "clear_before")]
-        clear: bool,
-        /// Clear search history before the specified date (format: YYYY-MM-DD or ISO 8601)
-        #[arg(long = "clear-before", value_name = "DATE", conflicts_with = "clear")]
-        clear_before: Option<String>,
-    },
-    // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
     /// Get exact lines from a source (deprecated: use `find` instead)
     ///
     /// Preferred syntax: `blz find bun:120-142`
@@ -717,103 +1037,6 @@ pub enum Commands {
         copy: bool,
     },
 
-    /// Show detailed information about a source
-    #[command(display_order = 12)]
-    Info {
-        /// Source to inspect
-        alias: String,
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-    },
-
-    /// List all cached sources
-    #[command(visible_alias = "sources", display_order = 4)]
-    List {
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-        /// Include status/health information (etag, lastModified, checksum)
-        #[arg(long)]
-        status: bool,
-        /// Show descriptor metadata (description, category, tags, origin)
-        #[arg(long)]
-        details: bool,
-        /// Maximum number of sources to display
-        #[arg(short = 'n', long, value_name = "COUNT")]
-        limit: Option<usize>,
-    },
-
-    /// Show cache statistics and overview
-    #[command(display_order = 13)]
-    Stats {
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-        /// Maximum number of sources to display in statistics
-        #[arg(short = 'n', long, value_name = "COUNT")]
-        limit: Option<usize>,
-    },
-
-    /// Validate source integrity and availability
-    #[command(display_order = 15)]
-    Validate {
-        /// Source to validate (validates all if not specified)
-        alias: Option<String>,
-        /// Validate all sources
-        #[arg(long)]
-        all: bool,
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-    },
-
-    /// Run health checks on cache and sources
-    #[command(display_order = 16)]
-    Doctor {
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-        /// Fix issues automatically where possible
-        #[arg(long)]
-        fix: bool,
-    },
-
-    /// Refresh sources by fetching latest content
-    #[command(display_order = 10)]
-    Refresh {
-        /// Source aliases to refresh (refreshes all if omitted)
-        #[arg(
-            value_name = "ALIAS",
-            num_args = 0..,
-            conflicts_with = "all"
-        )]
-        aliases: Vec<String>,
-        /// Refresh all sources
-        #[arg(long, conflicts_with = "aliases")]
-        all: bool,
-        /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
-        #[arg(short = 'y', long = "yes")]
-        yes: bool,
-        /// Force re-parse and re-index even if content unchanged
-        #[arg(long)]
-        reindex: bool,
-        /// Enable content filters (comma-separated: lang). Use --filter with no value to enable all filters.
-        ///
-        /// Available filters:
-        ///   lang,language  - Filter non-English content
-        ///
-        /// Examples:
-        ///   --filter           # Enable all filters
-        ///   --filter lang      # Only language filter
-        ///   --no-filter        # Disable all filters
-        #[arg(long, value_name = "FILTERS", num_args = 0..=1, default_missing_value = "all", conflicts_with = "no_filter")]
-        filter: Option<String>,
-        /// Disable all content filters for this refresh
-        #[arg(long, conflicts_with = "filter")]
-        no_filter: bool,
-    },
-
     /// Update sources (deprecated: use 'refresh' instead)
     #[command(hide = true)]
     #[deprecated(since = "1.4.0", note = "use 'refresh' command instead")]
@@ -833,24 +1056,6 @@ pub enum Commands {
         yes: bool,
     },
 
-    /// Remove/delete a source
-    #[command(alias = "rm", alias = "delete", display_order = 11)]
-    Remove {
-        /// Source to remove
-        alias: String,
-        /// Apply removal without prompting
-        #[arg(short = 'y', long = "yes")]
-        yes: bool,
-    },
-
-    /// Clear the entire cache (removes all sources and their data)
-    #[command(display_order = 17)]
-    Clear {
-        /// Skip confirmation prompt
-        #[arg(short = 'f', long = "force")]
-        force: bool,
-    },
-
     /// View diffs (coming soon)
     #[command(hide = true, display_order = 101)]
     Diff {
@@ -863,183 +1068,6 @@ pub enum Commands {
 
     #[command(name = "mcp-server")]
     McpServer,
-
-    /// Unified find command (search or retrieve based on input pattern)
-    ///
-    /// Smart pattern detection:
-    /// - If input matches `alias:digits-digits` format → retrieve mode (like get)
-    /// - Otherwise → search mode (like search)
-    ///
-    /// Examples:
-    ///   blz find "async patterns"        # Search mode
-    ///   blz find async patterns          # Search mode (unquoted)
-    ///   blz find bun:120-142             # Retrieve mode
-    ///   blz find bun:120-142,200-210     # Multiple ranges
-    ///   blz find bun:120-142 deno:5-10   # Multiple citations
-    #[command(display_order = 5)]
-    Find {
-        /// Query terms or citation(s) (e.g., "query" or "alias:123-456")
-        #[arg(value_name = "INPUT", required = true, num_args = 1..)]
-        inputs: Vec<String>,
-
-        /// Filter by source(s) for search mode - comma-separated for multiple
-        #[arg(
-            long = "source",
-            short = 's',
-            visible_alias = "alias",
-            visible_alias = "sources",
-            value_name = "SOURCE",
-            value_delimiter = ',',
-            num_args = 0..
-        )]
-        sources: Vec<String>,
-
-        /// Maximum number of results per page (search mode only)
-        #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
-        limit: Option<usize>,
-
-        /// Show all results - no limit (search mode only)
-        #[arg(long, conflicts_with = "limit")]
-        all: bool,
-
-        /// Page number for pagination (search mode only)
-        #[arg(long, default_value = "1")]
-        page: usize,
-
-        /// Show only top N percentile of results (1-100, search mode only)
-        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
-        top: Option<u8>,
-
-        /// Filter results by heading level (search mode only)
-        ///
-        /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
-        ///
-        /// Examples:
-        ///   -H <=2       # Level 1 and 2 headings only
-        ///   -H >2        # Level 3+ headings only
-        ///   -H 1,2,3     # Levels 1, 2, and 3 only
-        ///   -H 2-4       # Levels 2, 3, and 4 only
-        #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
-        heading_level: Option<String>,
-
-        /// Output format (text, json, jsonl)
-        #[command(flatten)]
-        format: FormatArg,
-
-        /// Additional columns to include in text output (search mode only)
-        #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
-        show: Vec<ShowComponent>,
-
-        /// Hide the summary/footer line (search mode only)
-        #[arg(long = "no-summary")]
-        no_summary: bool,
-
-        /// Number of decimal places to show for scores (0-4, search mode only)
-        #[arg(
-            long = "score-precision",
-            value_name = "PLACES",
-            value_parser = clap::value_parser!(u8).range(0..=4),
-            env = "BLZ_SCORE_PRECISION"
-        )]
-        score_precision: Option<u8>,
-
-        /// Maximum snippet lines to display around a hit (1-10, search mode only)
-        #[arg(
-            long = "snippet-lines",
-            value_name = "LINES",
-            value_parser = clap::value_parser!(u8).range(1..=10),
-            env = "BLZ_SNIPPET_LINES",
-            default_value_t = 3,
-            hide = true
-        )]
-        snippet_lines: u8,
-
-        /// Maximum total characters in snippet (search mode, range: 50-1000, default: 200)
-        #[arg(
-            long = "max-chars",
-            value_name = "CHARS",
-            env = "BLZ_MAX_CHARS",
-            value_parser = clap::value_parser!(usize)
-        )]
-        max_chars: Option<usize>,
-
-        /// Print LINES lines of context (both before and after match). Same as -C.
-        #[arg(
-            short = 'C',
-            long = "context",
-            value_name = "LINES",
-            num_args = 0..=1,
-            default_missing_value = "5",
-            allow_hyphen_values = false,
-            conflicts_with_all = ["block", "context_deprecated"],
-            display_order = 30
-        )]
-        context: Option<ContextMode>,
-
-        /// Deprecated: use -C or --context instead
-        #[arg(
-            short = 'c',
-            value_name = "LINES",
-            num_args = 0..=1,
-            default_missing_value = "5",
-            allow_hyphen_values = false,
-            conflicts_with_all = ["block", "context"],
-            hide = true,
-            display_order = 100
-        )]
-        context_deprecated: Option<ContextMode>,
-
-        /// Print LINES lines of context after each match
-        #[arg(
-            short = 'A',
-            long = "after-context",
-            value_name = "LINES",
-            num_args = 0..=1,
-            default_missing_value = "5",
-            allow_hyphen_values = false,
-            conflicts_with = "block",
-            display_order = 31
-        )]
-        after_context: Option<usize>,
-
-        /// Print LINES lines of context before each match
-        #[arg(
-            short = 'B',
-            long = "before-context",
-            value_name = "LINES",
-            num_args = 0..=1,
-            default_missing_value = "5",
-            allow_hyphen_values = false,
-            conflicts_with = "block",
-            display_order = 32
-        )]
-        before_context: Option<usize>,
-
-        /// Return the full heading block containing each hit (legacy alias for --context all)
-        #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
-        block: bool,
-
-        /// Maximum number of lines to include when using block expansion
-        #[arg(
-            long = "max-lines",
-            value_name = "LINES",
-            value_parser = clap::value_parser!(usize),
-            display_order = 34
-        )]
-        max_lines: Option<usize>,
-
-        /// Restrict matches to heading text only (search mode only)
-        #[arg(long = "headings-only", display_order = 35)]
-        headings_only: bool,
-
-        /// Don't save this search to history (search mode only)
-        #[arg(long = "no-history")]
-        no_history: bool,
-
-        /// Copy results to clipboard using OSC 52 escape sequence
-        #[arg(long)]
-        copy: bool,
-    },
 }
 
 /// Subcommands for `blz docs`.
