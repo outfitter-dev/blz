@@ -151,6 +151,7 @@ pub async fn execute(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -185,6 +186,7 @@ pub async fn execute(
                 copy,
                 quiet,
                 headings_only,
+                timing,
                 prefs,
                 metrics,
                 resource_monitor,
@@ -239,6 +241,7 @@ fn build_search_options(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
 ) -> SearchOptions {
     let toggles = resolve_show_components(show);
     SearchOptions {
@@ -266,6 +269,7 @@ fn build_search_options(
         max_chars,
         quiet,
         headings_only,
+        timing,
     }
 }
 
@@ -364,6 +368,7 @@ async fn execute_search_mode(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -393,6 +398,7 @@ async fn execute_search_mode(
         copy,
         quiet,
         headings_only,
+        timing,
     );
 
     let mut results = perform_search(&options, metrics.clone()).await?;

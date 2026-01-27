@@ -92,6 +92,7 @@ pub async fn execute(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -140,6 +141,7 @@ pub async fn execute(
         copy,
         quiet,
         headings_only,
+        timing,
         prefs,
         metrics,
         resource_monitor,
@@ -170,6 +172,7 @@ fn build_search_options(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
 ) -> SearchOptions {
     // Calculate actual limit with proper default
     let limit = if all {
@@ -215,6 +218,7 @@ fn build_search_options(
         max_chars,
         quiet,
         headings_only,
+        timing,
     }
 }
 
@@ -316,6 +320,7 @@ pub(super) async fn execute_internal(
     copy: bool,
     quiet: bool,
     headings_only: bool,
+    timing: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -341,6 +346,7 @@ pub(super) async fn execute_internal(
         copy,
         quiet,
         headings_only,
+        timing,
     );
 
     let mut results = perform_search(&options, metrics.clone()).await?;

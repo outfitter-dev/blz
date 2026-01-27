@@ -67,6 +67,7 @@ pub(super) struct SearchOptions {
     pub max_chars: usize,
     pub quiet: bool,
     pub headings_only: bool,
+    pub timing: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -126,6 +127,7 @@ pub async fn execute(
     headings_only: bool,
     no_history: bool,
     copy: bool,
+    timing: bool,
     quiet: bool,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
@@ -165,6 +167,7 @@ pub async fn execute(
         copy,
         quiet,
         headings_only,
+        timing,
         prefs,
         metrics,
         resource_monitor,
@@ -274,6 +277,7 @@ pub async fn handle_default(
         false, // copy
         quiet,
         false, // headings_only
+        false, // timing
         Some(prefs),
         metrics,
         resource_monitor,
@@ -504,6 +508,7 @@ async fn execute_parallel_searches(
     let max_concurrent_searches = get_max_concurrent_searches();
     let snippet_limit = options.max_chars;
     let headings_only = options.headings_only;
+    let show_timing = options.timing;
     let storage_for_tasks = Arc::clone(storage);
     let query = options.query.clone();
 
@@ -532,18 +537,20 @@ async fn execute_parallel_searches(
                         .with_metrics(metrics);
 
                     let hits = if headings_only {
-                        index.search_headings_only(
+                        index.search_headings_only_with_timing(
                             &query,
                             Some(&source),
                             effective_limit,
                             snippet_limit,
+                            show_timing,
                         )
                     } else {
-                        index.search_with_snippet_limit(
+                        index.search_with_timing(
                             &query,
                             Some(&source),
                             effective_limit,
                             snippet_limit,
+                            show_timing,
                         )
                     }
                     .with_context(|| format!("search failed for source={source}"))?;
@@ -1153,6 +1160,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         // Should not panic even with empty results
@@ -1196,6 +1204,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1232,6 +1241,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         // This should NOT panic even with empty results
@@ -1265,6 +1275,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let result = format_and_display(&results, &options_high_page);
@@ -1303,6 +1314,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1340,6 +1352,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let result = format_and_display(&results, &options);
@@ -1371,6 +1384,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let test_results = create_test_results(10);
@@ -1409,6 +1423,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let results1 = create_test_results(8);
@@ -1445,6 +1460,7 @@ mod tests {
             max_chars: DEFAULT_MAX_CHARS,
             quiet: false,
             headings_only: false,
+            timing: false,
         };
 
         let results2 = create_test_results(0);
