@@ -1344,13 +1344,9 @@ async fn handle_registry(
     }
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_lines
-)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn handle_search(
-    mut query: Option<String>,
+    query: Option<String>,
     sources: Vec<String>,
     next: bool,
     previous: bool,
@@ -1394,47 +1390,11 @@ async fn handle_search(
     }
 
     if next {
-        if provided_query {
-            anyhow::bail!(
-                "Cannot combine --next with an explicit query. Remove the query to continue from the previous search."
-            );
-        }
-        if !sources.is_empty() {
-            anyhow::bail!(
-                "Cannot combine --next with --source. Omit --source to reuse the last search context."
-            );
-        }
-        if page != 1 {
-            anyhow::bail!(
-                "Cannot combine --next with --page. Use one pagination option at a time."
-            );
-        }
-        if last {
-            anyhow::bail!("Cannot combine --next with --last. Choose a single continuation flag.");
-        }
+        validate_continuation_flag("--next", provided_query, &sources, page, last)?;
     }
 
     if previous {
-        if provided_query {
-            anyhow::bail!(
-                "Cannot combine --previous with an explicit query. Remove the query to continue from the previous search."
-            );
-        }
-        if !sources.is_empty() {
-            anyhow::bail!(
-                "Cannot combine --previous with --source. Omit --source to reuse the last search context."
-            );
-        }
-        if page != 1 {
-            anyhow::bail!(
-                "Cannot combine --previous with --page. Use one pagination option at a time."
-            );
-        }
-        if last {
-            anyhow::bail!(
-                "Cannot combine --previous with --last. Choose a single continuation flag."
-            );
-        }
+        validate_continuation_flag("--previous", provided_query, &sources, page, last)?;
     }
 
     let history_entry = if next || previous || !provided_query {
@@ -1458,113 +1418,33 @@ async fn handle_search(
         }
     }
 
-    let actual_query = if let Some(value) = query.take() {
-        value
-    } else if let Some(ref entry) = history_entry {
-        entry.query.clone()
-    } else {
-        anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
-    };
+    let actual_query = resolve_query(query, history_entry.as_ref())?;
+    let actual_sources = resolve_sources(sources, history_entry.as_ref());
 
-    let actual_sources = if !sources.is_empty() {
-        sources
-    } else if let Some(entry) = history_entry.as_ref() {
-        // Parse comma-separated sources from history
-        entry.source.as_ref().map_or_else(Vec::new, |source_str| {
-            source_str
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect()
-        })
-    } else {
-        Vec::new()
-    };
-
-    let mut actual_limit = if all {
+    let base_limit = if all {
         ALL_RESULTS_LIMIT
     } else {
         limit.unwrap_or(DEFAULT_LIMIT)
     };
     let actual_max_chars = max_chars.map_or(commands::DEFAULT_MAX_CHARS, commands::clamp_max_chars);
-    let mut actual_page = page;
 
-    if let Some(entry) = history_entry.as_ref() {
-        if next {
-            if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
-                anyhow::bail!(
-                    "Previous search returned 0 results. Rerun with a different query or source."
-                );
-            }
-
-            let history_limit = entry.limit;
-            let history_all = history_limit.is_some_and(|value| value >= ALL_RESULTS_LIMIT);
-            if all != history_all {
-                anyhow::bail!(
-                    "Cannot use --next when changing page size or --all; rerun without --next or reuse the previous pagination flags."
-                );
-            }
-            if limit_was_explicit {
-                if let Some(requested_limit) = limit {
-                    if history_limit != Some(requested_limit) {
-                        anyhow::bail!(
-                            "Cannot use --next when changing page size; rerun without --next or reuse the previous limit."
-                        );
-                    }
-                }
-            }
-
-            if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
-                if prev_page >= total_pages {
-                    anyhow::bail!("Already at the last page (page {prev_page} of {total_pages})");
-                }
-                actual_page = prev_page + 1;
-            } else {
-                actual_page = entry.page.unwrap_or(1) + 1;
-            }
-
-            if !limit_was_explicit {
-                actual_limit = entry.limit.unwrap_or(actual_limit);
-            }
-        } else if previous {
-            if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
-                anyhow::bail!(
-                    "Previous search returned 0 results. Rerun with a different query or source."
-                );
-            }
-
-            let history_limit = entry.limit;
-            let history_all = history_limit.is_some_and(|value| value >= ALL_RESULTS_LIMIT);
-            if all != history_all {
-                anyhow::bail!(
-                    "Cannot use --previous when changing page size or --all; rerun without --previous or reuse the previous pagination flags."
-                );
-            }
-            if limit_was_explicit {
-                if let Some(requested_limit) = limit {
-                    if history_limit != Some(requested_limit) {
-                        anyhow::bail!(
-                            "Cannot use --previous when changing page size; rerun without --previous or reuse the previous limit."
-                        );
-                    }
-                }
-            }
-
-            if let Some(prev_page) = entry.page {
-                if prev_page <= 1 {
-                    anyhow::bail!("Already on first page");
-                }
-                actual_page = prev_page - 1;
-            } else {
-                anyhow::bail!("No previous page found in search history");
-            }
-
-            if !limit_was_explicit {
-                actual_limit = entry.limit.unwrap_or(actual_limit);
-            }
-        } else if !provided_query && !limit_was_explicit {
-            actual_limit = entry.limit.unwrap_or(actual_limit);
-        }
-    }
+    let (actual_page, actual_limit) = if let Some(entry) = history_entry.as_ref() {
+        let adj = apply_history_pagination(
+            entry,
+            next,
+            previous,
+            provided_query,
+            all,
+            limit,
+            limit_was_explicit,
+            page,
+            base_limit,
+            ALL_RESULTS_LIMIT,
+        )?;
+        (adj.page, adj.limit)
+    } else {
+        (page, base_limit)
+    };
 
     commands::search(
         &actual_query,
@@ -1682,6 +1562,184 @@ fn flag_present(args: &[String], flag: &str) -> bool {
     let flag_eq_with_equal = format!("{flag}=");
     args.iter()
         .any(|arg| arg == flag_eq || arg.starts_with(&flag_eq_with_equal))
+}
+
+/// Pagination adjustments computed from history and continuation flags.
+struct PaginationAdjustment {
+    page: usize,
+    limit: usize,
+}
+
+/// Apply history-based pagination adjustments for --next/--previous flags.
+///
+/// Returns adjusted page and limit values based on history entry and continuation mode.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+fn apply_history_pagination(
+    entry: &utils::preferences::SearchHistoryEntry,
+    next: bool,
+    previous: bool,
+    provided_query: bool,
+    all: bool,
+    limit: Option<usize>,
+    limit_was_explicit: bool,
+    current_page: usize,
+    current_limit: usize,
+    all_results_limit: usize,
+) -> Result<PaginationAdjustment> {
+    let mut actual_page = current_page;
+    let mut actual_limit = current_limit;
+
+    if next {
+        validate_history_has_results(entry)?;
+        validate_pagination_limit_consistency(
+            "--next",
+            all,
+            limit_was_explicit,
+            limit,
+            entry.limit,
+            all_results_limit,
+        )?;
+
+        if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
+            if prev_page >= total_pages {
+                anyhow::bail!("Already at the last page (page {prev_page} of {total_pages})");
+            }
+            actual_page = prev_page + 1;
+        } else {
+            actual_page = entry.page.unwrap_or(1) + 1;
+        }
+
+        if !limit_was_explicit {
+            actual_limit = entry.limit.unwrap_or(actual_limit);
+        }
+    } else if previous {
+        validate_history_has_results(entry)?;
+        validate_pagination_limit_consistency(
+            "--previous",
+            all,
+            limit_was_explicit,
+            limit,
+            entry.limit,
+            all_results_limit,
+        )?;
+
+        if let Some(prev_page) = entry.page {
+            if prev_page <= 1 {
+                anyhow::bail!("Already on first page");
+            }
+            actual_page = prev_page - 1;
+        } else {
+            anyhow::bail!("No previous page found in search history");
+        }
+
+        if !limit_was_explicit {
+            actual_limit = entry.limit.unwrap_or(actual_limit);
+        }
+    } else if !provided_query && !limit_was_explicit {
+        actual_limit = entry.limit.unwrap_or(actual_limit);
+    }
+
+    Ok(PaginationAdjustment {
+        page: actual_page,
+        limit: actual_limit,
+    })
+}
+
+/// Validate that history entry has non-zero results.
+fn validate_history_has_results(entry: &utils::preferences::SearchHistoryEntry) -> Result<()> {
+    if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
+        anyhow::bail!(
+            "Previous search returned 0 results. Rerun with a different query or source."
+        );
+    }
+    Ok(())
+}
+
+/// Resolve the search query from explicit input or history.
+fn resolve_query(
+    mut query: Option<String>,
+    history: Option<&utils::preferences::SearchHistoryEntry>,
+) -> Result<String> {
+    if let Some(value) = query.take() {
+        Ok(value)
+    } else if let Some(entry) = history {
+        Ok(entry.query.clone())
+    } else {
+        anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
+    }
+}
+
+/// Resolve source filters from explicit input or history.
+fn resolve_sources(
+    sources: Vec<String>,
+    history: Option<&utils::preferences::SearchHistoryEntry>,
+) -> Vec<String> {
+    if !sources.is_empty() {
+        sources
+    } else if let Some(entry) = history {
+        entry.source.as_ref().map_or_else(Vec::new, |source_str| {
+            source_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect()
+        })
+    } else {
+        Vec::new()
+    }
+}
+
+/// Validate that pagination limit hasn't changed when using continuation flags.
+fn validate_pagination_limit_consistency(
+    flag: &str,
+    all: bool,
+    limit_was_explicit: bool,
+    limit: Option<usize>,
+    history_limit: Option<usize>,
+    all_results_limit: usize,
+) -> Result<()> {
+    let history_all = history_limit.is_some_and(|value| value >= all_results_limit);
+    if all != history_all {
+        anyhow::bail!(
+            "Cannot use {flag} when changing page size or --all; rerun without {flag} or reuse the previous pagination flags."
+        );
+    }
+    if limit_was_explicit {
+        if let Some(requested_limit) = limit {
+            if history_limit != Some(requested_limit) {
+                anyhow::bail!(
+                    "Cannot use {flag} when changing page size; rerun without {flag} or reuse the previous limit."
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validate that a continuation flag (--next/--previous) is not combined with incompatible options.
+fn validate_continuation_flag(
+    flag: &str,
+    provided_query: bool,
+    sources: &[String],
+    page: usize,
+    last: bool,
+) -> Result<()> {
+    if provided_query {
+        anyhow::bail!(
+            "Cannot combine {flag} with an explicit query. Remove the query to continue from the previous search."
+        );
+    }
+    if !sources.is_empty() {
+        anyhow::bail!(
+            "Cannot combine {flag} with --source. Omit --source to reuse the last search context."
+        );
+    }
+    if page != 1 {
+        anyhow::bail!("Cannot combine {flag} with --page. Use one pagination option at a time.");
+    }
+    if last {
+        anyhow::bail!("Cannot combine {flag} with --last. Choose a single continuation flag.");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
