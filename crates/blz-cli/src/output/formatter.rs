@@ -59,6 +59,7 @@ use blz_core::SearchHit;
 use std::time::Duration;
 
 use super::{json::JsonFormatter, text::TextFormatter};
+use crate::args::OutputFormat;
 
 /// Parameters for formatting search results
 #[allow(clippy::struct_excessive_bools)]
@@ -150,62 +151,8 @@ impl<'a> FormatParams<'a> {
     }
 }
 
-/// Output format options supported by the CLI
-///
-/// This enum defines the available output formats for various commands.
-/// It implements `clap::ValueEnum` to provide automatic command-line
-/// argument parsing and validation.
-///
-/// # Format Descriptions
-///
-/// - **Text**: Human-readable output with colors, boxes, and formatting
-///   optimized for terminal display. Includes contextual information
-///   like performance metrics and pagination.
-///
-/// - **Json**: Single JSON object or array containing all results.
-///   Suitable for programmatic consumption and further processing.
-///   Output is pretty-printed for readability.
-///
-/// - **Jsonl**: Newline-delimited JSON (alias: `ndjson`) where each line is a
-///   separate JSON object. Enables streaming processing and is memory-efficient
-///   for large result sets.
-///
-/// # Default Behavior
-///
-/// When no format is specified:
-/// - **Interactive terminals**: Text format (human-readable)
-/// - **Piped/redirected output**: JSON format (machine-readable)
-///
-/// This ensures optimal defaults for both human and programmatic usage.
-/// Use `--format text` to force text output when piping.
-///
-/// # Usage in CLI
-///
-/// ```bash
-/// # Default text output (interactive terminal)
-/// blz search "useEffect"
-///
-/// # Pipe automatically uses JSON
-/// blz search "useEffect" | jq '.results[0].content'
-///
-/// # Force text when piping
-/// blz search "useEffect" --format text | less
-///
-/// # JSON Lines for streaming
-/// blz search "useEffect" --format jsonl | head -5
-/// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum OutputFormat {
-    /// Pretty text output (default for terminals, use --format text to force when piping)
-    Text,
-    /// Single JSON array (default when output is piped/redirected)
-    Json,
-    /// Newline-delimited JSON (aka JSON Lines)
-    #[value(name = "jsonl", alias = "ndjson")]
-    Jsonl,
-    /// Raw content only (no formatting, no metadata)
-    Raw,
-}
+// Note: OutputFormat is imported from crate::args::OutputFormat
+// This provides TTY auto-detection and consistent format handling across the CLI.
 
 /// Formatter for search results with multiple output format support
 ///
