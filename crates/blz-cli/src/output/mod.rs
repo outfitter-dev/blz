@@ -67,13 +67,17 @@
 //! }]
 //! ```
 
+pub mod detect;
 mod formatter;
 mod json;
 mod progress;
 pub mod shapes;
 mod text;
 
-pub use formatter::{FormatParams, OutputFormat, SearchResultFormatter};
+// Re-export OutputFormat from args for backward compatibility
+// All code using `crate::output::OutputFormat` continues to work
+pub use crate::args::OutputFormat;
+pub use formatter::{FormatParams, SearchResultFormatter};
 // TODO(BLZ-339): Remove allow once commands adopt these shapes.
 #[allow(unused_imports)]
 pub use shapes::{
