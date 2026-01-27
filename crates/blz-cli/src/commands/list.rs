@@ -19,22 +19,21 @@ pub trait ListStorage {
     fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>>;
 }
 
-#[allow(clippy::use_self)]
 impl ListStorage for Storage {
     fn list_sources(&self) -> Result<Vec<String>> {
         Ok(self.list_sources())
     }
 
     fn load_metadata(&self, alias: &str) -> Result<Option<Source>> {
-        Storage::load_source_metadata(self, alias).map_err(anyhow::Error::from)
+        Self::load_source_metadata(self, alias).map_err(anyhow::Error::from)
     }
 
     fn load_llms_json(&self, alias: &str) -> Result<LlmsJson> {
-        Storage::load_llms_json(self, alias).map_err(anyhow::Error::from)
+        Self::load_llms_json(self, alias).map_err(anyhow::Error::from)
     }
 
     fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
-        Storage::load_descriptor(self, alias).map_err(anyhow::Error::from)
+        Self::load_descriptor(self, alias).map_err(anyhow::Error::from)
     }
 }
 
