@@ -14,6 +14,7 @@ use tracing_subscriber::FmtSubscriber;
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock};
 
+pub mod args;
 mod cli;
 mod commands;
 mod output;
