@@ -96,21 +96,30 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Search { .. } => "search".into(),
                 Commands::Instruct => "blz".into(),
                 Commands::Add(_) => "add".into(),
+                Commands::Query(_) => "query".into(),
+                Commands::Map(_) => "map".into(),
+                Commands::Sync(_) => "sync".into(),
+                Commands::Check(_) => "check".into(),
+                Commands::Rm(_) => "rm".into(),
                 #[allow(deprecated)]
                 Commands::Refresh { .. } | Commands::Update { .. } => "refresh".into(),
+                #[allow(deprecated)]
                 Commands::Remove { .. } => "remove".into(),
                 Commands::List { .. } => "list".into(),
+                #[allow(deprecated)]
                 Commands::Find { .. } => "find".into(),
                 Commands::Get { .. } => "get".into(),
                 Commands::Lookup { .. } => "lookup".into(),
                 Commands::History { .. } => "history".into(),
                 Commands::Info { .. } => "info".into(),
                 Commands::Stats { .. } => "stats".into(),
+                #[allow(deprecated)]
                 Commands::Validate { .. } => "validate".into(),
                 Commands::Doctor { .. } => "doctor".into(),
                 Commands::Clear { .. } => "clear".into(),
                 Commands::Diff { .. } => "diff".into(),
                 Commands::McpServer => "mcp".into(),
+                #[allow(deprecated)]
                 Commands::Anchor { .. } | Commands::Toc { .. } => "toc".into(),
             };
         }

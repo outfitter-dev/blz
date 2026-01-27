@@ -102,3 +102,6 @@ test_parser
 
 # Scratch workspace for agent work
 .scratch/
+
+# Generator prototype directory
+.generator/

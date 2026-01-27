@@ -463,6 +463,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
     // to keep stdout/stderr clean unless verbose/debug was explicitly requested.
     let mut machine_output = false;
     if !(cli.verbose || cli.debug) {
+        #[allow(deprecated)]
         let command_format = match &cli.command {
             Some(
                 Commands::Search { format, .. }
@@ -475,6 +476,9 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
                 | Commands::Info { format, .. }
                 | Commands::Completions { format, .. },
             ) => Some(format.resolve(cli.quiet)),
+            Some(Commands::Query(args)) => Some(args.format.resolve(cli.quiet)),
+            Some(Commands::Map(args)) => Some(args.format.resolve(cli.quiet)),
+            Some(Commands::Check(args)) => Some(args.format.resolve(cli.quiet)),
             _ => None,
         };
 
@@ -786,6 +790,84 @@ async fn execute_command(
             )
             .await?;
         },
+        Some(Commands::Query(args)) => {
+            let resolved_format = args.format.resolve(cli.quiet);
+
+            // Merge all context flags into a single ContextMode
+            let merged_context = crate::cli::merge_context_flags(
+                args.context,
+                args.context_deprecated,
+                args.after_context,
+                args.before_context,
+            );
+
+            commands::query(
+                &args.inputs,
+                &args.sources,
+                args.limit,
+                args.all,
+                args.page,
+                false, // last - query command doesn't support --last flag
+                args.top,
+                args.heading_level.clone(),
+                resolved_format,
+                &args.show,
+                args.no_summary,
+                args.score_precision,
+                args.snippet_lines,
+                args.max_chars,
+                merged_context.as_ref(),
+                args.block,
+                args.max_lines,
+                args.no_history,
+                args.copy,
+                cli.quiet,
+                args.headings_only,
+                Some(prefs),
+                metrics.clone(),
+                None, // resource_monitor
+            )
+            .await?;
+        },
+        Some(Commands::Map(args)) => {
+            commands::show_map(
+                args.alias.as_deref(),
+                &args.sources,
+                args.all,
+                args.format.resolve(cli.quiet),
+                args.anchors,
+                args.show_anchors,
+                args.limit,
+                args.max_depth,
+                args.heading_level.as_ref(),
+                args.filter.as_deref(),
+                args.tree,
+                args.next,
+                args.previous,
+                args.last,
+                args.page,
+            )
+            .await?;
+        },
+        Some(Commands::Sync(args)) => {
+            commands::sync_source(
+                args.aliases,
+                args.all,
+                args.reindex,
+                args.filter,
+                args.no_filter,
+                metrics,
+                cli.quiet,
+            )
+            .await?;
+        },
+        Some(Commands::Check(args)) => {
+            commands::check_source(args.alias, args.all, args.format.resolve(cli.quiet)).await?;
+        },
+        Some(Commands::Rm(args)) => {
+            commands::rm_source(vec![args.alias], args.yes).await?;
+        },
+        #[allow(deprecated)]
         Some(Commands::Find {
             inputs,
             sources,
@@ -810,6 +892,12 @@ async fn execute_command(
             no_history,
             copy,
         }) => {
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'find' is deprecated, use 'query' or 'get' instead".yellow()
+                );
+            }
             let resolved_format = format.resolve(cli.quiet);
 
             // Merge all context flags into a single ContextMode
@@ -863,12 +951,20 @@ async fn execute_command(
         Some(Commands::Stats { format, limit }) => {
             commands::show_stats(format.resolve(cli.quiet), limit)?;
         },
+        #[allow(deprecated)]
         Some(Commands::Validate { alias, all, format }) => {
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'validate' is deprecated, use 'check' instead".yellow()
+                );
+            }
             commands::validate_source(alias.clone(), all, format.resolve(cli.quiet)).await?;
         },
         Some(Commands::Doctor { format, fix }) => {
             commands::run_doctor(format.resolve(cli.quiet), fix).await?;
         },
+        #[allow(deprecated)]
         Some(Commands::Refresh {
             aliases,
             all,
@@ -877,6 +973,12 @@ async fn execute_command(
             filter,
             no_filter,
         }) => {
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'refresh' is deprecated, use 'sync' instead".yellow()
+                );
+            }
             handle_refresh(
                 aliases,
                 all,
@@ -903,7 +1005,14 @@ async fn execute_command(
             }
             handle_refresh(aliases, all, false, None, false, metrics, cli.quiet).await?;
         },
+        #[allow(deprecated)]
         Some(Commands::Remove { alias, yes }) => {
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'remove' is deprecated, use 'rm' instead".yellow()
+                );
+            }
             commands::remove_source(&alias, yes, cli.quiet).await?;
         },
         Some(Commands::Clear { force }) => {
@@ -918,6 +1027,7 @@ async fn execute_command(
         Some(Commands::Anchor { command }) => {
             handle_anchor(command, cli.quiet).await?;
         },
+        #[allow(deprecated)]
         Some(Commands::Toc {
             alias,
             format,
@@ -935,6 +1045,12 @@ async fn execute_command(
             limit,
             page,
         }) => {
+            if !utils::cli_args::deprecation_warnings_suppressed() {
+                eprintln!(
+                    "{}",
+                    "Warning: 'toc' is deprecated, use 'map' instead".yellow()
+                );
+            }
             commands::show_toc(
                 alias.as_deref(),
                 &sources,
@@ -1734,6 +1850,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_cli_parse_refresh_multiple_aliases() {
         use clap::Parser;
 
@@ -2071,10 +2188,11 @@ mod tests {
     fn preprocess_injects_search_for_shorthand_flags() {
         use clap::Parser;
 
-        let raw = to_string_vec(&["blz", "query", "-s", "react"]);
+        // Use a term that is NOT a subcommand name
+        let raw = to_string_vec(&["blz", "searchterm", "-s", "react"]);
         let processed = preprocess_args_from(&raw);
 
-        let expected = to_string_vec(&["blz", "search", "query", "-s", "react"]);
+        let expected = to_string_vec(&["blz", "search", "searchterm", "-s", "react"]);
         assert_eq!(processed, expected);
 
         let cli = Cli::try_parse_from(processed).unwrap();
@@ -2096,9 +2214,10 @@ mod tests {
 
     #[test]
     fn preprocess_preserves_global_flags_order() {
-        let raw = to_string_vec(&["blz", "--quiet", "query", "-s", "docs"]);
+        // Use a term that is NOT a subcommand name
+        let raw = to_string_vec(&["blz", "--quiet", "searchterm", "-s", "docs"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "--quiet", "search", "query", "-s", "docs"]);
+        let expected = to_string_vec(&["blz", "--quiet", "search", "searchterm", "-s", "docs"]);
         assert_eq!(processed, expected);
     }
 
@@ -2106,9 +2225,10 @@ mod tests {
     fn preprocess_converts_json_aliases() {
         use clap::Parser;
 
-        let raw = to_string_vec(&["blz", "query", "--json"]);
+        // Use a term that is NOT a subcommand name
+        let raw = to_string_vec(&["blz", "searchterm", "--json"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "search", "query", "--format", "json"]);
+        let expected = to_string_vec(&["blz", "search", "searchterm", "--format", "json"]);
         assert_eq!(processed, expected);
 
         let cli = Cli::try_parse_from(processed).unwrap();
@@ -2163,6 +2283,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn anchors_alias_still_parses_to_toc() {
         use clap::Parser;
 
@@ -2178,10 +2299,10 @@ mod tests {
     fn preprocess_handles_context_flags() {
         use clap::Parser;
 
-        // Test --context flag
-        let raw = to_string_vec(&["blz", "query", "--context", "all"]);
+        // Test --context flag (use term that is NOT a subcommand name)
+        let raw = to_string_vec(&["blz", "searchterm", "--context", "all"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "search", "query", "--context", "all"]);
+        let expected = to_string_vec(&["blz", "search", "searchterm", "--context", "all"]);
         assert_eq!(processed, expected);
 
         let cli = Cli::try_parse_from(processed).unwrap();
@@ -2285,17 +2406,19 @@ mod tests {
 
     #[test]
     fn preprocess_handles_no_history_flag() {
-        let raw = to_string_vec(&["blz", "query", "--no-history"]);
+        // Use a term that is NOT a subcommand name
+        let raw = to_string_vec(&["blz", "searchterm", "--no-history"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "search", "query", "--no-history"]);
+        let expected = to_string_vec(&["blz", "search", "searchterm", "--no-history"]);
         assert_eq!(processed, expected);
     }
 
     #[test]
     fn preprocess_handles_copy_flag() {
-        let raw = to_string_vec(&["blz", "query", "--copy"]);
+        // Use a term that is NOT a subcommand name
+        let raw = to_string_vec(&["blz", "searchterm", "--copy"]);
         let processed = preprocess_args_from(&raw);
-        let expected = to_string_vec(&["blz", "search", "query", "--copy"]);
+        let expected = to_string_vec(&["blz", "search", "searchterm", "--copy"]);
         assert_eq!(processed, expected);
     }
 
@@ -2719,19 +2842,18 @@ mod tests {
             "List command should have 'sources' alias"
         );
 
-        let remove_cmd = cmd
+        // `rm` is now its own command (not an alias of `remove`)
+        let rm_cmd = cmd
             .get_subcommands()
-            .find(|sub| sub.get_name() == "remove")
-            .expect("Should have remove command");
+            .find(|sub| sub.get_name() == "rm")
+            .expect("Should have rm command");
+        assert_eq!(rm_cmd.get_name(), "rm");
 
-        let remove_aliases: Vec<&str> = remove_cmd.get_all_aliases().collect();
+        // `remove` is deprecated but still exists
+        let remove_cmd = cmd.get_subcommands().find(|sub| sub.get_name() == "remove");
         assert!(
-            remove_aliases.contains(&"rm"),
-            "Remove command should have 'rm' alias"
-        );
-        assert!(
-            remove_aliases.contains(&"delete"),
-            "Remove command should have 'delete' alias"
+            remove_cmd.is_some(),
+            "Remove command should still exist (deprecated)"
         );
     }
 
