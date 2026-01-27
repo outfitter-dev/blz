@@ -1,5 +1,7 @@
 //! JSON output formatting
 
+use std::io::Write;
+
 use anyhow::{Context, Result, anyhow};
 use blz_core::SearchHit;
 use blz_core::numeric::percent_to_u8;
@@ -59,18 +61,42 @@ impl JsonFormatter {
 
     /// Format search results as newline-delimited JSON.
     ///
+    /// Streams items one at a time to handle large result sets without
+    /// buffering everything in memory.
+    ///
+    /// Broken pipe errors (e.g., when piping to `head`) are treated as success
+    /// since the consumer has received all the data it needs.
+    ///
     /// # Errors
     ///
     /// Returns an error if a search hit cannot be serialized to JSON.
     pub fn format_search_results_jsonl(hits: &[SearchHit]) -> Result<()> {
+        let stdout = std::io::stdout();
+        let mut writer = stdout.lock();
+
         for hit in hits {
-            let mut value = serde_json::to_value(hit).context("serialize SearchHit to JSON")?;
+            let mut value =
+                serde_json::to_value(hit).context("failed to serialize SearchHit to JSON")?;
             if let serde_json::Value::Object(ref mut map) = value {
                 if let Some(source_value) = map.get("source").cloned() {
                     map.entry("alias".to_string()).or_insert(source_value);
                 }
             }
-            println!("{}", serde_json::to_string(&value)?);
+            let json = serde_json::to_string(&value).context("failed to serialize item to JSON")?;
+            if let Err(e) = writeln!(writer, "{json}") {
+                // Treat broken pipe as success - consumer closed the stream early
+                if e.kind() == std::io::ErrorKind::BrokenPipe {
+                    return Ok(());
+                }
+                return Err(e).context("failed to write JSON line");
+            }
+        }
+
+        if let Err(e) = writer.flush() {
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                return Ok(());
+            }
+            return Err(e).context("failed to flush stdout");
         }
         Ok(())
     }
