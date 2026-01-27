@@ -129,6 +129,156 @@ fn validate_url(url: &str) -> McpResult<()> {
     Ok(())
 }
 
+/// Resolve the source URL from params or registry lookup.
+fn resolve_source_url(params: &SourceAddParams) -> McpResult<String> {
+    if let Some(ref url) = params.url {
+        validate_url(url)?;
+        Ok(url.clone())
+    } else {
+        let registry = Registry::new();
+        let search_results = registry.search(&params.alias);
+
+        let entry = search_results
+            .iter()
+            .find(|result| result.entry.slug == params.alias)
+            .or_else(|| search_results.first())
+            .ok_or_else(|| McpError::SourceNotFound(params.alias.clone()))?;
+
+        Ok(entry.entry.llms_url.clone())
+    }
+}
+
+/// Result of fetching source content.
+struct FetchedContent {
+    content: String,
+    sha256: String,
+    etag: Option<String>,
+    last_modified: Option<String>,
+}
+
+/// Fetch source content from URL.
+async fn fetch_source_content(url: &str) -> McpResult<FetchedContent> {
+    let fetcher = blz_core::Fetcher::new()
+        .map_err(|e| McpError::Internal(format!("Failed to create fetcher: {e}")))?;
+
+    let fetch_result = fetcher
+        .fetch_with_cache(url, None, None)
+        .await
+        .map_err(|e| McpError::Internal(format!("Failed to fetch source: {e}")))?;
+
+    match fetch_result {
+        blz_core::FetchResult::Modified {
+            content,
+            sha256,
+            etag,
+            last_modified,
+        } => Ok(FetchedContent {
+            content,
+            sha256,
+            etag,
+            last_modified,
+        }),
+        blz_core::FetchResult::NotModified { .. } => Err(McpError::Internal(
+            "Server returned 304 Not Modified on initial fetch".to_string(),
+        )),
+    }
+}
+
+/// Build the `LlmsJson` structure for a new source.
+fn build_source_metadata(
+    alias: &str,
+    url: &str,
+    fetched: &FetchedContent,
+    parse_result: &blz_core::ParseResult,
+) -> blz_core::LlmsJson {
+    blz_core::LlmsJson {
+        source: alias.to_string(),
+        metadata: blz_core::Source {
+            url: url.to_string(),
+            etag: fetched.etag.clone(),
+            last_modified: fetched.last_modified.clone(),
+            fetched_at: chrono::Utc::now(),
+            sha256: fetched.sha256.clone(),
+            variant: blz_core::SourceVariant::Llms,
+            aliases: Vec::new(),
+            tags: Vec::new(),
+            description: None,
+            category: None,
+            npm_aliases: Vec::new(),
+            github_aliases: Vec::new(),
+            origin: blz_core::SourceOrigin {
+                manifest: None,
+                source_type: Some(blz_core::SourceType::Remote {
+                    url: url.to_string(),
+                }),
+            },
+            filter_non_english: None,
+        },
+        toc: parse_result.toc.clone(),
+        files: vec![blz_core::FileInfo {
+            path: "llms.txt".to_string(),
+            sha256: fetched.sha256.clone(),
+        }],
+        line_index: blz_core::LineIndex {
+            total_lines: parse_result.line_count,
+            byte_offsets: false,
+        },
+        diagnostics: parse_result.diagnostics.clone(),
+        parse_meta: Some(blz_core::ParseMeta {
+            parser_version: 1,
+            segmentation: "structured".to_string(),
+        }),
+        filter_stats: None,
+    }
+}
+
+/// Persist source files to storage (llms.txt, llms.json, metadata, descriptor).
+fn persist_source_files(
+    storage: &Storage,
+    alias: &str,
+    content: &str,
+    llms_json: &blz_core::LlmsJson,
+) -> McpResult<()> {
+    storage
+        .save_llms_txt(alias, content)
+        .map_err(|e| McpError::Internal(format!("Failed to save llms.txt: {e}")))?;
+
+    storage
+        .save_llms_json(alias, llms_json)
+        .map_err(|e| McpError::Internal(format!("Failed to save llms.json: {e}")))?;
+
+    storage
+        .save_source_metadata(alias, &llms_json.metadata)
+        .map_err(|e| McpError::Internal(format!("Failed to save source metadata: {e}")))?;
+
+    let descriptor = SourceDescriptor::from_source(alias, &llms_json.metadata);
+    storage
+        .save_descriptor(&descriptor)
+        .map_err(|e| McpError::Internal(format!("Failed to save source descriptor: {e}")))?;
+
+    Ok(())
+}
+
+/// Build and populate the search index for a source.
+fn build_source_index(
+    storage: &Storage,
+    alias: &str,
+    heading_blocks: &[blz_core::HeadingBlock],
+) -> McpResult<()> {
+    let index_path = storage
+        .index_dir(alias)
+        .map_err(|e| McpError::Internal(format!("Failed to get index directory: {e}")))?;
+
+    let index = blz_core::SearchIndex::create(&index_path)
+        .map_err(|e| McpError::Internal(format!("Failed to create search index: {e}")))?;
+
+    index
+        .index_blocks(alias, heading_blocks)
+        .map_err(|e| McpError::Internal(format!("Failed to index blocks: {e}")))?;
+
+    Ok(())
+}
+
 /// Handle list-sources tool
 #[tracing::instrument(skip(storage))]
 pub async fn handle_list_sources(
@@ -228,7 +378,6 @@ pub async fn handle_list_sources(
 
 /// Handle source-add tool
 #[tracing::instrument(skip(storage, index_cache))]
-#[allow(clippy::too_many_lines)]
 pub async fn handle_source_add(
     params: SourceAddParams,
     storage: &Storage,
@@ -236,138 +385,28 @@ pub async fn handle_source_add(
 ) -> McpResult<SourceAddOutput> {
     tracing::debug!(?params, "adding source");
 
-    // Validate alias
     validate_alias(&params.alias)?;
 
-    // Check if source already exists
     if storage.exists(&params.alias) && !params.force {
         return Err(McpError::SourceExists(params.alias.clone()));
     }
 
-    // Determine URL
-    let url = if let Some(ref url) = params.url {
-        // Use provided URL
-        validate_url(url)?;
-        url.clone()
-    } else {
-        // Look up in registry
-        let registry = Registry::new();
-        let search_results = registry.search(&params.alias);
-
-        // Find exact match or best match
-        let entry = search_results
-            .iter()
-            .find(|result| result.entry.slug == params.alias)
-            .or_else(|| search_results.first())
-            .ok_or_else(|| McpError::SourceNotFound(params.alias.clone()))?;
-
-        entry.entry.llms_url.clone()
-    };
-
-    // Fetch, parse, and index the source
+    let url = resolve_source_url(&params)?;
     tracing::info!(alias = %params.alias, url = %url, "adding source");
 
-    // Fetch content
-    let fetcher = blz_core::Fetcher::new()
-        .map_err(|e| McpError::Internal(format!("Failed to create fetcher: {e}")))?;
+    let fetched = fetch_source_content(&url).await?;
 
-    let fetch_result = fetcher
-        .fetch_with_cache(&url, None, None)
-        .await
-        .map_err(|e| McpError::Internal(format!("Failed to fetch source: {e}")))?;
-
-    let (content, sha256, etag, last_modified) = match fetch_result {
-        blz_core::FetchResult::Modified {
-            content,
-            sha256,
-            etag,
-            last_modified,
-        } => (content, sha256, etag, last_modified),
-        blz_core::FetchResult::NotModified { .. } => {
-            return Err(McpError::Internal(
-                "Server returned 304 Not Modified on initial fetch".to_string(),
-            ));
-        },
-    };
-
-    // Parse markdown
     let mut parser = blz_core::MarkdownParser::new()
         .map_err(|e| McpError::Internal(format!("Failed to create parser: {e}")))?;
 
     let parse_result = parser
-        .parse(&content)
+        .parse(&fetched.content)
         .map_err(|e| McpError::Internal(format!("Failed to parse markdown: {e}")))?;
 
-    // Save llms.txt content
-    storage
-        .save_llms_txt(&params.alias, &content)
-        .map_err(|e| McpError::Internal(format!("Failed to save llms.txt: {e}")))?;
+    let llms_json = build_source_metadata(&params.alias, &url, &fetched, &parse_result);
 
-    // Build llms.json structure
-    let llms_json = blz_core::LlmsJson {
-        source: params.alias.clone(),
-        metadata: blz_core::Source {
-            url: url.clone(),
-            etag: etag.clone(),
-            last_modified: last_modified.clone(),
-            fetched_at: chrono::Utc::now(),
-            sha256: sha256.clone(),
-            variant: blz_core::SourceVariant::Llms,
-            aliases: Vec::new(),
-            tags: Vec::new(),
-            description: None,
-            category: None,
-            npm_aliases: Vec::new(),
-            github_aliases: Vec::new(),
-            origin: blz_core::SourceOrigin {
-                manifest: None,
-                source_type: Some(blz_core::SourceType::Remote { url: url.clone() }),
-            },
-            filter_non_english: None,
-        },
-        toc: parse_result.toc.clone(),
-        files: vec![blz_core::FileInfo {
-            path: "llms.txt".to_string(),
-            sha256: sha256.clone(),
-        }],
-        line_index: blz_core::LineIndex {
-            total_lines: parse_result.line_count,
-            byte_offsets: false,
-        },
-        diagnostics: parse_result.diagnostics.clone(),
-        parse_meta: Some(blz_core::ParseMeta {
-            parser_version: 1,
-            segmentation: "structured".to_string(),
-        }),
-        filter_stats: None,
-    };
-
-    storage
-        .save_llms_json(&params.alias, &llms_json)
-        .map_err(|e| McpError::Internal(format!("Failed to save llms.json: {e}")))?;
-
-    // Persist metadata so other commands (update/list) can read source state
-    storage
-        .save_source_metadata(&params.alias, &llms_json.metadata)
-        .map_err(|e| McpError::Internal(format!("Failed to save source metadata: {e}")))?;
-
-    // Write descriptor snapshot for CLI compatibility
-    let descriptor = SourceDescriptor::from_source(&params.alias, &llms_json.metadata);
-    storage
-        .save_descriptor(&descriptor)
-        .map_err(|e| McpError::Internal(format!("Failed to save source descriptor: {e}")))?;
-
-    // Build search index
-    let index_path = storage
-        .index_dir(&params.alias)
-        .map_err(|e| McpError::Internal(format!("Failed to get index directory: {e}")))?;
-
-    let index = blz_core::SearchIndex::create(&index_path)
-        .map_err(|e| McpError::Internal(format!("Failed to create search index: {e}")))?;
-
-    index
-        .index_blocks(&params.alias, &parse_result.heading_blocks)
-        .map_err(|e| McpError::Internal(format!("Failed to index blocks: {e}")))?;
+    persist_source_files(storage, &params.alias, &fetched.content, &llms_json)?;
+    build_source_index(storage, &params.alias, &parse_result.heading_blocks)?;
 
     tracing::info!(
         alias = %params.alias,
@@ -376,7 +415,6 @@ pub async fn handle_source_add(
         "source added successfully"
     );
 
-    // Invalidate cache for this source
     cache::invalidate_cache(index_cache, &params.alias).await;
 
     let message = if params.force {
