@@ -94,9 +94,10 @@ impl FirecrawlCli {
             .map_err(|e| Error::Config(format!("Invalid MIN_VERSION constant: {e}")))?;
 
         if version < min_version {
-            return Err(Error::Config(format!(
-                "Firecrawl version {version} is below minimum required {min_version}"
-            )));
+            return Err(Error::FirecrawlVersionTooOld {
+                found: version.to_string(),
+                required: min_version.to_string(),
+            });
         }
 
         Ok(Self { path, version })
@@ -197,18 +198,18 @@ async fn find_firecrawl_path() -> Result<String> {
         .map_err(Error::Io)?;
 
     if !output.status.success() {
-        return Err(Error::NotFound("firecrawl not found in PATH".to_string()));
+        return Err(Error::FirecrawlNotInstalled);
     }
 
     let path = String::from_utf8_lossy(&output.stdout)
         .lines()
         .next()
-        .ok_or_else(|| Error::NotFound("firecrawl not found in PATH".to_string()))?
+        .ok_or_else(|| Error::FirecrawlNotInstalled)?
         .trim()
         .to_string();
 
     if path.is_empty() {
-        return Err(Error::NotFound("firecrawl not found in PATH".to_string()));
+        return Err(Error::FirecrawlNotInstalled);
     }
 
     Ok(path)
@@ -223,7 +224,9 @@ async fn get_firecrawl_version(path: &str) -> Result<Version> {
         .map_err(Error::Io)?;
 
     if !output.status.success() {
-        return Err(Error::Other("Failed to get firecrawl version".to_string()));
+        return Err(Error::FirecrawlCommandFailed(
+            "Failed to get firecrawl version".to_string(),
+        ));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);

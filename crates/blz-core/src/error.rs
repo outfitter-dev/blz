@@ -208,6 +208,71 @@ pub enum Error {
     #[error("Serialization error: {0}")]
     Serialization(String),
 
+    /// Firecrawl CLI is not installed or not in PATH.
+    ///
+    /// Indicates that the `firecrawl` command cannot be found. Users need to
+    /// install the Firecrawl CLI to use web scraping functionality.
+    ///
+    /// ## Resolution
+    ///
+    /// Install Firecrawl CLI with: `npm install -g firecrawl`
+    #[error("Firecrawl CLI not installed. Install with: npm install -g firecrawl")]
+    FirecrawlNotInstalled,
+
+    /// Firecrawl CLI version is too old.
+    ///
+    /// The installed Firecrawl CLI version does not meet the minimum
+    /// requirements for this version of blz.
+    ///
+    /// ## Resolution
+    ///
+    /// Update Firecrawl CLI with: `npm update -g firecrawl`
+    #[error("Firecrawl CLI version {found} is too old (minimum required: {required})")]
+    FirecrawlVersionTooOld {
+        /// Version that was found.
+        found: String,
+        /// Minimum required version.
+        required: String,
+    },
+
+    /// Firecrawl CLI is not authenticated.
+    ///
+    /// The Firecrawl CLI requires authentication to use the API.
+    /// Users need to log in before using scrape functionality.
+    ///
+    /// ## Resolution
+    ///
+    /// Authenticate with: `firecrawl login`
+    #[error("Firecrawl CLI not authenticated. Run: firecrawl login")]
+    FirecrawlNotAuthenticated,
+
+    /// Firecrawl scrape operation failed.
+    ///
+    /// The scrape operation for a specific URL failed. This may be due to
+    /// network issues, invalid URLs, or site-specific restrictions.
+    ///
+    /// ## Recoverability
+    ///
+    /// This error is typically recoverable - retry may succeed.
+    #[error("Firecrawl scrape failed for '{url}': {reason}")]
+    FirecrawlScrapeFailed {
+        /// URL that failed to scrape.
+        url: String,
+        /// Reason for the failure.
+        reason: String,
+    },
+
+    /// Firecrawl command execution failed.
+    ///
+    /// A general Firecrawl CLI command failed to execute properly.
+    /// This covers execution failures that aren't specific to scraping.
+    ///
+    /// ## Recoverability
+    ///
+    /// This error is typically recoverable - retry may succeed.
+    #[error("Firecrawl command failed: {0}")]
+    FirecrawlCommandFailed(String),
+
     /// Generic error for uncategorized failures.
     ///
     /// Used for errors that don't fit other categories or for
@@ -311,7 +376,10 @@ impl Error {
                 // Consider connection errors as recoverable
                 e.is_timeout() || e.is_connect()
             },
-            Self::Timeout(_) => true,
+            // Timeout and Firecrawl transient errors are recoverable
+            Self::Timeout(_)
+            | Self::FirecrawlScrapeFailed { .. }
+            | Self::FirecrawlCommandFailed(_) => true,
             Self::Io(e) => {
                 // Consider temporary I/O errors as recoverable
                 matches!(
@@ -319,6 +387,7 @@ impl Error {
                     std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
                 )
             },
+            // All other errors (including Firecrawl installation/auth) are not recoverable
             _ => false,
         }
     }
@@ -400,6 +469,11 @@ impl Error {
             Self::ResourceLimited(_) => "resource_limited",
             Self::Timeout(_) => "timeout",
             Self::Serialization(_) => "serialization",
+            Self::FirecrawlNotInstalled
+            | Self::FirecrawlVersionTooOld { .. }
+            | Self::FirecrawlNotAuthenticated
+            | Self::FirecrawlScrapeFailed { .. }
+            | Self::FirecrawlCommandFailed(_) => "firecrawl",
             Self::Other(_) => "other",
         }
     }
@@ -562,6 +636,26 @@ mod tests {
             ),
             (Error::Timeout("test".to_string()), "timeout"),
             (Error::Serialization("test".to_string()), "serialization"),
+            (Error::FirecrawlNotInstalled, "firecrawl"),
+            (
+                Error::FirecrawlVersionTooOld {
+                    found: "1.0.0".to_string(),
+                    required: "1.1.0".to_string(),
+                },
+                "firecrawl",
+            ),
+            (Error::FirecrawlNotAuthenticated, "firecrawl"),
+            (
+                Error::FirecrawlScrapeFailed {
+                    url: "test".to_string(),
+                    reason: "test".to_string(),
+                },
+                "firecrawl",
+            ),
+            (
+                Error::FirecrawlCommandFailed("test".to_string()),
+                "firecrawl",
+            ),
             (Error::Other("test".to_string()), "other"),
         ];
 
@@ -610,6 +704,109 @@ mod tests {
                 "Expected {error:?} to be non-recoverable"
             );
         }
+    }
+
+    // ============================================================
+    // Firecrawl Error Tests
+    // ============================================================
+
+    #[test]
+    fn test_firecrawl_error_display() {
+        // FirecrawlNotInstalled
+        assert!(
+            Error::FirecrawlNotInstalled
+                .to_string()
+                .contains("not installed")
+        );
+        assert!(
+            Error::FirecrawlNotInstalled
+                .to_string()
+                .contains("npm install")
+        );
+
+        // FirecrawlVersionTooOld
+        let version_error = Error::FirecrawlVersionTooOld {
+            found: "1.0.0".to_string(),
+            required: "1.1.0".to_string(),
+        };
+        assert!(version_error.to_string().contains("1.0.0"));
+        assert!(version_error.to_string().contains("1.1.0"));
+        assert!(version_error.to_string().contains("too old"));
+
+        // FirecrawlNotAuthenticated
+        assert!(
+            Error::FirecrawlNotAuthenticated
+                .to_string()
+                .contains("not authenticated")
+        );
+        assert!(
+            Error::FirecrawlNotAuthenticated
+                .to_string()
+                .contains("firecrawl login")
+        );
+
+        // FirecrawlScrapeFailed
+        let scrape_error = Error::FirecrawlScrapeFailed {
+            url: "https://example.com".to_string(),
+            reason: "timeout".to_string(),
+        };
+        assert!(scrape_error.to_string().contains("https://example.com"));
+        assert!(scrape_error.to_string().contains("timeout"));
+
+        // FirecrawlCommandFailed
+        let cmd_error = Error::FirecrawlCommandFailed("permission denied".to_string());
+        assert!(cmd_error.to_string().contains("permission denied"));
+        assert!(cmd_error.to_string().contains("command failed"));
+    }
+
+    #[test]
+    fn test_firecrawl_error_recoverability() {
+        // Permanent errors (require user action)
+        assert!(!Error::FirecrawlNotInstalled.is_recoverable());
+        assert!(
+            !Error::FirecrawlVersionTooOld {
+                found: "1.0.0".to_string(),
+                required: "1.1.0".to_string(),
+            }
+            .is_recoverable()
+        );
+        assert!(!Error::FirecrawlNotAuthenticated.is_recoverable());
+
+        // Recoverable errors (transient failures)
+        assert!(
+            Error::FirecrawlScrapeFailed {
+                url: "https://example.com".to_string(),
+                reason: "timeout".to_string(),
+            }
+            .is_recoverable()
+        );
+        assert!(Error::FirecrawlCommandFailed("failed".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_firecrawl_error_category() {
+        assert_eq!(Error::FirecrawlNotInstalled.category(), "firecrawl");
+        assert_eq!(Error::FirecrawlNotAuthenticated.category(), "firecrawl");
+        assert_eq!(
+            Error::FirecrawlVersionTooOld {
+                found: "1.0.0".to_string(),
+                required: "1.1.0".to_string(),
+            }
+            .category(),
+            "firecrawl"
+        );
+        assert_eq!(
+            Error::FirecrawlScrapeFailed {
+                url: "test".to_string(),
+                reason: "test".to_string(),
+            }
+            .category(),
+            "firecrawl"
+        );
+        assert_eq!(
+            Error::FirecrawlCommandFailed("test".to_string()).category(),
+            "firecrawl"
+        );
     }
 
     #[test]
