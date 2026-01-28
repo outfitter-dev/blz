@@ -65,6 +65,8 @@ pub mod error;
 pub mod fetcher;
 /// Firecrawl CLI detection and web scraping integration
 pub mod firecrawl;
+/// Generation pipeline for creating llms.txt from web scraping
+pub mod generate;
 /// Heading sanitization and normalization helpers
 pub mod heading;
 /// Search index implementation using Tantivy
