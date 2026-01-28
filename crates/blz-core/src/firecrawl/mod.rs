@@ -29,8 +29,10 @@
 //! ```
 
 pub mod detect;
+pub mod scrape;
 
 pub use detect::{FirecrawlCli, FirecrawlStatus, detect_firecrawl};
+pub use scrape::{MapResult, ScrapeOptions, ScrapeResult};
 
 /// Minimum required version of Firecrawl CLI.
 ///
