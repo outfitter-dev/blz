@@ -266,7 +266,7 @@ impl ComponentTimings {
         self.timings.values().sum()
     }
 
-    /// Prints a formatted breakdown of component timings
+    /// Prints a formatted breakdown of component timings to stdout
     pub fn print_breakdown(&self) {
         if self.timings.is_empty() {
             return;
@@ -296,6 +296,67 @@ impl ComponentTimings {
         }
 
         println!("  {:<20}: {:>8.2}ms", "TOTAL", total.as_millis());
+    }
+
+    /// Prints a formatted breakdown of component timings to stderr.
+    ///
+    /// This is useful for performance analysis without interfering with JSON output on stdout.
+    /// The output is buffered and written atomically to prevent interleaving when multiple
+    /// sources are searched in parallel.
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - Optional source alias to identify which source this breakdown is for.
+    ///   When provided, the header will show `[alias] Component Breakdown`.
+    pub fn print_breakdown_stderr(&self, source: Option<&str>) {
+        use std::fmt::Write as FmtWrite;
+        use std::io::Write as IoWrite;
+
+        if self.timings.is_empty() {
+            return;
+        }
+
+        let total = self.total_time();
+
+        // Build the entire breakdown string first
+        let mut output = String::new();
+
+        // Header with optional source name
+        output.push('\n');
+        if let Some(alias) = source {
+            let _ = writeln!(output, "[{alias}] Component Breakdown");
+        } else {
+            output.push_str("Component Breakdown\n");
+        }
+        output.push_str("==================\n");
+
+        let mut sorted_timings: Vec<_> = self.timings.iter().collect();
+        sorted_timings.sort_by(|a, b| b.1.cmp(a.1));
+
+        for (component, duration) in sorted_timings {
+            #[allow(clippy::cast_precision_loss)] // Display-only percentage calculation
+            let percentage = if total.as_micros() > 0 {
+                (duration.as_micros() as f64 / total.as_micros() as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let _ = writeln!(
+                output,
+                "  {:<20}: {:>8}ms ({:>5.1}%)",
+                component,
+                duration.as_millis(),
+                percentage
+            );
+        }
+
+        let _ = writeln!(output, "  {:<20}: {:>8}ms", "TOTAL", total.as_millis());
+
+        // Write atomically with a single stderr lock
+        let stderr = std::io::stderr();
+        let mut handle = stderr.lock();
+        // Ignore write errors for diagnostic output
+        let _ = handle.write_all(output.as_bytes());
     }
 }
 

@@ -768,6 +768,7 @@ async fn dispatch_search(
         headings_only,
         no_history,
         copy,
+        timing,
     } = cmd
     else {
         unreachable!("dispatch_search called with non-Search command");
@@ -800,6 +801,7 @@ async fn dispatch_search(
         headings_only,
         no_history,
         copy,
+        timing,
         quiet,
         metrics,
         prefs,
@@ -875,6 +877,7 @@ async fn dispatch_find(
         headings_only,
         no_history,
         copy,
+        timing,
     } = cmd
     else {
         unreachable!("dispatch_find called with non-Find command");
@@ -903,6 +906,7 @@ async fn dispatch_find(
         headings_only,
         no_history,
         copy,
+        timing,
         quiet,
         prefs,
         metrics,
@@ -1308,6 +1312,7 @@ async fn handle_query(
         args.copy,
         quiet,
         args.headings_only,
+        args.timing,
         Some(prefs),
         metrics,
         None,
@@ -1339,6 +1344,7 @@ async fn handle_find(
     headings_only: bool,
     no_history: bool,
     copy: bool,
+    timing: bool,
     quiet: bool,
     prefs: &mut CliPreferences,
     metrics: PerformanceMetrics,
@@ -1375,6 +1381,7 @@ async fn handle_find(
         copy,
         quiet,
         headings_only,
+        timing,
         Some(prefs),
         metrics,
         None,
@@ -1536,6 +1543,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         false,
         true,
         args.copy,
+        false, // timing
         quiet,
         None,
         metrics,
@@ -1714,6 +1722,7 @@ async fn handle_search(
     headings_only: bool,
     no_history: bool,
     copy: bool,
+    timing: bool,
     quiet: bool,
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
@@ -1812,6 +1821,7 @@ async fn handle_search(
         use_headings_only,
         no_history,
         copy,
+        timing,
         quiet,
         Some(prefs),
         metrics,

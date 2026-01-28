@@ -686,6 +686,9 @@ pub enum Commands {
         /// Copy results to clipboard using OSC 52 escape sequence
         #[arg(long)]
         copy: bool,
+        /// Show detailed timing breakdown for performance analysis
+        #[arg(long)]
+        timing: bool,
     },
 
     /// Show recent search history and defaults (last 20 entries by default)
@@ -1139,6 +1142,10 @@ pub enum Commands {
         /// Copy results to clipboard using OSC 52 escape sequence
         #[arg(long)]
         copy: bool,
+
+        /// Show detailed timing breakdown for performance analysis
+        #[arg(long)]
+        timing: bool,
     },
 }
 
@@ -1394,6 +1401,10 @@ pub struct QueryArgs {
     /// Copy results to clipboard using OSC 52 escape sequence
     #[arg(long)]
     pub copy: bool,
+
+    /// Show detailed timing breakdown for performance analysis
+    #[arg(long)]
+    pub timing: bool,
 }
 
 /// Arguments for `blz map` (browse documentation structure)

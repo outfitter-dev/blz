@@ -298,12 +298,29 @@ impl SearchIndex {
         limit: usize,
         snippet_max_chars: usize,
     ) -> Result<Vec<SearchHit>> {
+        self.search_with_timing(query_str, alias, limit, snippet_max_chars, false)
+    }
+
+    /// Searches the index with optional alias filtering, snippet limit, and timing output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query cannot be parsed or executed.
+    pub fn search_with_timing(
+        &self,
+        query_str: &str,
+        alias: Option<&str>,
+        limit: usize,
+        snippet_max_chars: usize,
+        show_timing: bool,
+    ) -> Result<Vec<SearchHit>> {
         self.search_internal(
             query_str,
             alias,
             limit,
             snippet_max_chars,
             SearchMode::Combined,
+            show_timing,
         )
     }
 
@@ -319,12 +336,29 @@ impl SearchIndex {
         limit: usize,
         snippet_max_chars: usize,
     ) -> Result<Vec<SearchHit>> {
+        self.search_headings_only_with_timing(query_str, alias, limit, snippet_max_chars, false)
+    }
+
+    /// Searches only heading-related fields with optional timing output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query cannot be parsed or executed.
+    pub fn search_headings_only_with_timing(
+        &self,
+        query_str: &str,
+        alias: Option<&str>,
+        limit: usize,
+        snippet_max_chars: usize,
+        show_timing: bool,
+    ) -> Result<Vec<SearchHit>> {
         self.search_internal(
             query_str,
             alias,
             limit,
             snippet_max_chars,
             SearchMode::HeadingsOnly,
+            show_timing,
         )
     }
 
@@ -469,6 +503,7 @@ impl SearchIndex {
         limit: usize,
         snippet_max_chars: usize,
         mode: SearchMode,
+        show_timing: bool,
     ) -> Result<Vec<SearchHit>> {
         let timer = self.metrics.as_ref().map_or_else(
             || OperationTimer::new(&format!("search_{query_str}")),
@@ -541,6 +576,10 @@ impl SearchIndex {
 
         if tracing::enabled!(Level::DEBUG) {
             timings.print_breakdown();
+        }
+
+        if show_timing {
+            timings.print_breakdown_stderr(alias);
         }
 
         debug!(
