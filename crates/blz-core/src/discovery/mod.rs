@@ -41,5 +41,7 @@
 //! 4. `https://docs.{domain}/*` - Subdomain fallback if main domain has nothing
 
 pub mod probe;
+pub mod sitemap;
 
 pub use probe::{ProbeResult, probe_domain};
+pub use sitemap::{ChangeFrequency, SitemapEntry, fetch_sitemap, is_sitemap_index, parse_sitemap};
