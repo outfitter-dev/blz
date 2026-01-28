@@ -134,8 +134,8 @@ source /path/to/blz/scripts/blz-dynamic-completions.zsh
 
 What it adds:
 
-- `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz refresh` (and legacy `blz update`), `blz remove`, `blz diff`, `blz toc`, and `blz anchor list|get`
+- `--source`/`-s` dynamic values for `blz query` and `blz get`
+- Positional alias completion for `blz query`, `blz get`, `blz sync`, `blz rm`, `blz diff`, `blz map`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases. Falls back to the static `_blz` for everything else.
@@ -144,8 +144,8 @@ It reads from `blz list --json` and merges canonical + metadata aliases. Falls b
 
 ```zsh
 blz <TAB>                # Shows commands with descriptions
-blz search --<TAB>       # Shows options
-blz search <TAB>         # Complete aliases (with dynamic helper)
+blz query --<TAB>        # Shows options
+blz query <TAB>          # Complete aliases (with dynamic helper)
 ```
 
 ### Configuration
@@ -285,7 +285,7 @@ blz <TAB>
   search      Search across cached docs
   get         Get exact lines from a source
   list        List all cached sources
-  refresh     Update sources
+  sync        Fetch latest documentation from sources
 ```
 
 ### Customization
@@ -353,8 +353,8 @@ source /path/to/blz/scripts/blz-dynamic-completions.fish
 
 Adds:
 
-- `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz refresh` (and legacy `blz update`), `blz remove`, `blz diff`, `blz toc`
+- `--source`/`-s` dynamic values for `blz query` and `blz get`
+- Positional alias completion for `blz query`, `blz get`, `blz sync`, `blz rm`, `blz diff`, `blz map`
 - `blz anchor list <alias>` alias completion
 - `blz anchor get <alias> <anchor>` anchor completion (after alias is provided)
 
@@ -416,7 +416,7 @@ end
 ### Tips
 
 1. **History**: Use ↑/↓ to navigate command history
-2. **Wildcards**: `blz search react*` works
+2. **Wildcards**: `blz query "react*"` works
 3. **Pipes**: `blz list | grep anthropic`
 4. **JSON**: Parse with `jq` for scripting
 
@@ -466,7 +466,7 @@ source ~/.bash_profile
 
 ```bash
 blz <TAB><TAB>           # List commands
-blz search --<TAB><TAB>  # List options
+blz query --<TAB><TAB>   # List options
 blz add <TAB><TAB>       # Complete filenames
 ```
 
@@ -545,7 +545,7 @@ if (!(Test-Path $PROFILE)) {
 
 ```powershell
 blz <Tab>              # Cycle through commands
-blz search -<Tab>      # Cycle through parameters
+blz query -<Tab>       # Cycle through parameters
 blz add <Tab>          # Complete with files
 ```
 
@@ -623,8 +623,8 @@ For live alias suggestions (canonical + metadata aliases) when typing `blz` comm
 
 This adds:
 
-- `--source`/`-s` dynamic values for `blz search` (also supports `--alias` for backward compatibility)
-- Positional alias completion for `blz get`, `blz refresh` (and legacy `blz update`), `blz remove`, `blz diff`, `blz toc`, and `blz anchor list|get`
+- `--source`/`-s` dynamic values for `blz query` and `blz get`
+- Positional alias completion for `blz query`, `blz get`, `blz sync`, `blz rm`, `blz diff`, `blz map`, and `blz anchor list|get`
 - Anchor value completion for `blz anchor get <alias> <anchor>`
 
 It reads from `blz list --json` and merges canonical + metadata aliases.
@@ -719,7 +719,7 @@ exec elvish
 
 ```elvish
 blz <Tab>           # Complete commands
-blz search --<Tab>  # Complete options
+blz query --<Tab>   # Complete options
 ```
 
 ### Configuration
@@ -1056,7 +1056,7 @@ alias ca 'blz add'
 Fish automatically provides history:
 
 ```fish
-blz search <UP>  # Shows previous searches
+blz query <UP>  # Shows previous searches
 ```
 
 For Bash/Zsh, use Ctrl+R for reverse search.
