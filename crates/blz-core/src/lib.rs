@@ -61,6 +61,8 @@ pub mod config;
 pub mod error;
 /// HTTP fetching with conditional requests support
 pub mod fetcher;
+/// Generation pipeline for creating llms.txt from web scraping
+pub mod generate;
 /// Heading sanitization and normalization helpers
 pub mod heading;
 /// Search index implementation using Tantivy
