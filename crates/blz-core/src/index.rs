@@ -291,7 +291,6 @@ impl SearchIndex {
     /// # Errors
     ///
     /// Returns an error if the query cannot be parsed or executed.
-    #[allow(clippy::too_many_lines)] // Complex search logic requires detailed implementation
     pub fn search_with_snippet_limit(
         &self,
         query_str: &str,
@@ -329,7 +328,141 @@ impl SearchIndex {
         )
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// Detect heading boost prefix (`# `) in query and return `(query_body, optional_boost)`.
+    fn detect_heading_boost(query_str: &str) -> (&str, Option<f32>) {
+        let trimmed_prefix = query_str.trim_start();
+        trimmed_prefix.strip_prefix("# ").map_or_else(
+            || (query_str.trim(), None),
+            |after_hash| {
+                // Only treat `#` as a heading boost marker when followed by whitespace.
+                // This preserves literal queries like `#include`, `#!/usr/bin/env`, `#[derive]`.
+                let stripped = after_hash.trim();
+                if stripped.is_empty() {
+                    (query_str.trim(), None)
+                } else {
+                    (stripped, Some(HEADING_PREFIX_BOOST))
+                }
+            },
+        )
+    }
+
+    /// Build the full query string with optional alias filter and normalized query.
+    fn build_query_string(query_body_input: &str, alias: Option<&str>) -> String {
+        let sanitized_query = Self::escape_query(query_body_input);
+
+        // Check if the original query is a phrase query (quoted)
+        let trimmed = query_body_input.trim();
+        let is_phrase_query =
+            trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2;
+
+        let normalized_query_raw = normalize_text_for_search(query_body_input);
+        let normalized_query = if normalized_query_raw.is_empty() {
+            String::new()
+        } else {
+            let escaped = Self::escape_query(&normalized_query_raw);
+            // Preserve phrase query syntax when normalizing
+            if is_phrase_query && !escaped.starts_with('"') {
+                format!("\"{escaped}\"")
+            } else {
+                escaped
+            }
+        };
+
+        let use_normalized = !normalized_query.is_empty() && normalized_query != sanitized_query;
+        let query_body = if use_normalized {
+            format!("({sanitized_query}) OR ({normalized_query})")
+        } else {
+            sanitized_query
+        };
+
+        if let Some(alias) = alias {
+            format!("alias:{alias} AND ({query_body})")
+        } else {
+            query_body
+        }
+    }
+
+    /// Parse heading path segments from raw and display strings.
+    fn parse_heading_paths(
+        heading_path_str: &str,
+        display_path_str: Option<&str>,
+    ) -> (Vec<String>, Option<Vec<String>>) {
+        let raw_segments: Vec<String> = heading_path_str
+            .split(" > ")
+            .map(std::string::ToString::to_string)
+            .collect();
+
+        let display_segments = display_path_str.map(|value| {
+            value
+                .split(" > ")
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>()
+        });
+
+        let heading_path = display_segments
+            .clone()
+            .unwrap_or_else(|| raw_segments.clone());
+        let raw_heading_path = display_segments.as_ref().map(|_| raw_segments);
+
+        (heading_path, raw_heading_path)
+    }
+
+    /// Process a single tantivy document into a `SearchHit`.
+    fn process_search_doc(
+        &self,
+        doc: &tantivy::TantivyDocument,
+        score: f32,
+        query_body: &str,
+        snippet_limit: usize,
+    ) -> Result<(SearchHit, usize)> {
+        let alias = Self::get_field_text(doc, self.alias_field)?;
+        let file = Self::get_field_text(doc, self.path_field)?;
+        let heading_path_str = Self::get_field_text(doc, self.heading_path_field)?;
+        let display_path_str = self
+            .heading_path_display_field
+            .and_then(|field| Self::get_optional_field(doc, field));
+        let lines = Self::get_field_text(doc, self.lines_field)?;
+        let content = Self::get_field_text(doc, self.content_field)?;
+        let anchor = self.anchor_field.and_then(|f| {
+            doc.get_first(f)
+                .and_then(|v| v.as_str())
+                .map(std::string::ToString::to_string)
+        });
+
+        let lines_in_content = content.lines().count();
+
+        let (heading_path, raw_heading_path) =
+            Self::parse_heading_paths(&heading_path_str, display_path_str.as_deref());
+
+        let snippet = Self::extract_snippet(&content, query_body, snippet_limit);
+        let exact_lines = Self::compute_match_lines(&content, query_body, &lines)
+            .unwrap_or_else(|| lines.clone());
+        let line_numbers = Self::parse_lines_range(&exact_lines);
+
+        #[allow(clippy::cast_possible_truncation)]
+        let level = heading_path.len().clamp(1, 6) as u8;
+
+        let hit = SearchHit {
+            source: alias,
+            file,
+            heading_path,
+            raw_heading_path,
+            level,
+            lines: exact_lines,
+            line_numbers,
+            snippet,
+            score,
+            source_url: None,
+            fetched_at: None,
+            is_stale: false,
+            checksum: String::new(),
+            anchor,
+            context: None,
+        };
+
+        Ok((hit, lines_in_content))
+    }
+
     fn search_internal(
         &self,
         query_str: &str,
@@ -343,20 +476,7 @@ impl SearchIndex {
             |metrics| OperationTimer::with_metrics(&format!("search_{query_str}"), metrics.clone()),
         );
 
-        let trimmed_prefix = query_str.trim_start();
-        let (query_body_input, heading_boost) = trimmed_prefix.strip_prefix("# ").map_or_else(
-            || (query_str.trim(), None),
-            |after_hash| {
-                // Only treat `#` as a heading boost marker when followed by whitespace.
-                // This preserves literal queries like `#include`, `#!/usr/bin/env`, `#[derive]`.
-                let stripped = after_hash.trim();
-                if stripped.is_empty() {
-                    (query_str.trim(), None)
-                } else {
-                    (stripped, Some(HEADING_PREFIX_BOOST))
-                }
-            },
-        );
+        let (query_body_input, heading_boost) = Self::detect_heading_boost(query_str);
 
         let mut timings = ComponentTimings::new();
         let mut lines_searched = 0usize;
@@ -388,44 +508,7 @@ impl SearchIndex {
             }
         }
 
-        // Sanitize query more efficiently with a single allocation
-        let mut filter_clauses = Vec::new();
-        if let Some(alias) = alias {
-            filter_clauses.push(format!("alias:{alias}"));
-        }
-
-        let sanitized_query = Self::escape_query(query_body_input);
-
-        // Check if the original query is a phrase query (quoted)
-        let trimmed = query_body_input.trim();
-        let is_phrase_query =
-            trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2;
-
-        let normalized_query_raw = normalize_text_for_search(query_body_input);
-        let normalized_query = if normalized_query_raw.is_empty() {
-            String::new()
-        } else {
-            let escaped = Self::escape_query(&normalized_query_raw);
-            // Preserve phrase query syntax when normalizing
-            if is_phrase_query && !escaped.starts_with('"') {
-                format!("\"{escaped}\"")
-            } else {
-                escaped
-            }
-        };
-
-        let use_normalized = !normalized_query.is_empty() && normalized_query != sanitized_query;
-        let query_body = if use_normalized {
-            format!("({sanitized_query}) OR ({normalized_query})")
-        } else {
-            sanitized_query
-        };
-
-        let full_query_str = if filter_clauses.is_empty() {
-            query_body
-        } else {
-            format!("{} AND ({query_body})", filter_clauses.join(" AND "))
-        };
+        let full_query_str = Self::build_query_string(query_body_input, alias);
 
         let query = timings.time("query_parsing", || {
             query_parser
@@ -447,78 +530,16 @@ impl SearchIndex {
                     .doc(doc_address)
                     .map_err(|e| Error::Index(format!("Failed to retrieve doc: {e}")))?;
 
-                let alias = Self::get_field_text(&doc, self.alias_field)?;
-                let file = Self::get_field_text(&doc, self.path_field)?;
-                let heading_path_str = Self::get_field_text(&doc, self.heading_path_field)?;
-                let display_path_str = self
-                    .heading_path_display_field
-                    .and_then(|field| Self::get_optional_field(&doc, field));
-                let lines = Self::get_field_text(&doc, self.lines_field)?;
-                let content = Self::get_field_text(&doc, self.content_field)?;
-                let anchor = self.anchor_field.and_then(|f| {
-                    doc.get_first(f)
-                        .and_then(|v| v.as_str())
-                        .map(std::string::ToString::to_string)
-                });
-
-                // Count lines for metrics
-                lines_searched += content.lines().count();
-
-                let raw_heading_segments: Vec<String> = heading_path_str
-                    .split(" > ")
-                    .map(std::string::ToString::to_string)
-                    .collect();
-                let display_heading_segments = display_path_str.as_ref().map(|value| {
-                    value
-                        .split(" > ")
-                        .map(std::string::ToString::to_string)
-                        .collect::<Vec<_>>()
-                });
-
-                let heading_path = display_heading_segments
-                    .clone()
-                    .unwrap_or_else(|| raw_heading_segments.clone());
-                let raw_heading_path = display_heading_segments
-                    .as_ref()
-                    .map(|_| raw_heading_segments.clone());
-
-                let snippet = Self::extract_snippet(&content, query_body_input, snippet_limit);
-
-                // Prefer exact match line(s) when possible for better citations
-                let exact_lines = Self::compute_match_lines(&content, query_body_input, &lines)
-                    .unwrap_or_else(|| lines.clone());
-
-                // Parse numeric line range for convenience
-                let line_numbers = Self::parse_lines_range(&exact_lines);
-
-                // Calculate heading level from heading_path length
-                #[allow(clippy::cast_possible_truncation)]
-                let level = heading_path.len().clamp(1, 6) as u8;
-
-                hits.push(SearchHit {
-                    source: alias,
-                    file,
-                    heading_path,
-                    raw_heading_path,
-                    level,
-                    lines: exact_lines,
-                    line_numbers,
-                    snippet,
-                    score,
-                    source_url: None,
-                    fetched_at: None,
-                    is_stale: false,
-                    checksum: String::new(),
-                    anchor,
-                    context: None,
-                });
+                let (hit, doc_lines) =
+                    self.process_search_doc(&doc, score, query_body_input, snippet_limit)?;
+                lines_searched += doc_lines;
+                hits.push(hit);
             }
             Ok::<(), Error>(())
         })?;
 
         let duration = timer.finish_search(lines_searched);
 
-        // Print detailed breakdown if debug logging is enabled
         if tracing::enabled!(Level::DEBUG) {
             timings.print_breakdown();
         }
