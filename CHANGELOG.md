@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [2.0.0-beta.1] - 2026-01-27
+
+### ⚠️ Breaking Changes
+
+- **CLI Restructuring**: Purpose-specific commands replace "smart" unified commands
+- **New Primary Commands**:
+  - `query` - Full-text search (replaces `search`)
+  - `get` - Retrieve by citation (promoted from hidden)
+  - `map` - Browse documentation structure (replaces `toc`)
+  - `sync` - Fetch latest documentation (replaces `refresh`)
+  - `check` - Validate source integrity (replaces `validate`)
+  - `rm` - Remove source (replaces `remove`)
+- **Deprecated Commands**: `find`, `toc`, `refresh`, `validate`, `remove` show deprecation warnings
+  - Suppress with `BLZ_SUPPRESS_DEPRECATIONS=1`
+
+### Features
+
+- Grouped `--help` output with logical command categories
+- Shell completions improvements
+
+### Refactoring
+
+- CLI command module restructuring for better maintainability
+- Codebase cleanup with improved clippy compliance
+
 ## [1.5.5](https://github.com/outfitter-dev/blz/compare/v1.5.4...v1.5.5) (2026-01-09)
 
 
