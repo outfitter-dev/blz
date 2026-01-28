@@ -167,27 +167,20 @@ zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 ```
 
-### Aliases & Functions
+### Functions
 
 ```zsh
-# Quick aliases
-alias bs='blz search'
-alias bg='blz get'
-alias ba='blz add'
-alias bl='blz list'
-alias bu='blz refresh --all'  # deprecated alias: blz update --all
-
 # Search function with fzf
 blz-fzf() {
     local query="$*"
-    blz search "$query" -f json | \
+    blz query "$query" -f json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 }
 
 # Quick search and display
 blz-quick() {
-    local result=$(blz search "$*" --limit 1 -f json | jq -r '.results[0] | "\(.alias) \(.lines)"')
+    local result=$(blz query "$*" --limit 1 -f json | jq -r '.results[0] | "\(.alias):\(.lines)"')
     if [[ -n "$result" ]]; then
         blz get $result
     else
@@ -201,11 +194,11 @@ blz-quick() {
 Add to `~/.zshrc` for interactive search:
 
 ```zsh
-# Ctrl+B for blz search
+# Ctrl+B for blz query
 blz-search-widget() {
     local selected=$(blz list -f json | jq -r '.[]' | fzf)
     if [[ -n "$selected" ]]; then
-        BUFFER="blz search -s $selected "
+        BUFFER="blz query -s $selected "
         CURSOR=$#BUFFER
     fi
     zle redisplay
@@ -271,19 +264,20 @@ Fish completions query your actual indexed sources:
 
 ```fish
 # Complete with your actual sources
-blz search -s <TAB>     # Shows: anthropic, nextjs, tanstack...
-blz get <TAB>           # Shows available sources
-blz refresh <TAB>       # Lists sources you can refresh (`blz update` alias still works)
-blz remove <TAB>        # Shows removable sources
+blz query -s <TAB>      # Shows: anthropic, nextjs, tanstack...
+blz get <TAB>           # Shows available sources (for citation retrieval)
+blz sync <TAB>          # Lists sources you can sync
+blz rm <TAB>            # Shows removable sources
 ```
 
 #### Rich Descriptions
 
 ```fish
 blz <TAB>
+  query       Full-text search across documentation
+  get         Retrieve exact lines by citation
+  map         Browse documentation structure
   add         Add a new llms.txt source
-  search      Search across cached docs
-  get         Get exact lines from a source
   list        List all cached sources
   sync        Fetch latest documentation from sources
 ```
@@ -302,23 +296,6 @@ complete -c blz -n "__fish_seen_subcommand_from add" \
     -a "vue" -d "https://vuejs.org/llms-full.txt"
 ```
 
-#### Abbreviations
-
-Add to `~/.config/fish/config.fish`:
-
-```fish
-# Quick commands
-abbr -a bs 'blz search'
-abbr -a bg 'blz get'
-abbr -a ba 'blz add'
-abbr -a bl 'blz list'
-abbr -a bu 'blz refresh --all'  # deprecated alias: blz update --all
-
-# Common searches
-abbr -a bsh 'blz search hooks'
-abbr -a bsa 'blz search async'
-```
-
 ### Helper Functions
 
 Add to `~/.config/fish/functions/`:
@@ -326,7 +303,7 @@ Add to `~/.config/fish/functions/`:
 ```fish
 # ~/.config/fish/functions/blz-quick.fish
 function blz-quick -d "Quick search and get first result"
-    set -l result (blz search $argv --limit 1 -f json | jq -r '.results[0] | "\(.alias) \(.lines)"')
+    set -l result (blz query $argv --limit 1 -f json | jq -r '.results[0] | "\(.alias):\(.lines)"')
     if test -n "$result"
         blz get $result
     else
@@ -336,7 +313,7 @@ end
 
 # ~/.config/fish/functions/blz-fzf.fish
 function blz-fzf -d "Search with fzf preview"
-    blz search $argv -f json | \
+    blz query $argv -f json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs blz get'
 end
@@ -382,13 +359,13 @@ end
 # Interactive search
 function blzi
     set -l query (commandline -b)
-    set -l result (blz search "$query" -f json | \
-        jq -r '.results[] | "\(.alias) \(.lines) \(.headingPath[-1])"' | \
-        fzf --preview 'echo {} | cut -d" " -f1-2 | xargs blz get' \
+    set -l result (blz query "$query" -f json | \
+        jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath[-1])"' | \
+        fzf --preview 'echo {} | cut -d" " -f1 | xargs blz get' \
             --preview-window=right:60%)
 
     if test -n "$result"
-        echo $result | cut -d" " -f1-2 | xargs blz get
+        echo $result | cut -d" " -f1 | xargs blz get
     end
 end
 
@@ -401,7 +378,7 @@ bind \cb blzi
 ```fish
 # Open result in VS Code
 function blz-code
-    set -l result (blz search $argv --limit 1 -f json)
+    set -l result (blz query $argv --limit 1 -f json)
     if test -n "$result"
         set -l alias (echo $result | jq -r '.results[0].alias')
         set -l lines (echo $result | jq -r '.results[0].lines')
@@ -549,27 +526,21 @@ blz query -<Tab>       # Cycle through parameters
 blz add <Tab>          # Complete with files
 ```
 
-### Aliases & Functions
+### Functions
 
 Add to your PowerShell profile:
 
 ```powershell
-# Aliases
-Set-Alias bs blz search
-Set-Alias bg blz get
-Set-Alias ba blz add
-Set-Alias bl blz list
-
 # Search function
-function Blz-Search {
+function Blz-Query {
     param([string]$Query)
-    blz search $Query --limit 10
+    blz query $Query --limit 10
 }
 
 # Quick get function
 function Blz-Quick {
     param([string]$Query)
-    $result = blz search $Query --limit 1 --json | ConvertFrom-Json
+    $result = blz query $Query --limit 1 --json | ConvertFrom-Json
     if ($result) {
         blz get "$($result.results[0].alias):$($result.results[0].lines)"
     } else {
@@ -577,9 +548,9 @@ function Blz-Quick {
     }
 }
 
-# Update all sources
-function Blz-UpdateAll {
-    blz refresh --all  # deprecated alias: blz update --all
+# Sync all sources
+function Blz-SyncAll {
+    blz sync --all
 }
 ```
 
@@ -593,7 +564,7 @@ Add to Windows Terminal settings.json:
 {
     "command": {
         "action": "sendInput",
-        "input": "blz search "
+        "input": "blz query "
     },
     "keys": "ctrl+b"
 }
@@ -669,13 +640,13 @@ Get-PSReadLineKeyHandler -Key Tab
 
 ```powershell
 # Parse JSON output
-$resp = blz search "hooks" -f json | ConvertFrom-Json
+$resp = blz query "hooks" -f json | ConvertFrom-Json
 $resp.results | ForEach-Object {
     Write-Host "$($_.alias): $($_.headingPath -join ' > ')"
 }
 
 # Filter high-score results
-$highScore = blz search "async" -f json | ConvertFrom-Json |
+$highScore = blz query "async" -f json | ConvertFrom-Json |
     Select-Object -ExpandProperty results |
     Where-Object { $_.score -gt 50 }
 ```
@@ -684,7 +655,7 @@ $highScore = blz search "async" -f json | ConvertFrom-Json |
 
 ```powershell
 # Search and select with Out-GridView
-blz search "react" --json |
+blz query "react" --json |
     ConvertFrom-Json |
     Select-Object -ExpandProperty results |
     Select-Object alias, lines, @{N='Path';E={$_.headingPath -join ' > '}} |
@@ -727,15 +698,9 @@ blz query --<Tab>   # Complete options
 Add to `~/.elvish/rc.elv`:
 
 ```elvish
-# Aliases using Elvish functions
-fn bs [@args]{ blz search $@args }
-fn bg [@args]{ blz get $@args }
-fn ba [@args]{ blz add $@args }
-fn bl { blz list }
-
 # Quick search function
 fn blz-quick [query]{
-    var result = (blz search $query --limit 1 --json | from-json)
+    var result = (blz query $query --limit 1 --json | from-json)
     if (not-eq $result []) {
         var hit = $result[results][0]
         blz get $hit[alias]":"$hit[lines]
@@ -748,9 +713,9 @@ fn blz-quick [query]{
 ### Key Bindings
 
 ```elvish
-# Bind Ctrl-B for search
+# Bind Ctrl-B for query
 set edit:insert:binding[Ctrl-B] = {
-    edit:replace-input "blz search "
+    edit:replace-input "blz query "
     edit:move-dot-eol
 }
 ```
@@ -764,7 +729,7 @@ Create `~/.elvish/lib/blz-utils.elv`:
 ```elvish
 # Search with preview
 fn search-preview [query]{
-    blz search $query -f json |
+    blz query $query -f json |
         from-json |
         each [resp]{ each [hit]{ echo $hit[alias]":"$hit[lines]" "(str:join " > " $hit[headingPath]) } $resp[results] }
 }
@@ -800,12 +765,12 @@ blz-utils:add-batch [react=https://react.dev/llms.txt vue=https://vuejs.org/llms
 
 ```elvish
 # Filter and process results
-blz search "async" -f json |
+blz query "async" -f json |
     from-json |
     each [resp]{ each [hit]{ if (> $hit[score] 50) { echo "High score: "$hit[alias]" "$hit[lines] } } $resp[results] }
 
 # Count results by source
-blz search "test" -f json |
+blz query "test" -f json |
     from-json |
     each [resp]{ each [hit]{ put $hit[alias] } $resp[results] } |
     sort | uniq -c
@@ -850,7 +815,7 @@ elvish -compileonly ~/.elvish/lib/blz.elv
 fn multi-search [queries]{
     peach [q]{
         echo "=== Results for "$q" ==="
-        blz search $q --limit 3
+        blz query $q --limit 3
     } $queries
 }
 
@@ -859,7 +824,7 @@ fn select-source {
     var sources = [(blz list -f json | from-json | each [s]{ put $s[alias] })]
     var selected = (echo $@sources | tr ' ' '\n' | fzf)
     if (not-eq $selected "") {
-        edit:replace-input "blz search -s "$selected" "
+        edit:replace-input "blz query -s "$selected" "
     }
 }
 ```
@@ -871,7 +836,7 @@ fn select-source {
 ```bash
 # Fish/Bash/Zsh
 function blz-fzf
-    blz search "$1" --json | \
+    blz query "$1" --json | \
     jq -r '.results[] | "\(.alias):\(.lines) \(.headingPath | join(" > "))"' | \
     fzf --preview 'echo {} | cut -d: -f1,2 | xargs -I{} sh -c "blz get {}"'
 end
@@ -886,7 +851,7 @@ Create a workflow script:
 # For Alfred/Raycast
 
 query="$1"
-results=$(blz search "$query" --json)
+results=$(blz query "$query" --json)
 
 echo "$results" | jq -r '.results[] | {
     title: .headingPath | join(" > "),
@@ -899,10 +864,10 @@ echo "$results" | jq -r '.results[] | {
 
 ```vim
 " Search blz from Vim
-command! -nargs=1 BlzSearch
-    \ :r!blz search "<args>" --limit 3
+command! -nargs=1 BlzQuery
+    \ :r!blz query "<args>" --limit 3
 
-" Get specific lines
+" Retrieve specific citation
 command! -nargs=+ BlzGet
     \ :r!blz get <args>
 ```
@@ -1035,21 +1000,9 @@ Works the same as Linux within WSL. For native Windows, use PowerShell completio
 
 ## Tips & Tricks
 
-### Quick Aliases
+### Command Length
 
-Add to your shell config:
-
-```bash
-# Bash/Zsh
-alias cs='blz search'
-alias cg='blz get'
-alias ca='blz add'
-
-# Fish
-alias cs 'blz search'
-alias cg 'blz get'
-alias ca 'blz add'
-```
+BLZ commands are already concise (`blz query`, `blz get`, `blz map`), so shell aliases are optional. If you prefer shorter commands, add your own aliases to your shell config.
 
 ### Search History
 
