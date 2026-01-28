@@ -6,6 +6,7 @@ use colored::Colorize;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
+use crate::commands::sync::generated::{is_generated_source, load_generate_manifest};
 use crate::output::OutputFormat;
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 
@@ -21,6 +22,9 @@ pub struct HealthReport {
     pub cache_info: CacheInfo,
     /// Aggregate source health statistics.
     pub source_health: SourceHealth,
+    /// Per-source health entries (includes generated source details).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub source_entries: Vec<SourceHealthEntry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -72,6 +76,125 @@ pub enum HealthStatus {
     Warning,
     /// Check failed with an error.
     Error,
+}
+
+// ============================================================
+// Individual Source Health Types (for generated source tracking)
+// ============================================================
+
+/// Type of documentation source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceHealthType {
+    /// Native llms.txt/llms-full.txt source.
+    Native,
+    /// Generated via Firecrawl scraping.
+    Generated,
+}
+
+/// Health status for an individual source.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceHealthEntry {
+    /// Source alias.
+    pub alias: String,
+    /// Type of source (native or generated).
+    pub source_type: SourceHealthType,
+    /// Total line count in the document.
+    pub line_count: usize,
+    /// Health status.
+    pub status: HealthStatus,
+    /// Human-readable status message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_message: Option<String>,
+    /// Number of failed pages (for generated sources).
+    pub failed_pages: usize,
+    /// Whether a native llms-full.txt is available for upgrade.
+    pub upgrade_available: bool,
+}
+
+impl SourceHealthEntry {
+    /// Create a new source health entry.
+    #[must_use]
+    pub const fn new(alias: String, source_type: SourceHealthType) -> Self {
+        Self {
+            alias,
+            source_type,
+            line_count: 0,
+            status: HealthStatus::Healthy,
+            status_message: None,
+            failed_pages: 0,
+            upgrade_available: false,
+        }
+    }
+
+    /// Set the line count.
+    #[must_use]
+    pub const fn with_line_count(mut self, count: usize) -> Self {
+        self.line_count = count;
+        self
+    }
+
+    /// Set the status with optional message.
+    #[must_use]
+    pub fn with_status(mut self, status: HealthStatus, message: Option<String>) -> Self {
+        self.status = status;
+        self.status_message = message;
+        self
+    }
+
+    /// Set the failed pages count.
+    #[must_use]
+    pub const fn with_failed_pages(mut self, count: usize) -> Self {
+        self.failed_pages = count;
+        self
+    }
+
+    /// Set upgrade availability.
+    ///
+    /// Note: Currently unused in production code as checking upgrade availability
+    /// requires async probing. Will be used when `--check-upgrades` flag is added.
+    #[must_use]
+    #[allow(dead_code)]
+    pub const fn with_upgrade_available(mut self, available: bool) -> Self {
+        self.upgrade_available = available;
+        self
+    }
+}
+
+/// Generate recommendations based on source health entries.
+///
+/// Returns actionable recommendations for sources that have:
+/// - Failed pages that should be retried
+/// - Upgrade availability to native source
+#[must_use]
+pub fn generate_source_health_recommendations(sources: &[SourceHealthEntry]) -> Vec<String> {
+    let mut recommendations = Vec::new();
+
+    for source in sources {
+        // Recommend upgrade for generated sources with native available
+        if source.source_type == SourceHealthType::Generated && source.upgrade_available {
+            recommendations.push(format!(
+                "Upgrade '{}' to native source (blz sync {} --upgrade)",
+                source.alias, source.alias
+            ));
+        }
+
+        // Recommend retry for sources with failed pages
+        if source.failed_pages > 0 {
+            let page_word = if source.failed_pages == 1 {
+                "page"
+            } else {
+                "pages"
+            };
+            recommendations.push(format!(
+                "Retry {} failed {} in '{}' (blz sync {})",
+                source.failed_pages, page_word, source.alias, source.alias
+            ));
+        }
+    }
+
+    recommendations
 }
 
 /// Execute the doctor command.
@@ -139,6 +262,13 @@ fn run_health_checks(storage: &Storage) -> Result<HealthReport> {
         recommendations.push(rec);
     }
 
+    // Collect individual source health entries
+    let source_entries = collect_source_health_entries(storage, &sources);
+
+    // Add recommendations for generated sources
+    let source_entry_recs = generate_source_health_recommendations(&source_entries);
+    recommendations.extend(source_entry_recs);
+
     let total_files = count_files_recursive(&cache_dir.to_path_buf())?;
     let overall_status = compute_overall_status(&checks);
 
@@ -154,6 +284,7 @@ fn run_health_checks(storage: &Storage) -> Result<HealthReport> {
             total_files,
         },
         source_health,
+        source_entries,
     })
 }
 
@@ -313,6 +444,49 @@ fn compute_overall_status(checks: &[HealthCheck]) -> HealthStatus {
     }
 }
 
+/// Collect health information for each individual source.
+///
+/// For generated sources, this includes failed page counts from the manifest.
+fn collect_source_health_entries(storage: &Storage, aliases: &[String]) -> Vec<SourceHealthEntry> {
+    let mut entries = Vec::new();
+
+    for alias in aliases {
+        let is_generated = is_generated_source(storage, alias);
+        let source_type = if is_generated {
+            SourceHealthType::Generated
+        } else {
+            SourceHealthType::Native
+        };
+
+        let mut entry = SourceHealthEntry::new(alias.clone(), source_type);
+
+        // Get line count from llms.json
+        if let Ok(llms_json) = storage.load_llms_json(alias) {
+            entry = entry.with_line_count(llms_json.line_index.total_lines);
+        }
+
+        // For generated sources, get failed page count from manifest
+        if is_generated {
+            if let Ok(manifest) = load_generate_manifest(storage, alias) {
+                let failed_count = manifest.failed.len();
+                entry = entry.with_failed_pages(failed_count);
+
+                if failed_count > 0 {
+                    let page_word = if failed_count == 1 { "page" } else { "pages" };
+                    entry = entry.with_status(
+                        HealthStatus::Warning,
+                        Some(format!("{failed_count} failed {page_word}")),
+                    );
+                }
+            }
+        }
+
+        entries.push(entry);
+    }
+
+    entries
+}
+
 fn format_megabytes(bytes: u64) -> String {
     const MB: u64 = 1_048_576;
     let whole = bytes / MB;
@@ -416,7 +590,7 @@ fn print_text_report(report: &HealthReport, fix_applied: bool) {
     println!("  Sources: {}", report.cache_info.total_sources);
     println!("  Files: {}", report.cache_info.total_files);
 
-    // Source health
+    // Source health (aggregate)
     println!("\n{}", "Source Health:".bold());
     println!(
         "  {} healthy",
@@ -430,6 +604,43 @@ fn print_text_report(report: &HealthReport, fix_applied: bool) {
         "  {} corrupted",
         report.source_health.corrupted.to_string().red()
     );
+
+    // Individual source entries (if any have notable status)
+    if !report.source_entries.is_empty() {
+        println!("\n{}", "Sources:".bold());
+        for entry in &report.source_entries {
+            let status_icon = match entry.status {
+                HealthStatus::Healthy => "✓".green(),
+                HealthStatus::Warning => "⚠".yellow(),
+                HealthStatus::Error => "✗".red(),
+            };
+
+            let type_str = match entry.source_type {
+                SourceHealthType::Native => "native",
+                SourceHealthType::Generated => "generated",
+            };
+
+            // Format: ✓ react       native     15,230 lines   fresh
+            let line_count_str = format_line_count(entry.line_count);
+            let status_msg = entry.status_message.as_deref().unwrap_or(
+                if entry.status == HealthStatus::Healthy {
+                    "healthy"
+                } else {
+                    ""
+                },
+            );
+
+            println!(
+                "  {status_icon} {:<12} {:<10} {:>12}   {}",
+                entry.alias, type_str, line_count_str, status_msg
+            );
+
+            // Show upgrade recommendation inline for generated sources
+            if entry.upgrade_available {
+                println!("    {} Native llms-full.txt now available!", "→".cyan());
+            }
+        }
+    }
 
     // Checks
     println!("\n{}", "Health Checks:".bold());
@@ -454,5 +665,252 @@ fn print_text_report(report: &HealthReport, fix_applied: bool) {
         println!("\n{}", "✓ Automatic fixes applied".green().bold());
     } else if report.checks.iter().any(|c| c.fixable) {
         println!("\n{}", "Run with --fix to apply automatic fixes".cyan());
+    }
+}
+
+/// Format line count with thousands separator.
+fn format_line_count(count: usize) -> String {
+    if count == 0 {
+        "0 lines".to_string()
+    } else if count >= 1000 {
+        let thousands = count / 1000;
+        format!("{thousands},{:03} lines", count % 1000)
+    } else {
+        format!("{count} lines")
+    }
+}
+
+// ============================================================
+// Tests
+// ============================================================
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::unnecessary_wraps
+)]
+mod tests {
+    use super::*;
+
+    // --------------------------------------------------------
+    // SourceHealthEntry Tests
+    // --------------------------------------------------------
+
+    #[test]
+    fn test_source_health_entry_native() {
+        let entry = SourceHealthEntry::new("react".to_string(), SourceHealthType::Native)
+            .with_line_count(15230)
+            .with_status(HealthStatus::Healthy, None);
+
+        assert_eq!(entry.alias, "react");
+        assert_eq!(entry.source_type, SourceHealthType::Native);
+        assert_eq!(entry.line_count, 15230);
+        assert_eq!(entry.status, HealthStatus::Healthy);
+        assert!(!entry.upgrade_available);
+        assert_eq!(entry.failed_pages, 0);
+    }
+
+    #[test]
+    fn test_source_health_entry_generated_with_failures() {
+        let entry = SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+            .with_line_count(12890)
+            .with_failed_pages(1)
+            .with_status(HealthStatus::Warning, Some("1 failed page".to_string()))
+            .with_upgrade_available(true);
+
+        assert_eq!(entry.alias, "hono");
+        assert_eq!(entry.source_type, SourceHealthType::Generated);
+        assert_eq!(entry.line_count, 12890);
+        assert_eq!(entry.status, HealthStatus::Warning);
+        assert_eq!(entry.failed_pages, 1);
+        assert!(entry.upgrade_available);
+        assert_eq!(entry.status_message, Some("1 failed page".to_string()));
+    }
+
+    // --------------------------------------------------------
+    // Recommendation Generation Tests
+    // --------------------------------------------------------
+
+    #[test]
+    fn test_recommendations_upgrade() {
+        let sources = vec![
+            SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+                .with_line_count(12890)
+                .with_upgrade_available(true),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert_eq!(recs.len(), 1);
+        assert!(recs[0].contains("Upgrade"));
+        assert!(recs[0].contains("hono"));
+        assert!(recs[0].contains("--upgrade"));
+    }
+
+    #[test]
+    fn test_recommendations_failed_pages() {
+        let sources = vec![
+            SourceHealthEntry::new("effect".to_string(), SourceHealthType::Generated)
+                .with_line_count(9450)
+                .with_failed_pages(2)
+                .with_status(HealthStatus::Warning, Some("2 failed pages".to_string())),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert_eq!(recs.len(), 1);
+        assert!(recs[0].contains("Retry"));
+        assert!(recs[0].contains("2"));
+        assert!(recs[0].contains("failed"));
+        assert!(recs[0].contains("effect"));
+    }
+
+    #[test]
+    fn test_recommendations_single_failed_page() {
+        let sources = vec![
+            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
+                .with_failed_pages(1),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert_eq!(recs.len(), 1);
+        assert!(recs[0].contains("1 failed page")); // singular
+    }
+
+    #[test]
+    fn test_recommendations_multiple_failed_pages() {
+        let sources = vec![
+            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
+                .with_failed_pages(3),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert_eq!(recs.len(), 1);
+        assert!(recs[0].contains("3 failed pages")); // plural
+    }
+
+    #[test]
+    fn test_no_recommendations_healthy_native() {
+        let sources = vec![
+            SourceHealthEntry::new("react".to_string(), SourceHealthType::Native)
+                .with_line_count(15230)
+                .with_status(HealthStatus::Healthy, None),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert!(recs.is_empty());
+    }
+
+    #[test]
+    fn test_no_recommendations_healthy_generated() {
+        let sources = vec![
+            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
+                .with_status(HealthStatus::Healthy, None),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        assert!(recs.is_empty());
+    }
+
+    #[test]
+    fn test_recommendations_combined() {
+        let sources = vec![
+            SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+                .with_upgrade_available(true)
+                .with_failed_pages(1),
+            SourceHealthEntry::new("react".to_string(), SourceHealthType::Native),
+            SourceHealthEntry::new("effect".to_string(), SourceHealthType::Generated)
+                .with_failed_pages(2),
+        ];
+
+        let recs = generate_source_health_recommendations(&sources);
+
+        // hono: upgrade + retry, effect: retry
+        assert_eq!(recs.len(), 3);
+        assert!(
+            recs.iter()
+                .any(|r| r.contains("Upgrade") && r.contains("hono"))
+        );
+        assert!(
+            recs.iter()
+                .any(|r| r.contains("Retry") && r.contains("hono"))
+        );
+        assert!(
+            recs.iter()
+                .any(|r| r.contains("Retry") && r.contains("effect"))
+        );
+    }
+
+    // --------------------------------------------------------
+    // Format Line Count Tests
+    // --------------------------------------------------------
+
+    #[test]
+    fn test_format_line_count_zero() {
+        assert_eq!(format_line_count(0), "0 lines");
+    }
+
+    #[test]
+    fn test_format_line_count_small() {
+        assert_eq!(format_line_count(100), "100 lines");
+        assert_eq!(format_line_count(999), "999 lines");
+    }
+
+    #[test]
+    fn test_format_line_count_thousands() {
+        assert_eq!(format_line_count(1000), "1,000 lines");
+        assert_eq!(format_line_count(15230), "15,230 lines");
+        assert_eq!(format_line_count(100000), "100,000 lines");
+    }
+
+    // --------------------------------------------------------
+    // Serialization Tests
+    // --------------------------------------------------------
+
+    #[test]
+    fn test_source_health_entry_json_serialization() {
+        let entry = SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+            .with_line_count(12890)
+            .with_failed_pages(1)
+            .with_status(HealthStatus::Warning, Some("1 failed page".to_string()))
+            .with_upgrade_available(true);
+
+        let json = serde_json::to_value(&entry).unwrap();
+
+        assert_eq!(json["alias"], "hono");
+        assert_eq!(json["sourceType"], "generated");
+        assert_eq!(json["lineCount"], 12890);
+        assert_eq!(json["status"], "warning");
+        assert_eq!(json["statusMessage"], "1 failed page");
+        assert_eq!(json["failedPages"], 1);
+        assert_eq!(json["upgradeAvailable"], true);
+    }
+
+    #[test]
+    fn test_source_health_entry_json_skips_null_message() {
+        let entry = SourceHealthEntry::new("react".to_string(), SourceHealthType::Native);
+
+        let json = serde_json::to_value(&entry).unwrap();
+
+        // statusMessage should not be present when None
+        assert!(json.get("statusMessage").is_none());
+    }
+
+    #[test]
+    fn test_source_health_type_serialization() {
+        assert_eq!(
+            serde_json::to_string(&SourceHealthType::Native).unwrap(),
+            "\"native\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SourceHealthType::Generated).unwrap(),
+            "\"generated\""
+        );
     }
 }
