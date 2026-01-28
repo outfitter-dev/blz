@@ -364,7 +364,6 @@ pub async fn execute_manifest(
     Ok(())
 }
 
-#[allow(clippy::too_many_lines)]
 async fn fetch_and_index(
     alias: &str,
     url: &str,
@@ -398,14 +397,7 @@ async fn fetch_and_index(
 
     // Show warning if index file
     if resolved.should_warn && !quiet && !dry_run {
-        spinner.finish_and_clear();
-        eprintln!(
-            "{} This appears to be a navigation index only ({} lines).\n\
-             BLZ works best with full documentation files (llms-full.txt).\n\
-             If this is a hub or registry, add the downstream source URL instead.",
-            "⚠".yellow(),
-            resolved.line_count
-        );
+        warn_index_only_file(&spinner, resolved.line_count);
     }
 
     // Fetch from resolved URL
@@ -438,51 +430,11 @@ async fn fetch_and_index(
 
     // In dry-run mode, analyze content and output JSON instead of indexing
     if dry_run {
-        let char_count = content.len();
-        let header_count = parse_result.heading_blocks.len();
-        let sections = parse_result.toc.len();
-        let file_size = format_size(content.len());
-
-        let content_type = match resolved.content_type {
-            blz_core::ContentType::Full => "full",
-            blz_core::ContentType::Index => "index",
-            blz_core::ContentType::Mixed => "mixed",
-        };
-
-        let analysis = SourceAnalysis {
-            name: alias.to_string(),
-            url: url.to_string(),
-            final_url: resolved.final_url.clone(),
-            analysis: ContentAnalysis {
-                line_count: resolved.line_count,
-                char_count,
-                header_count,
-                sections,
-                file_size,
-                content_type: content_type.to_string(),
-            },
-            would_index: true,
-        };
-
-        let json = serde_json::to_string_pretty(&analysis)?;
-        println!("{json}");
+        output_dry_run_analysis(alias, url, &resolved, &content, &parse_result)?;
         spinner.finish_and_clear();
         return Ok(());
     }
-    let resolved_addition = ResolvedAddition {
-        content,
-        sha256,
-        etag,
-        last_modified,
-        resolved_url: resolved.final_url.clone(),
-        variant: resolved.variant,
-        origin: SourceOrigin {
-            manifest: None,
-            source_type: Some(SourceType::Remote {
-                url: resolved.final_url.clone(),
-            }),
-        },
-    };
+    let resolved_addition = build_remote_addition(content, sha256, etag, last_modified, &resolved);
 
     let llms_json = finalize_add(
         &storage,
@@ -507,6 +459,71 @@ async fn fetch_and_index(
         );
     }
 
+    Ok(())
+}
+
+/// Output dry-run analysis as JSON for remote sources.
+fn output_dry_run_analysis(
+    alias: &str,
+    url: &str,
+    resolved: &url_resolver::ResolvedUrl,
+    content: &str,
+    parse_result: &blz_core::ParseResult,
+) -> Result<()> {
+    let char_count = content.len();
+    let header_count = parse_result.heading_blocks.len();
+    let sections = parse_result.toc.len();
+    let file_size = format_size(content.len());
+
+    let content_type = match resolved.content_type {
+        blz_core::ContentType::Full => "full",
+        blz_core::ContentType::Index => "index",
+        blz_core::ContentType::Mixed => "mixed",
+    };
+
+    let analysis = SourceAnalysis {
+        name: alias.to_string(),
+        url: url.to_string(),
+        final_url: resolved.final_url.clone(),
+        analysis: ContentAnalysis {
+            line_count: resolved.line_count,
+            char_count,
+            header_count,
+            sections,
+            file_size,
+            content_type: content_type.to_string(),
+        },
+        would_index: true,
+    };
+
+    let json = serde_json::to_string_pretty(&analysis)?;
+    println!("{json}");
+    Ok(())
+}
+
+/// Output dry-run analysis as JSON for local file sources.
+fn output_local_dry_run_analysis(
+    alias: &str,
+    path: &Path,
+    content: &str,
+    parse_result: &blz_core::ParseResult,
+) -> Result<()> {
+    let analysis = SourceAnalysis {
+        name: alias.to_string(),
+        url: path.display().to_string(),
+        final_url: path.display().to_string(),
+        analysis: ContentAnalysis {
+            line_count: parse_result.line_count,
+            char_count: content.len(),
+            header_count: parse_result.heading_blocks.len(),
+            sections: parse_result.toc.len(),
+            file_size: format_size(content.len()),
+            content_type: "local".to_string(),
+        },
+        would_index: true,
+    };
+    let json = serde_json::to_string_pretty(&analysis)?;
+    println!("{json}");
     Ok(())
 }
 
@@ -561,22 +578,7 @@ async fn add_local_source(
     apply_language_filter(&mut parse_result, no_language_filter, quiet);
 
     if dry_run {
-        let analysis = SourceAnalysis {
-            name: alias.to_string(),
-            url: path.display().to_string(),
-            final_url: path.display().to_string(),
-            analysis: ContentAnalysis {
-                line_count: parse_result.line_count,
-                char_count: content.len(),
-                header_count: parse_result.heading_blocks.len(),
-                sections: parse_result.toc.len(),
-                file_size: format_size(content.len()),
-                content_type: "local".to_string(),
-            },
-            would_index: true,
-        };
-        let json = serde_json::to_string_pretty(&analysis)?;
-        println!("{json}");
+        output_local_dry_run_analysis(alias, path, &content, &parse_result)?;
         spinner.finish_and_clear();
         return Ok(());
     }
@@ -648,6 +650,41 @@ fn format_size(bytes: usize) -> String {
         let whole = bytes / MB;
         let tenths = ((bytes % MB) * 10) / MB;
         format!("{whole}.{tenths} MB")
+    }
+}
+
+/// Warn that the source appears to be an index-only file.
+fn warn_index_only_file(spinner: &ProgressBar, line_count: usize) {
+    spinner.finish_and_clear();
+    eprintln!(
+        "{} This appears to be a navigation index only ({line_count} lines).\n\
+         BLZ works best with full documentation files (llms-full.txt).\n\
+         If this is a hub or registry, add the downstream source URL instead.",
+        "⚠".yellow(),
+    );
+}
+
+/// Build a `ResolvedAddition` for a remote source.
+fn build_remote_addition(
+    content: String,
+    sha256: String,
+    etag: Option<String>,
+    last_modified: Option<String>,
+    resolved: &url_resolver::ResolvedUrl,
+) -> ResolvedAddition {
+    ResolvedAddition {
+        content,
+        sha256,
+        etag,
+        last_modified,
+        resolved_url: resolved.final_url.clone(),
+        variant: resolved.variant.clone(),
+        origin: SourceOrigin {
+            manifest: None,
+            source_type: Some(SourceType::Remote {
+                url: resolved.final_url.clone(),
+            }),
+        },
     }
 }
 
