@@ -57,6 +57,8 @@
 
 /// Configuration management for global and per-source settings
 pub mod config;
+/// Documentation source discovery
+pub mod discovery;
 /// Error types and result aliases
 pub mod error;
 /// HTTP fetching with conditional requests support
@@ -97,6 +99,7 @@ pub use config::{
     Config, DefaultsConfig, FetchConfig, FollowLinks, IndexConfig, PathsConfig, ToolConfig,
     ToolMeta,
 };
+pub use discovery::{ProbeResult, probe_domain};
 pub use error::{Error, Result};
 pub use fetcher::{FetchResult, Fetcher};
 pub use heading::{
