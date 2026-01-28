@@ -95,6 +95,159 @@ pub enum ContentType {
     Mixed,
 }
 
+/// A validated markdown heading level (1-6).
+///
+/// This newtype ensures heading levels are always within the valid range for
+/// markdown documents. It provides type-safe operations and eliminates the need
+/// for runtime validation or clippy allows for numeric conversions.
+///
+/// # Constants
+///
+/// Pre-defined constants are available for all valid levels:
+/// ```
+/// use blz_core::HeadingLevel;
+///
+/// assert_eq!(HeadingLevel::H1.as_u8(), 1);
+/// assert_eq!(HeadingLevel::H6.as_u8(), 6);
+/// ```
+///
+/// # Creation
+///
+/// Use [`HeadingLevel::new`] for fallible creation from a u8:
+/// ```
+/// use blz_core::HeadingLevel;
+///
+/// assert!(HeadingLevel::new(3).is_some());
+/// assert!(HeadingLevel::new(0).is_none());
+/// assert!(HeadingLevel::new(7).is_none());
+/// ```
+///
+/// # Ordering
+///
+/// `HeadingLevel` implements Ord with lower numbers being "greater" in heading
+/// hierarchy (H1 is the most important heading):
+/// ```
+/// use blz_core::HeadingLevel;
+///
+/// // H1 has higher hierarchy than H2
+/// assert!(HeadingLevel::H1 < HeadingLevel::H2);
+/// ```
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "u8", into = "u8")]
+pub struct HeadingLevel(u8);
+
+impl HeadingLevel {
+    /// Heading level 1 (most important)
+    pub const H1: Self = Self(1);
+    /// Heading level 2
+    pub const H2: Self = Self(2);
+    /// Heading level 3
+    pub const H3: Self = Self(3);
+    /// Heading level 4
+    pub const H4: Self = Self(4);
+    /// Heading level 5
+    pub const H5: Self = Self(5);
+    /// Heading level 6 (least important)
+    pub const H6: Self = Self(6);
+
+    /// Create a new `HeadingLevel` from a u8.
+    ///
+    /// Returns `None` if the level is not in the valid range (1-6).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert!(HeadingLevel::new(1).is_some());
+    /// assert!(HeadingLevel::new(6).is_some());
+    /// assert!(HeadingLevel::new(0).is_none());
+    /// assert!(HeadingLevel::new(7).is_none());
+    /// ```
+    #[must_use]
+    pub const fn new(level: u8) -> Option<Self> {
+        if level >= 1 && level <= 6 {
+            Some(Self(level))
+        } else {
+            None
+        }
+    }
+
+    /// Create a `HeadingLevel` from a usize, returning None if out of range.
+    ///
+    /// This is useful when working with APIs that use usize for heading levels.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert!(HeadingLevel::from_usize(3).is_some());
+    /// assert!(HeadingLevel::from_usize(0).is_none());
+    /// assert!(HeadingLevel::from_usize(7).is_none());
+    /// ```
+    #[must_use]
+    pub fn from_usize(level: usize) -> Option<Self> {
+        u8::try_from(level).ok().and_then(Self::new)
+    }
+
+    /// Get the raw u8 value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert_eq!(HeadingLevel::H3.as_u8(), 3);
+    /// ```
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
+
+    /// Get the value as a usize.
+    ///
+    /// This is useful for indexing or when working with APIs that use usize.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert_eq!(HeadingLevel::H3.as_usize(), 3);
+    /// ```
+    #[must_use]
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl std::fmt::Display for HeadingLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "H{}", self.0)
+    }
+}
+
+impl TryFrom<u8> for HeadingLevel {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or("Heading level must be between 1 and 6")
+    }
+}
+
+impl From<HeadingLevel> for u8 {
+    fn from(level: HeadingLevel) -> Self {
+        level.0
+    }
+}
+
+impl From<HeadingLevel> for usize {
+    fn from(level: HeadingLevel) -> Self {
+        Self::from(level.0)
+    }
+}
+
 /// Statistics about heading-level language filtering operations.
 ///
 /// Tracks how many headings were filtered and why, providing transparency
