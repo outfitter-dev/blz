@@ -61,6 +61,8 @@ pub mod config;
 pub mod error;
 /// HTTP fetching with conditional requests support
 pub mod fetcher;
+/// Firecrawl CLI detection and web scraping integration
+pub mod firecrawl;
 /// Heading sanitization and normalization helpers
 pub mod heading;
 /// Search index implementation using Tantivy
