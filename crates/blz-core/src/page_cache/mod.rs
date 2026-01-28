@@ -33,6 +33,8 @@
 //! assert!(failed.should_retry());
 //! ```
 
+mod storage;
 mod types;
 
+pub use storage::{BackupInfo, PageCacheStorage};
 pub use types::{FailedPage, PageCacheEntry, PageId};
