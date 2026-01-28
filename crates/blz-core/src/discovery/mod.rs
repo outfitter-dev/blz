@@ -65,5 +65,7 @@
 //! ```
 
 pub mod probe;
+pub mod sitemap;
 
 pub use probe::{DiscoveryMethod, ProbeResult, probe_domain, probe_url};
+pub use sitemap::{ChangeFrequency, SitemapEntry, fetch_sitemap, is_sitemap_index, parse_sitemap};
