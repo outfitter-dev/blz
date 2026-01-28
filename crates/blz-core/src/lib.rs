@@ -77,6 +77,8 @@ pub mod language_filter;
 pub mod mapping;
 /// Safe numeric conversion helpers
 pub mod numeric;
+/// Page cache for scraped web content
+pub mod page_cache;
 /// Tree-sitter based markdown parser
 pub mod parser;
 /// Application profile detection helpers
