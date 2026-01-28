@@ -37,4 +37,7 @@
 
 mod orchestrator;
 
-pub use orchestrator::{GenerateOrchestrator, ProgressCallback, ScrapeResults, UrlWithLastmod};
+pub use orchestrator::{
+    GenerateOrchestrator, ProgressCallback, ScrapeError, ScrapeResult, ScrapeResults, Scraper,
+    UrlWithLastmod,
+};

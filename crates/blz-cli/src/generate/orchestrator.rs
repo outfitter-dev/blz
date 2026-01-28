@@ -753,6 +753,7 @@ mod tests {
         }
         // Completed values should be 1, 2, 3 (in some order due to concurrency)
         let mut completed: Vec<_> = calls.iter().map(|(c, _)| *c).collect();
+        drop(calls); // Release lock before final assertion
         completed.sort_unstable();
         assert_eq!(completed, vec![1, 2, 3]);
     }
