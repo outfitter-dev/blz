@@ -270,8 +270,9 @@ pub enum Commands {
         command: AnchorCommands,
     },
 
-    /// Show table of contents (headings) for a source
-    #[command(display_order = 54, alias = "anchors")]
+    /// Show table of contents (deprecated: use `map` instead)
+    #[command(display_order = 154, alias = "anchors", hide = true)]
+    #[deprecated(since = "1.5.0", note = "use 'map' instead")]
     Toc {
         /// Source alias (optional when using --source or --all)
         alias: Option<String>,
@@ -367,6 +368,63 @@ pub enum Commands {
     /// Add a new source
     #[command(display_order = 1)]
     Add(AddArgs),
+
+    /// Full-text search across cached documentation (rejects citations)
+    ///
+    /// Query Syntax:
+    ///   "exact phrase"      Match exact phrase (use single quotes: blz '"exact phrase"')
+    ///   +term               Require term (AND)
+    ///   term1 term2         Match any term (OR - default)
+    ///   +api +key           Require both terms
+    ///
+    /// For retrieving specific lines by citation, use `blz get` instead.
+    ///
+    /// Examples:
+    ///   blz query "react hooks"         # Search for phrase
+    ///   blz query useEffect cleanup     # Search for terms (OR)
+    ///   blz query +async +await         # Require both terms (AND)
+    #[command(display_order = 5)]
+    Query(QueryArgs),
+
+    /// Browse documentation structure (headings and sections)
+    ///
+    /// Navigate the table of contents for indexed sources.
+    ///
+    /// Examples:
+    ///   blz map bun                     # Browse bun docs structure
+    ///   blz map bun --tree              # Hierarchical tree view
+    ///   blz map --all -H 1-2            # All sources, H1/H2 only
+    #[command(display_order = 7)]
+    Map(MapArgs),
+
+    /// Fetch latest documentation from sources
+    ///
+    /// Syncs cached documentation with upstream llms.txt files.
+    ///
+    /// Examples:
+    ///   blz sync                        # Sync all sources
+    ///   blz sync bun react              # Sync specific sources
+    ///   blz sync --reindex              # Force re-index even if unchanged
+    #[command(display_order = 10)]
+    Sync(SyncArgs),
+
+    /// Remove a source and its cached content
+    ///
+    /// Examples:
+    ///   blz rm react                    # Remove with confirmation
+    ///   blz rm react -y                 # Remove without prompting
+    #[command(display_order = 11)]
+    Rm(RmArgs),
+
+    /// Validate source integrity and availability
+    ///
+    /// Check that sources are properly configured and accessible.
+    ///
+    /// Examples:
+    ///   blz check bun                   # Validate single source
+    ///   blz check --all                 # Validate all sources
+    #[command(display_order = 15)]
+    Check(CheckArgs),
 
     /// Search registries for documentation to add
     #[command(display_order = 30)]
@@ -614,13 +672,19 @@ pub enum Commands {
         clear_before: Option<String>,
     },
     // Config command removed in v1.0.0-beta.1 - flavor preferences eliminated
-    /// Get exact lines from a source (deprecated: use `find` instead)
+    /// Retrieve exact lines from a source by citation
     ///
-    /// Preferred syntax: `blz find bun:120-142`
+    /// Syntax: `blz get alias:start-end` or `blz get alias --lines start-end`
     ///
     /// Multiple spans can be comma-separated:
-    /// `blz find bun:120-142,200-210`
-    #[command(display_order = 3, hide = true)]
+    /// `blz get bun:120-142,200-210`
+    ///
+    /// Examples:
+    ///   blz get bun:120-142             # Single range
+    ///   blz get bun:120-142 -C 5        # With context
+    ///   blz get bun:120-142,200-210     # Multiple ranges
+    ///   blz get bun deno:5-10           # Multiple sources
+    #[command(display_order = 6)]
     Get {
         /// One or more `alias[:ranges]` targets (preferred: matches search output, e.g., "bun:1-3")
         ///
@@ -755,8 +819,9 @@ pub enum Commands {
         limit: Option<usize>,
     },
 
-    /// Validate source integrity and availability
-    #[command(display_order = 15)]
+    /// Validate source integrity (deprecated: use `check` instead)
+    #[command(display_order = 115, hide = true)]
+    #[deprecated(since = "1.5.0", note = "use 'check' instead")]
     Validate {
         /// Source to validate (validates all if not specified)
         alias: Option<String>,
@@ -779,8 +844,9 @@ pub enum Commands {
         fix: bool,
     },
 
-    /// Refresh sources by fetching latest content
-    #[command(display_order = 10)]
+    /// Refresh sources (deprecated: use `sync` instead)
+    #[command(display_order = 110, hide = true)]
+    #[deprecated(since = "1.5.0", note = "use 'sync' instead")]
     Refresh {
         /// Source aliases to refresh (refreshes all if omitted)
         #[arg(
@@ -833,8 +899,9 @@ pub enum Commands {
         yes: bool,
     },
 
-    /// Remove/delete a source
-    #[command(alias = "rm", alias = "delete", display_order = 11)]
+    /// Remove/delete a source (deprecated: use `rm` instead)
+    #[command(alias = "delete", display_order = 111, hide = true)]
+    #[deprecated(since = "1.5.0", note = "use 'rm' instead")]
     Remove {
         /// Source to remove
         alias: String,
@@ -864,19 +931,17 @@ pub enum Commands {
     #[command(name = "mcp-server")]
     McpServer,
 
-    /// Unified find command (search or retrieve based on input pattern)
+    /// Unified find command (deprecated: use `query` or `get` instead)
     ///
     /// Smart pattern detection:
     /// - If input matches `alias:digits-digits` format → retrieve mode (like get)
     /// - Otherwise → search mode (like search)
     ///
     /// Examples:
-    ///   blz find "async patterns"        # Search mode
-    ///   blz find async patterns          # Search mode (unquoted)
-    ///   blz find bun:120-142             # Retrieve mode
-    ///   blz find bun:120-142,200-210     # Multiple ranges
-    ///   blz find bun:120-142 deno:5-10   # Multiple citations
-    #[command(display_order = 5)]
+    ///   blz find "async patterns"        # Search mode → use `blz query`
+    ///   blz find bun:120-142             # Retrieve mode → use `blz get`
+    #[command(display_order = 105, hide = true)]
+    #[deprecated(since = "1.5.0", note = "use 'query' or 'get' instead")]
     Find {
         /// Query terms or citation(s) (e.g., "query" or "alias:123-456")
         #[arg(value_name = "INPUT", required = true, num_args = 1..)]
@@ -1133,6 +1198,344 @@ pub struct DocsSearchArgs {
     /// Copy results to the system clipboard when supported.
     #[arg(long)]
     pub copy: bool,
+}
+
+/// Arguments for `blz query` (full-text search, rejects citations)
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct QueryArgs {
+    /// Search query terms (not citations - use `get` for retrieval)
+    #[arg(value_name = "QUERY", required = true, num_args = 1..)]
+    pub inputs: Vec<String>,
+
+    /// Filter by source(s) - comma-separated for multiple
+    #[arg(
+        long = "source",
+        short = 's',
+        visible_alias = "alias",
+        visible_alias = "sources",
+        value_name = "SOURCE",
+        value_delimiter = ',',
+        num_args = 0..
+    )]
+    pub sources: Vec<String>,
+
+    /// Maximum number of results per page
+    #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+    pub limit: Option<usize>,
+
+    /// Show all results - no limit
+    #[arg(long, conflicts_with = "limit")]
+    pub all: bool,
+
+    /// Page number for pagination
+    #[arg(long, default_value = "1")]
+    pub page: usize,
+
+    /// Show only top N percentile of results (1-100)
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+    pub top: Option<u8>,
+
+    /// Filter results by heading level
+    ///
+    /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+    #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+    pub heading_level: Option<String>,
+
+    /// Output format (text, json, jsonl)
+    #[command(flatten)]
+    pub format: FormatArg,
+
+    /// Additional columns to include in text output
+    #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+    pub show: Vec<ShowComponent>,
+
+    /// Hide the summary/footer line
+    #[arg(long = "no-summary")]
+    pub no_summary: bool,
+
+    /// Number of decimal places to show for scores (0-4)
+    #[arg(
+        long = "score-precision",
+        value_name = "PLACES",
+        value_parser = clap::value_parser!(u8).range(0..=4),
+        env = "BLZ_SCORE_PRECISION"
+    )]
+    pub score_precision: Option<u8>,
+
+    /// Maximum snippet lines to display around a hit (1-10)
+    #[arg(
+        long = "snippet-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(u8).range(1..=10),
+        env = "BLZ_SNIPPET_LINES",
+        default_value_t = 3,
+        hide = true
+    )]
+    pub snippet_lines: u8,
+
+    /// Maximum total characters in snippet (range: 50-1000, default: 200)
+    #[arg(
+        long = "max-chars",
+        value_name = "CHARS",
+        env = "BLZ_MAX_CHARS",
+        value_parser = clap::value_parser!(usize)
+    )]
+    pub max_chars: Option<usize>,
+
+    /// Print LINES lines of context (both before and after match). Same as -C.
+    #[arg(
+        short = 'C',
+        long = "context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context_deprecated"],
+        display_order = 30
+    )]
+    pub context: Option<ContextMode>,
+
+    /// Deprecated: use -C or --context instead
+    #[arg(
+        short = 'c',
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context"],
+        hide = true,
+        display_order = 100
+    )]
+    pub context_deprecated: Option<ContextMode>,
+
+    /// Print LINES lines of context after each match
+    #[arg(
+        short = 'A',
+        long = "after-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 31
+    )]
+    pub after_context: Option<usize>,
+
+    /// Print LINES lines of context before each match
+    #[arg(
+        short = 'B',
+        long = "before-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 32
+    )]
+    pub before_context: Option<usize>,
+
+    /// Return the full heading block containing each hit (legacy alias for --context all)
+    #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
+    pub block: bool,
+
+    /// Maximum number of lines to include when using block expansion
+    #[arg(
+        long = "max-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(usize),
+        display_order = 34
+    )]
+    pub max_lines: Option<usize>,
+
+    /// Restrict matches to heading text only
+    #[arg(long = "headings-only", display_order = 35)]
+    pub headings_only: bool,
+
+    /// Don't save this search to history
+    #[arg(long = "no-history")]
+    pub no_history: bool,
+
+    /// Copy results to clipboard using OSC 52 escape sequence
+    #[arg(long)]
+    pub copy: bool,
+}
+
+/// Arguments for `blz map` (browse documentation structure)
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct MapArgs {
+    /// Source alias (optional when using --source or --all)
+    pub alias: Option<String>,
+
+    /// Output format
+    #[command(flatten)]
+    pub format: FormatArg,
+
+    /// Filter headings by boolean expression (use AND/OR/NOT; whitespace implies OR)
+    #[arg(long = "filter", value_name = "EXPR")]
+    pub filter: Option<String>,
+
+    /// Limit results to headings at or above this level (1-6)
+    #[arg(
+        long = "max-depth",
+        value_name = "DEPTH",
+        value_parser = clap::value_parser!(u8).range(1..=6)
+    )]
+    pub max_depth: Option<u8>,
+
+    /// Filter by heading level with comparison operators (e.g., <=2, >3, 1-3, 1,2,3)
+    #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+    pub heading_level: Option<crate::utils::heading_filter::HeadingLevelFilter>,
+
+    /// Search specific sources (comma-separated aliases)
+    #[arg(
+        short = 's',
+        long = "source",
+        value_name = "ALIASES",
+        value_delimiter = ',',
+        num_args = 1..,
+        conflicts_with = "alias"
+    )]
+    pub sources: Vec<String>,
+
+    /// Include all sources when no alias is provided, or bypass pagination limits
+    #[arg(long)]
+    pub all: bool,
+
+    /// Display as hierarchical tree with box-drawing characters
+    #[arg(long)]
+    pub tree: bool,
+
+    /// Show anchor metadata and remap history
+    #[arg(long, alias = "mappings")]
+    pub anchors: bool,
+
+    /// Show anchor slugs in normal output
+    #[arg(short = 'a', long)]
+    pub show_anchors: bool,
+
+    /// Continue from previous results (next page)
+    #[arg(
+        long,
+        conflicts_with = "page",
+        conflicts_with = "last",
+        conflicts_with = "previous",
+        conflicts_with = "all",
+        display_order = 50
+    )]
+    pub next: bool,
+
+    /// Go back to previous page
+    #[arg(
+        long,
+        conflicts_with = "page",
+        conflicts_with = "last",
+        conflicts_with = "next",
+        conflicts_with = "all",
+        display_order = 51
+    )]
+    pub previous: bool,
+
+    /// Jump to last page of results
+    #[arg(
+        long,
+        conflicts_with = "next",
+        conflicts_with = "page",
+        conflicts_with = "previous",
+        conflicts_with = "all",
+        display_order = 52
+    )]
+    pub last: bool,
+
+    /// Maximum number of headings per page (must be at least 1)
+    #[arg(
+        short = 'n',
+        long,
+        value_name = "COUNT",
+        value_parser = validate_limit,
+        display_order = 53
+    )]
+    pub limit: Option<usize>,
+
+    /// Page number for pagination
+    #[arg(
+        long,
+        default_value = "1",
+        conflicts_with = "next",
+        conflicts_with = "last",
+        conflicts_with = "previous",
+        conflicts_with = "all",
+        display_order = 55
+    )]
+    pub page: usize,
+}
+
+/// Arguments for `blz sync` (fetch latest docs)
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct SyncArgs {
+    /// Source aliases to sync
+    #[arg(
+        value_name = "ALIAS",
+        num_args = 0..,
+        conflicts_with = "all"
+    )]
+    pub aliases: Vec<String>,
+
+    /// Sync all sources
+    #[arg(long, conflicts_with = "aliases")]
+    pub all: bool,
+
+    /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+    #[arg(short = 'y', long = "yes")]
+    pub yes: bool,
+
+    /// Force re-parse and re-index even if content unchanged
+    #[arg(long)]
+    pub reindex: bool,
+
+    /// Enable content filters (comma-separated: lang). Use --filter with no value to enable all filters.
+    ///
+    /// Available filters:
+    ///   lang,language  - Filter non-English content
+    ///
+    /// Examples:
+    ///   --filter           # Enable all filters
+    ///   --filter lang      # Only language filter
+    ///   --no-filter        # Disable all filters
+    #[arg(long, value_name = "FILTERS", num_args = 0..=1, default_missing_value = "all", conflicts_with = "no_filter")]
+    pub filter: Option<String>,
+
+    /// Disable all content filters for this sync
+    #[arg(long, conflicts_with = "filter")]
+    pub no_filter: bool,
+}
+
+/// Arguments for `blz check` (validate sources)
+#[derive(Args, Clone, Debug)]
+pub struct CheckArgs {
+    /// Source to validate (validates all if not specified)
+    pub alias: Option<String>,
+
+    /// Validate all sources
+    #[arg(long)]
+    pub all: bool,
+
+    /// Output format
+    #[command(flatten)]
+    pub format: FormatArg,
+}
+
+/// Arguments for `blz rm` (remove sources)
+#[derive(Args, Clone, Debug)]
+pub struct RmArgs {
+    /// Source to remove
+    pub alias: String,
+
+    /// Apply removal without prompting
+    #[arg(short = 'y', long = "yes")]
+    pub yes: bool,
 }
 
 /// Arguments for `blz add`

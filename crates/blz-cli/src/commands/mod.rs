@@ -5,6 +5,7 @@
 
 mod add;
 mod alias;
+mod check;
 mod clear;
 mod completions;
 mod toc;
@@ -21,11 +22,15 @@ mod history;
 mod info;
 mod list;
 mod lookup;
+mod map;
 mod mcp;
+mod query;
 mod refresh;
 mod remove;
+mod rm;
 mod search;
 mod stats;
+mod sync;
 #[allow(deprecated)]
 mod update;
 mod validate;
@@ -35,6 +40,7 @@ pub use add::{
     execute_manifest as add_manifest,
 };
 pub use alias::{AliasCommand, execute as manage_alias};
+pub use check::execute as check_source;
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
@@ -55,12 +61,16 @@ pub use history::show as show_history;
 pub use info::execute_info;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;
+pub use map::execute as show_map;
 pub use mcp::execute as mcp_server;
+pub use query::execute as query;
 pub use refresh::{execute as refresh_source, execute_all as refresh_all};
 pub use remove::execute as remove_source;
+pub use rm::execute as rm_source;
 pub use search::{DEFAULT_MAX_CHARS, clamp_max_chars};
 pub use search::{execute as search, handle_default as handle_default_search};
 pub use stats::execute as show_stats;
+pub use sync::execute as sync_source;
 pub use validate::execute as validate_source;
 
 // Re-export types that commands might need
