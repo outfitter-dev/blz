@@ -336,6 +336,7 @@ dependencies = [
  "pprof",
  "proptest",
  "quick-xml 0.37.5",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
