@@ -1,28 +1,36 @@
+//! Prompt module for CLI interactions and LLM prompt emissions.
+//!
+//! This module provides:
+//! - Command prompt emission for LLM agents
+//! - Alias prompting for source discovery
+
+pub mod alias;
+
 use crate::cli::Commands;
 use crate::output::OutputFormat;
 use serde_json::json;
 
-const GLOBAL_PROMPT: &str = include_str!("prompts/blz.prompt.json");
-const ADD_PROMPT: &str = include_str!("prompts/add.prompt.json");
-const SEARCH_PROMPT: &str = include_str!("prompts/search.prompt.json");
-const GET_PROMPT: &str = include_str!("prompts/get.prompt.json");
-const FIND_PROMPT: &str = include_str!("prompts/find.prompt.json");
-const LIST_PROMPT: &str = include_str!("prompts/list.prompt.json");
-const REFRESH_PROMPT: &str = include_str!("prompts/refresh.prompt.json");
-const REMOVE_PROMPT: &str = include_str!("prompts/remove.prompt.json");
-const LOOKUP_PROMPT: &str = include_str!("prompts/lookup.prompt.json");
-const DOCS_PROMPT: &str = include_str!("prompts/docs.prompt.json");
-const HISTORY_PROMPT: &str = include_str!("prompts/history.prompt.json");
-const COMPLETIONS_PROMPT: &str = include_str!("prompts/completions.prompt.json");
-const ALIAS_PROMPT: &str = include_str!("prompts/alias.prompt.json");
-const REGISTRY_PROMPT: &str = include_str!("prompts/registry.prompt.json");
-const CLEAR_PROMPT: &str = include_str!("prompts/clear.prompt.json");
-const INFO_PROMPT: &str = include_str!("prompts/info.prompt.json");
-const STATS_PROMPT: &str = include_str!("prompts/stats.prompt.json");
-const VALIDATE_PROMPT: &str = include_str!("prompts/validate.prompt.json");
-const DOCTOR_PROMPT: &str = include_str!("prompts/doctor.prompt.json");
-const DIFF_PROMPT: &str = include_str!("prompts/diff.prompt.json");
-const TOC_PROMPT: &str = include_str!("prompts/toc.prompt.json");
+const GLOBAL_PROMPT: &str = include_str!("../prompts/blz.prompt.json");
+const ADD_PROMPT: &str = include_str!("../prompts/add.prompt.json");
+const SEARCH_PROMPT: &str = include_str!("../prompts/search.prompt.json");
+const GET_PROMPT: &str = include_str!("../prompts/get.prompt.json");
+const FIND_PROMPT: &str = include_str!("../prompts/find.prompt.json");
+const LIST_PROMPT: &str = include_str!("../prompts/list.prompt.json");
+const REFRESH_PROMPT: &str = include_str!("../prompts/refresh.prompt.json");
+const REMOVE_PROMPT: &str = include_str!("../prompts/remove.prompt.json");
+const LOOKUP_PROMPT: &str = include_str!("../prompts/lookup.prompt.json");
+const DOCS_PROMPT: &str = include_str!("../prompts/docs.prompt.json");
+const HISTORY_PROMPT: &str = include_str!("../prompts/history.prompt.json");
+const COMPLETIONS_PROMPT: &str = include_str!("../prompts/completions.prompt.json");
+const ALIAS_PROMPT: &str = include_str!("../prompts/alias.prompt.json");
+const REGISTRY_PROMPT: &str = include_str!("../prompts/registry.prompt.json");
+const CLEAR_PROMPT: &str = include_str!("../prompts/clear.prompt.json");
+const INFO_PROMPT: &str = include_str!("../prompts/info.prompt.json");
+const STATS_PROMPT: &str = include_str!("../prompts/stats.prompt.json");
+const VALIDATE_PROMPT: &str = include_str!("../prompts/validate.prompt.json");
+const DOCTOR_PROMPT: &str = include_str!("../prompts/doctor.prompt.json");
+const DIFF_PROMPT: &str = include_str!("../prompts/diff.prompt.json");
+const TOC_PROMPT: &str = include_str!("../prompts/toc.prompt.json");
 
 /// Channel selection for prompt emission output.
 #[derive(Clone, Copy)]
