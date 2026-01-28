@@ -71,6 +71,8 @@ pub mod json_builder;
 pub mod language_filter;
 /// Anchor remapping utilities between versions
 pub mod mapping;
+/// Safe numeric conversion helpers
+pub mod numeric;
 /// Tree-sitter based markdown parser
 pub mod parser;
 /// Application profile detection helpers

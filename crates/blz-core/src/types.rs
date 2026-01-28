@@ -191,6 +191,54 @@ impl HeadingLevel {
         u8::try_from(level).ok().and_then(Self::new)
     }
 
+    /// Create a `HeadingLevel` from a 0-indexed tree depth.
+    ///
+    /// This is useful when traversing TOC trees where root is depth 0.
+    /// The depth is converted to a heading level (depth 0 → H1, depth 5 → H6),
+    /// clamping to the valid range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert_eq!(HeadingLevel::from_depth(0), HeadingLevel::H1);
+    /// assert_eq!(HeadingLevel::from_depth(2), HeadingLevel::H3);
+    /// assert_eq!(HeadingLevel::from_depth(5), HeadingLevel::H6);
+    /// assert_eq!(HeadingLevel::from_depth(100), HeadingLevel::H6); // Clamped
+    /// ```
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // Documented: clamped to 1-6
+    pub fn from_depth(depth: usize) -> Self {
+        // depth + 1, clamped to 1-6
+        let level = depth.saturating_add(1).clamp(1, 6);
+        // SAFETY: clamp guarantees level is in 1..=6
+        Self(level as u8)
+    }
+
+    /// Create a `HeadingLevel` from a usize, clamping to valid range (1-6).
+    ///
+    /// This is useful when the input might be outside valid range and should
+    /// be clamped rather than rejected. Values below 1 become H1, values
+    /// above 6 become H6.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use blz_core::HeadingLevel;
+    ///
+    /// assert_eq!(HeadingLevel::from_usize_clamped(0), HeadingLevel::H1);
+    /// assert_eq!(HeadingLevel::from_usize_clamped(3), HeadingLevel::H3);
+    /// assert_eq!(HeadingLevel::from_usize_clamped(100), HeadingLevel::H6);
+    /// ```
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // Documented: clamped to 1-6
+    pub fn from_usize_clamped(level: usize) -> Self {
+        let clamped = level.clamp(1, 6);
+        // SAFETY: clamp guarantees value is in 1..=6
+        Self(clamped as u8)
+    }
+
     /// Get the raw u8 value.
     ///
     /// # Examples

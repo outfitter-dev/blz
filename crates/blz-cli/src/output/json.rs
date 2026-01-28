@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result, anyhow};
 use blz_core::SearchHit;
+use blz_core::numeric::percent_to_u8;
 
 /// JSON formatter for search output.
 pub struct JsonFormatter;
@@ -196,8 +197,5 @@ fn format_single_hit(
 }
 
 fn clamp_percentage(percent: f64) -> u8 {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        percent.round().clamp(0.0, 100.0) as u8
-    }
+    percent_to_u8(percent)
 }

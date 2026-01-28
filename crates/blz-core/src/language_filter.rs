@@ -160,13 +160,15 @@ pub struct FilterStats {
 
 impl FilterStats {
     /// Calculate rejection percentage of filtered URLs as a float percentage.
-    #[allow(clippy::cast_precision_loss)]
+    ///
+    /// Uses lossy float conversion which is acceptable for reporting-only metrics.
     pub fn rejection_percentage(&self) -> f64 {
+        use crate::numeric::usize_to_f64_lossy;
+
         if self.total_processed == 0 {
             0.0
         } else {
-            // Lossy float conversion is acceptable for reporting-only metrics.
-            (self.rejected as f64 / self.total_processed as f64) * 100.0
+            (usize_to_f64_lossy(self.rejected) / usize_to_f64_lossy(self.total_processed)) * 100.0
         }
     }
 }

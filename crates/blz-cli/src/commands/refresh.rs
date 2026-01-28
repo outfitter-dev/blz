@@ -3,6 +3,7 @@
 use std::time::Instant;
 
 use anyhow::{Result, anyhow};
+use blz_core::numeric::safe_percentage;
 use blz_core::refresh::{
     DefaultRefreshIndexer, RefreshOutcome, RefreshStorage, RefreshUrlResolution,
     refresh_source_with_metadata, reindex_source, resolve_refresh_url,
@@ -331,11 +332,6 @@ pub async fn execute_all(
     Ok(())
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn percentage(part: usize, total: usize) -> f64 {
-    if total == 0 {
-        0.0
-    } else {
-        (part as f64 / total as f64) * 100.0
-    }
+    safe_percentage(part, total)
 }

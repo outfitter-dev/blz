@@ -7,7 +7,7 @@
 use crate::cache::SearchCache;
 use crate::memory_pool::{MemoryPool, PooledString};
 use crate::string_pool::StringPool;
-use crate::{Error, HeadingBlock, Result, SearchHit};
+use crate::{Error, HeadingBlock, HeadingLevel, Result, SearchHit};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -406,8 +406,7 @@ impl OptimizedSearchIndex {
             };
 
             // Calculate heading level from heading_path length
-            #[allow(clippy::cast_possible_truncation)]
-            let level = heading_path.len().clamp(1, 6) as u8;
+            let level = HeadingLevel::from_usize_clamped(heading_path.len()).as_u8();
 
             results.push(SearchHit {
                 source: alias_interned.to_string(),

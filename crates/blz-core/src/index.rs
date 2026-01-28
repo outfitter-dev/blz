@@ -4,7 +4,7 @@
 //! documentation sources. It provides snippet sizing helpers and integrates
 //! optional performance metrics for profiling search operations.
 use crate::profiling::{ComponentTimings, OperationTimer, PerformanceMetrics};
-use crate::{Error, HeadingBlock, Result, SearchHit, normalize_text_for_search};
+use crate::{Error, HeadingBlock, HeadingLevel, Result, SearchHit, normalize_text_for_search};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -439,8 +439,7 @@ impl SearchIndex {
             .unwrap_or_else(|| lines.clone());
         let line_numbers = Self::parse_lines_range(&exact_lines);
 
-        #[allow(clippy::cast_possible_truncation)]
-        let level = heading_path.len().clamp(1, 6) as u8;
+        let level = HeadingLevel::from_usize_clamped(heading_path.len()).as_u8();
 
         let hit = SearchHit {
             source: alias,
