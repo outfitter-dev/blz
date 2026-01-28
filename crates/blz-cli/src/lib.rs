@@ -17,6 +17,7 @@ use std::sync::{Arc, OnceLock};
 pub mod args;
 mod cli;
 mod commands;
+pub mod error;
 mod output;
 mod prompt;
 mod utils;
