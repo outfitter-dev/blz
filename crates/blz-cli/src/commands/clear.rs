@@ -11,14 +11,13 @@ pub trait ClearStorage {
     fn clear_cache(&self) -> Result<()>;
 }
 
-#[allow(clippy::use_self)]
 impl ClearStorage for Storage {
     fn list_sources(&self) -> Result<Vec<String>> {
         Ok(self.list_sources())
     }
 
     fn clear_cache(&self) -> Result<()> {
-        Storage::clear_cache(self).map_err(anyhow::Error::from)
+        Self::clear_cache(self).map_err(anyhow::Error::from)
     }
 }
 

@@ -29,35 +29,34 @@ pub trait UpdateStorage {
     fn index_path(&self, alias: &str) -> Result<PathBuf>;
 }
 
-#[allow(clippy::use_self)]
 impl UpdateStorage for Storage {
     fn load_metadata(&self, alias: &str) -> Result<Source> {
-        Storage::load_source_metadata(self, alias)
+        Self::load_source_metadata(self, alias)
             .map_err(anyhow::Error::from)?
             .ok_or_else(|| anyhow!("Missing metadata for {alias}"))
     }
 
     fn load_llms_aliases(&self, alias: &str) -> Result<Vec<String>> {
-        match Storage::load_llms_json(self, alias) {
+        match Self::load_llms_json(self, alias) {
             Ok(llms) => Ok(llms.metadata.aliases),
             Err(_) => Ok(Vec::new()),
         }
     }
 
     fn save_llms_txt(&self, alias: &str, content: &str) -> Result<()> {
-        Storage::save_llms_txt(self, alias, content).map_err(anyhow::Error::from)
+        Self::save_llms_txt(self, alias, content).map_err(anyhow::Error::from)
     }
 
     fn save_llms_json(&self, alias: &str, data: &blz_core::LlmsJson) -> Result<()> {
-        Storage::save_llms_json(self, alias, data).map_err(anyhow::Error::from)
+        Self::save_llms_json(self, alias, data).map_err(anyhow::Error::from)
     }
 
     fn save_metadata(&self, alias: &str, metadata: &Source) -> Result<()> {
-        Storage::save_source_metadata(self, alias, metadata).map_err(anyhow::Error::from)
+        Self::save_source_metadata(self, alias, metadata).map_err(anyhow::Error::from)
     }
 
     fn index_path(&self, alias: &str) -> Result<PathBuf> {
-        Storage::index_dir(self, alias).map_err(anyhow::Error::from)
+        Self::index_dir(self, alias).map_err(anyhow::Error::from)
     }
 }
 

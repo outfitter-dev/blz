@@ -16,14 +16,13 @@ pub trait RemoveStorage {
     fn delete_source(&self, alias: &str) -> Result<()>;
 }
 
-#[allow(clippy::use_self)]
 impl RemoveStorage for Storage {
     fn exists(&self, alias: &str) -> Result<bool> {
         Ok(self.exists(alias))
     }
 
     fn load_removal_info(&self, alias: &str) -> Result<Option<RemovalInfo>> {
-        Storage::load_llms_json(self, alias)
+        Self::load_llms_json(self, alias)
             .map(|llms| Some(RemovalInfo::from_llms(alias, &llms)))
             .or_else(|_| Ok(None))
     }
