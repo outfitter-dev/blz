@@ -20,6 +20,7 @@ use url::Url;
 
 use crate::utils::count_headings;
 use crate::utils::validation::{normalize_alias, validate_alias};
+use blz_core::discovery::{ProbeResult, probe_domain};
 use blz_core::url_resolver;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -946,6 +947,88 @@ fn extract_urls_from_content(content: &str) -> Vec<String> {
     urls
 }
 
+/// Check if the input appears to be a domain-only string (no protocol, no path).
+///
+/// Domain-only inputs are detected by:
+/// - Not containing "://" (no protocol)
+/// - Not starting with "http" (even without protocol prefix)
+/// - Containing at least one dot (has TLD)
+/// - Not containing "/" (no path component)
+/// - Not starting with "." (not a dotfile)
+///
+/// This function is used during add command execution to determine if the input
+/// should trigger domain discovery (e.g., `blz add hono.dev`).
+///
+/// # Examples
+///
+/// ```ignore
+/// assert!(is_domain_only("hono.dev"));
+/// assert!(is_domain_only("docs.tanstack.com"));
+/// assert!(!is_domain_only("https://hono.dev"));
+/// assert!(!is_domain_only("react")); // No dot = alias
+/// assert!(!is_domain_only("/path/to/file"));
+/// ```
+#[allow(dead_code)]
+#[must_use]
+pub fn is_domain_only(input: &str) -> bool {
+    // Empty string is not a domain
+    if input.is_empty() {
+        return false;
+    }
+
+    // Has protocol prefix - not domain-only
+    if input.contains("://") || input.starts_with("http") {
+        return false;
+    }
+
+    // Must contain at least one dot (for TLD)
+    if !input.contains('.') {
+        return false;
+    }
+
+    // Must not contain path separator
+    if input.contains('/') {
+        return false;
+    }
+
+    // Must not start with dot (dotfile)
+    if input.starts_with('.') {
+        return false;
+    }
+
+    true
+}
+
+/// Probe a domain for documentation sources.
+///
+/// Uses `blz_core::discovery::probe_domain` to check for llms.txt, llms-full.txt,
+/// and sitemap.xml at the given domain.
+///
+/// # Arguments
+///
+/// * `domain` - The domain to probe (e.g., "hono.dev")
+///
+/// # Returns
+///
+/// A [`ProbeResult`] containing URLs for any discovered documentation sources.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP client cannot be constructed or network errors occur.
+///
+/// # Examples
+///
+/// ```ignore
+/// let result = discover_for_domain("hono.dev").await?;
+/// if let Some(url) = result.best_url() {
+///     println!("Found documentation at: {}", url);
+/// }
+/// ```
+#[allow(dead_code)]
+pub async fn discover_for_domain(domain: &str) -> Result<ProbeResult> {
+    probe_domain(domain).await.map_err(Into::into)
+}
+
 fn display_name_from_alias(alias: &str) -> String {
     let mut title = String::new();
     for (idx, part) in alias
@@ -1015,5 +1098,66 @@ mod tests {
 
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://example.com".to_string()));
+    }
+
+    // ============================================
+    // is_domain_only tests
+    // ============================================
+
+    #[test]
+    fn test_domain_only_simple_domains() {
+        // Standard domains should be detected
+        assert!(is_domain_only("hono.dev"));
+        assert!(is_domain_only("docs.tanstack.com"));
+        assert!(is_domain_only("react.dev"));
+        assert!(is_domain_only("example.com"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_urls() {
+        // URLs with protocol should NOT be domain-only
+        assert!(!is_domain_only("https://hono.dev"));
+        assert!(!is_domain_only("http://hono.dev"));
+        assert!(!is_domain_only("https://docs.tanstack.com"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_aliases() {
+        // Simple words without dots are aliases, not domains
+        assert!(!is_domain_only("react"));
+        assert!(!is_domain_only("bun"));
+        assert!(!is_domain_only("hono"));
+        assert!(!is_domain_only("tanstack"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_paths() {
+        // File paths should not be domain-only
+        assert!(!is_domain_only("/path/to/file"));
+        assert!(!is_domain_only("./local/file.txt"));
+        assert!(!is_domain_only("../parent/file"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_dotfiles() {
+        // Dotfiles should not be domain-only
+        assert!(!is_domain_only(".env"));
+        assert!(!is_domain_only(".gitignore"));
+        assert!(!is_domain_only(".config"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_urls_with_paths() {
+        // Domains with paths are NOT domain-only
+        assert!(!is_domain_only("hono.dev/docs"));
+        assert!(!is_domain_only("example.com/llms.txt"));
+    }
+
+    #[test]
+    fn test_domain_only_edge_cases() {
+        // Edge cases
+        assert!(!is_domain_only("")); // Empty string
+        assert!(!is_domain_only("localhost")); // No TLD
+        assert!(is_domain_only("localhost.dev")); // Has TLD
     }
 }
