@@ -25,137 +25,93 @@ impl fmt::Display for SelectionItem {
     }
 }
 
-/// Execute the lookup command to search registries
-#[allow(clippy::too_many_lines)]
-pub async fn execute(
-    query: &str,
-    metrics: PerformanceMetrics,
-    quiet: bool,
+/// Handle the case when registry is disabled
+fn handle_registry_disabled(format: OutputFormat, quiet: bool) -> Result<()> {
+    if matches!(format, OutputFormat::Text) {
+        if !quiet {
+            println!("Registry lookup is coming soon.");
+            println!(
+                "In the meantime, search upstream docs for an llms-full.txt (or llms.txt) URL and add it manually:"
+            );
+            println!("  blz add <alias> <https://example.com/llms-full.txt>");
+            println!("Coming soon: automatic registry search with health checks.");
+        }
+    } else {
+        let payload = json!({
+            "status": "coming_soon",
+            "message": "Registry lookup is temporarily disabled while we finish the new catalog flow.",
+            "nextSteps": [
+                "Locate an llms-full.txt (or llms.txt) URL for the docs you need.",
+                "Add it manually with: blz add <alias> <url>",
+                "Agent-compatible registry search will return in an upcoming release."
+            ]
+        });
+
+        match format {
+            OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
+            OutputFormat::Jsonl | OutputFormat::Raw => {
+                println!("{}", serde_json::to_string(&payload)?);
+            },
+            OutputFormat::Text => unreachable!(),
+        }
+    }
+
+    emit_registry_note(format, quiet, NoteChannel::Auto);
+    Ok(())
+}
+
+/// Format and output results as JSON for non-text output modes
+async fn output_results_json(
+    results: &[blz_core::registry::RegistrySearchResult],
     format: OutputFormat,
-    limit: Option<usize>,
+    quiet: bool,
 ) -> Result<()> {
-    let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "on" | "yes"
-            )
-        })
-        .unwrap_or(true);
+    let fetcher = Fetcher::new()?;
+    let mut out = Vec::new();
 
-    if !registry_enabled {
-        let _ = metrics; // keep signature for future use
-
-        if matches!(format, OutputFormat::Text) {
-            if !quiet {
-                println!("Registry lookup is coming soon.");
-                println!(
-                    "In the meantime, search upstream docs for an llms-full.txt (or llms.txt) URL and add it manually:"
-                );
-                println!("  blz add <alias> <https://example.com/llms-full.txt>");
-                println!("Coming soon: automatic registry search with health checks.");
-            }
+    for r in results {
+        let head = if let Ok(meta) = fetcher.head_metadata(&r.entry.llms_url).await {
+            json!({
+                "status": meta.status,
+                "contentLength": meta.content_length,
+                "etag": meta.etag,
+                "lastModified": meta.last_modified,
+            })
         } else {
-            let payload = json!({
-                "status": "coming_soon",
-                "message": "Registry lookup is temporarily disabled while we finish the new catalog flow.",
-                "nextSteps": [
-                    "Locate an llms-full.txt (or llms.txt) URL for the docs you need.",
-                    "Add it manually with: blz add <alias> <url>",
-                    "Agent-compatible registry search will return in an upcoming release."
-                ]
-            });
-
-            match format {
-                OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
-                OutputFormat::Jsonl | OutputFormat::Raw => {
-                    println!("{}", serde_json::to_string(&payload)?);
-                },
-                OutputFormat::Text => unreachable!(),
-            }
-        }
-
-        emit_registry_note(format, quiet, NoteChannel::Auto);
-
-        return Ok(());
+            json!({})
+        };
+        let obj = json!({
+            "name": r.entry.name,
+            "slug": r.entry.slug,
+            "aliases": r.entry.aliases,
+            "description": r.entry.description,
+            "llmsUrl": r.entry.llms_url,
+            "score": r.score,
+            "matchField": r.match_field,
+            "head": head,
+        });
+        out.push(obj);
     }
 
-    let registry = Registry::new();
-
-    if matches!(format, OutputFormat::Text) && !quiet {
-        println!("Searching registries...");
-    }
-    let mut results = registry.search(query);
-
-    if results.is_empty() {
-        if matches!(format, OutputFormat::Text) && !quiet {
-            println!("No matches found for '{query}'");
+    if matches!(format, OutputFormat::Json) {
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        for o in out {
+            println!("{}", serde_json::to_string(&o)?);
         }
-        if matches!(format, OutputFormat::Json) {
-            println!("[]");
-        }
-        emit_registry_note(format, quiet, NoteChannel::Auto);
-        return Ok(());
     }
 
-    // Apply limit to results
-    if let Some(limit_count) = limit {
-        results.truncate(limit_count);
-    }
+    emit_registry_note(format, quiet, NoteChannel::ForceStderr);
+    Ok(())
+}
 
-    if matches!(format, OutputFormat::Text) && !quiet {
-        display_results_with_health(&results).await?;
-    }
-
-    // Non-interactive JSON output for agents
-    if !matches!(format, OutputFormat::Text) {
-        let fetcher = Fetcher::new()?;
-        let mut out = Vec::new();
-        for r in &results {
-            let head = if let Ok(meta) = fetcher.head_metadata(&r.entry.llms_url).await {
-                serde_json::json!({
-                    "status": meta.status,
-                    "contentLength": meta.content_length,
-                    "etag": meta.etag,
-                    "lastModified": meta.last_modified,
-                })
-            } else {
-                serde_json::json!({})
-            };
-            let obj = serde_json::json!({
-                "name": r.entry.name,
-                "slug": r.entry.slug,
-                "aliases": r.entry.aliases,
-                "description": r.entry.description,
-                "llmsUrl": r.entry.llms_url,
-                "score": r.score,
-                "matchField": r.match_field,
-                "head": head,
-            });
-            out.push(obj);
-        }
-        if matches!(format, OutputFormat::Json) {
-            println!("{}", serde_json::to_string_pretty(&out)?);
-        } else {
-            for o in out {
-                println!("{}", serde_json::to_string(&o)?);
-            }
-        }
-        emit_registry_note(format, quiet, NoteChannel::ForceStderr);
-        return Ok(());
-    }
-
-    // Try interactive selection
-    let Some(selected_entry) = try_interactive_selection(&results).ok() else {
-        // Not interactive, show instructions
-        if matches!(format, OutputFormat::Text) && !quiet {
-            display_manual_instructions(&results);
-        }
-        emit_registry_note(format, quiet, NoteChannel::Auto);
-        return Ok(());
-    };
-
-    // Prompt for alias
+/// Handle interactive selection and add flow
+async fn handle_interactive_add(
+    selected_entry: &blz_core::registry::RegistryEntry,
+    format: OutputFormat,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
     let default_alias = selected_entry.slug.clone();
     let alias = try_interactive_alias_input(&default_alias).unwrap_or_else(|_| {
         if !quiet {
@@ -194,10 +150,73 @@ pub async fn execute(
     );
 
     add_source(request).await?;
-
     emit_registry_note(format, quiet, NoteChannel::Auto);
-
     Ok(())
+}
+
+/// Execute the lookup command to search registries
+pub async fn execute(
+    query: &str,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+    format: OutputFormat,
+    limit: Option<usize>,
+) -> Result<()> {
+    let registry_enabled = std::env::var("BLZ_REGISTRY_ENABLED")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "on" | "yes"
+            )
+        })
+        .unwrap_or(true);
+
+    if !registry_enabled {
+        let _ = metrics; // keep signature for future use
+        return handle_registry_disabled(format, quiet);
+    }
+
+    let registry = Registry::new();
+
+    if matches!(format, OutputFormat::Text) && !quiet {
+        println!("Searching registries...");
+    }
+    let mut results = registry.search(query);
+
+    if results.is_empty() {
+        if matches!(format, OutputFormat::Text) && !quiet {
+            println!("No matches found for '{query}'");
+        }
+        if matches!(format, OutputFormat::Json) {
+            println!("[]");
+        }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
+        return Ok(());
+    }
+
+    if let Some(limit_count) = limit {
+        results.truncate(limit_count);
+    }
+
+    if matches!(format, OutputFormat::Text) && !quiet {
+        display_results_with_health(&results).await?;
+    }
+
+    // Non-interactive JSON output for agents
+    if !matches!(format, OutputFormat::Text) {
+        return output_results_json(&results, format, quiet).await;
+    }
+
+    // Try interactive selection
+    let Some(selected_entry) = try_interactive_selection(&results).ok() else {
+        if matches!(format, OutputFormat::Text) && !quiet {
+            display_manual_instructions(&results);
+        }
+        emit_registry_note(format, quiet, NoteChannel::Auto);
+        return Ok(());
+    };
+
+    handle_interactive_add(selected_entry, format, quiet, metrics).await
 }
 
 async fn display_results_with_health(
