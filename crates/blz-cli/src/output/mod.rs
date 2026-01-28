@@ -18,6 +18,7 @@
 //! - [`text`]: Human-readable text output with color coding and alignment
 //! - [`json`]: Machine-readable JSON output in various forms
 //! - [`progress`]: Progress indicators and status displays
+//! - [`stream`]: Backpressure-aware async streaming for large result sets
 //!
 //! ## Usage Patterns
 //!
@@ -72,6 +73,7 @@ mod formatter;
 mod json;
 mod progress;
 pub mod shapes;
+pub mod stream;
 mod text;
 
 // Re-export OutputFormat from args for backward compatibility
@@ -84,6 +86,13 @@ pub use shapes::{
     CheckOutput, CheckResult, GenericOutput, OutputShape, RetrieveOutput, RetrievedContent,
     SearchHitOutput, SearchOutput, SourceInfoOutput, SourceListOutput, SourceStatus, SourceSummary,
     TocEntry, TocOutput,
+};
+
+// TODO(BLZ-341): Remove allow once commands adopt streaming output.
+#[allow(unused_imports)]
+pub use stream::{
+    StreamConfig, output_stream_jsonl, output_stream_jsonl_sync, output_stream_jsonl_sync_stdout,
+    output_stream_jsonl_with_config,
 };
 
 // Re-export commonly used formatters
