@@ -19,6 +19,7 @@ mod cli;
 mod commands;
 pub mod config;
 pub mod error;
+pub mod generate;
 mod output;
 mod prompt;
 mod utils;

@@ -10,6 +10,8 @@ use blz_core::{
 use chrono::Utc;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -20,6 +22,7 @@ use url::Url;
 
 use crate::utils::count_headings;
 use crate::utils::validation::{normalize_alias, validate_alias};
+use blz_core::discovery::{ProbeResult, probe_domain};
 use blz_core::url_resolver;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,6 +76,300 @@ struct ResolvedAddition {
     resolved_url: String,
     variant: SourceVariant,
     origin: SourceOrigin,
+}
+
+// ============================================================
+// Generate Flow Integration
+// ============================================================
+
+// These types and functions are prepared for integration in a follow-up PR
+// that will wire them into the actual add command flow.
+
+#[allow(dead_code)]
+/// Action to take after discovery when adding a source.
+///
+/// Used to determine the appropriate workflow based on what documentation
+/// sources are available at a domain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AddAction {
+    /// Use native llms-full.txt (preferred - complete documentation).
+    UseNative {
+        /// URL to the llms-full.txt file.
+        url: String,
+    },
+    /// Generate llms-full.txt from discovered URLs via Firecrawl.
+    Generate {
+        /// Number of URLs to scrape.
+        url_count: usize,
+    },
+    /// Use llms.txt as index only (no generation).
+    IndexOnly {
+        /// URL to the llms.txt file.
+        url: String,
+    },
+    /// Cancel the operation.
+    Cancel,
+}
+
+impl std::fmt::Display for AddAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UseNative { url } => write!(f, "Use native llms-full.txt ({url})"),
+            Self::Generate { url_count } => write!(f, "Generate from {url_count} URLs"),
+            Self::IndexOnly { url } => write!(f, "Index only from llms.txt ({url})"),
+            Self::Cancel => write!(f, "Cancel operation"),
+        }
+    }
+}
+
+/// Determine what action to take based on discovery results.
+///
+/// # Arguments
+///
+/// * `probe` - Result from probing the domain
+/// * `interactive` - Whether to allow interactive prompts (currently unused)
+///
+/// # Returns
+///
+/// The recommended [`AddAction`] based on available sources.
+///
+/// # Errors
+///
+/// Returns an error if no usable documentation sources are found.
+///
+/// # Behavior
+///
+/// 1. If `llms_full_url` exists, returns `UseNative`
+/// 2. If only `llms_url` exists, returns `IndexOnly`
+/// 3. If only `sitemap_url` exists, returns error (requires generation)
+/// 4. If nothing found, returns error
+#[allow(dead_code)]
+pub fn determine_add_action(probe: &ProbeResult, _interactive: bool) -> Result<AddAction> {
+    // Prefer native llms-full.txt when available
+    if let Some(url) = &probe.llms_full_url {
+        return Ok(AddAction::UseNative { url: url.clone() });
+    }
+
+    // If llms.txt exists, can use it as index-only
+    if let Some(url) = &probe.llms_url {
+        return Ok(AddAction::IndexOnly { url: url.clone() });
+    }
+
+    // Sitemap only - would need generation to be useful
+    if probe.sitemap_url.is_some() {
+        anyhow::bail!(
+            "No documentation sources found for '{}'. \
+             Found sitemap.xml but no llms.txt or llms-full.txt. \
+             Generation from sitemap requires Firecrawl.",
+            probe.domain
+        );
+    }
+
+    // Nothing found
+    let subdomain_hint = if probe.docs_subdomain_checked {
+        " (also checked docs.* subdomain)"
+    } else {
+        ""
+    };
+    anyhow::bail!(
+        "No documentation sources found for '{}'{}. \
+         Expected llms-full.txt, llms.txt, or sitemap.xml at the domain root.",
+        probe.domain,
+        subdomain_hint
+    );
+}
+
+/// Prompt choices for generate action.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GenerateChoice {
+    /// Generate documentation from discovered URLs.
+    Generate,
+    /// Use llms.txt as index only.
+    IndexOnly,
+    /// Cancel the operation.
+    Cancel,
+}
+
+impl std::fmt::Display for GenerateChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Generate => write!(f, "Generate (scrape discovered URLs)"),
+            Self::IndexOnly => write!(f, "Index only (use llms.txt as-is)"),
+            Self::Cancel => write!(f, "Cancel"),
+        }
+    }
+}
+
+/// Prompt user for action when no native llms-full.txt is available.
+///
+/// Shows discovered URL count and offers:
+/// - Generate: scrape URLs to create llms-full.txt
+/// - Index only: use llms.txt as-is (if available)
+/// - Cancel: abort the operation
+///
+/// # Arguments
+///
+/// * `url_count` - Number of URLs discovered for generation
+/// * `has_llms_txt` - Whether llms.txt is available for index-only mode
+///
+/// # Returns
+///
+/// The selected [`AddAction`].
+///
+/// # Errors
+///
+/// Returns an error if the prompt is interrupted or cannot be displayed.
+#[allow(dead_code)]
+pub fn prompt_generate_action(url_count: usize, has_llms_txt: bool) -> Result<AddAction> {
+    use inquire::Select;
+
+    let message =
+        format!("No llms-full.txt available. Found {url_count} URLs. What would you like to do?");
+
+    let mut choices = vec![GenerateChoice::Generate];
+    if has_llms_txt {
+        choices.push(GenerateChoice::IndexOnly);
+    }
+    choices.push(GenerateChoice::Cancel);
+
+    let selection = Select::new(&message, choices)
+        .with_help_message("Use arrow keys to select, Enter to confirm")
+        .prompt()
+        .map_err(|e| anyhow::anyhow!("Prompt cancelled: {e}"))?;
+
+    match selection {
+        GenerateChoice::Generate => Ok(AddAction::Generate { url_count }),
+        GenerateChoice::IndexOnly => Ok(AddAction::IndexOnly {
+            url: String::new(), // Will be filled by caller
+        }),
+        GenerateChoice::Cancel => Ok(AddAction::Cancel),
+    }
+}
+
+/// Statistics from a generate operation.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Default)]
+pub struct GenerateStats {
+    /// Number of successfully scraped pages.
+    pub successful: usize,
+    /// Number of failed pages.
+    pub failed: usize,
+    /// Total lines in generated content.
+    pub total_lines: usize,
+}
+
+#[allow(dead_code)]
+impl GenerateStats {
+    /// Get the total number of URLs processed.
+    #[must_use]
+    pub const fn total(&self) -> usize {
+        self.successful + self.failed
+    }
+}
+
+/// Execute the generate flow to scrape URLs and create documentation.
+///
+/// Uses the [`GenerateOrchestrator`] to scrape discovered URLs in parallel,
+/// showing progress via an indicatif progress bar.
+///
+/// # Arguments
+///
+/// * `urls` - URLs to scrape (with optional lastmod for change detection)
+/// * `concurrency` - Maximum concurrent scrape operations
+/// * `quiet` - Whether to suppress progress output
+///
+/// # Returns
+///
+/// A tuple of (assembled markdown content, [`GenerateStats`]).
+///
+/// # Errors
+///
+/// Returns an error if the scraping fails completely (partial failures are recorded in stats).
+///
+/// [`GenerateOrchestrator`]: crate::generate::GenerateOrchestrator
+#[allow(dead_code)]
+pub async fn execute_generate_flow(
+    urls: &[crate::generate::UrlWithLastmod],
+    scraper: impl crate::generate::Scraper,
+    concurrency: usize,
+    quiet: bool,
+) -> Result<(String, GenerateStats)> {
+    use crate::generate::GenerateOrchestrator;
+
+    if urls.is_empty() {
+        return Ok((String::new(), GenerateStats::default()));
+    }
+
+    let total = urls.len();
+
+    // Create progress bar
+    let pb = if quiet {
+        ProgressBar::hidden()
+    } else {
+        let pb = ProgressBar::new(total as u64);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("[{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .unwrap_or_else(|_| ProgressStyle::default_bar())
+                .progress_chars("=>-"),
+        );
+        pb.set_message("Scraping...");
+        pb
+    };
+
+    // Track progress with atomic counter for thread-safe updates
+    let completed = Arc::new(AtomicUsize::new(0));
+    let completed_clone = Arc::clone(&completed);
+    let pb_clone = pb.clone();
+
+    // Create orchestrator with progress callback
+    let orchestrator =
+        GenerateOrchestrator::new(scraper, concurrency).with_progress(move |done, _total| {
+            completed_clone.store(done, Ordering::SeqCst);
+            pb_clone.set_position(done as u64);
+        });
+
+    // Execute scraping
+    let results = orchestrator.scrape_all(urls).await;
+
+    pb.finish_and_clear();
+
+    // Assemble markdown from successful scrapes
+    let mut assembled = String::new();
+    let mut total_lines = 0usize;
+
+    for entry in &results.successful {
+        // Add page header with source URL
+        if !assembled.is_empty() {
+            assembled.push_str("\n\n---\n\n");
+        }
+
+        // Add title if available
+        if let Some(title) = &entry.title {
+            assembled.push_str("# ");
+            assembled.push_str(title);
+            assembled.push_str("\n\n");
+        }
+
+        // Add source attribution
+        assembled.push_str("> Source: ");
+        assembled.push_str(&entry.url);
+        assembled.push_str("\n\n");
+
+        // Add content
+        assembled.push_str(&entry.markdown);
+
+        total_lines += entry.line_count;
+    }
+
+    let stats = GenerateStats {
+        successful: results.successful.len(),
+        failed: results.failed.len(),
+        total_lines,
+    };
+
+    Ok((assembled, stats))
 }
 
 impl DescriptorInput {
@@ -946,6 +1243,88 @@ fn extract_urls_from_content(content: &str) -> Vec<String> {
     urls
 }
 
+/// Check if the input appears to be a domain-only string (no protocol, no path).
+///
+/// Domain-only inputs are detected by:
+/// - Not containing "://" (no protocol)
+/// - Not starting with "http" (even without protocol prefix)
+/// - Containing at least one dot (has TLD)
+/// - Not containing "/" (no path component)
+/// - Not starting with "." (not a dotfile)
+///
+/// This function is used during add command execution to determine if the input
+/// should trigger domain discovery (e.g., `blz add hono.dev`).
+///
+/// # Examples
+///
+/// ```ignore
+/// assert!(is_domain_only("hono.dev"));
+/// assert!(is_domain_only("docs.tanstack.com"));
+/// assert!(!is_domain_only("https://hono.dev"));
+/// assert!(!is_domain_only("react")); // No dot = alias
+/// assert!(!is_domain_only("/path/to/file"));
+/// ```
+#[allow(dead_code)]
+#[must_use]
+pub fn is_domain_only(input: &str) -> bool {
+    // Empty string is not a domain
+    if input.is_empty() {
+        return false;
+    }
+
+    // Has protocol prefix - not domain-only
+    if input.contains("://") || input.starts_with("http") {
+        return false;
+    }
+
+    // Must contain at least one dot (for TLD)
+    if !input.contains('.') {
+        return false;
+    }
+
+    // Must not contain path separator
+    if input.contains('/') {
+        return false;
+    }
+
+    // Must not start with dot (dotfile)
+    if input.starts_with('.') {
+        return false;
+    }
+
+    true
+}
+
+/// Probe a domain for documentation sources.
+///
+/// Uses `blz_core::discovery::probe_domain` to check for llms.txt, llms-full.txt,
+/// and sitemap.xml at the given domain.
+///
+/// # Arguments
+///
+/// * `domain` - The domain to probe (e.g., "hono.dev")
+///
+/// # Returns
+///
+/// A [`ProbeResult`] containing URLs for any discovered documentation sources.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP client cannot be constructed or network errors occur.
+///
+/// # Examples
+///
+/// ```ignore
+/// let result = discover_for_domain("hono.dev").await?;
+/// if let Some(url) = result.best_url() {
+///     println!("Found documentation at: {}", url);
+/// }
+/// ```
+#[allow(dead_code)]
+pub async fn discover_for_domain(domain: &str) -> Result<ProbeResult> {
+    probe_domain(domain).await.map_err(Into::into)
+}
+
 fn display_name_from_alias(alias: &str) -> String {
     let mut title = String::new();
     for (idx, part) in alias
@@ -970,6 +1349,12 @@ fn display_name_from_alias(alias: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::disallowed_macros,
+    clippy::unnecessary_wraps
+)]
 mod tests {
     use super::*;
 
@@ -1015,5 +1400,169 @@ mod tests {
 
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://example.com".to_string()));
+    }
+
+    // ============================================
+    // is_domain_only tests
+    // ============================================
+
+    #[test]
+    fn test_domain_only_simple_domains() {
+        // Standard domains should be detected
+        assert!(is_domain_only("hono.dev"));
+        assert!(is_domain_only("docs.tanstack.com"));
+        assert!(is_domain_only("react.dev"));
+        assert!(is_domain_only("example.com"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_urls() {
+        // URLs with protocol should NOT be domain-only
+        assert!(!is_domain_only("https://hono.dev"));
+        assert!(!is_domain_only("http://hono.dev"));
+        assert!(!is_domain_only("https://docs.tanstack.com"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_aliases() {
+        // Simple words without dots are aliases, not domains
+        assert!(!is_domain_only("react"));
+        assert!(!is_domain_only("bun"));
+        assert!(!is_domain_only("hono"));
+        assert!(!is_domain_only("tanstack"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_paths() {
+        // File paths should not be domain-only
+        assert!(!is_domain_only("/path/to/file"));
+        assert!(!is_domain_only("./local/file.txt"));
+        assert!(!is_domain_only("../parent/file"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_dotfiles() {
+        // Dotfiles should not be domain-only
+        assert!(!is_domain_only(".env"));
+        assert!(!is_domain_only(".gitignore"));
+        assert!(!is_domain_only(".config"));
+    }
+
+    #[test]
+    fn test_domain_only_rejects_urls_with_paths() {
+        // Domains with paths are NOT domain-only
+        assert!(!is_domain_only("hono.dev/docs"));
+        assert!(!is_domain_only("example.com/llms.txt"));
+    }
+
+    #[test]
+    fn test_domain_only_edge_cases() {
+        // Edge cases
+        assert!(!is_domain_only("")); // Empty string
+        assert!(!is_domain_only("localhost")); // No TLD
+        assert!(is_domain_only("localhost.dev")); // Has TLD
+    }
+
+    // ============================================
+    // AddAction and determine_add_action tests
+    // ============================================
+
+    #[test]
+    fn test_determine_action_native_available() {
+        let probe = ProbeResult {
+            domain: "example.com".to_string(),
+            llms_full_url: Some("https://example.com/llms-full.txt".to_string()),
+            llms_url: None,
+            sitemap_url: None,
+            docs_subdomain_checked: false,
+        };
+
+        let action = determine_add_action(&probe, false).unwrap();
+        assert!(matches!(action, AddAction::UseNative { .. }));
+
+        if let AddAction::UseNative { url } = action {
+            assert_eq!(url, "https://example.com/llms-full.txt");
+        }
+    }
+
+    #[test]
+    fn test_determine_action_native_with_fallbacks_prefers_native() {
+        // When llms-full.txt exists, always use it even if other sources exist
+        let probe = ProbeResult {
+            domain: "example.com".to_string(),
+            llms_full_url: Some("https://example.com/llms-full.txt".to_string()),
+            llms_url: Some("https://example.com/llms.txt".to_string()),
+            sitemap_url: Some("https://example.com/sitemap.xml".to_string()),
+            docs_subdomain_checked: false,
+        };
+
+        let action = determine_add_action(&probe, false).unwrap();
+        assert!(matches!(action, AddAction::UseNative { .. }));
+    }
+
+    #[test]
+    fn test_determine_action_llms_only_non_interactive() {
+        // When only llms.txt exists and non-interactive, suggest index-only
+        let probe = ProbeResult {
+            domain: "example.com".to_string(),
+            llms_full_url: None,
+            llms_url: Some("https://example.com/llms.txt".to_string()),
+            sitemap_url: None,
+            docs_subdomain_checked: false,
+        };
+
+        let action = determine_add_action(&probe, false).unwrap();
+        // In non-interactive mode without --yes, should suggest IndexOnly
+        assert!(matches!(action, AddAction::IndexOnly { .. }));
+    }
+
+    #[test]
+    fn test_determine_action_sitemap_only_non_interactive() {
+        // When only sitemap exists, cannot index without generation capability
+        let probe = ProbeResult {
+            domain: "example.com".to_string(),
+            llms_full_url: None,
+            llms_url: None,
+            sitemap_url: Some("https://example.com/sitemap.xml".to_string()),
+            docs_subdomain_checked: false,
+        };
+
+        // Without llms.txt or llms-full.txt, sitemap alone cannot provide an index
+        let result = determine_add_action(&probe, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_determine_action_no_sources() {
+        let probe = ProbeResult {
+            domain: "example.com".to_string(),
+            llms_full_url: None,
+            llms_url: None,
+            sitemap_url: None,
+            docs_subdomain_checked: true,
+        };
+
+        let result = determine_add_action(&probe, false);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No documentation sources found"));
+    }
+
+    #[test]
+    fn test_add_action_display() {
+        let native = AddAction::UseNative {
+            url: "https://example.com/llms-full.txt".to_string(),
+        };
+        let generate = AddAction::Generate { url_count: 42 };
+        let index_only = AddAction::IndexOnly {
+            url: "https://example.com/llms.txt".to_string(),
+        };
+        let cancel = AddAction::Cancel;
+
+        // Verify that Display is implemented correctly
+        assert!(format!("{native}").contains("llms-full.txt"));
+        assert!(format!("{generate}").contains("42"));
+        assert!(format!("{index_only}").contains("llms.txt"));
+        assert!(format!("{cancel}").contains("Cancel"));
     }
 }
