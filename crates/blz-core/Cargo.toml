@@ -39,6 +39,7 @@ unicode-normalization = "0.1"
 url = "2"
 tempfile = "3"
 futures = "0.3"
+quick-xml = "0.37"
 
 # Performance & profiling
 pprof = { workspace = true, features = ["flamegraph", "protobuf-codec"], optional = true }
