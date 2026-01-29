@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [2.1.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.0.0-beta.1...v2.1.0-beta.1) (2026-01-29)
+
+
+### Features
+
+* **cli:** add domain-only detection for add command ([#502](https://github.com/outfitter-dev/blz/issues/502)) ([1b12c4f](https://github.com/outfitter-dev/blz/commit/1b12c4f599d47af62458c2aa8fe44ef5586a2600))
+* **cli:** add generate flow integration types for add command ([#504](https://github.com/outfitter-dev/blz/issues/504)) ([8c66f50](https://github.com/outfitter-dev/blz/commit/8c66f504f9a068c495d00d36aa545fbec9ce5bce))
+* **cli:** add generate orchestrator for parallel scraping ([#503](https://github.com/outfitter-dev/blz/issues/503)) ([9832f85](https://github.com/outfitter-dev/blz/commit/9832f85e9c400198f31ddd0ede9a962b27684c5d))
+* **cli:** add generated source health to doctor command ([#506](https://github.com/outfitter-dev/blz/issues/506)) ([8202177](https://github.com/outfitter-dev/blz/commit/8202177b076d49459cc1fc59eff1ce77a6d11d3d))
+* **cli:** add lastmod-based sync optimization for generated sources ([#505](https://github.com/outfitter-dev/blz/issues/505)) ([9f1f56a](https://github.com/outfitter-dev/blz/commit/9f1f56a281b9d3a91f303c190b9548b763f69dc3))
+* **discovery:** add alias derivation from domains ([#496](https://github.com/outfitter-dev/blz/issues/496)) ([6dc8403](https://github.com/outfitter-dev/blz/commit/6dc840354051bdeabbde74d4975b720c76e9bfc1))
+* **discovery:** add domain probing for documentation sources ([#494](https://github.com/outfitter-dev/blz/issues/494)) ([1468636](https://github.com/outfitter-dev/blz/commit/14686366b88353f4884d06f1147db2ddb6c65096))
+* **discovery:** add sitemap parsing with lastmod extraction ([#495](https://github.com/outfitter-dev/blz/issues/495)) ([43b3a07](https://github.com/outfitter-dev/blz/commit/43b3a0724b9355c5d375a8b321f7791b86fd4e2a))
+* **discovery:** add URL extraction and filtering ([#497](https://github.com/outfitter-dev/blz/issues/497)) ([c91e832](https://github.com/outfitter-dev/blz/commit/c91e832241b327077d113dba031d68cb405dba81))
+* **firecrawl:** add CLI detection and version validation ([#490](https://github.com/outfitter-dev/blz/issues/490)) ([3dc51b9](https://github.com/outfitter-dev/blz/commit/3dc51b9c1700f34028bdd6221075965570a5a159))
+* **firecrawl:** add scrape and map operations ([#491](https://github.com/outfitter-dev/blz/issues/491)) ([d3cbe32](https://github.com/outfitter-dev/blz/commit/d3cbe327cafe12177eb7d120ef751ee49715c6ad))
+* **generate:** add content assembler for llms-full.txt ([#501](https://github.com/outfitter-dev/blz/issues/501)) ([e7dbcaa](https://github.com/outfitter-dev/blz/commit/e7dbcaa1cbb1d803f55be2dcc8de8f383d387cbf))
+* **generate:** add manifest types for generated sources ([#500](https://github.com/outfitter-dev/blz/issues/500)) ([8a1bcdb](https://github.com/outfitter-dev/blz/commit/8a1bcdb3bd210f0f7203c826d4e6d7db3cc5d3f0))
+* **page_cache:** add page cache storage layer ([#499](https://github.com/outfitter-dev/blz/issues/499)) ([6ef8fc2](https://github.com/outfitter-dev/blz/commit/6ef8fc21ffb0f6967f531a2b75254445515bc249))
+* **page_cache:** add page cache types ([#498](https://github.com/outfitter-dev/blz/issues/498)) ([4e0fa37](https://github.com/outfitter-dev/blz/commit/4e0fa37a795e0aee50100c68902d86f65240c7d0))
+
+
+### Bug Fixes
+
+* **cli:** remove implicit query routing from root command ([#507](https://github.com/outfitter-dev/blz/issues/507)) ([1669f87](https://github.com/outfitter-dev/blz/commit/1669f87992e66df4acafdfed915fce1aedf7589c))
+* **firecrawl:** consolidate match arms for clippy compliance ([#492](https://github.com/outfitter-dev/blz/issues/492)) ([1208ec2](https://github.com/outfitter-dev/blz/commit/1208ec285ec5db81a8e71cf961eed1c749c649fb))
+
 ## [2.0.0-beta.1] - 2026-01-27
 
 ### ⚠️ Breaking Changes
