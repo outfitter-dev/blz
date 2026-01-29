@@ -63,6 +63,8 @@ pub mod error;
 pub mod fetcher;
 /// Firecrawl CLI detection and web scraping integration
 pub mod firecrawl;
+/// Generation pipeline for creating llms.txt from web scraping
+pub mod generate;
 /// Heading sanitization and normalization helpers
 pub mod heading;
 /// Search index implementation using Tantivy
@@ -75,6 +77,8 @@ pub mod language_filter;
 pub mod mapping;
 /// Safe numeric conversion helpers
 pub mod numeric;
+/// Page cache for scraped web content
+pub mod page_cache;
 /// Tree-sitter based markdown parser
 pub mod parser;
 /// Application profile detection helpers
