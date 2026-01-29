@@ -50,8 +50,10 @@
 //! assert_eq!(manifest.stats.successful_pages, 1);
 //! ```
 
+mod assembler;
 mod manifest;
 
+pub use assembler::{AssemblyResult, ContentAssembler, LineMapEntry};
 pub use manifest::{
     DiscoveryInfo, GenerateManifest, GenerateStats, GeneratedSourceType, PageMeta, SCHEMA_VERSION,
     UrlSourceCounts,
