@@ -4,6 +4,7 @@
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
 use anyhow::{Result, anyhow};
+use blz_core::profiling::ResourceMonitor;
 use blz_core::{PerformanceMetrics, Storage};
 use clap::{CommandFactory, Parser};
 use colored::Colorize;
@@ -72,6 +73,13 @@ pub async fn run() -> Result<()> {
 
     let metrics = PerformanceMetrics::default();
 
+    // Create resource monitor early to capture baseline memory if profiling requested
+    let mut resource_monitor = if cli.profile {
+        Some(ResourceMonitor::new())
+    } else {
+        None
+    };
+
     #[cfg(feature = "flamegraph")]
     let profiler_guard = start_flamegraph_if_requested(&cli);
 
@@ -80,7 +88,7 @@ pub async fn run() -> Result<()> {
     #[cfg(feature = "flamegraph")]
     stop_flamegraph_if_started(profiler_guard);
 
-    print_diagnostics(&cli, &metrics);
+    print_diagnostics(&cli, &metrics, resource_monitor.as_mut());
 
     if let Err(err) = preferences::save(&cli_preferences) {
         warn!("failed to persist CLI preferences: {err}");
@@ -1091,6 +1099,7 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
         None,
         metrics,
         None,
+        false, // no deprecation warning - `blz docs search` is the intended command
     )
     .await
 }
@@ -1369,6 +1378,7 @@ async fn handle_search(
         Some(prefs),
         metrics,
         None,
+        true, // emit deprecation warning - this is the deprecated `blz search` command
     )
     .await
 }
@@ -1424,9 +1434,16 @@ async fn handle_refresh(
     Ok(())
 }
 
-fn print_diagnostics(cli: &Cli, metrics: &PerformanceMetrics) {
+fn print_diagnostics(
+    cli: &Cli,
+    metrics: &PerformanceMetrics,
+    resource_monitor: Option<&mut ResourceMonitor>,
+) {
     if cli.debug {
         metrics.print_summary();
+    }
+    if let Some(monitor) = resource_monitor {
+        monitor.print_resource_usage();
     }
 }
 

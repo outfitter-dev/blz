@@ -21,7 +21,7 @@ blz map bun --tree -H 1-2 --json                    # Browse structure
 2. **Use explicit commands**: `blz query` for search, `blz get` for retrieval
 3. **Prefer `--json` outputs**: Set `export BLZ_OUTPUT_FORMAT=json` for session-wide JSON output
 4. **Choose `llms-full.txt` when available**: Provides complete docs with best search quality; fall back to `llms.txt` if `-full` variant doesn't exist
-5. **Control context**: Use `-C <N>` for line context, `--context all` for full sections, `--max-lines <N>` to cap output
+5. **Control context**: Use `-C <N>` for line context, `--context all` to expand to the containing heading section (falls back to requested lines if no heading), `--max-lines <N>` to cap output
 6. **Filter by heading level**: Use `-H 1,2,3` or `-H <=2` to target specific section depths
 
 ## Setup & Sources
@@ -48,8 +48,10 @@ blz query "authentication" -H 2 --json               # Filter to h2 headings onl
 blz query "error handling" -H 3 --headings-only --json  # Match headings, not body text
 
 # Retrieve mode: citations fetch exact line ranges
-blz get bun:41994-42009 -C 5 --json               # Add 5 lines of context
-blz get bun:41994-42009 --context all --max-lines 80 --json  # Full section, capped
+blz get bun:41994-42009 -C 5 --json                          # Add 5 lines of context
+blz get bun:41994-42009 --context all --max-lines 80 --json  # Expand to heading section, capped
+# Note: --context all expands to the containing heading section.
+# If no heading encompasses the range, returns only the requested lines.
 
 # Mix multiple citations from different sources
 blz get bun:41994-42009 turbo:2656-2729 -C 2 --json
@@ -138,5 +140,5 @@ blz query "configuration options" -H 2,3 --json | jq '.results[0:5]'
 - `blz refresh` → use `blz sync`
 
 **Legacy options**:
-- `--block` → use `--context all`
+- `--block` → use `--context all` (expands to containing heading section; returns only requested lines if no heading encompasses the range)
 - `-c<N>` → use `-C <N>` (grep-style)

@@ -105,6 +105,12 @@ pub fn clamp_max_chars(value: usize) -> usize {
 /// This function delegates to the unified `find` command for consistent behavior.
 ///
 /// **Deprecated**: Use `blz find` instead. The `search` command will be removed in a future release.
+///
+/// # Parameters
+///
+/// * `emit_deprecation_warning` - If `true`, prints a deprecation warning to stderr.
+///   Should be `true` when called from the deprecated `blz search` command,
+///   and `false` when called from valid commands like `blz docs search`.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
@@ -132,9 +138,14 @@ pub async fn execute(
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
+    emit_deprecation_warning: bool,
 ) -> Result<()> {
     // Emit deprecation warning to stderr (doesn't interfere with JSON output)
-    eprintln!("warning: `blz search` is deprecated, use `blz find` instead");
+    // Only warn when called from the deprecated `blz search` command,
+    // not from valid commands like `blz docs search`
+    if emit_deprecation_warning {
+        eprintln!("warning: `blz search` is deprecated, use `blz find` instead");
+    }
 
     // Delegate to find command
     // Convert limit to Option<usize> and bool `all` flag for find
