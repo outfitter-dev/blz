@@ -198,11 +198,18 @@ async fn execute_single(
 /// 1. Loads the generate manifest
 /// 2. Fetches the sitemap
 /// 3. Compares lastmod timestamps
-/// 4. Reports which pages need updates (actual scraping deferred)
+/// 4. Scrapes updated/new pages with Firecrawl
+/// 5. Updates the manifest with new content
 ///
-/// Returns `Ok(true)` if updates are needed, `Ok(false)` if unchanged.
+/// Returns `Ok(true)` if updates were applied, `Ok(false)` if unchanged.
+#[allow(clippy::too_many_lines)]
 async fn sync_generated_source(storage: &Storage, alias: &str, quiet: bool) -> Result<bool> {
+    use std::io::Write;
+
     use blz_core::discovery::fetch_sitemap;
+    use blz_core::firecrawl::{FirecrawlCli, FirecrawlStatus, detect_firecrawl};
+
+    use crate::generate::{GenerateOrchestrator, UrlWithLastmod as OrchestratorUrl};
 
     if !quiet {
         println!("Syncing {} {}...", alias.green(), "(generated)".dimmed());
@@ -243,23 +250,164 @@ async fn sync_generated_source(storage: &Storage, alias: &str, quiet: bool) -> R
 
     if total_to_scrape == 0 {
         if !quiet {
-            println!("{} {} (unchanged)", "".green(), alias.green());
+            println!("{} {} (unchanged)", "✓".green(), alias.green());
         }
         return Ok(false);
     }
 
-    // Report what would be done (actual scraping requires Firecrawl integration)
-    if !quiet {
-        println!(
-            "\n{} {} pages would be scraped",
-            "Note:".yellow(),
-            total_to_scrape
-        );
-        println!("  Full scraping requires Firecrawl CLI integration (coming soon)");
-        println!("  For now, use 'blz generate' to regenerate with updated content");
+    // Detect Firecrawl CLI
+    let firecrawl_status = detect_firecrawl().await;
+    let firecrawl_cli = match firecrawl_status {
+        FirecrawlStatus::Ready { version, path } => {
+            if !quiet {
+                println!(
+                    "  Using Firecrawl {} at {}",
+                    version.to_string().cyan(),
+                    path.dimmed()
+                );
+            }
+            FirecrawlCli::detect().await?
+        },
+        FirecrawlStatus::NotInstalled => {
+            if !quiet {
+                println!("\n{} Firecrawl CLI not installed", "Note:".yellow());
+                println!("  Install: https://github.com/mendableai/firecrawl-cli");
+                println!("  {total_to_scrape} pages would be scraped once Firecrawl is available");
+            }
+            return Ok(true); // Updates available but can't scrape
+        },
+        FirecrawlStatus::VersionTooOld {
+            found, required, ..
+        } => {
+            if !quiet {
+                println!(
+                    "\n{} Firecrawl {} is too old (need {})",
+                    "Note:".yellow(),
+                    found,
+                    required
+                );
+            }
+            return Ok(true);
+        },
+        FirecrawlStatus::NotAuthenticated { .. } => {
+            if !quiet {
+                println!("\n{} Firecrawl not authenticated", "Note:".yellow());
+                println!("  Run: firecrawl login");
+            }
+            return Ok(true);
+        },
+    };
+
+    // Convert URLs to orchestrator format
+    let mut urls_to_scrape: Vec<OrchestratorUrl> = updates
+        .iter()
+        .map(|u| OrchestratorUrl::new(u.url.clone()).with_lastmod(u.lastmod))
+        .collect();
+
+    // Add retry URLs
+    for retry in &retries {
+        urls_to_scrape.push(OrchestratorUrl::new(retry.url.clone()));
     }
 
-    // Return true to indicate updates are available
+    // Create orchestrator with progress callback
+    let progress_callback = if quiet {
+        None
+    } else {
+        Some(move |completed: usize, total: usize| {
+            print!("\r  Scraping: {completed}/{total}");
+            let _ = std::io::stdout().flush();
+        })
+    };
+
+    let orchestrator = if let Some(cb) = progress_callback {
+        GenerateOrchestrator::new(firecrawl_cli, 5).with_progress(cb)
+    } else {
+        GenerateOrchestrator::new(firecrawl_cli, 5)
+    };
+
+    // Scrape all URLs
+    let scrape_results = orchestrator.scrape_all(&urls_to_scrape).await;
+
+    if !quiet {
+        println!(); // Newline after progress
+        println!(
+            "  Scraped: {} successful, {} failed",
+            scrape_results.successful.len().to_string().green(),
+            if scrape_results.failed.is_empty() {
+                "0".to_string()
+            } else {
+                scrape_results.failed.len().to_string().red().to_string()
+            }
+        );
+    }
+
+    // Update manifest with new pages
+    let mut updated_manifest = manifest.clone();
+    updated_manifest.last_sync = chrono::Utc::now();
+
+    // Convert and merge successful pages
+    for page in scrape_results.successful {
+        // Remove old entry if exists
+        updated_manifest.pages.retain(|p| p.url != page.url);
+
+        // Add new entry (convert from blz_core type to local type)
+        updated_manifest.pages.push(PageCacheEntry {
+            url: page.url,
+            title: page.title,
+            fetched_at: page.fetched_at,
+            sitemap_lastmod: page.sitemap_lastmod,
+            markdown: page.markdown,
+            line_count: page.line_count,
+        });
+    }
+
+    // Update failed pages
+    for failed in scrape_results.failed {
+        // Find existing or create new
+        if let Some(existing) = updated_manifest
+            .failed
+            .iter_mut()
+            .find(|f| f.url == failed.url)
+        {
+            existing.error = failed.error;
+            existing.attempts += 1;
+            existing.last_attempt = chrono::Utc::now();
+        } else {
+            updated_manifest.failed.push(FailedPage {
+                url: failed.url,
+                error: failed.error,
+                attempts: 1,
+                last_attempt: chrono::Utc::now(),
+            });
+        }
+    }
+
+    // Remove from failed list pages that succeeded
+    let successful_urls: std::collections::HashSet<_> = updated_manifest
+        .pages
+        .iter()
+        .map(|p| p.url.as_str())
+        .collect();
+    updated_manifest
+        .failed
+        .retain(|f| !successful_urls.contains(f.url.as_str()));
+
+    // Calculate total lines
+    updated_manifest.total_lines = updated_manifest.pages.iter().map(|p| p.line_count).sum();
+
+    // Save updated manifest
+    generated::save_generate_manifest(storage, alias, &updated_manifest)?;
+
+    if !quiet {
+        println!(
+            "{} {} synced ({} pages, {} lines)",
+            "✓".green(),
+            alias.green(),
+            updated_manifest.pages.len(),
+            updated_manifest.total_lines
+        );
+    }
+
     Ok(true)
 }
 
