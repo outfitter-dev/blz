@@ -39,7 +39,31 @@
 //! 2. `https://{domain}/llms.txt` - Documentation index
 //! 3. `https://{domain}/sitemap.xml` - URL discovery fallback
 //! 4. `https://docs.{domain}/*` - Subdomain fallback if main domain has nothing
+//!
+//! ## Smart URL Resolution
+//!
+//! The [`probe_url`] function provides smarter resolution when given a URL with a path:
+//!
+//! 1. Check Link headers on the URL for `rel="llms-txt"` or `rel="llms-full-txt"`
+//! 2. Probe path-relative locations (e.g., `/docs/llms-full.txt`)
+//! 3. Probe the host root
+//! 4. Try docs.* subdomain
+//! 5. Suggest parent domain (requires user confirmation)
+//!
+//! ```no_run
+//! use blz_core::discovery::probe_url;
+//!
+//! # async fn example() -> blz_core::Result<()> {
+//! // Smart resolution finds llms-full.txt via Link header or path probing
+//! let result = probe_url("https://code.claude.com/docs").await?;
+//!
+//! if result.requires_confirmation {
+//!     println!("Found at different scope - please confirm");
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 pub mod probe;
 
-pub use probe::{ProbeResult, probe_domain};
+pub use probe::{DiscoveryMethod, ProbeResult, probe_domain, probe_url};
