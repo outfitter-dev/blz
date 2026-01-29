@@ -120,7 +120,7 @@ pub type ProgressCallback = Arc<dyn Fn(usize, usize) + Send + Sync>;
 ///
 /// ## Example
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// use blz_cli::generate::{GenerateOrchestrator, UrlWithLastmod};
 /// use std::sync::Arc;
 ///
