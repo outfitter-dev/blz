@@ -30,7 +30,7 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - `blz docs`: Test all subcommands (search, sync, overview, cat, export)
    - `blz add`: Test adding sources with various URLs, test `-y` flag, test duplicate handling
    - `blz list`: Test empty state, populated state, JSON vs text output, `--status`, `--details`, `--limit`
-   - `blz search`: Test basic queries, phrase searches, pagination (`--next`, `--previous`, `--last`), source filtering, scoring, `--max-chars`
+   - `blz query`: Test basic queries, phrase searches, pagination (`--next`, `--previous`, `--last`), source filtering, scoring, `--max-chars` (cover deprecated `blz search` and `blz find` aliases)
    - `blz get`: Test line ranges (colon syntax `source:lines`), context flags (`-C`, `-A`, `-B`, `--context all`), invalid ranges
    - `blz refresh`: Test single source and `--all` flag (cover deprecated `blz update` alias)
    - `blz remove`: Test removal and confirmation flows
@@ -43,20 +43,20 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - `blz lookup`: Test registry search, format shortcuts, `--limit`
    - `blz registry`: Test registry management commands
    - `blz alias`: Test alias management (add, rm subcommands)
-   - `blz toc` (legacy alias: `blz anchor`): Test heading utilities and remap mappings
+   - `blz map` (legacy alias: `blz toc`): Test heading utilities and remap mappings
    - `blz completions`: Test shell completion generation for different shells
    - Any other commands discovered via `--help`
    - Other `--flags` that are typical in CLI tools that an agent might expect to be available
 
 5. **Integration Testing**: Test realistic workflows:
-   - Add source → search → get lines → verify content
-   - Add multiple sources → search across all → filter by source
-   - Update sources → verify changes reflected in search
+   - Add source → query → get lines → verify content
+   - Add multiple sources → query across all → filter by source
+   - Update sources → verify changes reflected in query
    - Test pagination: first page → `--next` → `--previous` → `--last`
    - Test bundled docs: `blz docs sync` → `blz docs search "test"` → `blz docs overview`
-   - Test context expansion: `blz search "api"` → `blz get result:123 -C5` → `--context all`
-   - Test format shortcuts: `blz list --json` → `blz stats --jsonl` → `blz search "test" --raw`
-   - Test snippet sizing: `blz search "test" --max-chars 100` → `--max-chars 500` → compare results
+   - Test context expansion: `blz query "api"` → `blz get result:123 -C5` → `--context all`
+   - Test format shortcuts: `blz list --json` → `blz stats --jsonl` → `blz query "test" --raw`
+   - Test snippet sizing: `blz query "test" --max-chars 100` → `--max-chars 500` → compare results
    - Test grep-style context: `blz get source:100 -A5` → `-B5` → `-C10` → verify context lines
    - Test health checks: `blz validate` → `blz doctor` → verify issue detection and fixes
 
@@ -79,7 +79,7 @@ You are an elite CLI testing specialist with deep expertise in comprehensive sof
    - **Backward pagination**: `--previous` flag and `--last` flag
    - **Grep-style context**: `-C`, `-A`, `-B` flags and their combinations
    - **Format shortcuts**: `--json`, `--jsonl`, `--text`, `--raw` across all read-only commands
-   - **Read-only enhancements**: `--limit` flag on `list`, `stats`, `lookup`, `anchor list`
+   - **Read-only enhancements**: `--limit` flag on `list`, `stats`, `lookup`, `map list`
    - **Context expansion**: `--context all` for single-line queries (replaces `--block`)
    - **Deprecated flag handling**: `--snippet-lines` should show deprecation warning
 
@@ -147,7 +147,7 @@ For each issue:
   - `blz get source:abc` (invalid line format)
   - `blz get source:999999-999999` (out of range)
 - **Format shortcut conflicts**: Multiple format flags (`--json --text` should handle priority)
-- **Bundled docs isolation**: `blz docs search` shouldn't affect regular search history
+- **Bundled docs isolation**: `blz docs search` shouldn't affect regular query history
 - **Deprecated flag usage**: `--snippet-lines 5` should work but warn
 
 ### Integration Test Results
