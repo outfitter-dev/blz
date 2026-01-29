@@ -27,7 +27,8 @@ fn setup_test_data() {
         std::fs::write(&test_file, test_content).unwrap();
 
         // Add test source (ignore if it already exists)
-        cmd.arg("add")
+        let _ = cmd
+            .arg("add")
             .arg("test-source")
             .arg(format!("file://{}", test_file.display()))
             .assert();

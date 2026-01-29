@@ -486,11 +486,10 @@ mod tests {
 
         // All alternatives should be valid and not collide
         for alt in &result.alternatives {
-            assert!(is_valid_alias(alt), "Alternative '{}' should be valid", alt);
+            assert!(is_valid_alias(alt), "Alternative '{alt}' should be valid");
             assert!(
                 !["react", "react-dev", "react-2"].contains(&alt.as_str()),
-                "Alternative '{}' should not collide",
-                alt
+                "Alternative '{alt}' should not collide"
             );
         }
     }
@@ -516,7 +515,7 @@ mod tests {
         let result = derive_alias_with_collision_check("react.dev", &["react"]);
         let mut seen = std::collections::HashSet::new();
         for alt in &result.alternatives {
-            assert!(seen.insert(alt), "Duplicate alternative: {}", alt);
+            assert!(seen.insert(alt), "Duplicate alternative: {alt}");
         }
     }
 
