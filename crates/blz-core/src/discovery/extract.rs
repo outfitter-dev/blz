@@ -310,11 +310,11 @@ mod tests {
 
     #[test]
     fn test_extracts_markdown_links() {
-        let content = r#"
+        let content = r"
 # Documentation
 - [Getting Started](/docs/getting-started)
 - [API Reference](https://example.com/api)
-"#;
+";
         let urls = extract_urls(content, "https://example.com");
         assert!(urls.contains(&"https://example.com/docs/getting-started".to_string()));
         assert!(urls.contains(&"https://example.com/api".to_string()));

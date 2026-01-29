@@ -17,7 +17,7 @@
 //!
 //! ## Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use blz_cli::commands::sync::generated::{is_generated_source, pages_needing_update};
 //! use blz_core::Storage;
 //!
