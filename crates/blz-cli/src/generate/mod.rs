@@ -37,7 +37,8 @@
 
 mod orchestrator;
 
+pub use blz_core::firecrawl::ScrapeResult;
+pub use blz_core::page_cache::{FailedPage, PageCacheEntry};
 pub use orchestrator::{
-    GenerateOrchestrator, ProgressCallback, ScrapeError, ScrapeResult, ScrapeResults, Scraper,
-    UrlWithLastmod,
+    GenerateOrchestrator, ProgressCallback, ScrapeError, ScrapeResults, Scraper, UrlWithLastmod,
 };

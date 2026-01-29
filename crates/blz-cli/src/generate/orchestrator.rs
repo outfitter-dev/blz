@@ -6,14 +6,12 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use blz_core::firecrawl::ScrapeResult as CoreScrapeResult;
+use blz_core::page_cache::{FailedPage, PageCacheEntry};
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
-
-// TODO: Replace these stub types with imports from blz_core when available:
-// use blz_core::firecrawl::{FirecrawlCli, ScrapeOptions, ScrapeResult};
-// use blz_core::page_cache::{PageCacheEntry, FailedPage};
 
 /// URL with optional lastmod for change detection.
 ///
@@ -156,7 +154,7 @@ pub struct GenerateOrchestrator<S: Scraper> {
 #[async_trait::async_trait]
 pub trait Scraper: Send + Sync {
     /// Scrape a URL and return the result.
-    async fn scrape(&self, url: &str) -> Result<ScrapeResult, ScrapeError>;
+    async fn scrape(&self, url: &str) -> Result<CoreScrapeResult, ScrapeError>;
 }
 
 /// Error from a scrape operation.
@@ -198,87 +196,17 @@ impl std::fmt::Display for ScrapeError {
 impl std::error::Error for ScrapeError {}
 
 // ============================================================
-// Stub types for compilation (replace with blz_core imports)
+// Helpers
 // ============================================================
 
-/// Result of a scrape operation.
-///
-/// TODO: Replace with `blz_core::firecrawl::ScrapeResult` when available.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ScrapeResult {
-    /// Extracted markdown content.
-    pub markdown: String,
-    /// Page title.
-    #[serde(default)]
-    pub title: Option<String>,
-    /// Source URL.
-    pub url: String,
-}
-
-/// A cached page from web scraping.
-///
-/// TODO: Replace with `blz_core::page_cache::PageCacheEntry` when available.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PageCacheEntry {
-    /// Source URL.
-    pub url: String,
-    /// Page title.
-    pub title: Option<String>,
-    /// When this page was fetched.
-    pub fetched_at: DateTime<Utc>,
-    /// Last modified date from sitemap.
-    pub sitemap_lastmod: Option<DateTime<Utc>>,
-    /// Extracted markdown content.
-    pub markdown: String,
-    /// Number of lines in markdown.
-    pub line_count: usize,
-}
-
-impl PageCacheEntry {
-    /// Create from a scrape result.
-    #[must_use]
-    pub fn from_scrape_result(result: ScrapeResult, lastmod: Option<DateTime<Utc>>) -> Self {
-        let line_count = result.markdown.lines().count();
-        Self {
-            url: result.url,
-            title: result.title,
-            fetched_at: Utc::now(),
-            sitemap_lastmod: lastmod,
-            markdown: result.markdown,
-            line_count,
-        }
-    }
-}
-
-/// A page that failed to scrape.
-///
-/// TODO: Replace with `blz_core::page_cache::FailedPage` when available.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FailedPage {
-    /// URL that failed.
-    pub url: String,
-    /// Error message.
-    pub error: String,
-    /// Number of attempts.
-    pub attempts: u32,
-    /// Last attempt timestamp.
-    pub last_attempt: DateTime<Utc>,
-}
-
-impl FailedPage {
-    /// Create a new failed page.
-    #[must_use]
-    pub fn new(url: String, error: String) -> Self {
-        Self {
-            url,
-            error,
-            attempts: 1,
-            last_attempt: Utc::now(),
-        }
-    }
+/// Create a `PageCacheEntry` from a scrape result and optional lastmod.
+fn page_entry_from_scrape(
+    result: CoreScrapeResult,
+    lastmod: Option<DateTime<Utc>>,
+) -> PageCacheEntry {
+    PageCacheEntry::new(result.url, result.markdown)
+        .with_title(result.title)
+        .with_lastmod(lastmod)
 }
 
 // ============================================================
@@ -389,7 +317,7 @@ impl<S: Scraper> GenerateOrchestrator<S> {
         lastmod: Option<DateTime<Utc>>,
     ) -> Result<PageCacheEntry, FailedPage> {
         match self.scraper.scrape(url).await {
-            Ok(result) => Ok(PageCacheEntry::from_scrape_result(result, lastmod)),
+            Ok(result) => Ok(page_entry_from_scrape(result, lastmod)),
             Err(e) => Err(FailedPage::new(url.to_string(), e.message)),
         }
     }
@@ -422,7 +350,7 @@ mod tests {
     // --------------------------------------------------------
 
     struct MockScraper {
-        responses: Mutex<Vec<Result<ScrapeResult, ScrapeError>>>,
+        responses: Mutex<Vec<Result<CoreScrapeResult, ScrapeError>>>,
     }
 
     impl MockScraper {
@@ -434,10 +362,12 @@ mod tests {
 
         fn with_success(self, url: &str, markdown: &str) -> Self {
             let mut responses = self.responses.lock().expect("lock poisoned");
-            responses.push(Ok(ScrapeResult {
+            responses.push(Ok(CoreScrapeResult {
                 markdown: markdown.to_string(),
                 title: Some("Test Page".to_string()),
+                description: None,
                 url: url.to_string(),
+                status_code: Some(200),
             }));
             drop(responses);
             self
@@ -453,17 +383,19 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Scraper for MockScraper {
-        async fn scrape(&self, url: &str) -> Result<ScrapeResult, ScrapeError> {
+        async fn scrape(&self, url: &str) -> Result<CoreScrapeResult, ScrapeError> {
             // Small delay to simulate network
             tokio::time::sleep(Duration::from_millis(10)).await;
 
             let mut responses = self.responses.lock().expect("lock poisoned");
             if responses.is_empty() {
                 // Default success response
-                Ok(ScrapeResult {
+                Ok(CoreScrapeResult {
                     markdown: format!("# Content from {url}"),
                     title: Some("Default".to_string()),
+                    description: None,
                     url: url.to_string(),
+                    status_code: Some(200),
                 })
             } else {
                 responses.remove(0)
@@ -516,11 +448,13 @@ mod tests {
         let mut results = ScrapeResults::new();
         assert_eq!(results.total(), 0);
 
-        results.successful.push(PageCacheEntry::from_scrape_result(
-            ScrapeResult {
+        results.successful.push(page_entry_from_scrape(
+            CoreScrapeResult {
                 markdown: "test".to_string(),
                 title: None,
+                description: None,
                 url: "https://a.com".to_string(),
+                status_code: Some(200),
             },
             None,
         ));
@@ -539,11 +473,13 @@ mod tests {
         assert!((results.success_rate() - 0.0).abs() < f64::EPSILON);
 
         let mut results = ScrapeResults::new();
-        results.successful.push(PageCacheEntry::from_scrape_result(
-            ScrapeResult {
+        results.successful.push(page_entry_from_scrape(
+            CoreScrapeResult {
                 markdown: "test".to_string(),
                 title: None,
+                description: None,
                 url: "https://a.com".to_string(),
+                status_code: Some(200),
             },
             None,
         ));
@@ -557,18 +493,20 @@ mod tests {
     }
 
     // --------------------------------------------------------
-    // PageCacheEntry Tests
+    // page_entry_from_scrape Tests
     // --------------------------------------------------------
 
     #[test]
-    fn test_page_cache_entry_from_scrape_result() {
-        let result = ScrapeResult {
+    fn test_page_entry_from_scrape() {
+        let result = CoreScrapeResult {
             markdown: "# Hello\n\nWorld".to_string(),
             title: Some("Hello".to_string()),
+            description: None,
             url: "https://example.com/page".to_string(),
+            status_code: Some(200),
         };
 
-        let entry = PageCacheEntry::from_scrape_result(result, None);
+        let entry = page_entry_from_scrape(result, None);
 
         assert_eq!(entry.url, "https://example.com/page");
         assert_eq!(entry.title, Some("Hello".to_string()));
@@ -577,15 +515,17 @@ mod tests {
     }
 
     #[test]
-    fn test_page_cache_entry_with_lastmod() {
+    fn test_page_entry_from_scrape_with_lastmod() {
         let lastmod = Utc::now();
-        let result = ScrapeResult {
+        let result = CoreScrapeResult {
             markdown: "content".to_string(),
             title: None,
+            description: None,
             url: "https://example.com".to_string(),
+            status_code: Some(200),
         };
 
-        let entry = PageCacheEntry::from_scrape_result(result, Some(lastmod));
+        let entry = page_entry_from_scrape(result, Some(lastmod));
 
         assert_eq!(entry.sitemap_lastmod, Some(lastmod));
     }
@@ -795,7 +735,7 @@ mod tests {
 
         #[async_trait::async_trait]
         impl Scraper for Arc<ConcurrencyTracker> {
-            async fn scrape(&self, url: &str) -> Result<ScrapeResult, ScrapeError> {
+            async fn scrape(&self, url: &str) -> Result<CoreScrapeResult, ScrapeError> {
                 // Increment current
                 let current = self.current.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -819,10 +759,12 @@ mod tests {
                 // Decrement current
                 self.current.fetch_sub(1, Ordering::SeqCst);
 
-                Ok(ScrapeResult {
+                Ok(CoreScrapeResult {
                     markdown: "content".to_string(),
                     title: None,
+                    description: None,
                     url: url.to_string(),
+                    status_code: Some(200),
                 })
             }
         }
