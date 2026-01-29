@@ -298,7 +298,7 @@ pub const fn component_to_str(component: ShowComponent) -> &'static str {
 }
 
 /// Parse a show component from a string identifier.
-pub fn component_from_str(s: &str) -> Option<ShowComponent> {
+fn component_from_str(s: &str) -> Option<ShowComponent> {
     match s.to_ascii_lowercase().as_str() {
         "url" => Some(ShowComponent::Url),
         "lines" => Some(ShowComponent::Lines),
@@ -307,21 +307,6 @@ pub fn component_from_str(s: &str) -> Option<ShowComponent> {
         "raw-score" => Some(ShowComponent::RawScore),
         _ => None,
     }
-}
-
-/// Parse a comma/whitespace-separated show list into components.
-pub fn parse_show_list(raw: &str) -> Vec<ShowComponent> {
-    raw.split(',')
-        .flat_map(|entry| entry.split_whitespace())
-        .filter_map(|token| {
-            let trimmed = token.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                component_from_str(trimmed)
-            }
-        })
-        .collect()
 }
 
 /// Format show components as a comma-separated string.

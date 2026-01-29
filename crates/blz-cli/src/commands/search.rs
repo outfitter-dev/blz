@@ -18,7 +18,7 @@ use tracing::warn;
 use crate::cli::ShowComponent;
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
 use crate::utils::parsing::parse_line_span;
-use crate::utils::preferences::{self, CliPreferences};
+use crate::utils::preferences::CliPreferences;
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 use crate::utils::toc::{
     extract_block_slice, finalize_block_slice, find_heading_span, heading_level_from_line,
@@ -173,138 +173,6 @@ pub async fn execute(
         resource_monitor,
     )
     .await
-}
-
-/// Handle default search from command line arguments
-///
-/// This function routes bare command syntax through the unified `find` command,
-/// which automatically detects whether the input is a citation (for retrieval)
-/// or a query (for search).
-pub async fn handle_default(
-    args: &[String],
-    metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
-    prefs: &mut CliPreferences,
-    quiet: bool,
-) -> Result<()> {
-    if args.is_empty() {
-        println!("Usage: blz [QUERY] [SOURCE] or blz [SOURCE] [QUERY]");
-        println!("       blz [CITATION]");
-        println!("       blz search [OPTIONS] QUERY");
-        println!("\nExamples:");
-        println!("  blz hooks react");
-        println!("  blz react hooks");
-        println!("  blz bun:120-142");
-        println!("  blz search \"async await\" --source react --format json");
-        println!("\nNotes:");
-        println!("  • SOURCE may be a canonical name or a metadata alias (see 'blz alias add').");
-        println!("  • CITATION format is alias:start-end (e.g., bun:120-142).");
-        println!("  • Set BLZ_OUTPUT_FORMAT=json to default JSON output for agent use.");
-        println!("  • Run 'blz --prompt search' for agent-focused guidance.");
-        return Ok(());
-    }
-
-    let storage = Storage::new()?;
-    let sources = storage.list_sources();
-
-    if sources.is_empty() {
-        println!("No sources found. Use 'blz add ALIAS URL' to add sources.");
-        return Ok(());
-    }
-
-    let (input, source_arg) = parse_arguments(args, &sources);
-
-    // If no canonical alias was detected in parse_arguments, attempt metadata alias resolution
-    let mut sources_filter = Vec::new();
-    if let Some(ref source_name) = source_arg {
-        sources_filter.push(source_name.clone());
-    } else if args.len() >= 2 {
-        // Try first and last args as potential source names
-        let first = &args[0];
-        let last = &args[args.len() - 1];
-        if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, first) {
-            // blz SOURCE QUERY...
-            sources_filter.push(canon);
-        } else if let Ok(Some(canon)) = crate::utils::resolver::resolve_source(&storage, last) {
-            // blz QUERY... SOURCE
-            sources_filter.push(canon);
-        }
-    }
-
-    let score_precision_env = std::env::var("BLZ_SCORE_PRECISION")
-        .ok()
-        .and_then(|raw| raw.parse::<u8>().ok())
-        .filter(|value| *value <= 4);
-    let score_precision = score_precision_env.unwrap_or_else(|| prefs.default_score_precision());
-
-    let show_components = std::env::var("BLZ_SHOW").map_or_else(
-        |_| prefs.default_show_components(),
-        |raw| preferences::parse_show_list(&raw),
-    );
-
-    let snippet_lines_env = std::env::var("BLZ_SNIPPET_LINES")
-        .ok()
-        .and_then(|raw| raw.parse::<u8>().ok())
-        .filter(|value| (1..=10).contains(value));
-    let snippet_lines = snippet_lines_env.unwrap_or_else(|| prefs.default_snippet_lines());
-
-    let max_chars_env = std::env::var("BLZ_MAX_CHARS")
-        .ok()
-        .and_then(|raw| raw.parse::<usize>().ok());
-    let max_chars = max_chars_env.map(clamp_max_chars);
-
-    // Delegate to the unified find command
-    let inputs = vec![input];
-    super::find::execute(
-        &inputs,
-        &sources_filter,
-        Some(default_search_limit()), // limit - respects BLZ_DEFAULT_LIMIT env var
-        false,                        // all
-        1,                            // page
-        false,                        // last
-        None,                         // top_percentile
-        None,                         // heading_level - not supported in handle_default
-        OutputFormat::Text,
-        &show_components,
-        false, // no_summary
-        Some(score_precision),
-        snippet_lines,
-        max_chars,
-        None,  // context_mode
-        false, // block
-        None,  // max_block_lines
-        false, // no_history
-        false, // copy
-        quiet,
-        false, // headings_only
-        false, // timing
-        Some(prefs),
-        metrics,
-        resource_monitor,
-    )
-    .await
-}
-
-fn parse_arguments(args: &[String], sources: &[String]) -> (String, Option<String>) {
-    // Smart argument detection with metadata alias resolution best-effort
-    if args.len() >= 2 {
-        // Check first token as source
-        if let Some(candidate) = args.first() {
-            if sources.contains(candidate) {
-                return (args[1..].join(" "), Some(candidate.clone()));
-            }
-        }
-
-        // Check last token as source
-        if let Some(candidate) = args.last() {
-            if sources.contains(candidate) {
-                return (args[..args.len() - 1].join(" "), Some(candidate.clone()));
-            }
-        }
-    }
-
-    // Fallback: all args are the query; alias resolution will be handled by flags if provided
-    (args.join(" "), None)
 }
 
 pub(super) struct SearchResults {

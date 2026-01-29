@@ -70,6 +70,7 @@ closing text
         data_dir.path(),
         config_dir.path(),
         &[
+            "query",
             "target",
             "--context",
             "all",
@@ -84,7 +85,9 @@ closing text
     let payload = run_search(
         data_dir.path(),
         config_dir.path(),
-        &["target", "-C5", "--format", "json", "--source", "ctx"],
+        &[
+            "query", "target", "-C5", "--format", "json", "--source", "ctx",
+        ],
     );
     assert!(payload["results"].as_array().is_some_and(|a| !a.is_empty()));
 
@@ -92,7 +95,7 @@ closing text
         data_dir.path(),
         config_dir.path(),
         &[
-            "target", "-A2", "-B1", "--format", "json", "--source", "ctx",
+            "query", "target", "-A2", "-B1", "--format", "json", "--source", "ctx",
         ],
     );
     assert!(payload["results"].as_array().is_some_and(|a| !a.is_empty()));
