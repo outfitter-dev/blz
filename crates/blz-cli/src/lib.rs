@@ -25,8 +25,9 @@ mod prompt;
 mod utils;
 
 use crate::commands::{
-    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, RequestSpec, print_full_content,
-    print_overview, sync_bundled_docs,
+    AddAction, AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, RequestSpec,
+    determine_add_action, discover_for_domain, is_domain_only, print_full_content, print_overview,
+    sync_bundled_docs,
 };
 
 use crate::utils::preferences::{self, CliPreferences};
@@ -1146,6 +1147,68 @@ async fn handle_add(
             .as_deref()
             .ok_or_else(|| anyhow!("url is required when manifest is not provided"))?;
 
+        // Check if the URL is actually a domain-only input (e.g., "hono.dev")
+        let final_url = if is_domain_only(url) {
+            if !quiet {
+                println!("Probing {} for documentation sources...", url.green());
+            }
+
+            // Probe the domain for documentation sources
+            let probe_result = discover_for_domain(url).await?;
+
+            if !quiet {
+                // Show what was found
+                if probe_result.llms_full_url.is_some() {
+                    println!("  {} llms-full.txt", "✓".green());
+                } else {
+                    println!("  {} llms-full.txt (not found)", "✗".yellow());
+                }
+                if probe_result.llms_url.is_some() {
+                    println!("  {} llms.txt", "✓".green());
+                }
+                if probe_result.sitemap_url.is_some() {
+                    println!("  {} sitemap.xml", "✓".green());
+                }
+                if probe_result.docs_subdomain_checked {
+                    println!("  {} docs.* subdomain", "✓".dimmed());
+                }
+            }
+
+            // Determine what action to take
+            let action = determine_add_action(&probe_result, !args.yes)?;
+
+            match action {
+                AddAction::UseNative { url } => {
+                    if !quiet {
+                        println!("Using native llms-full.txt: {}", url.bright_blue());
+                    }
+                    url
+                },
+                AddAction::IndexOnly { url } => {
+                    if !quiet {
+                        println!("Using llms.txt as index: {}", url.bright_blue());
+                    }
+                    url
+                },
+                AddAction::Generate { url_count } => {
+                    // Generation requires Firecrawl CLI - for now, suggest manual approach
+                    anyhow::bail!(
+                        "Generation from {url_count} discovered URLs requires Firecrawl CLI.\n\
+                         Install: https://github.com/mendableai/firecrawl-cli\n\
+                         Then run: blz add {alias} <url> --generate"
+                    );
+                },
+                AddAction::Cancel => {
+                    if !quiet {
+                        println!("Operation cancelled.");
+                    }
+                    return Ok(());
+                },
+            }
+        } else {
+            url.to_string()
+        };
+
         let descriptor = DescriptorInput::from_cli_inputs(
             &args.aliases,
             args.name.as_deref(),
@@ -1156,7 +1219,7 @@ async fn handle_add(
 
         let request = AddRequest::new(
             alias.to_string(),
-            url.to_string(),
+            final_url,
             descriptor,
             args.dry_run,
             quiet,

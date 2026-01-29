@@ -85,7 +85,6 @@ struct ResolvedAddition {
 // These types and functions are prepared for integration in a follow-up PR
 // that will wire them into the actual add command flow.
 
-#[allow(dead_code)]
 /// Action to take after discovery when adding a source.
 ///
 /// Used to determine the appropriate workflow based on what documentation
@@ -143,7 +142,6 @@ impl std::fmt::Display for AddAction {
 /// 2. If only `llms_url` exists, returns `IndexOnly`
 /// 3. If only `sitemap_url` exists, returns error (requires generation)
 /// 4. If nothing found, returns error
-#[allow(dead_code)]
 pub fn determine_add_action(probe: &ProbeResult, _interactive: bool) -> Result<AddAction> {
     // Prefer native llms-full.txt when available
     if let Some(url) = &probe.llms_full_url {
@@ -1264,7 +1262,6 @@ fn extract_urls_from_content(content: &str) -> Vec<String> {
 /// assert!(!is_domain_only("react")); // No dot = alias
 /// assert!(!is_domain_only("/path/to/file"));
 /// ```
-#[allow(dead_code)]
 #[must_use]
 pub fn is_domain_only(input: &str) -> bool {
     // Empty string is not a domain
@@ -1320,7 +1317,6 @@ pub fn is_domain_only(input: &str) -> bool {
 ///     println!("Found documentation at: {}", url);
 /// }
 /// ```
-#[allow(dead_code)]
 pub async fn discover_for_domain(domain: &str) -> Result<ProbeResult> {
     probe_domain(domain).await.map_err(Into::into)
 }

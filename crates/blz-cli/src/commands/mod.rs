@@ -36,8 +36,8 @@ mod update;
 mod validate;
 
 pub use add::{
-    AddFlowOptions, AddRequest, DescriptorInput, execute as add_source,
-    execute_manifest as add_manifest,
+    AddAction, AddFlowOptions, AddRequest, DescriptorInput, determine_add_action,
+    discover_for_domain, execute as add_source, execute_manifest as add_manifest, is_domain_only,
 };
 pub use alias::{AliasCommand, execute as manage_alias};
 pub use check::execute as check_source;
