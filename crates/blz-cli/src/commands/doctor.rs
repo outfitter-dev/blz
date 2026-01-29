@@ -762,7 +762,7 @@ mod tests {
 
         assert_eq!(recs.len(), 1);
         assert!(recs[0].contains("Retry"));
-        assert!(recs[0].contains("2"));
+        assert!(recs[0].contains('2'));
         assert!(recs[0].contains("failed"));
         assert!(recs[0].contains("effect"));
     }
@@ -866,7 +866,7 @@ mod tests {
     fn test_format_line_count_thousands() {
         assert_eq!(format_line_count(1000), "1,000 lines");
         assert_eq!(format_line_count(15230), "15,230 lines");
-        assert_eq!(format_line_count(100000), "100,000 lines");
+        assert_eq!(format_line_count(100_000), "100,000 lines");
     }
 
     // --------------------------------------------------------

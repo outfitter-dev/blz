@@ -22,6 +22,8 @@ use url::Url;
 
 use crate::utils::count_headings;
 use crate::utils::validation::{normalize_alias, validate_alias};
+#[cfg(test)]
+use blz_core::discovery::DiscoveryMethod;
 use blz_core::discovery::{ProbeResult, probe_domain};
 use blz_core::url_resolver;
 
@@ -1490,6 +1492,9 @@ mod tests {
             llms_url: None,
             sitemap_url: None,
             docs_subdomain_checked: false,
+            discovery_method: DiscoveryMethod::HostRoot,
+            original_url: None,
+            requires_confirmation: false,
         };
 
         let action = determine_add_action(&probe, false).unwrap();
@@ -1509,6 +1514,9 @@ mod tests {
             llms_url: Some("https://example.com/llms.txt".to_string()),
             sitemap_url: Some("https://example.com/sitemap.xml".to_string()),
             docs_subdomain_checked: false,
+            discovery_method: DiscoveryMethod::HostRoot,
+            original_url: None,
+            requires_confirmation: false,
         };
 
         let action = determine_add_action(&probe, false).unwrap();
@@ -1524,6 +1532,9 @@ mod tests {
             llms_url: Some("https://example.com/llms.txt".to_string()),
             sitemap_url: None,
             docs_subdomain_checked: false,
+            discovery_method: DiscoveryMethod::HostRoot,
+            original_url: None,
+            requires_confirmation: false,
         };
 
         let action = determine_add_action(&probe, false).unwrap();
@@ -1540,6 +1551,9 @@ mod tests {
             llms_url: None,
             sitemap_url: Some("https://example.com/sitemap.xml".to_string()),
             docs_subdomain_checked: false,
+            discovery_method: DiscoveryMethod::HostRoot,
+            original_url: None,
+            requires_confirmation: false,
         };
 
         // Without llms.txt or llms-full.txt, sitemap alone cannot provide an index
@@ -1555,6 +1569,9 @@ mod tests {
             llms_url: None,
             sitemap_url: None,
             docs_subdomain_checked: true,
+            discovery_method: DiscoveryMethod::NotFound,
+            original_url: None,
+            requires_confirmation: false,
         };
 
         let result = determine_add_action(&probe, false);
