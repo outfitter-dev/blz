@@ -1,6 +1,6 @@
 //! Add command implementation
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::numeric::safe_percentage;
 use blz_core::{
@@ -334,6 +334,21 @@ pub async fn execute_generate_flow(
     let results = orchestrator.scrape_all(urls).await;
 
     pb.finish_and_clear();
+
+    // Error if all scrapes failed (but we had URLs to scrape)
+    if results.successful.is_empty() && !results.failed.is_empty() {
+        let sample_errors: Vec<_> = results
+            .failed
+            .iter()
+            .take(3)
+            .map(|f| format!("  - {}: {}", f.url, f.error))
+            .collect();
+        bail!(
+            "All {} scrape(s) failed. Sample errors:\n{}",
+            results.failed.len(),
+            sample_errors.join("\n")
+        );
+    }
 
     // Assemble markdown from successful scrapes
     let mut assembled = String::new();
