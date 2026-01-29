@@ -64,8 +64,12 @@
 //! # }
 //! ```
 
+pub mod alias;
 pub mod probe;
 pub mod sitemap;
 
+pub use alias::{
+    AliasDerivation, derive_alias, derive_alias_with_collision_check, has_collision, is_valid_alias,
+};
 pub use probe::{DiscoveryMethod, ProbeResult, probe_domain, probe_url};
 pub use sitemap::{ChangeFrequency, SitemapEntry, fetch_sitemap, is_sitemap_index, parse_sitemap};
