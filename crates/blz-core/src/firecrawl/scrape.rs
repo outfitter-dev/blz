@@ -169,12 +169,15 @@ impl FirecrawlCli {
         let output = tokio::time::timeout(timeout, self.execute_command(&args)).await;
 
         let output = match output {
-            Ok(result) => result?,
+            Ok(result) => result.map_err(|e| Error::FirecrawlScrapeFailed {
+                url: url.to_string(),
+                reason: e.to_string(),
+            })?,
             Err(_) => {
-                return Err(Error::Timeout(format!(
-                    "Firecrawl scrape timed out after {}s",
-                    timeout.as_secs()
-                )));
+                return Err(Error::FirecrawlScrapeFailed {
+                    url: url.to_string(),
+                    reason: format!("timed out after {}s", timeout.as_secs()),
+                });
             },
         };
 
@@ -186,7 +189,10 @@ impl FirecrawlCli {
                 stderr = %stderr,
                 "Failed to parse firecrawl scrape output"
             );
-            Error::Parse(format!("Failed to parse firecrawl scrape output: {e}"))
+            Error::FirecrawlScrapeFailed {
+                url: url.to_string(),
+                reason: format!("failed to parse output: {e}"),
+            }
         })?;
 
         Ok(result)
@@ -282,10 +288,7 @@ impl FirecrawlCli {
                 "Firecrawl command failed"
             );
 
-            return Err(Error::Other(format!(
-                "Firecrawl command failed: {}",
-                stderr.trim()
-            )));
+            return Err(Error::FirecrawlCommandFailed(stderr.trim().to_string()));
         }
 
         Ok(output)
