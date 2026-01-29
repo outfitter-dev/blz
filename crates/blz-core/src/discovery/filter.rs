@@ -194,19 +194,52 @@ pub fn is_likely_docs_path(path: &str) -> bool {
 
     // Check for non-docs path indicators
     for indicator in NON_DOCS_PATH_INDICATORS {
-        if path_lower.starts_with(indicator) || path_lower.contains(indicator) {
+        if contains_path_segment(&path_lower, indicator) {
             return false;
         }
     }
 
     // Check for docs path indicators
     for indicator in DOCS_PATH_INDICATORS {
-        if path_lower.starts_with(indicator) || path_lower.contains(indicator) {
+        if contains_path_segment(&path_lower, indicator) {
             return true;
         }
     }
 
     // Default: not clearly documentation
+    false
+}
+
+/// Check if a path contains a segment indicator with proper boundaries.
+///
+/// For indicators ending with `/` (like `/docs/`), uses simple contains.
+/// For indicators without trailing `/` (like `/docs`), ensures the match
+/// is followed by `/`, `?`, `#`, or end of string to avoid false positives
+/// like `/doc-builder/` matching `/doc`.
+fn contains_path_segment(path: &str, indicator: &str) -> bool {
+    // Indicators with trailing slash are already bounded
+    if indicator.ends_with('/') {
+        return path.starts_with(indicator) || path.contains(indicator);
+    }
+
+    // For indicators without trailing slash, check segment boundaries
+    if let Some(rest) = path.strip_prefix(indicator) {
+        // Check what follows the indicator at the start
+        return rest.is_empty()
+            || rest.starts_with('/')
+            || rest.starts_with('?')
+            || rest.starts_with('#');
+    }
+
+    // Check for indicator in the middle of the path
+    if let Some(pos) = path.find(indicator) {
+        let rest = &path[pos + indicator.len()..];
+        return rest.is_empty()
+            || rest.starts_with('/')
+            || rest.starts_with('?')
+            || rest.starts_with('#');
+    }
+
     false
 }
 
@@ -490,5 +523,24 @@ mod tests {
         assert!(!is_likely_docs_path("/privacy"));
         assert!(!is_likely_docs_path("/terms"));
         assert!(!is_likely_docs_path("/legal"));
+    }
+
+    #[test]
+    fn test_path_segment_boundaries() {
+        // /doc-builder/ should NOT match /docs (false positive from simple contains)
+        assert!(!is_likely_docs_path("/doc-builder/something"));
+        assert!(!is_likely_docs_path("/documentary/film"));
+        assert!(!is_likely_docs_path("/guidance-system/config"));
+        assert!(!is_likely_docs_path("/api-client/utils"));
+
+        // These SHOULD match (proper segment boundaries)
+        assert!(is_likely_docs_path("/docs/builder"));
+        assert!(is_likely_docs_path("/api/client"));
+        assert!(is_likely_docs_path("/guide/system"));
+
+        // With query strings and fragments
+        assert!(is_likely_docs_path("/docs?version=2"));
+        assert!(is_likely_docs_path("/api#section"));
+        assert!(!is_likely_docs_path("/doc-viewer?page=1"));
     }
 }

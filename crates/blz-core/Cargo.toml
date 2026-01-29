@@ -32,7 +32,6 @@ tantivy.workspace = true
 fuzzy-matcher.workspace = true
 thiserror = "2"
 semver.workspace = true
-regex = "1"
 html-escape = "0.2"
 memchr = "2"
 unicode-normalization = "0.1"

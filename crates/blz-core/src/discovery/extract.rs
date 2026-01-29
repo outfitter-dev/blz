@@ -67,12 +67,18 @@ pub enum UrlSource {
     Crawl,
 }
 
-/// Regex for markdown links: [text](url)
+/// Regex for markdown links: [text](url) or [text](<url>) with optional title
+///
+/// Handles:
+/// - Basic: `[text](url)`
+/// - With title: `[text](url "title")` or `[text](url 'title')`
+/// - Angle brackets: `[text](<url>)`
 ///
 /// SAFETY: Pattern is a compile-time constant that is known to be valid.
 #[allow(clippy::unwrap_used)]
-static MARKDOWN_LINK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[([^\]]*)\]\(([^)]+)\)").unwrap());
+static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"\[([^\]]*)\]\(<?([^>\s"')]+)>?(?:\s*["'][^"']*["'])?\)"#).unwrap()
+});
 
 /// Regex for bare URLs
 ///
@@ -199,14 +205,15 @@ fn normalize_and_resolve(url_str: &str, base: &Url) -> Option<String> {
     // Normalize: remove fragment
     resolved.set_fragment(None);
 
-    let mut result = resolved.to_string();
-
     // Remove trailing slash for consistency (but keep root paths like "https://example.com/")
-    if result.ends_with('/') && result.matches('/').count() > 3 {
-        result.pop();
+    // Check path length > 1 to preserve root paths (path is "/" for root)
+    let path = resolved.path();
+    if path.len() > 1 && path.ends_with('/') {
+        let trimmed = path[..path.len() - 1].to_string();
+        resolved.set_path(&trimmed);
     }
 
-    Some(result)
+    Some(resolved.to_string())
 }
 
 /// Merge URLs from multiple sources, deduplicating by URL.
@@ -278,12 +285,13 @@ fn normalize_url_for_dedup(url: &str) -> String {
         |_| url.to_string(),
         |mut parsed| {
             parsed.set_fragment(None);
-            let mut result = parsed.to_string();
-            // Remove trailing slash for comparison
-            if result.ends_with('/') && result.matches('/').count() > 3 {
-                result.pop();
+            // Remove trailing slash for comparison (but keep root paths)
+            let path = parsed.path();
+            if path.len() > 1 && path.ends_with('/') {
+                let trimmed = path[..path.len() - 1].to_string();
+                parsed.set_path(&trimmed);
             }
-            result
+            parsed.to_string()
         },
     )
 }
@@ -328,13 +336,39 @@ mod tests {
 
     #[test]
     fn test_handles_reference_links() {
-        let content = r#"
+        let content = r"
 [Getting Started][gs]
 
 [gs]: /docs/getting-started
-"#;
+";
         let urls = extract_urls(content, "https://example.com");
         assert!(urls.contains(&"https://example.com/docs/getting-started".to_string()));
+    }
+
+    #[test]
+    fn test_handles_link_titles() {
+        // Markdown allows optional titles in links: [text](url "title")
+        let content = r#"[Docs](https://example.com/docs "Documentation")"#;
+        let urls = extract_urls(content, "https://example.com");
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0], "https://example.com/docs");
+    }
+
+    #[test]
+    fn test_handles_angle_bracket_urls() {
+        // Markdown allows angle brackets around URLs: [text](<url>)
+        let content = "[Link](<https://example.com/path>)";
+        let urls = extract_urls(content, "https://example.com");
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0], "https://example.com/path");
+    }
+
+    #[test]
+    fn test_handles_link_title_with_single_quotes() {
+        let content = "[Docs](https://example.com/docs 'Documentation')";
+        let urls = extract_urls(content, "https://example.com");
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0], "https://example.com/docs");
     }
 
     #[test]
