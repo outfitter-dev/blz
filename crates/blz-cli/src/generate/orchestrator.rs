@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use blz_core::firecrawl::ScrapeResult as CoreScrapeResult;
+use blz_core::firecrawl::{FirecrawlCli, ScrapeOptions, ScrapeResult as CoreScrapeResult};
 use blz_core::page_cache::{FailedPage, PageCacheEntry};
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
@@ -194,6 +194,27 @@ impl std::fmt::Display for ScrapeError {
 }
 
 impl std::error::Error for ScrapeError {}
+
+// ============================================================
+// Scraper Implementation for FirecrawlCli
+// ============================================================
+
+/// Implementation of the `Scraper` trait for `FirecrawlCli`.
+///
+/// This allows using the real Firecrawl CLI for scraping operations.
+/// Uses default scrape options with main content extraction enabled.
+#[async_trait::async_trait]
+impl Scraper for FirecrawlCli {
+    async fn scrape(&self, url: &str) -> Result<CoreScrapeResult, ScrapeError> {
+        let options = ScrapeOptions::default().with_main_content_only(true);
+
+        self.scrape(url, options).await.map_err(|e| {
+            let message = e.to_string();
+            let is_rate_limited = message.contains("429") || message.contains("rate limit");
+            ScrapeError::new(url.to_string(), message).with_rate_limit(is_rate_limited)
+        })
+    }
+}
 
 // ============================================================
 // Helpers
