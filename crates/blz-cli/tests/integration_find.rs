@@ -281,8 +281,7 @@ async fn find_bare_command_with_query() -> anyhow::Result<()> {
 
     seed_source(&tmp, &server, "docs", SAMPLE_DOC).await?;
 
-    // Bare command without explicit "find" subcommand
-    // Note: This tests handle_default routing through find
+    // Test find command with a text query (search mode)
     let payload = run_find_json(&tmp, &["find", "performance", "-f", "json"])?;
 
     assert!(
@@ -301,7 +300,7 @@ async fn find_bare_command_with_citation() -> anyhow::Result<()> {
 
     seed_source(&tmp, &server, "docs", SAMPLE_DOC).await?;
 
-    // Bare command with citation pattern
+    // Test find command with a citation pattern (retrieve mode)
     let payload = run_find_json(&tmp, &["find", "docs:10-15", "-f", "json"])?;
 
     assert!(

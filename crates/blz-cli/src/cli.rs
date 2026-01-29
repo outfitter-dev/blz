@@ -9,26 +9,22 @@
 //! The CLI follows a standard command-subcommand pattern:
 //!
 //! - **Global options**: Apply to all commands (`--verbose`, `--debug`, `--profile`)
-//! - **Default command**: When no subcommand is specified, performs search
-//! - **Subcommands**: Specific operations like `add`, `search`, `list`, etc.
+//! - **Subcommands**: Specific operations like `query`, `get`, `add`, `list`, etc.
 //!
 //! ## Usage Patterns
 //!
 //! ```bash
-//! # Default search (no subcommand)
-//! blz "React hooks"
-//! blz useEffect cleanup
-//!
-//! # Explicit search command
-//! blz search "async/await" --limit 10
+//! # Search documentation
+//! blz query "React hooks"
+//! blz query "async/await" --limit 10
 //!
 //! # Source management
 //! blz add react https://react.dev/llms.txt
 //! blz list
-//! blz refresh --all
+//! blz sync --all
 //!
 //! # Content retrieval
-//! blz get react --lines 120-142
+//! blz get react:120-142
 //! ```
 //!
 //! ## Performance Options
@@ -108,8 +104,7 @@ fn validate_limit(s: &str) -> Result<usize, String> {
 /// Main CLI structure for the `blz` command
 ///
 /// This structure defines the top-level CLI interface using clap's derive macros.
-/// It supports both a default search mode (when no subcommand is provided) and
-/// explicit subcommands for specific operations.
+/// A subcommand is required for all operations.
 ///
 /// # Global Options
 ///
@@ -120,49 +115,29 @@ fn validate_limit(s: &str) -> Result<usize, String> {
 /// - `--profile`: Display resource usage statistics
 /// - `--flamegraph`: Generate CPU flamegraph (requires flamegraph feature)
 ///
-/// # Default Behavior
-///
-/// When invoked without a subcommand, `blz` performs a search using the provided
-/// arguments as the search query:
-///
-/// ```bash
-/// blz "React hooks"  # Equivalent to: blz search "React hooks"
-/// ```
-///
 /// # Examples
 ///
 /// ```bash
-/// # Search with debugging enabled
-/// blz --debug search "async patterns"
+/// # Search documentation
+/// blz query "React hooks"
+/// blz --debug query "async patterns"
 ///
 /// # Add source with profiling
 /// blz --profile add react https://react.dev/llms.txt
 ///
-/// # Generate flamegraph while searching
-/// blz --flamegraph search "performance optimization"
+/// # Retrieve content by citation
+/// blz get bun:120-142
 /// ```
 #[derive(Parser, Clone, Debug)]
 #[command(name = "blz")]
 #[command(version)]
 #[command(about = "Fast local search for llms.txt documentation", long_about = None)]
-#[command(
-    override_usage = "blz [COMMAND] [COMMAND_ARGS]... [OPTIONS]\n       blz [QUERY]... [OPTIONS]\n       blz [CITATION] [OPTIONS]"
-)]
+#[command(override_usage = "blz <COMMAND> [ARGS]... [OPTIONS]")]
 #[command(help_template = HELP_TEMPLATE)]
-#[command(disable_help_subcommand = true)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
-
-    /// Positional query or citation arguments used when no explicit command is provided
-    ///
-    /// Can be either a search query or a citation in the format alias:start-end
-    /// Examples:
-    ///   blz "async patterns"    # Search query
-    ///   blz bun:120-142         # Citation retrieval
-    #[arg(value_name = "QUERY", trailing_var_arg = true)]
-    pub query: Vec<String>,
 
     /// Emit agent-focused JSON prompt for the CLI or a specific command
     ///
