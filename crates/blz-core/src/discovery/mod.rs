@@ -65,11 +65,15 @@
 //! ```
 
 pub mod alias;
+pub mod extract;
+pub mod filter;
 pub mod probe;
 pub mod sitemap;
 
 pub use alias::{
     AliasDerivation, derive_alias, derive_alias_with_collision_check, has_collision, is_valid_alias,
 };
+pub use extract::{DiscoveredUrl, UrlSource, extract_urls, merge_url_sources};
+pub use filter::{filter_to_docs, filter_to_domain, is_likely_docs_path};
 pub use probe::{DiscoveryMethod, ProbeResult, probe_domain, probe_url};
 pub use sitemap::{ChangeFrequency, SitemapEntry, fetch_sitemap, is_sitemap_index, parse_sitemap};
