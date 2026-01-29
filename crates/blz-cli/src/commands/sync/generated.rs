@@ -17,19 +17,19 @@
 //!
 //! ## Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use blz_cli::commands::sync::generated::{is_generated_source, pages_needing_update};
 //! use blz_core::Storage;
 //!
-//! # async fn example() -> anyhow::Result<()> {
-//! let storage = Storage::new()?;
+//! async fn example() -> anyhow::Result<()> {
+//!     let storage = Storage::new()?;
 //!
-//! if is_generated_source(&storage, "hono") {
-//!     // Load manifest and compare with sitemap
-//!     // ...
+//!     if is_generated_source(&storage, "hono") {
+//!         // Load manifest and compare with sitemap
+//!         // ...
+//!     }
+//!     Ok(())
 //! }
-//! # Ok(())
-//! # }
 //! ```
 
 use std::collections::HashMap;

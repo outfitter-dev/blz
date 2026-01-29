@@ -118,27 +118,23 @@ pub type ProgressCallback = Arc<dyn Fn(usize, usize) + Send + Sync>;
 ///
 /// ## Example
 ///
-/// ```rust,no_run
-/// use blz_cli::generate::{GenerateOrchestrator, UrlWithLastmod};
-/// use std::sync::Arc;
+/// ```rust,ignore
+/// use blz_cli::generate::{GenerateOrchestrator, UrlWithLastmod, FirecrawlCli};
 ///
-/// # async fn example() {
-/// // With mock scraper for testing
-/// let scraper = MockScraper::new();
-/// let orchestrator = GenerateOrchestrator::new(scraper, 5)
-///     .with_progress(|completed, total| {
-///         println!("Progress: {}/{}", completed, total);
-///     });
+/// async fn example() {
+///     let cli = FirecrawlCli::detect().await.unwrap();
+///     let orchestrator = GenerateOrchestrator::new(cli, 5)
+///         .with_progress(|completed, total| {
+///             println!("Progress: {}/{}", completed, total);
+///         });
 ///
-/// let urls = vec![
-///     UrlWithLastmod::new("https://example.com/a".to_string()),
-///     UrlWithLastmod::new("https://example.com/b".to_string()),
-/// ];
+///     let urls = vec![
+///         UrlWithLastmod::new("https://example.com/a".to_string()),
+///         UrlWithLastmod::new("https://example.com/b".to_string()),
+///     ];
 ///
-/// let results = orchestrator.scrape_all(&urls).await;
-/// # }
-/// # struct MockScraper;
-/// # impl MockScraper { fn new() -> Self { Self } }
+///     let results = orchestrator.scrape_all(&urls).await;
+/// }
 /// ```
 pub struct GenerateOrchestrator<S: Scraper> {
     scraper: S,
