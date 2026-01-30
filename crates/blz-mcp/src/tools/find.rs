@@ -1,5 +1,8 @@
 //! Find tool implementation for searching, retrieving, and browsing documentation
 
+use std::collections::HashMap;
+use std::time::Instant;
+
 use blz_core::{SearchIndex, Storage, index::DEFAULT_SNIPPET_CHAR_LIMIT};
 use serde::{Deserialize, Serialize};
 
@@ -126,6 +129,10 @@ pub struct FindParams {
     /// Maximum heading depth to include
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_depth: Option<usize>,
+
+    /// Include timing metrics in the response (default: false)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_timing: Option<bool>,
 }
 
 /// Output from find tool
@@ -149,6 +156,10 @@ pub struct FindOutput {
 
     /// Execution metadata
     pub executed: FindExecuted,
+
+    /// Optional timing metrics (when `include_timing` is true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timings: Option<TimingOutput>,
 }
 
 /// Individual search hit
@@ -194,6 +205,17 @@ pub struct FindExecuted {
     pub toc_executed: bool,
 }
 
+/// Timing metrics for performance analysis
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimingOutput {
+    /// Total operation time in milliseconds
+    pub total_ms: u64,
+    /// Component breakdown in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub components: Option<HashMap<String, u64>>,
+}
+
 /// Output from TOC requests
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -220,6 +242,14 @@ pub struct TocEntrySummary {
     /// Nested entries (tree mode only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<Self>>,
+}
+
+/// Convert duration to milliseconds as u64, saturating at `u64::MAX`.
+///
+/// In practice, operations measured here complete in milliseconds to seconds,
+/// so truncation is impossible. This is a defensive conversion.
+fn millis_as_u64(duration: std::time::Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 /// Truncate a string to the specified number of characters, appending ellipsis when shortened.
@@ -916,6 +946,14 @@ pub async fn handle_find(
     storage: &Storage,
     index_cache: &IndexCache,
 ) -> McpResult<FindOutput> {
+    let include_timing = params.include_timing.unwrap_or(false);
+    let start_time = if include_timing {
+        Some(Instant::now())
+    } else {
+        None
+    };
+    let mut component_times: HashMap<String, u64> = HashMap::new();
+
     let action = resolve_action(&params)?;
     let format = params.format.unwrap_or_default();
 
@@ -930,6 +968,8 @@ pub async fn handle_find(
 
     match action {
         FindAction::Search => {
+            let action_start = include_timing.then(Instant::now);
+
             let query = params
                 .query
                 .as_ref()
@@ -1047,8 +1087,14 @@ pub async fn handle_find(
             );
             search_results = Some(all_hits);
             executed.search_executed = true;
+
+            if let Some(action_start) = action_start {
+                component_times.insert("search".to_string(), millis_as_u64(action_start.elapsed()));
+            }
         },
         FindAction::Get => {
+            let action_start = include_timing.then(Instant::now);
+
             let citations = params
                 .snippets
                 .as_ref()
@@ -1098,8 +1144,14 @@ pub async fn handle_find(
             tracing::debug!(count = results.len(), "snippets retrieved");
             snippet_results = Some(results);
             executed.snippets_executed = true;
+
+            if let Some(action_start) = action_start {
+                component_times.insert("get".to_string(), millis_as_u64(action_start.elapsed()));
+            }
         },
         FindAction::Toc => {
+            let action_start = include_timing.then(Instant::now);
+
             let source = match params.source.as_ref() {
                 Some(SourceFilter::Single(alias)) if alias != "all" => alias.clone(),
                 Some(SourceFilter::Single(_)) => {
@@ -1141,6 +1193,10 @@ pub async fn handle_find(
                 tree,
             });
             executed.toc_executed = true;
+
+            if let Some(action_start) = action_start {
+                component_times.insert("toc".to_string(), millis_as_u64(action_start.elapsed()));
+            }
         },
     }
 
@@ -1148,12 +1204,27 @@ pub async fn handle_find(
         apply_concise_format(&mut search_results, &mut snippet_results);
     }
 
+    // Build timing output if requested
+    let timings = start_time.map(|start| {
+        let total_ms = millis_as_u64(start.elapsed());
+        let components = if component_times.is_empty() {
+            None
+        } else {
+            Some(component_times)
+        };
+        TimingOutput {
+            total_ms,
+            components,
+        }
+    });
+
     Ok(FindOutput {
         action,
         search_results,
         snippet_results,
         toc,
         executed,
+        timings,
     })
 }
 
@@ -1362,6 +1433,7 @@ mod integration_tests {
             headings: None,
             tree: None,
             max_depth: None,
+            include_timing: None,
         }
     }
 
@@ -1741,6 +1813,7 @@ Last line of section 2"#;
             headings: None,
             tree: None,
             max_depth: None,
+            include_timing: None,
         };
 
         let result = handle_find(params, &storage, &index_cache).await;
