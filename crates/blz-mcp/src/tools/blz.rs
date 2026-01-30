@@ -6,7 +6,10 @@ use blz_core::refresh::{
     DefaultRefreshIndexer, RefreshOutcome, RefreshStorage, refresh_source_with_metadata,
     reindex_source, resolve_refresh_url,
 };
-use blz_core::{Fetcher, HeadingFilterStats, PerformanceMetrics, Registry, Storage, TocEntry};
+use blz_core::{
+    CacheInfo, Fetcher, HeadingFilterStats, HealthCheck, HealthReport, HealthStatus,
+    PerformanceMetrics, Registry, SourceHealth, SourceHealthEntry, SourceKind, Storage, TocEntry,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -86,6 +89,8 @@ pub enum BlzAction {
     History,
     /// Search the registry for sources matching a query
     Lookup,
+    /// Run health checks and diagnostics
+    Doctor,
     /// Return help and usage guidance
     Help,
 }
@@ -128,6 +133,10 @@ pub struct BlzOutput {
     /// Lookup output
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lookup: Option<LookupOutput>,
+
+    /// Doctor output (health check results)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doctor: Option<HealthReport>,
 
     /// Help output
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -291,6 +300,7 @@ const fn empty_output(action: BlzAction) -> BlzOutput {
         validate: None,
         history: None,
         lookup: None,
+        doctor: None,
         help: None,
     }
 }
@@ -696,6 +706,230 @@ async fn handle_help_action() -> McpResult<BlzOutput> {
     Ok(response)
 }
 
+fn handle_doctor_action(storage: &Storage) -> BlzOutput {
+    let report = run_health_checks(storage);
+    let mut response = empty_output(BlzAction::Doctor);
+    response.doctor = Some(report);
+    response
+}
+
+/// Run health checks using core Storage APIs (no CLI dependency).
+#[allow(clippy::too_many_lines)]
+fn run_health_checks(storage: &Storage) -> HealthReport {
+    const WARN_THRESHOLD_BYTES: u64 = 1_000_000_000; // 1 GB
+
+    let cache_dir = storage.root_dir();
+    let config_dir = storage.config_dir();
+
+    let mut checks = Vec::new();
+    let mut recommendations = Vec::new();
+
+    // Directory checks
+    checks.push(directory_check("Cache Directory", cache_dir));
+    checks.push(directory_check("Config Directory", config_dir));
+
+    // Disk usage check
+    let total_size = calculate_dir_size(cache_dir);
+    let disk_status = if total_size < WARN_THRESHOLD_BYTES {
+        HealthStatus::Healthy
+    } else {
+        recommendations.push("Consider clearing unused sources to free disk space".to_string());
+        HealthStatus::Warning
+    };
+    #[allow(clippy::cast_precision_loss)] // Acceptable for display purposes
+    let size_mb = total_size as f64 / 1_048_576.0;
+    checks.push(HealthCheck {
+        name: "Disk Usage".to_string(),
+        status: disk_status,
+        message: format!("Cache size: {size_mb:.1} MB"),
+        fixable: disk_status == HealthStatus::Warning,
+    });
+
+    // Source health check
+    let sources = storage.list_sources();
+    let mut healthy_count = 0;
+    let mut stale_count = 0;
+    let mut stale_sources = Vec::new();
+    let mut source_entries = Vec::new();
+
+    for alias in &sources {
+        let mut entry = SourceHealthEntry {
+            alias: alias.clone(),
+            source_type: SourceKind::Native,
+            line_count: 0,
+            is_stale: false,
+            stale_days: None,
+            failed_pages: None,
+            native_available: None,
+        };
+
+        if let Ok(Some(metadata)) = storage.load_source_metadata(alias) {
+            // Check staleness (7 days default)
+            let stale_threshold = chrono::Duration::days(7);
+            let now = chrono::Utc::now();
+            let age = now.signed_duration_since(metadata.fetched_at);
+
+            if age > stale_threshold {
+                entry.is_stale = true;
+                // num_days() returns i64 but we know it's positive since age > threshold
+                #[allow(clippy::cast_sign_loss)]
+                let days = age.num_days() as u64;
+                entry.stale_days = Some(days);
+                stale_count += 1;
+                stale_sources.push(alias.clone());
+            } else {
+                healthy_count += 1;
+            }
+
+            // Check if generated source
+            if metadata.url.contains("firecrawl") || metadata.url.starts_with("generate://") {
+                entry.source_type = SourceKind::Generated;
+            }
+        }
+
+        // Get line count from llms.json if available
+        if let Ok(llms) = storage.load_llms_json(alias) {
+            entry.line_count = llms.line_index.total_lines;
+        }
+
+        source_entries.push(entry);
+    }
+
+    let sources_status = if stale_count > 0 {
+        recommendations.push(format!(
+            "Run `blz sync --all` to refresh {stale_count} stale source(s)"
+        ));
+        HealthStatus::Warning
+    } else if sources.is_empty() {
+        HealthStatus::Warning
+    } else {
+        HealthStatus::Healthy
+    };
+
+    checks.push(HealthCheck {
+        name: "Source Health".to_string(),
+        status: sources_status,
+        message: format!(
+            "{} source(s): {} healthy, {} stale",
+            sources.len(),
+            healthy_count,
+            stale_count
+        ),
+        fixable: stale_count > 0,
+    });
+
+    // Compute overall status
+    let overall_status = checks
+        .iter()
+        .map(|c| c.status)
+        .max_by_key(|s| match s {
+            HealthStatus::Healthy => 0,
+            HealthStatus::Warning => 1,
+            HealthStatus::Error => 2,
+        })
+        .unwrap_or(HealthStatus::Healthy);
+
+    let total_files = count_files(cache_dir);
+
+    HealthReport {
+        overall_status,
+        checks,
+        recommendations,
+        cache_info: CacheInfo {
+            cache_dir: cache_dir.to_path_buf(),
+            config_dir: config_dir.to_path_buf(),
+            total_size_bytes: total_size,
+            total_sources: sources.len(),
+            total_files,
+        },
+        source_health: SourceHealth {
+            total: sources.len(),
+            healthy: healthy_count,
+            stale: stale_count,
+            corrupted: 0,
+            stale_sources,
+        },
+        source_entries,
+    }
+}
+
+fn directory_check(name: &str, path: &std::path::Path) -> HealthCheck {
+    let exists = path.exists();
+    let writable = exists
+        && path
+            .metadata()
+            .map(|m| !m.permissions().readonly())
+            .unwrap_or(false);
+
+    let (status, message) = if writable {
+        (
+            HealthStatus::Healthy,
+            format!("{name} exists and is writable: {}", path.display()),
+        )
+    } else if exists {
+        (
+            HealthStatus::Error,
+            format!("{name} exists but is read-only: {}", path.display()),
+        )
+    } else {
+        (
+            HealthStatus::Error,
+            format!("{name} missing: {}", path.display()),
+        )
+    };
+
+    HealthCheck {
+        name: name.to_string(),
+        status,
+        message,
+        fixable: false,
+    }
+}
+
+fn calculate_dir_size(path: &std::path::Path) -> u64 {
+    let mut total = 0u64;
+    if path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.filter_map(Result::ok) {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                if file_type.is_symlink() {
+                    continue;
+                }
+                if file_type.is_dir() {
+                    total += calculate_dir_size(&entry.path());
+                } else if file_type.is_file() {
+                    total += entry.metadata().map(|m| m.len()).unwrap_or(0);
+                }
+            }
+        }
+    }
+    total
+}
+
+fn count_files(path: &std::path::Path) -> usize {
+    let mut count = 0;
+    if path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.filter_map(Result::ok) {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                if file_type.is_symlink() {
+                    continue;
+                }
+                if file_type.is_dir() {
+                    count += count_files(&entry.path());
+                } else if file_type.is_file() {
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
+}
+
 fn handle_lookup_action(query: Option<String>, limit: Option<usize>) -> McpResult<BlzOutput> {
     let query = query.ok_or_else(|| McpError::MissingParameter("query".to_string()))?;
     let limit = limit.unwrap_or(10);
@@ -756,6 +990,7 @@ pub async fn handle_blz(
         BlzAction::Validate => handle_validate_action(alias, storage).await,
         BlzAction::History => handle_history_action(alias, storage).await,
         BlzAction::Lookup => handle_lookup_action(query, limit),
+        BlzAction::Doctor => Ok(handle_doctor_action(storage)),
         BlzAction::Help => handle_help_action().await,
     }
 }
