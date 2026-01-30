@@ -91,6 +91,8 @@ pub enum BlzAction {
     Lookup,
     /// Run health checks and diagnostics
     Doctor,
+    /// Clear the entire cache
+    ClearCache,
     /// Return help and usage guidance
     Help,
 }
@@ -137,6 +139,10 @@ pub struct BlzOutput {
     /// Doctor output (health check results)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doctor: Option<HealthReport>,
+
+    /// Clear cache output
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clear: Option<ClearCacheOutput>,
 
     /// Help output
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -231,6 +237,18 @@ pub struct LookupResult {
     pub match_field: String,
 }
 
+/// Output from cache clear action
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearCacheOutput {
+    /// Human-readable message
+    pub message: String,
+    /// Number of sources that were cleared
+    pub cleared: usize,
+    /// List of source aliases that were removed
+    pub sources: Vec<String>,
+}
+
 /// Refresh summary for one or more sources
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -301,6 +319,7 @@ const fn empty_output(action: BlzAction) -> BlzOutput {
         history: None,
         lookup: None,
         doctor: None,
+        clear: None,
         help: None,
     }
 }
@@ -959,6 +978,39 @@ fn handle_lookup_action(query: Option<String>, limit: Option<usize>) -> McpResul
     Ok(response)
 }
 
+async fn handle_clear_cache_action(
+    storage: &Storage,
+    index_cache: &IndexCache,
+) -> McpResult<BlzOutput> {
+    let sources = storage.list_sources();
+    let count = sources.len();
+
+    // Invalidate all known source caches
+    for source in &sources {
+        cache::invalidate_cache(index_cache, source).await;
+    }
+
+    // Always call clear_cache to remove any orphaned/corrupted data
+    // that may exist even when list_sources() returns empty
+    // (list_sources only returns directories with valid llms.json)
+    storage.clear_cache()?;
+
+    let message = if count == 0 {
+        "Cache cleared (no valid sources found, but orphaned data may have been removed)"
+            .to_string()
+    } else {
+        format!("Cleared cache with {count} source(s)")
+    };
+
+    let mut response = empty_output(BlzAction::ClearCache);
+    response.clear = Some(ClearCacheOutput {
+        message,
+        cleared: count,
+        sources,
+    });
+    Ok(response)
+}
+
 /// Main handler for blz tool
 #[tracing::instrument(skip(storage, index_cache))]
 pub async fn handle_blz(
@@ -991,6 +1043,7 @@ pub async fn handle_blz(
         BlzAction::History => handle_history_action(alias, storage).await,
         BlzAction::Lookup => handle_lookup_action(query, limit),
         BlzAction::Doctor => Ok(handle_doctor_action(storage)),
+        BlzAction::ClearCache => handle_clear_cache_action(storage, index_cache).await,
         BlzAction::Help => handle_help_action().await,
     }
 }
