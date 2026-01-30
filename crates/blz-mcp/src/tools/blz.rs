@@ -67,6 +67,10 @@ pub struct BlzParams {
     /// Maximum results for lookup (default: 10)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
+
+    /// Target alias for addAlias/removeAlias actions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_alias: Option<String>,
 }
 
 /// Supported blz actions
@@ -93,6 +97,10 @@ pub enum BlzAction {
     Doctor,
     /// Clear the entire cache
     ClearCache,
+    /// Add an alias to a source
+    AddAlias,
+    /// Remove an alias from a source
+    RemoveAlias,
     /// Return help and usage guidance
     Help,
 }
@@ -143,6 +151,14 @@ pub struct BlzOutput {
     /// Clear cache output
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clear: Option<ClearCacheOutput>,
+
+    /// Alias add output
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias_add: Option<AliasOutput>,
+
+    /// Alias remove output
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias_remove: Option<AliasOutput>,
 
     /// Help output
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -249,6 +265,22 @@ pub struct ClearCacheOutput {
     pub sources: Vec<String>,
 }
 
+/// Output from alias add/remove actions
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AliasOutput {
+    /// Human-readable message
+    pub message: String,
+    /// The source that was modified
+    pub source: String,
+    /// The alias that was added or removed
+    pub alias: String,
+    /// Whether the operation was a no-op (alias already exists/doesn't exist)
+    pub no_op: bool,
+    /// Current list of aliases for the source after the operation
+    pub current_aliases: Vec<String>,
+}
+
 /// Refresh summary for one or more sources
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -320,6 +352,8 @@ const fn empty_output(action: BlzAction) -> BlzOutput {
         lookup: None,
         doctor: None,
         clear: None,
+        alias_add: None,
+        alias_remove: None,
         help: None,
     }
 }
@@ -1011,6 +1045,198 @@ async fn handle_clear_cache_action(
     Ok(response)
 }
 
+/// Reserved keywords that cannot be used as aliases to avoid CLI conflicts.
+const RESERVED_KEYWORDS: &[&str] = &[
+    "add",
+    "search",
+    "get",
+    "list",
+    "sources",
+    "update",
+    "remove",
+    "rm",
+    "delete",
+    "help",
+    "version",
+    "completions",
+    "diff",
+    "lookup",
+    "plugin",
+    "claude-plugin",
+    "config",
+    "settings",
+    "serve",
+    "server",
+    "start",
+    "stop",
+    "status",
+    "sync",
+    "refresh",
+    "info",
+    "doctor",
+    "map",
+    "toc",
+    "query",
+    "find",
+    "generate",
+    "alias",
+];
+
+fn validate_alias(alias: &str) -> McpResult<()> {
+    let trimmed = alias.trim();
+    if trimmed.is_empty() {
+        return Err(McpError::InvalidParams("Alias cannot be empty".to_string()));
+    }
+    if trimmed.len() > 100 {
+        return Err(McpError::InvalidParams(
+            "Alias exceeds maximum length (100)".to_string(),
+        ));
+    }
+    if trimmed.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(McpError::InvalidParams(
+            "Alias cannot contain whitespace or control characters".to_string(),
+        ));
+    }
+    // Check reserved keywords to prevent CLI conflicts
+    if RESERVED_KEYWORDS.contains(&trimmed.to_lowercase().as_str()) {
+        return Err(McpError::InvalidParams(format!(
+            "Alias '{alias}' is reserved (CLI command name)"
+        )));
+    }
+    Ok(())
+}
+
+fn find_alias_owner(storage: &Storage, alias: &str) -> Option<String> {
+    for src in storage.list_sources() {
+        if let Ok(llms) = storage.load_llms_json(&src) {
+            if llms.metadata.aliases.iter().any(|a| a == alias) {
+                return Some(src);
+            }
+        }
+    }
+    None
+}
+
+fn handle_add_alias_action(
+    source: Option<String>,
+    target_alias: Option<String>,
+    storage: &Storage,
+) -> McpResult<BlzOutput> {
+    let source = source.ok_or_else(|| McpError::MissingParameter("alias".to_string()))?;
+    let new_alias =
+        target_alias.ok_or_else(|| McpError::MissingParameter("targetAlias".to_string()))?;
+
+    if !storage.exists(&source) {
+        return Err(McpError::SourceNotFound(source));
+    }
+
+    validate_alias(&new_alias)?;
+
+    // Prevent adding the canonical as an alias
+    if source.eq_ignore_ascii_case(&new_alias) {
+        return Err(McpError::InvalidParams(format!(
+            "Alias '{new_alias}' matches the canonical source name"
+        )));
+    }
+
+    // Enforce uniqueness across all sources (metadata aliases)
+    if let Some(owner) = find_alias_owner(storage, &new_alias) {
+        if owner != source {
+            return Err(McpError::InvalidParams(format!(
+                "Alias '{new_alias}' is already used by source '{owner}'"
+            )));
+        }
+    }
+
+    // Prevent aliases that match another source's canonical name
+    // (resolve_alias prefers canonical names, making such aliases unusable)
+    let canonical_sources: Vec<String> = storage.list_sources();
+    if canonical_sources
+        .iter()
+        .any(|s| s.eq_ignore_ascii_case(&new_alias) && s != &source)
+    {
+        return Err(McpError::InvalidParams(format!(
+            "Alias '{new_alias}' conflicts with an existing source's canonical name"
+        )));
+    }
+
+    let mut llms = storage.load_llms_json(&source)?;
+
+    // Check if alias already exists
+    if llms.metadata.aliases.iter().any(|a| a == &new_alias) {
+        let mut response = empty_output(BlzAction::AddAlias);
+        response.alias_add = Some(AliasOutput {
+            message: format!("'{source}' already has alias '{new_alias}'"),
+            source,
+            alias: new_alias,
+            no_op: true,
+            current_aliases: llms.metadata.aliases,
+        });
+        return Ok(response);
+    }
+
+    // Add the alias
+    llms.metadata.aliases.push(new_alias.clone());
+    storage.save_llms_json(&source, &llms)?;
+    storage.save_source_metadata(&source, &llms.metadata)?;
+
+    let mut response = empty_output(BlzAction::AddAlias);
+    response.alias_add = Some(AliasOutput {
+        message: format!("Added alias '{new_alias}' to '{source}'"),
+        source,
+        alias: new_alias,
+        no_op: false,
+        current_aliases: llms.metadata.aliases,
+    });
+    Ok(response)
+}
+
+fn handle_remove_alias_action(
+    source: Option<String>,
+    target_alias: Option<String>,
+    storage: &Storage,
+) -> McpResult<BlzOutput> {
+    let source = source.ok_or_else(|| McpError::MissingParameter("alias".to_string()))?;
+    let alias_to_remove =
+        target_alias.ok_or_else(|| McpError::MissingParameter("targetAlias".to_string()))?;
+
+    if !storage.exists(&source) {
+        return Err(McpError::SourceNotFound(source));
+    }
+
+    let mut llms = storage.load_llms_json(&source)?;
+
+    let before = llms.metadata.aliases.len();
+    llms.metadata.aliases.retain(|a| a != &alias_to_remove);
+
+    // Check if alias was found
+    if llms.metadata.aliases.len() == before {
+        let mut response = empty_output(BlzAction::RemoveAlias);
+        response.alias_remove = Some(AliasOutput {
+            message: format!("Alias '{alias_to_remove}' not found on '{source}'"),
+            source,
+            alias: alias_to_remove,
+            no_op: true,
+            current_aliases: llms.metadata.aliases,
+        });
+        return Ok(response);
+    }
+
+    // Save the updated metadata
+    storage.save_llms_json(&source, &llms)?;
+    storage.save_source_metadata(&source, &llms.metadata)?;
+
+    let mut response = empty_output(BlzAction::RemoveAlias);
+    response.alias_remove = Some(AliasOutput {
+        message: format!("Removed alias '{alias_to_remove}' from '{source}'"),
+        source,
+        alias: alias_to_remove,
+        no_op: false,
+        current_aliases: llms.metadata.aliases,
+    });
+    Ok(response)
+}
+
 /// Main handler for blz tool
 #[tracing::instrument(skip(storage, index_cache))]
 pub async fn handle_blz(
@@ -1028,6 +1254,7 @@ pub async fn handle_blz(
         reindex,
         all,
         limit,
+        target_alias,
         ..
     } = params;
 
@@ -1044,6 +1271,8 @@ pub async fn handle_blz(
         BlzAction::Lookup => handle_lookup_action(query, limit),
         BlzAction::Doctor => Ok(handle_doctor_action(storage)),
         BlzAction::ClearCache => handle_clear_cache_action(storage, index_cache).await,
+        BlzAction::AddAlias => handle_add_alias_action(alias, target_alias, storage),
+        BlzAction::RemoveAlias => handle_remove_alias_action(alias, target_alias, storage),
         BlzAction::Help => handle_help_action().await,
     }
 }
