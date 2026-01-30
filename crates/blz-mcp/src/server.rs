@@ -135,7 +135,7 @@ fn build_blz_tool_schema() -> serde_json::Map<String, serde_json::Value> {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "add", "remove", "refresh", "info", "validate", "history", "help"],
+                "enum": ["list", "add", "remove", "refresh", "info", "validate", "history", "lookup", "help"],
                 "description": "Action to execute (optional; inferred from parameters)"
             },
             "alias": {
@@ -169,6 +169,12 @@ fn build_blz_tool_schema() -> serde_json::Map<String, serde_json::Value> {
                 "type": "boolean",
                 "default": false,
                 "description": "Refresh all sources"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 10,
+                "description": "Maximum results for lookup (default: 10)"
             }
         }
     });
@@ -314,7 +320,7 @@ impl ServerHandler for McpServer {
             ),
             Tool::new(
                 "blz",
-                "Manage sources and metadata (actions: list, add, remove, refresh, info, validate, history, help)",
+                "Manage sources and metadata (actions: list, add, remove, refresh, info, validate, history, lookup, help)",
                 Arc::new(build_blz_tool_schema()),
             ),
         ];
