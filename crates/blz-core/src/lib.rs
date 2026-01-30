@@ -69,6 +69,8 @@ pub mod firecrawl;
 pub mod generate;
 /// Heading sanitization and normalization helpers
 pub mod heading;
+/// Health check types for diagnostics and source health monitoring
+pub mod health;
 /// Search index implementation using Tantivy
 pub mod index;
 /// JSON builder helpers for llms.json structures
@@ -109,6 +111,9 @@ pub use fetcher::{FetchResult, Fetcher};
 pub use heading::{
     HeadingPathVariants, HeadingSegmentVariants, normalize_text_for_search, path_variants,
     segment_variants,
+};
+pub use health::{
+    CacheInfo, HealthCheck, HealthReport, HealthStatus, SourceHealth, SourceHealthEntry, SourceKind,
 };
 pub use index::SearchIndex;
 pub use json_builder::build_llms_json;
