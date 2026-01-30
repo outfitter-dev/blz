@@ -1,7 +1,7 @@
 //! Health check command - comprehensive cache and source diagnostics
 
 use anyhow::Result;
-use blz_core::Storage;
+use blz_core::{CacheInfo, HealthCheck, HealthStatus, SourceHealth, SourceKind, Storage};
 use colored::Colorize;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -10,6 +10,14 @@ use crate::commands::sync::generated::{is_generated_source, load_generate_manife
 use crate::output::OutputFormat;
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 
+// ============================================================
+// CLI-specific Health Report (uses CLI's SourceHealthEntry)
+// ============================================================
+
+/// CLI health report with extended source entry information.
+///
+/// This extends the core `HealthReport` with CLI-specific fields
+/// in `SourceHealthEntry` for display and fix logic.
 #[derive(Debug, Serialize)]
 pub struct HealthReport {
     /// Overall status derived from all checks.
@@ -27,79 +35,21 @@ pub struct HealthReport {
     pub source_entries: Vec<SourceHealthEntry>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct CacheInfo {
-    /// Root cache directory.
-    pub cache_dir: PathBuf,
-    /// Configuration directory.
-    pub config_dir: PathBuf,
-    /// Total size of cached files in bytes.
-    pub total_size_bytes: u64,
-    /// Number of cached sources.
-    pub total_sources: usize,
-    /// Number of cached files.
-    pub total_files: usize,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SourceHealth {
-    /// Total sources inspected.
-    pub total: usize,
-    /// Sources with no issues.
-    pub healthy: usize,
-    /// Sources that are stale.
-    pub stale: usize,
-    /// Sources with corrupted caches.
-    pub corrupted: usize,
-    /// Aliases of stale sources.
-    pub stale_sources: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct HealthCheck {
-    /// Human-friendly check name.
-    pub name: String,
-    /// Status of the check.
-    pub status: HealthStatus,
-    /// Message describing the result.
-    pub message: String,
-    /// Whether the issue can be auto-fixed.
-    pub fixable: bool,
-}
-
-#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum HealthStatus {
-    /// Check passed with no issues.
-    Healthy,
-    /// Check passed with warnings.
-    Warning,
-    /// Check failed with an error.
-    Error,
-}
-
 // ============================================================
-// Individual Source Health Types (for generated source tracking)
+// CLI-specific Source Health Entry (extended fields for display)
 // ============================================================
-
-/// Type of documentation source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SourceHealthType {
-    /// Native llms.txt/llms-full.txt source.
-    Native,
-    /// Generated via Firecrawl scraping.
-    Generated,
-}
 
 /// Health status for an individual source.
+///
+/// This is the CLI-specific version with `status` and `status_message` fields
+/// for display logic. The core version uses `is_stale` and `stale_days` instead.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceHealthEntry {
     /// Source alias.
     pub alias: String,
     /// Type of source (native or generated).
-    pub source_type: SourceHealthType,
+    pub source_type: SourceKind,
     /// Total line count in the document.
     pub line_count: usize,
     /// Health status.
@@ -116,7 +66,7 @@ pub struct SourceHealthEntry {
 impl SourceHealthEntry {
     /// Create a new source health entry.
     #[must_use]
-    pub const fn new(alias: String, source_type: SourceHealthType) -> Self {
+    pub const fn new(alias: String, source_type: SourceKind) -> Self {
         Self {
             alias,
             source_type,
@@ -173,7 +123,7 @@ pub fn generate_source_health_recommendations(sources: &[SourceHealthEntry]) -> 
 
     for source in sources {
         // Recommend upgrade for generated sources with native available
-        if source.source_type == SourceHealthType::Generated && source.upgrade_available {
+        if source.source_type == SourceKind::Generated && source.upgrade_available {
             recommendations.push(format!(
                 "Upgrade '{}' to native source (blz sync {} --upgrade)",
                 source.alias, source.alias
@@ -453,9 +403,9 @@ fn collect_source_health_entries(storage: &Storage, aliases: &[String]) -> Vec<S
     for alias in aliases {
         let is_generated = is_generated_source(storage, alias);
         let source_type = if is_generated {
-            SourceHealthType::Generated
+            SourceKind::Generated
         } else {
-            SourceHealthType::Native
+            SourceKind::Native
         };
 
         let mut entry = SourceHealthEntry::new(alias.clone(), source_type);
@@ -616,8 +566,8 @@ fn print_text_report(report: &HealthReport, fix_applied: bool) {
             };
 
             let type_str = match entry.source_type {
-                SourceHealthType::Native => "native",
-                SourceHealthType::Generated => "generated",
+                SourceKind::Native => "native",
+                SourceKind::Generated => "generated",
             };
 
             // Format: ✓ react       native     15,230 lines   fresh
@@ -700,12 +650,12 @@ mod tests {
 
     #[test]
     fn test_source_health_entry_native() {
-        let entry = SourceHealthEntry::new("react".to_string(), SourceHealthType::Native)
+        let entry = SourceHealthEntry::new("react".to_string(), SourceKind::Native)
             .with_line_count(15230)
             .with_status(HealthStatus::Healthy, None);
 
         assert_eq!(entry.alias, "react");
-        assert_eq!(entry.source_type, SourceHealthType::Native);
+        assert_eq!(entry.source_type, SourceKind::Native);
         assert_eq!(entry.line_count, 15230);
         assert_eq!(entry.status, HealthStatus::Healthy);
         assert!(!entry.upgrade_available);
@@ -714,14 +664,14 @@ mod tests {
 
     #[test]
     fn test_source_health_entry_generated_with_failures() {
-        let entry = SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+        let entry = SourceHealthEntry::new("hono".to_string(), SourceKind::Generated)
             .with_line_count(12890)
             .with_failed_pages(1)
             .with_status(HealthStatus::Warning, Some("1 failed page".to_string()))
             .with_upgrade_available(true);
 
         assert_eq!(entry.alias, "hono");
-        assert_eq!(entry.source_type, SourceHealthType::Generated);
+        assert_eq!(entry.source_type, SourceKind::Generated);
         assert_eq!(entry.line_count, 12890);
         assert_eq!(entry.status, HealthStatus::Warning);
         assert_eq!(entry.failed_pages, 1);
@@ -736,7 +686,7 @@ mod tests {
     #[test]
     fn test_recommendations_upgrade() {
         let sources = vec![
-            SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+            SourceHealthEntry::new("hono".to_string(), SourceKind::Generated)
                 .with_line_count(12890)
                 .with_upgrade_available(true),
         ];
@@ -752,7 +702,7 @@ mod tests {
     #[test]
     fn test_recommendations_failed_pages() {
         let sources = vec![
-            SourceHealthEntry::new("effect".to_string(), SourceHealthType::Generated)
+            SourceHealthEntry::new("effect".to_string(), SourceKind::Generated)
                 .with_line_count(9450)
                 .with_failed_pages(2)
                 .with_status(HealthStatus::Warning, Some("2 failed pages".to_string())),
@@ -770,8 +720,7 @@ mod tests {
     #[test]
     fn test_recommendations_single_failed_page() {
         let sources = vec![
-            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
-                .with_failed_pages(1),
+            SourceHealthEntry::new("test".to_string(), SourceKind::Generated).with_failed_pages(1),
         ];
 
         let recs = generate_source_health_recommendations(&sources);
@@ -783,8 +732,7 @@ mod tests {
     #[test]
     fn test_recommendations_multiple_failed_pages() {
         let sources = vec![
-            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
-                .with_failed_pages(3),
+            SourceHealthEntry::new("test".to_string(), SourceKind::Generated).with_failed_pages(3),
         ];
 
         let recs = generate_source_health_recommendations(&sources);
@@ -796,7 +744,7 @@ mod tests {
     #[test]
     fn test_no_recommendations_healthy_native() {
         let sources = vec![
-            SourceHealthEntry::new("react".to_string(), SourceHealthType::Native)
+            SourceHealthEntry::new("react".to_string(), SourceKind::Native)
                 .with_line_count(15230)
                 .with_status(HealthStatus::Healthy, None),
         ];
@@ -809,7 +757,7 @@ mod tests {
     #[test]
     fn test_no_recommendations_healthy_generated() {
         let sources = vec![
-            SourceHealthEntry::new("test".to_string(), SourceHealthType::Generated)
+            SourceHealthEntry::new("test".to_string(), SourceKind::Generated)
                 .with_status(HealthStatus::Healthy, None),
         ];
 
@@ -821,11 +769,11 @@ mod tests {
     #[test]
     fn test_recommendations_combined() {
         let sources = vec![
-            SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+            SourceHealthEntry::new("hono".to_string(), SourceKind::Generated)
                 .with_upgrade_available(true)
                 .with_failed_pages(1),
-            SourceHealthEntry::new("react".to_string(), SourceHealthType::Native),
-            SourceHealthEntry::new("effect".to_string(), SourceHealthType::Generated)
+            SourceHealthEntry::new("react".to_string(), SourceKind::Native),
+            SourceHealthEntry::new("effect".to_string(), SourceKind::Generated)
                 .with_failed_pages(2),
         ];
 
@@ -875,7 +823,7 @@ mod tests {
 
     #[test]
     fn test_source_health_entry_json_serialization() {
-        let entry = SourceHealthEntry::new("hono".to_string(), SourceHealthType::Generated)
+        let entry = SourceHealthEntry::new("hono".to_string(), SourceKind::Generated)
             .with_line_count(12890)
             .with_failed_pages(1)
             .with_status(HealthStatus::Warning, Some("1 failed page".to_string()))
@@ -894,7 +842,7 @@ mod tests {
 
     #[test]
     fn test_source_health_entry_json_skips_null_message() {
-        let entry = SourceHealthEntry::new("react".to_string(), SourceHealthType::Native);
+        let entry = SourceHealthEntry::new("react".to_string(), SourceKind::Native);
 
         let json = serde_json::to_value(&entry).unwrap();
 
@@ -905,11 +853,11 @@ mod tests {
     #[test]
     fn test_source_health_type_serialization() {
         assert_eq!(
-            serde_json::to_string(&SourceHealthType::Native).unwrap(),
+            serde_json::to_string(&SourceKind::Native).unwrap(),
             "\"native\""
         );
         assert_eq!(
-            serde_json::to_string(&SourceHealthType::Generated).unwrap(),
+            serde_json::to_string(&SourceKind::Generated).unwrap(),
             "\"generated\""
         );
     }
