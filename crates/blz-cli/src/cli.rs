@@ -582,9 +582,12 @@ pub enum Commands {
         max_chars: Option<usize>,
         /// Print LINES lines of context (both before and after match). Same as -C.
         ///
+        /// Use "all" to expand to the full heading section containing the match.
+        /// If no heading encompasses the match, returns only the matched lines.
+        ///
         /// Examples:
         ///   -C 10              # 10 lines before and after
-        ///   -C all             # Full section expansion
+        ///   -C all             # Expand to containing heading section
         ///   --context 5        # Long form (also valid)
         #[arg(
             short = 'C',
@@ -641,7 +644,10 @@ pub enum Commands {
             display_order = 32
         )]
         before_context: Option<usize>,
-        /// Return the full heading block containing each hit (legacy alias for --context all)
+        /// Expand to the full heading section containing each hit.
+        ///
+        /// If no heading encompasses the range, returns only the requested lines.
+        /// Legacy alias for --context all.
         #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
@@ -716,9 +722,12 @@ pub enum Commands {
         lines: Option<String>,
         /// Print LINES lines of context (both before and after). Same as -C.
         ///
+        /// Use "all" to expand to the full heading section containing the range.
+        /// If no heading encompasses the range, returns only the requested lines.
+        ///
         /// Examples:
         ///   -C 10              # 10 lines before and after
-        ///   -C all             # Full section expansion
+        ///   -C all             # Expand to containing heading section
         ///   --context 5        # Long form (also valid)
         #[arg(
             short = 'C',
@@ -775,7 +784,10 @@ pub enum Commands {
             display_order = 32
         )]
         before_context: Option<usize>,
-        /// Return the full heading block containing the range (legacy alias for --context all)
+        /// Expand to the full heading section containing the range.
+        ///
+        /// If no heading encompasses the range, returns only the requested lines.
+        /// Legacy alias for --context all.
         #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
         /// Maximum number of lines to include when using block expansion (--block or --context all)
@@ -1042,6 +1054,9 @@ pub enum Commands {
         max_chars: Option<usize>,
 
         /// Print LINES lines of context (both before and after match). Same as -C.
+        ///
+        /// Use "all" to expand to the full heading section containing the match.
+        /// If no heading encompasses the match, returns only the matched lines.
         #[arg(
             short = 'C',
             long = "context",
@@ -1093,7 +1108,10 @@ pub enum Commands {
         )]
         before_context: Option<usize>,
 
-        /// Return the full heading block containing each hit (legacy alias for --context all)
+        /// Expand to the full heading section containing each hit.
+        ///
+        /// If no heading encompasses the range, returns only the requested lines.
+        /// Legacy alias for --context all.
         #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
         block: bool,
 
@@ -1301,6 +1319,9 @@ pub struct QueryArgs {
     pub max_chars: Option<usize>,
 
     /// Print LINES lines of context (both before and after match). Same as -C.
+    ///
+    /// Use "all" to expand to the full heading section containing the match.
+    /// If no heading encompasses the match, returns only the matched lines.
     #[arg(
         short = 'C',
         long = "context",
@@ -1352,7 +1373,10 @@ pub struct QueryArgs {
     )]
     pub before_context: Option<usize>,
 
-    /// Return the full heading block containing each hit (legacy alias for --context all)
+    /// Expand to the full heading section containing each hit.
+    ///
+    /// If no heading encompasses the range, returns only the requested lines.
+    /// Legacy alias for --context all.
     #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
     pub block: bool,
 

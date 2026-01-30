@@ -323,7 +323,7 @@ pub struct TocEntry {
     pub anchor: Option<String>,
     /// Child entries for tree view.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub children: Vec<TocEntry>,
+    pub children: Vec<Self>,
 }
 
 /// Output shape for source list.
