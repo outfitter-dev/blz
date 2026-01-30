@@ -6,7 +6,7 @@ use blz_core::refresh::{
     DefaultRefreshIndexer, RefreshOutcome, RefreshStorage, refresh_source_with_metadata,
     reindex_source, resolve_refresh_url,
 };
-use blz_core::{Fetcher, HeadingFilterStats, PerformanceMetrics, Storage, TocEntry};
+use blz_core::{Fetcher, HeadingFilterStats, PerformanceMetrics, Registry, Storage, TocEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -60,6 +60,10 @@ pub struct BlzParams {
     /// Refresh all sources
     #[serde(default)]
     pub all: bool,
+
+    /// Maximum results for lookup (default: 10)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 /// Supported blz actions
@@ -80,6 +84,8 @@ pub enum BlzAction {
     Validate,
     /// Show archive history for a source
     History,
+    /// Search the registry for sources matching a query
+    Lookup,
     /// Return help and usage guidance
     Help,
 }
@@ -118,6 +124,10 @@ pub struct BlzOutput {
     /// History output
     #[serde(skip_serializing_if = "Option::is_none")]
     pub history: Option<RunCommandOutput>,
+
+    /// Lookup output
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lookup: Option<LookupOutput>,
 
     /// Help output
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -180,6 +190,36 @@ pub struct SourceInfoOutput {
     /// Language filter statistics
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_stats: Option<HeadingFilterStats>,
+}
+
+/// Registry lookup results
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LookupOutput {
+    /// Query that was searched
+    pub query: String,
+    /// Matching entries
+    pub results: Vec<LookupResult>,
+    /// Total results found
+    pub total: usize,
+}
+
+/// Single registry lookup result
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LookupResult {
+    /// Source name
+    pub name: String,
+    /// Source slug/alias
+    pub slug: String,
+    /// Description
+    pub description: String,
+    /// Primary URL
+    pub url: String,
+    /// Match score (higher = better)
+    pub score: i64,
+    /// Which field matched (name, slug, alias, description)
+    pub match_field: String,
 }
 
 /// Refresh summary for one or more sources
@@ -250,6 +290,7 @@ const fn empty_output(action: BlzAction) -> BlzOutput {
         info: None,
         validate: None,
         history: None,
+        lookup: None,
         help: None,
     }
 }
@@ -655,6 +696,35 @@ async fn handle_help_action() -> McpResult<BlzOutput> {
     Ok(response)
 }
 
+fn handle_lookup_action(query: Option<String>, limit: Option<usize>) -> McpResult<BlzOutput> {
+    let query = query.ok_or_else(|| McpError::MissingParameter("query".to_string()))?;
+    let limit = limit.unwrap_or(10);
+    let registry = Registry::default();
+    let search_results = registry.search(&query);
+    let total = search_results.len();
+
+    let results: Vec<LookupResult> = search_results
+        .into_iter()
+        .take(limit)
+        .map(|r| LookupResult {
+            name: r.entry.name,
+            slug: r.entry.slug,
+            description: r.entry.description,
+            url: r.entry.llms_url,
+            score: r.score,
+            match_field: r.match_field,
+        })
+        .collect();
+
+    let mut response = empty_output(BlzAction::Lookup);
+    response.lookup = Some(LookupOutput {
+        query,
+        results,
+        total,
+    });
+    Ok(response)
+}
+
 /// Main handler for blz tool
 #[tracing::instrument(skip(storage, index_cache))]
 pub async fn handle_blz(
@@ -671,6 +741,7 @@ pub async fn handle_blz(
         query,
         reindex,
         all,
+        limit,
         ..
     } = params;
 
@@ -684,6 +755,7 @@ pub async fn handle_blz(
         BlzAction::Info => handle_info_action(alias, storage),
         BlzAction::Validate => handle_validate_action(alias, storage).await,
         BlzAction::History => handle_history_action(alias, storage).await,
+        BlzAction::Lookup => handle_lookup_action(query, limit),
         BlzAction::Help => handle_help_action().await,
     }
 }
