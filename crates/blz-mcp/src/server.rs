@@ -112,6 +112,11 @@ fn build_find_tool_schema() -> serde_json::Map<String, serde_json::Value> {
                 "type": "integer",
                 "minimum": 1,
                 "description": "Maximum heading depth to include in TOC"
+            },
+            "includeTiming": {
+                "type": "boolean",
+                "default": false,
+                "description": "Include timing metrics in the response"
             }
         }
     });
