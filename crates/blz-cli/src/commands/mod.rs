@@ -46,10 +46,10 @@ pub use completions::generate;
 pub use completions::list_supported;
 pub use toc::{AnchorCommands, execute as show_toc, get_by_anchor};
 // config command removed in v1.0.0-beta.1 - flavor preferences eliminated
-pub use claude_plugin::install_local_plugin;
+pub use claude_plugin::{ClaudePluginCommands, install_local_plugin};
 pub use create_source::{RegistryCommands, execute as create_registry_source};
 pub use diff::show as show_diff;
-pub use docs::{DocsFormat, execute as generate_docs};
+pub use docs::{DocsCommands, DocsFormat, DocsSearchArgs, execute as generate_docs};
 pub use docs_bundle::{
     BUNDLED_ALIAS, SyncStatus as DocsSyncStatus, print_full_content, print_overview,
     sync as sync_bundled_docs,

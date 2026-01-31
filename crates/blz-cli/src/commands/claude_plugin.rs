@@ -1,12 +1,33 @@
 //! Claude plugin install helpers for local development.
 
 use anyhow::{Context, Result, bail};
+use clap::Subcommand;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::cli::ClaudePluginScope;
-
 const INSTALL_SCRIPT: &str = "scripts/install-claude-plugin-local.sh";
+
+/// Installation scope for Claude plugin installs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub enum ClaudePluginScope {
+    /// Install for the current user.
+    #[value(name = "user")]
+    User,
+    /// Install for the current project.
+    #[value(name = "project")]
+    Project,
+}
+
+/// Subcommands for `blz claude-plugin`.
+#[derive(Subcommand, Clone, Copy, Debug)]
+pub enum ClaudePluginCommands {
+    /// Install the local Claude plugin from this repository.
+    Install {
+        /// Installation scope for Claude Code.
+        #[arg(long, value_enum, default_value = "user")]
+        scope: ClaudePluginScope,
+    },
+}
 
 impl ClaudePluginScope {
     const fn as_str(self) -> &'static str {
