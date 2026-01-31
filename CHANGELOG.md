@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [2.2.1-beta.1](https://github.com/outfitter-dev/blz/compare/v2.2.0-beta.1...v2.2.1-beta.1) (2026-01-31)
+
+
+### Bug Fixes
+
+* **cli:** allow flags before positional arguments in query command ([c5e80e1](https://github.com/outfitter-dev/blz/commit/c5e80e15f5af665929bf10b5d8caa522dbb08bcd))
+
 ## [2.2.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.1.0-beta.1...v2.2.0-beta.1) (2026-01-30)
 
 
