@@ -472,15 +472,14 @@ pub enum Commands {
         /// Search query (required unless --next, --previous, or --last)
         #[arg(required_unless_present_any = ["next", "previous", "last"])]
         query: Option<String>,
-        /// Filter by source(s) - comma-separated for multiple
+        /// Filter by source(s) - comma-separated or repeated (-s a -s b)
         #[arg(
             long = "source",
             short = 's',
             visible_alias = "alias",
             visible_alias = "sources",
             value_name = "SOURCE",
-            value_delimiter = ',',
-            num_args = 0..
+            value_delimiter = ','
         )]
         sources: Vec<String>,
         /// Continue from previous search (next page)
@@ -972,15 +971,14 @@ pub enum Commands {
         #[arg(value_name = "INPUT", required = true, num_args = 1..)]
         inputs: Vec<String>,
 
-        /// Filter by source(s) for search mode - comma-separated for multiple
+        /// Filter by source(s) for search mode - comma-separated or repeated (-s a -s b)
         #[arg(
             long = "source",
             short = 's',
             visible_alias = "alias",
             visible_alias = "sources",
             value_name = "SOURCE",
-            value_delimiter = ',',
-            num_args = 0..
+            value_delimiter = ','
         )]
         sources: Vec<String>,
 
@@ -1243,15 +1241,14 @@ pub struct QueryArgs {
     #[arg(value_name = "QUERY", required = true, num_args = 1..)]
     pub inputs: Vec<String>,
 
-    /// Filter by source(s) - comma-separated for multiple
+    /// Filter by source(s) - comma-separated or repeated (-s a -s b)
     #[arg(
         long = "source",
         short = 's',
         visible_alias = "alias",
         visible_alias = "sources",
         value_name = "SOURCE",
-        value_delimiter = ',',
-        num_args = 0..
+        value_delimiter = ','
     )]
     pub sources: Vec<String>,
 
