@@ -7,6 +7,7 @@ use blz_core::{
     HitContext, LlmsJson, PerformanceMetrics, ResourceMonitor, SearchHit, SearchIndex, Source,
     Storage,
 };
+use clap::Args;
 use futures::stream::{self, StreamExt};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -15,8 +16,9 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::warn;
 
-use crate::cli::ShowComponent;
+use crate::args::{ContextMode, ShowComponent};
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
+use crate::utils::cli_args::FormatArg;
 use crate::utils::parsing::parse_line_span;
 use crate::utils::preferences::CliPreferences;
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
@@ -37,6 +39,214 @@ pub(super) fn default_search_limit() -> usize {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_SEARCH_LIMIT)
+}
+
+/// Arguments for the deprecated `blz search` command.
+///
+/// This command is deprecated in favor of `blz query` for search operations.
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct SearchArgs {
+    /// Search query (required unless --next, --previous, or --last)
+    #[arg(required_unless_present_any = ["next", "previous", "last"])]
+    pub query: Option<String>,
+    /// Filter by source(s) - comma-separated or repeated (-s a -s b)
+    #[arg(
+        long = "source",
+        short = 's',
+        visible_alias = "alias",
+        visible_alias = "sources",
+        value_name = "SOURCE",
+        value_delimiter = ','
+    )]
+    pub sources: Vec<String>,
+    /// Continue from previous search (next page)
+    #[arg(
+        long,
+        conflicts_with = "page",
+        conflicts_with = "last",
+        conflicts_with = "previous",
+        display_order = 50
+    )]
+    pub next: bool,
+    /// Go back to previous page
+    #[arg(
+        long,
+        conflicts_with = "page",
+        conflicts_with = "last",
+        conflicts_with = "next",
+        display_order = 51
+    )]
+    pub previous: bool,
+    /// Jump to last page of results
+    #[arg(
+        long,
+        conflicts_with = "next",
+        conflicts_with = "page",
+        conflicts_with = "previous",
+        display_order = 52
+    )]
+    pub last: bool,
+    /// Maximum number of results per page (default 50; internally fetches up to 3x this value for scoring stability)
+    #[arg(
+        short = 'n',
+        long,
+        value_name = "COUNT",
+        conflicts_with = "all",
+        display_order = 53
+    )]
+    pub limit: Option<usize>,
+    /// Show all results (no limit)
+    #[arg(long, conflicts_with = "limit", display_order = 54)]
+    pub all: bool,
+    /// Page number for pagination
+    #[arg(
+        long,
+        default_value = "1",
+        conflicts_with = "next",
+        conflicts_with = "last",
+        display_order = 55
+    )]
+    pub page: usize,
+    /// Show only top N percentile of results (1-100). Applied after paging is calculated.
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+    pub top: Option<u8>,
+    /// Filter results by heading level
+    ///
+    /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+    ///
+    /// Examples:
+    ///   -H <=2       # Level 1 and 2 headings only
+    ///   -H >2        # Level 3+ headings only
+    ///   -H 1,2,3     # Levels 1, 2, and 3 only
+    ///   -H 2-4       # Levels 2, 3, and 4 only
+    #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+    pub heading_level: Option<String>,
+    /// Output format (text, json, jsonl)
+    #[command(flatten)]
+    pub format: FormatArg,
+    /// Additional columns to include in text output
+    #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+    pub show: Vec<ShowComponent>,
+    /// Hide the summary/footer line
+    #[arg(long = "no-summary")]
+    pub no_summary: bool,
+    /// Number of decimal places to show for scores (0-4)
+    #[arg(
+        long = "score-precision",
+        value_name = "PLACES",
+        value_parser = clap::value_parser!(u8).range(0..=4),
+        env = "BLZ_SCORE_PRECISION"
+    )]
+    pub score_precision: Option<u8>,
+    /// Maximum snippet lines to display around a hit (1-10)
+    #[arg(
+        long = "snippet-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(u8).range(1..=10),
+        env = "BLZ_SNIPPET_LINES",
+        default_value_t = 3,
+        hide = true
+    )]
+    pub snippet_lines: u8,
+    /// Maximum total characters in snippet (including newlines). Range: 50-1000, default: 200.
+    #[arg(
+        long = "max-chars",
+        value_name = "CHARS",
+        env = "BLZ_MAX_CHARS",
+        value_parser = clap::value_parser!(usize)
+    )]
+    pub max_chars: Option<usize>,
+    /// Print LINES lines of context (both before and after match). Same as -C.
+    ///
+    /// Use "all" to expand to the full heading section containing the match.
+    /// If no heading encompasses the match, returns only the matched lines.
+    ///
+    /// Examples:
+    ///   -C 10              # 10 lines before and after
+    ///   -C all             # Expand to containing heading section
+    ///   --context 5        # Long form (also valid)
+    #[arg(
+        short = 'C',
+        long = "context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context_deprecated"],
+        display_order = 30
+    )]
+    pub context: Option<ContextMode>,
+    /// Deprecated: use -C or --context instead (hidden for backward compatibility)
+    #[arg(
+        short = 'c',
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context"],
+        hide = true,
+        display_order = 100
+    )]
+    pub context_deprecated: Option<ContextMode>,
+    /// Print LINES lines of context after each match
+    ///
+    /// Examples:
+    ///   -A3                # 3 lines after match
+    ///   --after-context 5  # 5 lines after match
+    #[arg(
+        short = 'A',
+        long = "after-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 31
+    )]
+    pub after_context: Option<usize>,
+    /// Print LINES lines of context before each match
+    ///
+    /// Examples:
+    ///   -B3                # 3 lines before match
+    ///   --before-context 5 # 5 lines before match
+    #[arg(
+        short = 'B',
+        long = "before-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 32
+    )]
+    pub before_context: Option<usize>,
+    /// Expand to the full heading section containing each hit.
+    ///
+    /// If no heading encompasses the range, returns only the requested lines.
+    /// Legacy alias for --context all.
+    #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
+    pub block: bool,
+    /// Maximum number of lines to include when using block expansion (--block or --context all)
+    #[arg(
+        long = "max-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(usize),
+        display_order = 34
+    )]
+    pub max_lines: Option<usize>,
+    /// Restrict matches to heading text only
+    #[arg(long = "headings-only", display_order = 35)]
+    pub headings_only: bool,
+    /// Don't save this search to history
+    #[arg(long = "no-history")]
+    pub no_history: bool,
+    /// Copy results to clipboard using OSC 52 escape sequence
+    #[arg(long)]
+    pub copy: bool,
+    /// Show detailed timing breakdown for performance analysis
+    #[arg(long)]
+    pub timing: bool,
 }
 
 /// Search options
