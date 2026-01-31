@@ -39,15 +39,15 @@ pub use add::{
     AddFlowOptions, AddRequest, DescriptorInput, execute as add_source,
     execute_manifest as add_manifest,
 };
-pub use alias::{AliasCommand, execute as manage_alias};
+pub use alias::{AliasCommand, AliasCommands, execute as manage_alias};
 pub use check::execute as check_source;
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
-pub use toc::{execute as show_toc, get_by_anchor};
+pub use toc::{AnchorCommands, execute as show_toc, get_by_anchor};
 // config command removed in v1.0.0-beta.1 - flavor preferences eliminated
 pub use claude_plugin::install_local_plugin;
-pub use create_source::execute as create_registry_source;
+pub use create_source::{RegistryCommands, execute as create_registry_source};
 pub use diff::show as show_diff;
 pub use docs::{DocsFormat, execute as generate_docs};
 pub use docs_bundle::{
