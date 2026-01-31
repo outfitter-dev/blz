@@ -28,9 +28,51 @@ pub mod generated;
 
 use anyhow::Result;
 use blz_core::{PerformanceMetrics, Storage};
+use clap::Args;
 use colored::Colorize;
 
 use crate::utils::resolver;
+
+/// Arguments for `blz sync` (fetch latest docs)
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct SyncArgs {
+    /// Source aliases to sync
+    #[arg(
+        value_name = "ALIAS",
+        num_args = 0..,
+        conflicts_with = "all"
+    )]
+    pub aliases: Vec<String>,
+
+    /// Sync all sources
+    #[arg(long, conflicts_with = "aliases")]
+    pub all: bool,
+
+    /// Apply changes without prompting (e.g., auto-upgrade to llms-full)
+    #[arg(short = 'y', long = "yes")]
+    pub yes: bool,
+
+    /// Force re-parse and re-index even if content unchanged
+    #[arg(long)]
+    pub reindex: bool,
+
+    /// Enable content filters (comma-separated: lang). Use --filter with no value to enable all filters.
+    ///
+    /// Available filters:
+    ///   lang,language  - Filter non-English content
+    ///
+    /// Examples:
+    ///   --filter           # Enable all filters
+    ///   --filter lang      # Only language filter
+    ///   --no-filter        # Disable all filters
+    #[arg(long, value_name = "FILTERS", num_args = 0..=1, default_missing_value = "all", conflicts_with = "no_filter")]
+    pub filter: Option<String>,
+
+    /// Disable all content filters for this sync
+    #[arg(long, conflicts_with = "filter")]
+    pub no_filter: bool,
+}
 
 // Re-export generated source types and functions for public API.
 // Some are not yet used internally but are exported for future Firecrawl integration.

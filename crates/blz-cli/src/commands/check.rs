@@ -12,8 +12,25 @@
 //! ```
 
 use anyhow::Result;
+use clap::Args;
 
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
+
+/// Arguments for `blz check` (validate sources)
+#[derive(Args, Clone, Debug)]
+pub struct CheckArgs {
+    /// Source to validate (validates all if not specified)
+    pub alias: Option<String>,
+
+    /// Validate all sources
+    #[arg(long)]
+    pub all: bool,
+
+    /// Output format
+    #[command(flatten)]
+    pub format: FormatArg,
+}
 
 /// Execute the check command to validate sources
 ///
