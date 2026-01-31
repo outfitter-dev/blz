@@ -46,7 +46,7 @@ fuzzy-matcher = "0.3"
 
 
 # Performance & profiling
-criterion = { version = "0.7", features = ["async_tokio"] }
+criterion = { version = "0.8", features = ["async_tokio"] }
 sysinfo = "0.32"
 tempfile = "3"
 url = "2"
