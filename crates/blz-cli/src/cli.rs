@@ -56,8 +56,8 @@ use clap::{Args, Parser, Subcommand};
 use crate::utils::cli_args::FormatArg;
 use std::path::PathBuf;
 
-// Re-export context types from args module for backward compatibility
-pub use crate::args::{ContextMode, merge_context_flags};
+// Re-export shared types from args module for backward compatibility
+pub use crate::args::{ContextMode, ShowComponent, merge_context_flags};
 
 /// Custom help template with grouped command sections
 static HELP_TEMPLATE: &str = "\
@@ -1639,22 +1639,6 @@ pub struct AddArgs {
     ///   blz add anthropic <https://docs.anthropic.com/llms-full.txt> --no-language-filter
     #[arg(long)]
     pub no_language_filter: bool,
-}
-
-/// Additional columns that can be displayed in text search results
-#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
-pub enum ShowComponent {
-    /// Include the global rank prefix (1., 2., ...)
-    Rank,
-    /// Display the source URL header for aliases present on the page
-    Url,
-    /// Prefix snippet lines with their line numbers
-    Lines,
-    /// Show the hashed section anchor above the snippet
-    Anchor,
-    /// Show raw BM25 scores instead of percentages
-    #[value(name = "raw-score")]
-    RawScore,
 }
 
 #[derive(Subcommand, Clone, Debug)]
