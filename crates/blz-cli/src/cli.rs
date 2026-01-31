@@ -58,6 +58,8 @@ use std::path::PathBuf;
 
 // Re-export shared types from args module for backward compatibility
 pub use crate::args::{ContextMode, ShowComponent, merge_context_flags};
+// Re-export sub-enums from commands module
+pub use crate::commands::{AliasCommands, AnchorCommands, RegistryCommands};
 
 /// Custom help template with grouped command sections
 static HELP_TEMPLATE: &str = "\
@@ -1639,96 +1641,4 @@ pub struct AddArgs {
     ///   blz add anthropic <https://docs.anthropic.com/llms-full.txt> --no-language-filter
     #[arg(long)]
     pub no_language_filter: bool,
-}
-
-#[derive(Subcommand, Clone, Debug)]
-pub enum AnchorCommands {
-    /// List table-of-contents entries (headings) for a source
-    List {
-        /// Source alias
-        alias: String,
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-        /// Show anchor metadata and remap history
-        #[arg(long, alias = "mappings")]
-        anchors: bool,
-        /// Maximum number of headings to display
-        #[arg(short = 'n', long, value_name = "COUNT")]
-        limit: Option<usize>,
-        /// Limit results to headings at or above this level (1-6)
-        #[arg(
-            long = "max-depth",
-            value_name = "DEPTH",
-            value_parser = clap::value_parser!(u8).range(1..=6)
-        )]
-        max_depth: Option<u8>,
-        /// Filter headings by boolean expression (use AND/OR/NOT; whitespace implies OR)
-        #[arg(long = "filter", value_name = "EXPR")]
-        filter: Option<String>,
-    },
-    /// Get content by anchor
-    Get {
-        /// Source alias
-        alias: String,
-        /// Anchor value (from list)
-        anchor: String,
-        /// Context lines around the section
-        #[arg(short = 'c', long)]
-        context: Option<usize>,
-        /// Output format
-        #[command(flatten)]
-        format: FormatArg,
-    },
-}
-
-#[derive(Subcommand, Clone, Debug)]
-pub enum AliasCommands {
-    /// Add an alias for a source
-    Add {
-        /// Canonical source
-        source: String,
-        /// Alias to add (e.g., @scope/package)
-        alias: String,
-    },
-    /// Remove an alias from a source
-    Rm {
-        /// Canonical source
-        source: String,
-        /// Alias to remove
-        alias: String,
-    },
-}
-
-#[derive(Subcommand, Clone, Debug)]
-pub enum RegistryCommands {
-    /// Create a new source in the registry
-    CreateSource {
-        /// Source name/alias
-        name: String,
-        /// URL to fetch llms.txt from
-        #[arg(long)]
-        url: String,
-        /// Description of the source
-        #[arg(long)]
-        description: Option<String>,
-        /// Category (library, framework, language, tool, etc.)
-        #[arg(long)]
-        category: Option<String>,
-        /// Tags (comma-separated)
-        #[arg(long, value_delimiter = ',')]
-        tags: Vec<String>,
-        /// NPM package names (comma-separated)
-        #[arg(long, value_delimiter = ',')]
-        npm: Vec<String>,
-        /// GitHub repositories (comma-separated)
-        #[arg(long, value_delimiter = ',')]
-        github: Vec<String>,
-        /// Also add this source to your local index after creating
-        #[arg(long)]
-        add: bool,
-        /// Skip confirmation prompts (non-interactive mode)
-        #[arg(short = 'y', long)]
-        yes: bool,
-    },
 }
