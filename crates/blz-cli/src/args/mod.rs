@@ -50,7 +50,7 @@ mod output;
 mod pagination;
 mod verbosity;
 
-pub use context::{ContextArgs, ContextMode};
+pub use context::{ContextArgs, ContextMode, merge_context_flags};
 pub use output::{OutputArgs, OutputFormat};
 pub use pagination::PaginationArgs;
 pub use verbosity::Verbosity;
