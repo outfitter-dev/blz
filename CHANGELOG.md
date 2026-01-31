@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [2.2.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.1.0-beta.1...v2.2.0-beta.1) (2026-01-30)
+
+
+### Features
+
+* **mcp:** add alias management actions to blz tool ([#517](https://github.com/outfitter-dev/blz/issues/517)) ([36238db](https://github.com/outfitter-dev/blz/commit/36238dbe64a4edd46f9f77869535390af073df3a))
+* **mcp:** add clearCache action to blz tool ([#516](https://github.com/outfitter-dev/blz/issues/516)) ([14d7a31](https://github.com/outfitter-dev/blz/commit/14d7a31e2e6d146f5a618abea60dfcf71f98b064))
+* **mcp:** add doctor action to blz tool ([#515](https://github.com/outfitter-dev/blz/issues/515)) ([da11e89](https://github.com/outfitter-dev/blz/commit/da11e893feeaebe8c0f8dcdbe5d0b6929605655d))
+* **mcp:** add registry lookup action to blz tool ([#513](https://github.com/outfitter-dev/blz/issues/513)) ([b93d507](https://github.com/outfitter-dev/blz/commit/b93d507a9e10e188aa3a459fd0d9887ccd388682))
+* **mcp:** add timing support to find tool ([#512](https://github.com/outfitter-dev/blz/issues/512)) ([6fbb356](https://github.com/outfitter-dev/blz/commit/6fbb35651fdadafa8596e9901d66b3c4cbab8b23))
+
+
+### Bug Fixes
+
+* **cli:** address polish issues from CLI testing ([#510](https://github.com/outfitter-dev/blz/issues/510)) ([1b87986](https://github.com/outfitter-dev/blz/commit/1b87986092bc2cd97238436cdb0be80a49296461))
+
+
+### Refactoring
+
+* **core:** extract health check types to blz-core ([#514](https://github.com/outfitter-dev/blz/issues/514)) ([2ced2a6](https://github.com/outfitter-dev/blz/commit/2ced2a69866392512490e76bd6286683932c60e1))
+
 ## [2.1.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.0.0-beta.1...v2.1.0-beta.1) (2026-01-29)
 
 
