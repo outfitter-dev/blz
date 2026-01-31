@@ -1,5 +1,10 @@
 //! Add command implementation
 
+use std::fs as sync_fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use blz_core::numeric::safe_percentage;
@@ -8,20 +13,74 @@ use blz_core::{
     SourceDescriptor, SourceOrigin, SourceType, SourceVariant, Storage, build_llms_json,
 };
 use chrono::Utc;
+use clap::Args;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs as sync_fs;
-use std::path::Path;
 use tokio::fs as async_fs;
 use url::Url;
 
 use crate::utils::count_headings;
 use crate::utils::validation::{normalize_alias, validate_alias};
+
+/// Arguments for `blz add`.
+#[derive(Args, Clone, Debug)]
+pub struct AddArgs {
+    /// Source name (used as identifier).
+    #[arg(value_name = "ALIAS", required_unless_present_any = ["manifest"])]
+    pub alias: Option<String>,
+
+    /// URL to fetch llms.txt from.
+    #[arg(value_name = "URL", required_unless_present_any = ["manifest"], requires = "alias")]
+    pub url: Option<String>,
+
+    /// Path to a manifest TOML describing multiple sources.
+    #[arg(long, value_name = "FILE")]
+    pub manifest: Option<PathBuf>,
+
+    /// Restrict manifest processing to specific aliases.
+    #[arg(long = "only", value_delimiter = ',', requires = "manifest")]
+    pub only: Vec<String>,
+
+    /// Additional aliases for this source (comma-separated, e.g., "react-docs,@react/docs").
+    #[arg(long, value_delimiter = ',')]
+    pub aliases: Vec<String>,
+
+    /// Display name for the source (defaults to a Title Case version of the alias).
+    #[arg(long)]
+    pub name: Option<String>,
+
+    /// Description for the source (plain text).
+    #[arg(long)]
+    pub description: Option<String>,
+
+    /// Category label used for grouping (defaults to "uncategorized").
+    #[arg(long)]
+    pub category: Option<String>,
+
+    /// Tags to associate with the source (comma-separated).
+    #[arg(long, value_delimiter = ',')]
+    pub tags: Vec<String>,
+
+    /// Skip confirmation prompts (non-interactive mode).
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Analyze source without adding it (outputs JSON analysis).
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Disable language filtering (keep all languages).
+    ///
+    /// By default, BLZ filters non-English content from multilingual documentation.
+    /// Use this flag to keep all languages.
+    ///
+    /// Examples:
+    ///   blz add anthropic <https://docs.anthropic.com/llms-full.txt> --no-language-filter
+    #[arg(long)]
+    pub no_language_filter: bool,
+}
 #[cfg(test)]
 use blz_core::discovery::DiscoveryMethod;
 use blz_core::discovery::{ProbeResult, probe_domain};

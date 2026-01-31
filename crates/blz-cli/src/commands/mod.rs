@@ -36,11 +36,11 @@ mod update;
 mod validate;
 
 pub use add::{
-    AddFlowOptions, AddRequest, DescriptorInput, execute as add_source,
+    AddArgs, AddFlowOptions, AddRequest, DescriptorInput, execute as add_source,
     execute_manifest as add_manifest,
 };
 pub use alias::{AliasCommand, AliasCommands, execute as manage_alias};
-pub use check::execute as check_source;
+pub use check::{CheckArgs, execute as check_source};
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
@@ -61,15 +61,15 @@ pub use history::show as show_history;
 pub use info::execute_info;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;
-pub use map::execute as show_map;
+pub use map::{MapArgs, execute as show_map};
 pub use mcp::execute as mcp_server;
-pub use query::execute as query;
+pub use query::{QueryArgs, execute as query};
 pub use refresh::{execute as refresh_source, execute_all as refresh_all};
 pub use remove::execute as remove_source;
-pub use rm::execute as rm_source;
+pub use rm::{RmArgs, execute as rm_source};
 pub use search::{DEFAULT_MAX_CHARS, clamp_max_chars, execute as search};
 pub use stats::execute as show_stats;
-pub use sync::execute as sync_source;
+pub use sync::{SyncArgs, execute as sync_source};
 pub use validate::execute as validate_source;
 
 // Re-export types that commands might need
