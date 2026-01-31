@@ -3,12 +3,56 @@ use std::convert::TryFrom;
 use anyhow::{Context, Result, anyhow};
 use blz_core::{AnchorsMap, HeadingLevel, LlmsJson, Storage};
 use chrono::Utc;
+use clap::Subcommand;
 use colored::Colorize;
 
 use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::preferences::{self, TocHistoryEntry};
+
+/// Subcommands for `blz anchor` (legacy).
+#[derive(Subcommand, Clone, Debug)]
+pub enum AnchorCommands {
+    /// List table-of-contents entries (headings) for a source.
+    List {
+        /// Source alias.
+        alias: String,
+        /// Output format.
+        #[command(flatten)]
+        format: FormatArg,
+        /// Show anchor metadata and remap history.
+        #[arg(long, alias = "mappings")]
+        anchors: bool,
+        /// Maximum number of headings to display.
+        #[arg(short = 'n', long, value_name = "COUNT")]
+        limit: Option<usize>,
+        /// Limit results to headings at or above this level (1-6).
+        #[arg(
+            long = "max-depth",
+            value_name = "DEPTH",
+            value_parser = clap::value_parser!(u8).range(1..=6)
+        )]
+        max_depth: Option<u8>,
+        /// Filter headings by boolean expression (use AND/OR/NOT; whitespace implies OR).
+        #[arg(long = "filter", value_name = "EXPR")]
+        filter: Option<String>,
+    },
+    /// Get content by anchor.
+    Get {
+        /// Source alias.
+        alias: String,
+        /// Anchor value (from list).
+        anchor: String,
+        /// Context lines around the section.
+        #[arg(short = 'c', long)]
+        context: Option<usize>,
+        /// Output format.
+        #[command(flatten)]
+        format: FormatArg,
+    },
+}
 
 /// Serialize a `HeadingLevelFilter` back to its string representation
 fn serialize_heading_level_filter(
