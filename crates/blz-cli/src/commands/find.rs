@@ -7,10 +7,12 @@
 //! - Query pattern (anything else) → search mode (like `search`)
 
 use anyhow::Result;
+use clap::Args;
 
-use crate::cli::{ContextMode, ShowComponent};
+use crate::args::{ContextMode, ShowComponent};
 use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
 use crate::utils::preferences::CliPreferences;
 use blz_core::{PerformanceMetrics, ResourceMonitor};
 
@@ -20,6 +22,184 @@ use super::search::{
     copy_results_to_clipboard, default_search_limit, format_and_display, perform_search,
     resolve_show_components,
 };
+
+/// Arguments for the deprecated `blz find` command.
+///
+/// This command is deprecated in favor of `blz query` for search and `blz get` for retrieval.
+#[derive(Args, Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct FindArgs {
+    /// Query terms or citation(s) (e.g., "query" or "alias:123-456")
+    #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+    pub inputs: Vec<String>,
+
+    /// Filter by source(s) for search mode - comma-separated or repeated (-s a -s b)
+    #[arg(
+        long = "source",
+        short = 's',
+        visible_alias = "alias",
+        visible_alias = "sources",
+        value_name = "SOURCE",
+        value_delimiter = ','
+    )]
+    pub sources: Vec<String>,
+
+    /// Maximum number of results per page (search mode only)
+    #[arg(short = 'n', long, value_name = "COUNT", conflicts_with = "all")]
+    pub limit: Option<usize>,
+
+    /// Show all results - no limit (search mode only)
+    #[arg(long, conflicts_with = "limit")]
+    pub all: bool,
+
+    /// Page number for pagination (search mode only)
+    #[arg(long, default_value = "1")]
+    pub page: usize,
+
+    /// Show only top N percentile of results (1-100, search mode only)
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+    pub top: Option<u8>,
+
+    /// Filter results by heading level (search mode only)
+    ///
+    /// Supports comparison operators (<=2, >2, >=3, <4, =2), lists (1,2,3), and ranges (1-3).
+    ///
+    /// Examples:
+    ///   -H <=2       # Level 1 and 2 headings only
+    ///   -H >2        # Level 3+ headings only
+    ///   -H 1,2,3     # Levels 1, 2, and 3 only
+    ///   -H 2-4       # Levels 2, 3, and 4 only
+    #[arg(short = 'H', long = "heading-level", value_name = "FILTER")]
+    pub heading_level: Option<String>,
+
+    /// Output format (text, json, jsonl)
+    #[command(flatten)]
+    pub format: FormatArg,
+
+    /// Additional columns to include in text output (search mode only)
+    #[arg(long = "show", value_enum, value_delimiter = ',', env = "BLZ_SHOW")]
+    pub show: Vec<ShowComponent>,
+
+    /// Hide the summary/footer line (search mode only)
+    #[arg(long = "no-summary")]
+    pub no_summary: bool,
+
+    /// Number of decimal places to show for scores (0-4, search mode only)
+    #[arg(
+        long = "score-precision",
+        value_name = "PLACES",
+        value_parser = clap::value_parser!(u8).range(0..=4),
+        env = "BLZ_SCORE_PRECISION"
+    )]
+    pub score_precision: Option<u8>,
+
+    /// Maximum snippet lines to display around a hit (1-10, search mode only)
+    #[arg(
+        long = "snippet-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(u8).range(1..=10),
+        env = "BLZ_SNIPPET_LINES",
+        default_value_t = 3,
+        hide = true
+    )]
+    pub snippet_lines: u8,
+
+    /// Maximum total characters in snippet (search mode, range: 50-1000, default: 200)
+    #[arg(
+        long = "max-chars",
+        value_name = "CHARS",
+        env = "BLZ_MAX_CHARS",
+        value_parser = clap::value_parser!(usize)
+    )]
+    pub max_chars: Option<usize>,
+
+    /// Print LINES lines of context (both before and after match). Same as -C.
+    ///
+    /// Use "all" to expand to the full heading section containing the match.
+    /// If no heading encompasses the match, returns only the matched lines.
+    #[arg(
+        short = 'C',
+        long = "context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context_deprecated"],
+        display_order = 30
+    )]
+    pub context: Option<ContextMode>,
+
+    /// Deprecated: use -C or --context instead
+    #[arg(
+        short = 'c',
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with_all = ["block", "context"],
+        hide = true,
+        display_order = 100
+    )]
+    pub context_deprecated: Option<ContextMode>,
+
+    /// Print LINES lines of context after each match
+    #[arg(
+        short = 'A',
+        long = "after-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 31
+    )]
+    pub after_context: Option<usize>,
+
+    /// Print LINES lines of context before each match
+    #[arg(
+        short = 'B',
+        long = "before-context",
+        value_name = "LINES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        allow_hyphen_values = false,
+        conflicts_with = "block",
+        display_order = 32
+    )]
+    pub before_context: Option<usize>,
+
+    /// Expand to the full heading section containing each hit.
+    ///
+    /// If no heading encompasses the range, returns only the requested lines.
+    /// Legacy alias for --context all.
+    #[arg(long, conflicts_with_all = ["context", "context_deprecated", "after_context", "before_context"], display_order = 33)]
+    pub block: bool,
+
+    /// Maximum number of lines to include when using block expansion
+    #[arg(
+        long = "max-lines",
+        value_name = "LINES",
+        value_parser = clap::value_parser!(usize),
+        display_order = 34
+    )]
+    pub max_lines: Option<usize>,
+
+    /// Restrict matches to heading text only (search mode only)
+    #[arg(long = "headings-only", display_order = 35)]
+    pub headings_only: bool,
+
+    /// Don't save this search to history (search mode only)
+    #[arg(long = "no-history")]
+    pub no_history: bool,
+
+    /// Copy results to clipboard using OSC 52 escape sequence
+    #[arg(long)]
+    pub copy: bool,
+
+    /// Show detailed timing breakdown for performance analysis
+    #[arg(long)]
+    pub timing: bool,
+}
 
 /// Detect if input matches citation format: `alias:digits-digits[,digits-digits]*`
 ///

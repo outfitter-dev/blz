@@ -114,9 +114,7 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
         #[allow(deprecated)]
         let command_format = match &cli.command {
             Some(
-                Commands::Search { format, .. }
-                | Commands::Find { format, .. }
-                | Commands::List { format, .. }
+                Commands::List { format, .. }
                 | Commands::Stats { format, .. }
                 | Commands::History { format, .. }
                 | Commands::Lookup { format, .. }
@@ -124,6 +122,9 @@ fn initialize_logging(cli: &Cli) -> Result<()> {
                 | Commands::Info { format, .. }
                 | Commands::Completions { format, .. },
             ) => Some(format.resolve(cli.quiet)),
+            Some(Commands::Search(args)) => Some(args.format.resolve(cli.quiet)),
+            Some(Commands::Find(args)) => Some(args.format.resolve(cli.quiet)),
+            Some(Commands::Toc(args)) => Some(args.format.resolve(cli.quiet)),
             Some(Commands::Query(args)) => Some(args.format.resolve(cli.quiet)),
             Some(Commands::Map(args)) => Some(args.format.resolve(cli.quiet)),
             Some(Commands::Check(args)) => Some(args.format.resolve(cli.quiet)),
@@ -293,66 +294,42 @@ async fn dispatch_search(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
-    let Commands::Search {
-        query,
-        sources,
-        next,
-        previous,
-        last,
-        limit,
-        all,
-        page,
-        top,
-        heading_level,
-        format,
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
-        context,
-        context_deprecated,
-        after_context,
-        before_context,
-        block,
-        max_lines,
-        headings_only,
-        no_history,
-        copy,
-        timing,
-    } = cmd
-    else {
+    let Commands::Search(args) = cmd else {
         unreachable!("dispatch_search called with non-Search command");
     };
 
-    let resolved_format = format.resolve(quiet);
-    let merged_context =
-        crate::cli::merge_context_flags(context, context_deprecated, after_context, before_context);
+    let resolved_format = args.format.resolve(quiet);
+    let merged_context = crate::cli::merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
 
     handle_search(
-        query,
-        sources,
-        next,
-        previous,
-        last,
-        limit,
-        all,
-        page,
-        top,
-        heading_level,
+        args.query,
+        args.sources,
+        args.next,
+        args.previous,
+        args.last,
+        args.limit,
+        args.all,
+        args.page,
+        args.top,
+        args.heading_level,
         resolved_format,
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
+        args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
         merged_context,
-        block,
-        max_lines,
-        headings_only,
-        no_history,
-        copy,
-        timing,
+        args.block,
+        args.max_lines,
+        args.headings_only,
+        args.no_history,
+        args.copy,
+        args.timing,
         quiet,
         metrics,
         prefs,
@@ -405,59 +382,34 @@ async fn dispatch_find(
     metrics: PerformanceMetrics,
 ) -> Result<()> {
     #[allow(deprecated)]
-    let Commands::Find {
-        inputs,
-        sources,
-        limit,
-        all,
-        page,
-        top,
-        heading_level,
-        format,
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
-        context,
-        context_deprecated,
-        after_context,
-        before_context,
-        block,
-        max_lines,
-        headings_only,
-        no_history,
-        copy,
-        timing,
-    } = cmd
-    else {
+    let Commands::Find(args) = cmd else {
         unreachable!("dispatch_find called with non-Find command");
     };
 
     handle_find(
-        inputs,
-        sources,
-        limit,
-        all,
-        page,
-        top,
-        heading_level,
-        format.resolve(quiet),
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
-        context,
-        context_deprecated,
-        after_context,
-        before_context,
-        block,
-        max_lines,
-        headings_only,
-        no_history,
-        copy,
-        timing,
+        args.inputs,
+        args.sources,
+        args.limit,
+        args.all,
+        args.page,
+        args.top,
+        args.heading_level,
+        args.format.resolve(quiet),
+        args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+        args.block,
+        args.max_lines,
+        args.headings_only,
+        args.no_history,
+        args.copy,
+        args.timing,
         quiet,
         prefs,
         metrics,
@@ -468,43 +420,26 @@ async fn dispatch_find(
 /// Dispatch a Toc command variant, handling destructuring internally.
 #[allow(deprecated)]
 async fn dispatch_toc(cmd: Commands, quiet: bool) -> Result<()> {
-    let Commands::Toc {
-        alias,
-        format,
-        filter,
-        max_depth,
-        heading_level,
-        sources,
-        all,
-        tree,
-        anchors,
-        show_anchors,
-        next,
-        previous,
-        last,
-        limit,
-        page,
-    } = cmd
-    else {
+    let Commands::Toc(args) = cmd else {
         unreachable!("dispatch_toc called with non-Toc command");
     };
 
     handle_toc(
-        alias,
-        sources,
-        all,
-        format.resolve(quiet),
-        anchors,
-        show_anchors,
-        limit,
-        max_depth,
-        heading_level,
-        filter,
-        tree,
-        next,
-        previous,
-        last,
-        page,
+        args.alias,
+        args.sources,
+        args.all,
+        args.format.resolve(quiet),
+        args.anchors,
+        args.show_anchors,
+        args.limit,
+        args.max_depth,
+        args.heading_level,
+        args.filter,
+        args.tree,
+        args.next,
+        args.previous,
+        args.last,
+        args.page,
     )
     .await
 }
@@ -1448,27 +1383,21 @@ fn print_diagnostics(
 }
 
 fn apply_preference_defaults(cli: &mut Cli, prefs: &CliPreferences, args: &[String]) {
-    if let Some(Commands::Search {
-        show,
-        score_precision,
-        snippet_lines,
-        ..
-    }) = cli.command.as_mut()
-    {
+    if let Some(Commands::Search(search_args)) = cli.command.as_mut() {
         let show_env = std::env::var("BLZ_SHOW").is_ok();
-        if show.is_empty() && !flag_present(args, "--show") && !show_env {
-            *show = prefs.default_show_components();
+        if search_args.show.is_empty() && !flag_present(args, "--show") && !show_env {
+            search_args.show = prefs.default_show_components();
         }
 
-        if score_precision.is_none()
+        if search_args.score_precision.is_none()
             && !flag_present(args, "--score-precision")
             && std::env::var("BLZ_SCORE_PRECISION").is_err()
         {
-            *score_precision = Some(prefs.default_score_precision());
+            search_args.score_precision = Some(prefs.default_score_precision());
         }
 
         if !flag_present(args, "--snippet-lines") && std::env::var("BLZ_SNIPPET_LINES").is_err() {
-            *snippet_lines = prefs.default_snippet_lines();
+            search_args.snippet_lines = prefs.default_snippet_lines();
         }
     }
 }
@@ -1970,20 +1899,13 @@ mod tests {
         // Test that default values are set correctly
         let cli = Cli::try_parse_from(vec!["blz", "search", "test"]).unwrap();
 
-        if let Some(Commands::Search {
-            limit,
-            page,
-            all,
-            format,
-            ..
-        }) = cli.command
-        {
+        if let Some(Commands::Search(args)) = cli.command {
             assert_eq!(
-                limit, None,
+                args.limit, None,
                 "Default limit should be unset (defaults to 50)"
             );
-            assert_eq!(page, 1, "Default page should be 1");
-            assert!(!all, "Default all should be false");
+            assert_eq!(args.page, 1, "Default page should be 1");
+            assert!(!args.all, "Default all should be false");
             // When running tests, stdout is not a terminal, so default is JSON when piped
             let expected_format = if is_terminal::IsTerminal::is_terminal(&std::io::stdout()) {
                 crate::output::OutputFormat::Text
@@ -1991,7 +1913,7 @@ mod tests {
                 crate::output::OutputFormat::Json
             };
             assert_eq!(
-                format.resolve(false),
+                args.format.resolve(false),
                 expected_format,
                 "Default format should be JSON when piped, Text when terminal"
             );
@@ -2115,7 +2037,7 @@ mod tests {
         let raw = to_string_vec(&["blz", "anchors", "react"]);
         let cli = Cli::try_parse_from(raw).expect("anchors alias should parse");
         match cli.command {
-            Some(Commands::Toc { alias, .. }) => assert_eq!(alias, Some("react".to_string())),
+            Some(Commands::Toc(args)) => assert_eq!(args.alias, Some("react".to_string())),
             other => panic!("expected toc command, got {other:?}"),
         }
     }
@@ -2187,20 +2109,15 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Search {
-            sources,
-            limit,
-            page,
-            top,
-            format,
-            ..
-        }) = cli.command
-        {
-            assert_eq!(sources, vec!["node"]);
-            assert_eq!(limit, Some(20));
-            assert_eq!(page, 2);
-            assert!(top.is_some());
-            assert_eq!(format.resolve(false), crate::output::OutputFormat::Json);
+        if let Some(Commands::Search(args)) = cli.command {
+            assert_eq!(args.sources, vec!["node"]);
+            assert_eq!(args.limit, Some(20));
+            assert_eq!(args.page, 2);
+            assert!(args.top.is_some());
+            assert_eq!(
+                args.format.resolve(false),
+                crate::output::OutputFormat::Json
+            );
         } else {
             panic!("Expected search command");
         }
@@ -2748,8 +2665,8 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Search { sources, .. }) = cli.command {
-            assert_eq!(sources, vec!["react", "vue", "svelte"]);
+        if let Some(Commands::Search(args)) = cli.command {
+            assert_eq!(args.sources, vec!["react", "vue", "svelte"]);
         } else {
             panic!("Expected search command");
         }
@@ -2762,8 +2679,8 @@ mod tests {
         // Test single source (backward compatibility)
         let cli = Cli::try_parse_from(vec!["blz", "search", "hooks", "--source", "react"]).unwrap();
 
-        if let Some(Commands::Search { sources, .. }) = cli.command {
-            assert_eq!(sources, vec!["react"]);
+        if let Some(Commands::Search(args)) = cli.command {
+            assert_eq!(args.sources, vec!["react"]);
         } else {
             panic!("Expected search command");
         }
@@ -2776,8 +2693,8 @@ mod tests {
         // Test no source (searches all)
         let cli = Cli::try_parse_from(vec!["blz", "search", "hooks"]).unwrap();
 
-        if let Some(Commands::Search { sources, .. }) = cli.command {
-            assert!(sources.is_empty());
+        if let Some(Commands::Search(args)) = cli.command {
+            assert!(args.sources.is_empty());
         } else {
             panic!("Expected search command");
         }
@@ -2790,8 +2707,8 @@ mod tests {
         // Test with -s shorthand
         let cli = Cli::try_parse_from(vec!["blz", "search", "api", "-s", "bun,node,deno"]).unwrap();
 
-        if let Some(Commands::Search { sources, .. }) = cli.command {
-            assert_eq!(sources, vec!["bun", "node", "deno"]);
+        if let Some(Commands::Search(args)) = cli.command {
+            assert_eq!(args.sources, vec!["bun", "node", "deno"]);
         } else {
             panic!("Expected search command");
         }
