@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, bail};
 use blz_core::PerformanceMetrics;
 use chrono::Utc;
+use clap::Subcommand;
 use colored::Colorize;
 use inquire::{Confirm, MultiSelect, Select, Text};
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,40 @@ use tokio::process::Command;
 
 use crate::commands::{AddRequest, DescriptorInput, add_source};
 use crate::utils::validation::{normalize_alias, validate_alias};
+
+/// Subcommands for `blz registry`.
+#[derive(Subcommand, Clone, Debug)]
+pub enum RegistryCommands {
+    /// Create a new source in the registry.
+    CreateSource {
+        /// Source name/alias.
+        name: String,
+        /// URL to fetch llms.txt from.
+        #[arg(long)]
+        url: String,
+        /// Description of the source.
+        #[arg(long)]
+        description: Option<String>,
+        /// Category (library, framework, language, tool, etc.).
+        #[arg(long)]
+        category: Option<String>,
+        /// Tags (comma-separated).
+        #[arg(long, value_delimiter = ',')]
+        tags: Vec<String>,
+        /// NPM package names (comma-separated).
+        #[arg(long, value_delimiter = ',')]
+        npm: Vec<String>,
+        /// GitHub repositories (comma-separated).
+        #[arg(long, value_delimiter = ',')]
+        github: Vec<String>,
+        /// Also add this source to your local index after creating.
+        #[arg(long)]
+        add: bool,
+        /// Skip confirmation prompts (non-interactive mode).
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+}
 
 /// TOML source file structure
 #[derive(Debug, Serialize, Deserialize)]

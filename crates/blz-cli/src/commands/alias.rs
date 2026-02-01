@@ -1,10 +1,30 @@
 use anyhow::{Context, Result, anyhow};
 use blz_core::Storage;
+use clap::Subcommand;
 use colored::Colorize;
 
 use crate::utils::validation::validate_relaxed_alias;
 
-/// Alias management
+/// Subcommands for `blz alias`.
+#[derive(Subcommand, Clone, Debug)]
+pub enum AliasCommands {
+    /// Add an alias for a source.
+    Add {
+        /// Canonical source.
+        source: String,
+        /// Alias to add (e.g., @scope/package).
+        alias: String,
+    },
+    /// Remove an alias from a source.
+    Rm {
+        /// Canonical source.
+        source: String,
+        /// Alias to remove.
+        alias: String,
+    },
+}
+
+/// Internal alias command enum for execution.
 ///
 /// Persists relaxed "metadata aliases" in `Source.aliases` (llms.json and metadata.json).
 pub enum AliasCommand {
