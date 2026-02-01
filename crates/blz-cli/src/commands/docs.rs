@@ -1,10 +1,17 @@
 use anyhow::Result;
+use blz_core::{PerformanceMetrics, Storage};
 use chrono::Utc;
 use clap::{Args, Command, CommandFactory, Subcommand, ValueEnum};
 use std::fmt::Write as _;
 
-use crate::args::ShowComponent;
+use super::{
+    BUNDLED_ALIAS, DEFAULT_MAX_CHARS, DocsSyncStatus, print_full_content, print_overview, search,
+    sync_bundled_docs,
+};
+use crate::args::{ContextMode, ShowComponent};
+use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
+use crate::utils::preferences::CliPreferences;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum DocsFormat {
@@ -83,6 +90,176 @@ pub struct DocsSearchArgs {
     /// Copy results to the system clipboard when supported.
     #[arg(long)]
     pub copy: bool,
+}
+
+/// Dispatch a Docs command.
+pub async fn dispatch(
+    command: Option<DocsCommands>,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    _prefs: &mut CliPreferences,
+) -> Result<()> {
+    match command {
+        Some(DocsCommands::Search(args)) => docs_search(args, quiet, metrics.clone()).await?,
+        Some(DocsCommands::Sync {
+            force,
+            quiet: sync_quiet,
+        }) => docs_sync(force, sync_quiet, metrics.clone())?,
+        Some(DocsCommands::Overview) => {
+            docs_overview(quiet, metrics.clone())?;
+        },
+        Some(DocsCommands::Cat) => {
+            docs_cat(metrics.clone())?;
+        },
+        Some(DocsCommands::Export { format }) => {
+            docs_export(Some(format))?;
+        },
+        None => {
+            // When no subcommand is provided, show overview
+            docs_overview(quiet, metrics.clone())?;
+        },
+    }
+
+    Ok(())
+}
+
+async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, quiet, metrics.clone())?;
+    let query = args.query.join(" ").trim().to_string();
+    if query.is_empty() {
+        anyhow::bail!("Search query cannot be empty");
+    }
+
+    // Resolve format once before checking placeholder content
+    let format = args.format.resolve(quiet);
+
+    // Check if the bundled docs contain placeholder content
+    let storage = Storage::new()?;
+    if let Ok(content_path) = storage.llms_txt_path(BUNDLED_ALIAS) {
+        if let Ok(content) = std::fs::read_to_string(&content_path) {
+            if content.contains("# BLZ bundled docs (placeholder)") {
+                let error_msg = if matches!(format, OutputFormat::Json) {
+                    // JSON output: structured error message
+                    let error_json = serde_json::json!({
+                        "error": "Bundled documentation content not yet available",
+                        "reason": "The blz-docs source currently contains placeholder content",
+                        "suggestions": [
+                            "Use 'blz docs overview' for quick-start information",
+                            "Use 'blz docs export' to view CLI documentation",
+                            "Full bundled documentation will be included in a future release"
+                        ]
+                    });
+                    return Err(anyhow::anyhow!(serde_json::to_string_pretty(&error_json)?));
+                } else {
+                    // Text output: user-friendly message
+                    "Bundled documentation content not yet available.\n\
+                     \n\
+                     The blz-docs source currently contains placeholder content.\n\
+                     Full documentation will be included in a future release.\n\
+                     \n\
+                     Available alternatives:\n\
+                     • Run 'blz docs overview' for quick-start information\n\
+                     • Run 'blz docs export' to view CLI documentation\n\
+                     • Run 'blz docs cat' to view the current placeholder content"
+                };
+                anyhow::bail!("{error_msg}");
+            }
+        }
+    }
+
+    let sources = vec![BUNDLED_ALIAS.to_string()];
+
+    // Convert docs search args context to ContextMode
+    let context_mode = args.context.map(ContextMode::Symmetric);
+
+    search(
+        &query,
+        &sources,
+        false,
+        args.limit,
+        1,
+        args.top,
+        None, // heading_level - not supported in bare command mode
+        format,
+        &args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars.unwrap_or(DEFAULT_MAX_CHARS),
+        context_mode.as_ref(),
+        args.block,
+        args.max_block_lines,
+        false,
+        true,
+        args.copy,
+        false, // timing
+        quiet,
+        None,
+        metrics,
+        None,
+        false, // no deprecation warning - `blz docs search` is the intended command
+    )
+    .await
+}
+
+fn docs_sync(force: bool, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(force, quiet, metrics)?;
+    if !quiet && matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs stored at {}", llms_path.display());
+    }
+    Ok(())
+}
+
+fn docs_overview(quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    let status = sync_and_report(false, quiet, metrics)?;
+    if !quiet {
+        let storage = Storage::new()?;
+        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
+        println!("Bundled docs status: {status:?}");
+        println!("Alias: {BUNDLED_ALIAS} (also @blz)");
+        println!("Stored at: {}", llms_path.display());
+    }
+    print_overview();
+    Ok(())
+}
+
+fn docs_cat(metrics: PerformanceMetrics) -> Result<()> {
+    sync_and_report(false, true, metrics)?;
+    print_full_content();
+    Ok(())
+}
+
+fn docs_export(format: Option<DocsFormat>) -> Result<()> {
+    let requested = format.unwrap_or(DocsFormat::Markdown);
+    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), requested) {
+        (Some(v), DocsFormat::Markdown) if v.eq_ignore_ascii_case("json") => DocsFormat::Json,
+        _ => requested,
+    };
+    execute(effective)
+}
+
+fn sync_and_report(
+    force: bool,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<DocsSyncStatus> {
+    let status = sync_bundled_docs(force, metrics)?;
+    if !quiet {
+        match status {
+            DocsSyncStatus::UpToDate => {
+                println!("Bundled docs already up to date");
+            },
+            DocsSyncStatus::Installed => {
+                println!("Installed bundled docs source: {BUNDLED_ALIAS}");
+            },
+            DocsSyncStatus::Updated => {
+                println!("Updated bundled docs source: {BUNDLED_ALIAS}");
+            },
+        }
+    }
+    Ok(status)
 }
 
 /// Render CLI documentation in the requested format.

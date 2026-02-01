@@ -135,6 +135,7 @@ where
 /// # Errors
 ///
 /// Returns an error if storage access, user confirmation, or deletion fails.
+#[allow(clippy::unused_async)]
 pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
     let storage = Storage::new()?;
 
@@ -178,6 +179,22 @@ pub async fn execute(alias: &str, auto_yes: bool, quiet: bool) -> Result<()> {
         },
         RemoveOutcome::Cancelled | RemoveOutcome::Removed { .. } => Ok(()),
     }
+}
+
+/// Dispatch a deprecated Remove command.
+///
+/// This function handles the deprecated `remove` command, printing a deprecation
+/// warning and delegating to `execute`.
+#[deprecated(since = "1.5.0", note = "use 'rm' instead")]
+#[allow(deprecated)]
+pub async fn dispatch_deprecated(alias: String, yes: bool, quiet: bool) -> Result<()> {
+    if !crate::utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'remove' is deprecated, use 'rm' instead".yellow()
+        );
+    }
+    execute(&alias, yes, quiet).await
 }
 
 #[cfg(test)]

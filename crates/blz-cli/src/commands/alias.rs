@@ -32,11 +32,20 @@ pub enum AliasCommand {
     Rm { source: String, alias: String },
 }
 
+/// Dispatch an Alias command.
+pub async fn dispatch(command: AliasCommands) -> Result<()> {
+    match command {
+        AliasCommands::Add { source, alias } => execute(AliasCommand::Add { source, alias }).await,
+        AliasCommands::Rm { source, alias } => execute(AliasCommand::Rm { source, alias }).await,
+    }
+}
+
 /// Execute an alias add or remove command.
 ///
 /// # Errors
 ///
 /// Returns an error if storage access, validation, or persistence fails.
+#[allow(clippy::unused_async)]
 pub async fn execute(cmd: AliasCommand) -> Result<()> {
     match cmd {
         AliasCommand::Add { source, alias } => add_alias(&source, &alias)?,

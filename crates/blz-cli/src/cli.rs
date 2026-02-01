@@ -61,8 +61,7 @@ pub use crate::args::{ContextMode, ShowComponent, merge_context_flags};
 // Re-export sub-enums and Args structs from commands module
 pub use crate::commands::{
     AddArgs, AliasCommands, AnchorCommands, CheckArgs, ClaudePluginCommands, DocsCommands,
-    DocsSearchArgs, FindArgs, MapArgs, QueryArgs, RegistryCommands, RmArgs, SearchArgs, SyncArgs,
-    TocArgs,
+    FindArgs, MapArgs, QueryArgs, RegistryCommands, RmArgs, SearchArgs, SyncArgs, TocArgs,
 };
 
 /// Custom help template with grouped command sections

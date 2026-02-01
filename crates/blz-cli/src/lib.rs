@@ -3,14 +3,11 @@
 //! This is the main entry point for the blz command-line interface.
 //! All command implementations are organized in separate modules for
 //! better maintainability and single responsibility.
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use blz_core::PerformanceMetrics;
 use blz_core::profiling::ResourceMonitor;
-use blz_core::{PerformanceMetrics, Storage};
 use clap::{CommandFactory, Parser};
-use colored::Colorize;
 use tracing::warn;
-
-use std::sync::Arc;
 
 pub mod args;
 mod cli;
@@ -22,20 +19,14 @@ mod output;
 mod prompt;
 mod utils;
 
-use crate::commands::{
-    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, dispatch_anchor, dispatch_toc,
-    print_full_content, print_overview, sync_bundled_docs,
-};
+use crate::commands::{dispatch_anchor, dispatch_toc};
 
 use crate::utils::cli_args::flag_present;
 use crate::utils::initialize_logging;
 use crate::utils::preferences::{self, CliPreferences};
 #[cfg(feature = "flamegraph")]
 use crate::utils::{start_flamegraph_if_requested, stop_flamegraph_if_started};
-use cli::{
-    AliasCommands, ClaudePluginCommands, Cli, Commands, DocsCommands, DocsSearchArgs,
-    RegistryCommands,
-};
+use cli::{Cli, Commands};
 
 /// Execute the blz CLI with the currently configured environment.
 ///
@@ -96,6 +87,7 @@ pub async fn run() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_command(
     cli: Cli,
     metrics: PerformanceMetrics,
@@ -112,22 +104,24 @@ async fn execute_command(
             list,
             format,
         }) => {
-            handle_completions(shell, list, format.resolve(quiet));
+            commands::dispatch_completions(shell, list, format.resolve(quiet));
         },
         Some(Commands::Docs { command }) => {
-            handle_docs(command, quiet, metrics.clone(), prefs).await?;
+            commands::dispatch_docs(command, quiet, metrics.clone(), prefs).await?;
         },
-        Some(Commands::ClaudePlugin { command }) => handle_claude_plugin(command)?,
-        Some(Commands::Alias { command }) => handle_alias(command).await?,
-        Some(Commands::Add(args)) => handle_add(args, quiet, metrics).await?,
+        Some(Commands::ClaudePlugin { command }) => commands::dispatch_claude_plugin(command)?,
+        Some(Commands::Alias { command }) => commands::dispatch_alias(command).await?,
+        Some(Commands::Add(args)) => commands::dispatch_add(args, quiet, metrics).await?,
         Some(Commands::Lookup {
             query,
             format,
             limit,
         }) => {
-            dispatch_lookup(query, format, limit, quiet, metrics).await?;
+            commands::dispatch_lookup(query, format, limit, quiet, metrics).await?;
         },
-        Some(Commands::Registry { command }) => handle_registry(command, quiet, metrics).await?,
+        Some(Commands::Registry { command }) => {
+            commands::dispatch_registry(command, quiet, metrics).await?;
+        },
         Some(cmd @ Commands::Search { .. }) => {
             commands::dispatch_search(cmd, quiet, metrics, prefs).await?;
         },
@@ -137,12 +131,21 @@ async fn execute_command(
             clear,
             clear_before,
         }) => {
-            dispatch_history(limit, &format, clear, clear_before.as_deref(), quiet, prefs)?;
+            commands::dispatch_history(
+                limit,
+                &format,
+                clear,
+                clear_before.as_deref(),
+                quiet,
+                prefs,
+            )?;
         },
         Some(cmd @ Commands::Get { .. }) => commands::dispatch_get(cmd, quiet).await?,
-        Some(Commands::Query(args)) => handle_query(args, quiet, prefs, metrics.clone()).await?,
+        Some(Commands::Query(args)) => {
+            commands::dispatch_query(args, quiet, prefs, metrics.clone()).await?;
+        },
         Some(Commands::Map(args)) => commands::dispatch_map(args, quiet).await?,
-        Some(Commands::Sync(args)) => dispatch_sync(args, quiet, metrics).await?,
+        Some(Commands::Sync(args)) => commands::dispatch_sync(args, quiet, metrics).await?,
         Some(Commands::Check(args)) => {
             commands::check_source(args.alias, args.all, args.format.resolve(quiet)).await?;
         },
@@ -160,24 +163,44 @@ async fn execute_command(
             details,
             limit,
         }) => {
-            dispatch_list(format, status, details, limit, quiet).await?;
+            commands::dispatch_list(format, status, details, limit, quiet).await?;
         },
         Some(Commands::Stats { format, limit }) => {
             commands::show_stats(format.resolve(quiet), limit)?;
         },
         #[allow(deprecated)]
         Some(Commands::Validate { alias, all, format }) => {
-            dispatch_validate(alias, all, format, quiet).await?;
+            commands::dispatch_validate_deprecated(alias, all, format, quiet).await?;
         },
         Some(Commands::Doctor { format, fix }) => {
             commands::run_doctor(format.resolve(quiet), fix).await?;
         },
         #[allow(deprecated)]
-        Some(cmd @ Commands::Refresh { .. }) => dispatch_refresh(cmd, quiet, metrics).await?,
+        Some(Commands::Refresh {
+            aliases,
+            all,
+            yes: _,
+            reindex,
+            filter,
+            no_filter,
+        }) => {
+            commands::dispatch_refresh_deprecated(
+                aliases, all, reindex, filter, no_filter, metrics, quiet,
+            )
+            .await?;
+        },
         #[allow(deprecated)]
-        Some(cmd @ Commands::Update { .. }) => dispatch_update(cmd, quiet, metrics).await?,
+        Some(Commands::Update {
+            aliases,
+            all,
+            yes: _,
+        }) => {
+            commands::dispatch_update_deprecated(aliases, all, metrics, quiet).await?;
+        },
         #[allow(deprecated)]
-        Some(Commands::Remove { alias, yes }) => dispatch_remove(alias, yes, quiet).await?,
+        Some(Commands::Remove { alias, yes }) => {
+            commands::dispatch_remove_deprecated(alias, yes, quiet).await?;
+        },
         Some(Commands::Clear { force }) => commands::clear_cache(force)?,
         Some(Commands::Diff { alias, since }) => {
             commands::show_diff(&alias, since.as_deref()).await?;
@@ -191,515 +214,6 @@ async fn execute_command(
             Cli::command().print_help()?;
         },
     }
-    Ok(())
-}
-
-/// Dispatch a Refresh command variant, handling destructuring internally.
-#[allow(deprecated)]
-async fn dispatch_refresh(cmd: Commands, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    let Commands::Refresh {
-        aliases,
-        all,
-        yes: _,
-        reindex,
-        filter,
-        no_filter,
-    } = cmd
-    else {
-        unreachable!("dispatch_refresh called with non-Refresh command");
-    };
-
-    if !utils::cli_args::deprecation_warnings_suppressed() {
-        eprintln!(
-            "{}",
-            "Warning: 'refresh' is deprecated, use 'sync' instead".yellow()
-        );
-    }
-
-    handle_refresh(aliases, all, reindex, filter, no_filter, metrics, quiet).await
-}
-
-/// Dispatch a Sync command.
-async fn dispatch_sync(
-    args: crate::cli::SyncArgs,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    commands::sync_source(
-        args.aliases,
-        args.all,
-        args.yes,
-        args.reindex,
-        args.filter,
-        args.no_filter,
-        metrics,
-        quiet,
-    )
-    .await
-}
-
-/// Dispatch a History command.
-fn dispatch_history(
-    limit: usize,
-    format: &crate::utils::cli_args::FormatArg,
-    clear: bool,
-    clear_before: Option<&str>,
-    quiet: bool,
-    prefs: &CliPreferences,
-) -> Result<()> {
-    commands::show_history(prefs, limit, format.resolve(quiet), clear, clear_before)
-}
-
-/// Dispatch a List command.
-async fn dispatch_list(
-    format: crate::utils::cli_args::FormatArg,
-    status: bool,
-    details: bool,
-    limit: Option<usize>,
-    quiet: bool,
-) -> Result<()> {
-    commands::list_sources(format.resolve(quiet), status, details, limit).await
-}
-
-/// Dispatch a Validate command (deprecated).
-#[allow(deprecated)]
-async fn dispatch_validate(
-    alias: Option<String>,
-    all: bool,
-    format: crate::utils::cli_args::FormatArg,
-    quiet: bool,
-) -> Result<()> {
-    if !utils::cli_args::deprecation_warnings_suppressed() {
-        eprintln!(
-            "{}",
-            "Warning: 'validate' is deprecated, use 'check' instead".yellow()
-        );
-    }
-    commands::validate_source(alias, all, format.resolve(quiet)).await
-}
-
-/// Dispatch an Update command (deprecated).
-#[allow(deprecated)]
-async fn dispatch_update(cmd: Commands, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    let Commands::Update {
-        aliases,
-        all,
-        yes: _,
-    } = cmd
-    else {
-        unreachable!("dispatch_update called with non-Update command");
-    };
-
-    if !utils::cli_args::deprecation_warnings_suppressed() {
-        eprintln!(
-            "{}",
-            "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
-        );
-    }
-    handle_refresh(aliases, all, false, None, false, metrics, quiet).await
-}
-
-/// Dispatch a Remove command (deprecated).
-#[allow(deprecated)]
-async fn dispatch_remove(alias: String, yes: bool, quiet: bool) -> Result<()> {
-    if !utils::cli_args::deprecation_warnings_suppressed() {
-        eprintln!(
-            "{}",
-            "Warning: 'remove' is deprecated, use 'rm' instead".yellow()
-        );
-    }
-    commands::remove_source(&alias, yes, quiet).await
-}
-
-/// Dispatch a Lookup command.
-async fn dispatch_lookup(
-    query: String,
-    format: crate::utils::cli_args::FormatArg,
-    limit: Option<usize>,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    commands::lookup_registry(&query, metrics, quiet, format.resolve(quiet), limit).await
-}
-
-fn handle_completions(
-    shell: Option<clap_complete::Shell>,
-    list: bool,
-    format: crate::output::OutputFormat,
-) {
-    if list {
-        commands::list_supported(format);
-    } else if let Some(shell) = shell {
-        commands::generate(shell);
-    } else {
-        commands::list_supported(format);
-    }
-}
-
-async fn handle_add(
-    args: crate::cli::AddArgs,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    if let Some(manifest) = &args.manifest {
-        commands::add_manifest(
-            manifest,
-            &args.only,
-            metrics,
-            commands::AddFlowOptions::new(args.dry_run, quiet, args.no_language_filter),
-        )
-        .await
-    } else {
-        let alias = args
-            .alias
-            .as_deref()
-            .ok_or_else(|| anyhow!("alias is required when manifest is not provided"))?;
-        let url = args
-            .url
-            .as_deref()
-            .ok_or_else(|| anyhow!("url is required when manifest is not provided"))?;
-
-        let descriptor = DescriptorInput::from_cli_inputs(
-            &args.aliases,
-            args.name.as_deref(),
-            args.description.as_deref(),
-            args.category.as_deref(),
-            &args.tags,
-        );
-
-        let request = AddRequest::new(
-            alias.to_string(),
-            url.to_string(),
-            descriptor,
-            args.dry_run,
-            quiet,
-            metrics,
-            args.no_language_filter,
-        );
-
-        commands::add_source(request).await
-    }
-}
-
-async fn handle_query(
-    args: crate::cli::QueryArgs,
-    quiet: bool,
-    prefs: &mut CliPreferences,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    let resolved_format = args.format.resolve(quiet);
-    let merged_context = crate::cli::merge_context_flags(
-        args.context,
-        args.context_deprecated,
-        args.after_context,
-        args.before_context,
-    );
-
-    commands::query(
-        &args.inputs,
-        &args.sources,
-        args.limit,
-        args.all,
-        args.page,
-        false, // last - query command doesn't support --last flag
-        args.top,
-        args.heading_level.clone(),
-        resolved_format,
-        &args.show,
-        args.no_summary,
-        args.score_precision,
-        args.snippet_lines,
-        args.max_chars,
-        merged_context.as_ref(),
-        args.block,
-        args.max_lines,
-        args.no_history,
-        args.copy,
-        quiet,
-        args.headings_only,
-        args.timing,
-        Some(prefs),
-        metrics,
-        None,
-    )
-    .await
-}
-
-async fn handle_docs(
-    command: Option<DocsCommands>,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-    _prefs: &mut CliPreferences,
-) -> Result<()> {
-    match command {
-        Some(DocsCommands::Search(args)) => docs_search(args, quiet, metrics.clone()).await?,
-        Some(DocsCommands::Sync {
-            force,
-            quiet: sync_quiet,
-        }) => docs_sync(force, sync_quiet, metrics.clone())?,
-        Some(DocsCommands::Overview) => {
-            docs_overview(quiet, metrics.clone())?;
-        },
-        Some(DocsCommands::Cat) => {
-            docs_cat(metrics.clone())?;
-        },
-        Some(DocsCommands::Export { format }) => {
-            docs_export(Some(format))?;
-        },
-        None => {
-            // When no subcommand is provided, show overview
-            docs_overview(quiet, metrics.clone())?;
-        },
-    }
-
-    Ok(())
-}
-
-fn handle_claude_plugin(command: ClaudePluginCommands) -> Result<()> {
-    match command {
-        ClaudePluginCommands::Install { scope } => {
-            commands::install_local_plugin(scope)?;
-        },
-    }
-
-    Ok(())
-}
-
-async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    sync_and_report(false, quiet, metrics.clone())?;
-    let query = args.query.join(" ").trim().to_string();
-    if query.is_empty() {
-        anyhow::bail!("Search query cannot be empty");
-    }
-
-    // Resolve format once before checking placeholder content
-    let format = args.format.resolve(quiet);
-
-    // Check if the bundled docs contain placeholder content
-    let storage = Storage::new()?;
-    if let Ok(content_path) = storage.llms_txt_path(BUNDLED_ALIAS) {
-        if let Ok(content) = std::fs::read_to_string(&content_path) {
-            if content.contains("# BLZ bundled docs (placeholder)") {
-                let error_msg = if matches!(format, crate::output::OutputFormat::Json) {
-                    // JSON output: structured error message
-                    let error_json = serde_json::json!({
-                        "error": "Bundled documentation content not yet available",
-                        "reason": "The blz-docs source currently contains placeholder content",
-                        "suggestions": [
-                            "Use 'blz docs overview' for quick-start information",
-                            "Use 'blz docs export' to view CLI documentation",
-                            "Full bundled documentation will be included in a future release"
-                        ]
-                    });
-                    return Err(anyhow!(serde_json::to_string_pretty(&error_json)?));
-                } else {
-                    // Text output: user-friendly message
-                    "Bundled documentation content not yet available.\n\
-                     \n\
-                     The blz-docs source currently contains placeholder content.\n\
-                     Full documentation will be included in a future release.\n\
-                     \n\
-                     Available alternatives:\n\
-                     • Run 'blz docs overview' for quick-start information\n\
-                     • Run 'blz docs export' to view CLI documentation\n\
-                     • Run 'blz docs cat' to view the current placeholder content"
-                };
-                anyhow::bail!("{error_msg}");
-            }
-        }
-    }
-
-    let sources = vec![BUNDLED_ALIAS.to_string()];
-
-    // Convert docs search args context to ContextMode
-    let context_mode = args.context.map(crate::cli::ContextMode::Symmetric);
-
-    commands::search(
-        &query,
-        &sources,
-        false,
-        args.limit,
-        1,
-        args.top,
-        None, // heading_level - not supported in bare command mode
-        format,
-        &args.show,
-        args.no_summary,
-        args.score_precision,
-        args.snippet_lines,
-        args.max_chars.unwrap_or(commands::DEFAULT_MAX_CHARS),
-        context_mode.as_ref(),
-        args.block,
-        args.max_block_lines,
-        false,
-        true,
-        args.copy,
-        false, // timing
-        quiet,
-        None,
-        metrics,
-        None,
-        false, // no deprecation warning - `blz docs search` is the intended command
-    )
-    .await
-}
-
-fn docs_sync(force: bool, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    let status = sync_and_report(force, quiet, metrics)?;
-    if !quiet && matches!(status, DocsSyncStatus::Installed | DocsSyncStatus::Updated) {
-        let storage = Storage::new()?;
-        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
-        println!("Bundled docs stored at {}", llms_path.display());
-    }
-    Ok(())
-}
-
-fn docs_overview(quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    let status = sync_and_report(false, quiet, metrics)?;
-    if !quiet {
-        let storage = Storage::new()?;
-        let llms_path = storage.llms_txt_path(BUNDLED_ALIAS)?;
-        println!("Bundled docs status: {status:?}");
-        println!("Alias: {BUNDLED_ALIAS} (also @blz)");
-        println!("Stored at: {}", llms_path.display());
-    }
-    print_overview();
-    Ok(())
-}
-
-fn docs_cat(metrics: PerformanceMetrics) -> Result<()> {
-    sync_and_report(false, true, metrics)?;
-    print_full_content();
-    Ok(())
-}
-
-fn docs_export(format: Option<crate::commands::DocsFormat>) -> Result<()> {
-    let requested = format.unwrap_or(crate::commands::DocsFormat::Markdown);
-    let effective = match (std::env::var("BLZ_OUTPUT_FORMAT").ok(), requested) {
-        (Some(v), crate::commands::DocsFormat::Markdown) if v.eq_ignore_ascii_case("json") => {
-            crate::commands::DocsFormat::Json
-        },
-        _ => requested,
-    };
-    commands::generate_docs(effective)
-}
-
-fn sync_and_report(
-    force: bool,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<DocsSyncStatus> {
-    let status = sync_bundled_docs(force, metrics)?;
-    if !quiet {
-        match status {
-            DocsSyncStatus::UpToDate => {
-                println!("Bundled docs already up to date");
-            },
-            DocsSyncStatus::Installed => {
-                println!("Installed bundled docs source: {BUNDLED_ALIAS}");
-            },
-            DocsSyncStatus::Updated => {
-                println!("Updated bundled docs source: {BUNDLED_ALIAS}");
-            },
-        }
-    }
-    Ok(status)
-}
-
-async fn handle_alias(command: AliasCommands) -> Result<()> {
-    match command {
-        AliasCommands::Add { source, alias } => {
-            commands::manage_alias(commands::AliasCommand::Add { source, alias }).await
-        },
-        AliasCommands::Rm { source, alias } => {
-            commands::manage_alias(commands::AliasCommand::Rm { source, alias }).await
-        },
-    }
-}
-
-async fn handle_registry(
-    command: RegistryCommands,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    match command {
-        RegistryCommands::CreateSource {
-            name,
-            url,
-            description,
-            category,
-            tags,
-            npm,
-            github,
-            add,
-            yes,
-        } => {
-            commands::create_registry_source(
-                &name,
-                &url,
-                description,
-                category,
-                tags,
-                npm,
-                github,
-                add,
-                yes,
-                quiet,
-                metrics,
-            )
-            .await
-        },
-    }
-}
-
-#[allow(clippy::fn_params_excessive_bools)]
-async fn handle_refresh(
-    aliases: Vec<String>,
-    all: bool,
-    reindex: bool,
-    filter: Option<String>,
-    no_filter: bool,
-    metrics: PerformanceMetrics,
-    quiet: bool,
-) -> Result<()> {
-    let mut aliases = aliases;
-    let mut filter = filter;
-
-    if !all && aliases.is_empty() {
-        if let Some(raw_value) = filter.take() {
-            if crate::utils::filter_flags::is_known_filter_expression(&raw_value) {
-                filter = Some(raw_value);
-            } else {
-                aliases.push(raw_value);
-                filter = Some(String::from("all"));
-            }
-        }
-    }
-
-    if all || aliases.is_empty() {
-        return commands::refresh_all(metrics, quiet, reindex, filter.as_ref(), no_filter).await;
-    }
-
-    for alias in aliases {
-        let metrics_clone = PerformanceMetrics {
-            search_count: Arc::clone(&metrics.search_count),
-            total_search_time: Arc::clone(&metrics.total_search_time),
-            index_build_count: Arc::clone(&metrics.index_build_count),
-            total_index_time: Arc::clone(&metrics.total_index_time),
-            bytes_processed: Arc::clone(&metrics.bytes_processed),
-            lines_searched: Arc::clone(&metrics.lines_searched),
-        };
-        commands::refresh_source(
-            &alias,
-            metrics_clone,
-            quiet,
-            reindex,
-            filter.as_ref(),
-            no_filter,
-        )
-        .await?;
-    }
-
     Ok(())
 }
 

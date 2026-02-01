@@ -4,8 +4,21 @@ use colored::Colorize;
 use serde_json::json;
 
 use crate::output::OutputFormat;
+use crate::utils::cli_args::FormatArg;
 use crate::utils::history_log;
 use crate::utils::preferences::{self, CliPreferences};
+
+/// Dispatch a History command.
+pub fn dispatch(
+    limit: usize,
+    format: &FormatArg,
+    clear: bool,
+    clear_before: Option<&str>,
+    quiet: bool,
+    prefs: &CliPreferences,
+) -> Result<()> {
+    show(prefs, limit, format.resolve(quiet), clear, clear_before)
+}
 
 /// Display search history, optionally clearing entries.
 pub fn show(
