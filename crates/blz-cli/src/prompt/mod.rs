@@ -101,7 +101,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Docs { .. } => "docs".into(),
                 Commands::ClaudePlugin { .. } => "claude-plugin".into(),
                 Commands::Registry { .. } => "registry".into(),
-                Commands::Search { .. } => "search".into(),
+                Commands::Search(_) => "search".into(),
                 Commands::Instruct => "blz".into(),
                 Commands::Add(_) => "add".into(),
                 Commands::Query(_) => "query".into(),
@@ -115,7 +115,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Remove { .. } => "remove".into(),
                 Commands::List { .. } => "list".into(),
                 #[allow(deprecated)]
-                Commands::Find { .. } => "find".into(),
+                Commands::Find(_) => "find".into(),
                 Commands::Get { .. } => "get".into(),
                 Commands::Lookup { .. } => "lookup".into(),
                 Commands::History { .. } => "history".into(),
@@ -128,7 +128,7 @@ fn normalize_target(target: &str, command: Option<&Commands>) -> String {
                 Commands::Diff { .. } => "diff".into(),
                 Commands::McpServer => "mcp".into(),
                 #[allow(deprecated)]
-                Commands::Anchor { .. } | Commands::Toc { .. } => "toc".into(),
+                Commands::Anchor { .. } | Commands::Toc(_) => "toc".into(),
             };
         }
         return "blz".into();
