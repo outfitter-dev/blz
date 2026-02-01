@@ -11,6 +11,18 @@
 //! ```
 
 use anyhow::Result;
+use clap::Args;
+
+/// Arguments for `blz rm` (remove sources)
+#[derive(Args, Clone, Debug)]
+pub struct RmArgs {
+    /// Source to remove
+    pub alias: String,
+
+    /// Apply removal without prompting
+    #[arg(short = 'y', long = "yes")]
+    pub yes: bool,
+}
 
 /// Execute the rm command to remove a source
 ///
