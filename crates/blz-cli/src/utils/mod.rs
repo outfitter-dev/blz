@@ -58,9 +58,11 @@ pub mod filter_flags;
 pub mod formatting;
 pub mod heading_filter;
 pub mod history_log;
+pub mod logging;
 pub mod parsing;
 pub mod preferences;
 pub mod process_guard;
+pub mod profiling;
 pub mod resolver;
 pub mod settings;
 pub mod staleness;
@@ -75,4 +77,7 @@ pub mod test_support;
 #[allow(unused_imports)]
 // Re-exported for ergonomics, used via crate::utils::HeadingLevelFilter
 pub use heading_filter::HeadingLevelFilter;
+pub use logging::initialize_logging;
+#[cfg(feature = "flamegraph")]
+pub use profiling::{start_flamegraph_if_requested, stop_flamegraph_if_started};
 pub use toc::count_headings;
