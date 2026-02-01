@@ -178,6 +178,51 @@ pub struct ContextArgs {
     pub before_context: Option<usize>,
 }
 
+/// Merge context flags from CLI arguments into a single `ContextMode`.
+///
+/// Implements grep-style merging logic:
+/// - `-C` takes precedence as symmetric context
+/// - `-A` and `-B` can be combined for asymmetric context
+/// - If multiple flags are provided, takes maximum value for each direction
+/// - Supports deprecated `-c` flag for backward compatibility
+#[must_use]
+pub fn merge_context_flags(
+    context: Option<ContextMode>,
+    context_deprecated: Option<ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+) -> Option<ContextMode> {
+    // Start with the primary context flag (or deprecated -c flag)
+    let mut result = context.or(context_deprecated);
+
+    // Merge in -A and -B flags if present
+    if let Some(after) = after_context {
+        let new_mode = before_context
+            .map_or(ContextMode::Asymmetric { before: 0, after }, |before| {
+                ContextMode::Asymmetric { before, after }
+            });
+
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    } else if let Some(before) = before_context {
+        // Only -B specified, create asymmetric mode with 0 after
+        let new_mode = ContextMode::Asymmetric { before, after: 0 };
+        result = Some(match result.take() {
+            Some(existing) => existing.merge(new_mode),
+            None => new_mode,
+        });
+    }
+
+    result.map(|mode| match mode {
+        ContextMode::Asymmetric { before, after } if before == after => {
+            ContextMode::Symmetric(before)
+        },
+        other => other,
+    })
+}
+
 impl ContextArgs {
     /// Create context args with symmetric context.
     #[must_use]
@@ -447,6 +492,138 @@ mod tests {
                 Some(ContextMode::Asymmetric {
                     before: 2,
                     after: 5
+                })
+            );
+        }
+    }
+
+    mod merge_context_flags_tests {
+        use super::*;
+
+        #[test]
+        fn test_none() {
+            assert_eq!(merge_context_flags(None, None, None, None), None);
+        }
+
+        #[test]
+        fn test_only_context() {
+            let result = merge_context_flags(Some(ContextMode::Symmetric(5)), None, None, None);
+            assert_eq!(result, Some(ContextMode::Symmetric(5)));
+        }
+
+        #[test]
+        fn test_only_deprecated() {
+            let result = merge_context_flags(None, Some(ContextMode::Symmetric(3)), None, None);
+            assert_eq!(result, Some(ContextMode::Symmetric(3)));
+        }
+
+        #[test]
+        fn test_context_wins_over_deprecated() {
+            let result = merge_context_flags(
+                Some(ContextMode::Symmetric(5)),
+                Some(ContextMode::Symmetric(3)),
+                None,
+                None,
+            );
+            assert_eq!(result, Some(ContextMode::Symmetric(5)));
+        }
+
+        #[test]
+        fn test_only_after() {
+            let result = merge_context_flags(None, None, Some(3), None);
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 0,
+                    after: 3
+                })
+            );
+        }
+
+        #[test]
+        fn test_only_before() {
+            let result = merge_context_flags(None, None, None, Some(5));
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 5,
+                    after: 0
+                })
+            );
+        }
+
+        #[test]
+        fn test_both_after_and_before() {
+            let result = merge_context_flags(None, None, Some(3), Some(5));
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 5,
+                    after: 3
+                })
+            );
+        }
+
+        #[test]
+        fn test_context_plus_after() {
+            let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(5), None);
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 2,
+                    after: 5
+                })
+            );
+        }
+
+        #[test]
+        fn test_context_plus_before() {
+            let result = merge_context_flags(Some(ContextMode::Symmetric(2)), None, None, Some(5));
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 5,
+                    after: 2
+                })
+            );
+        }
+
+        #[test]
+        fn test_context_plus_both() {
+            let result =
+                merge_context_flags(Some(ContextMode::Symmetric(2)), None, Some(3), Some(5));
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 5,
+                    after: 3
+                })
+            );
+        }
+
+        #[test]
+        fn test_all_with_after_before() {
+            // All should take precedence even when -A/-B are present
+            let result = merge_context_flags(Some(ContextMode::All), None, Some(3), Some(5));
+            assert_eq!(result, Some(ContextMode::All));
+        }
+
+        #[test]
+        fn test_asymmetric_plus_after_before() {
+            let result = merge_context_flags(
+                Some(ContextMode::Asymmetric {
+                    before: 2,
+                    after: 4,
+                }),
+                None,
+                Some(6),
+                Some(3),
+            );
+            assert_eq!(
+                result,
+                Some(ContextMode::Asymmetric {
+                    before: 3,
+                    after: 6
                 })
             );
         }
