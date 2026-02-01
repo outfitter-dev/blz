@@ -8,6 +8,7 @@ use colored::Colorize;
 
 use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
+use crate::utils::cli_args;
 use crate::utils::cli_args::FormatArg;
 use crate::utils::heading_filter::HeadingLevelFilter;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
@@ -163,6 +164,80 @@ pub enum AnchorCommands {
         #[command(flatten)]
         format: FormatArg,
     },
+}
+
+/// Dispatch the deprecated `toc` command.
+///
+/// This function handles the `blz toc` command, which is deprecated in favor of `blz map`.
+/// It extracts arguments from `TocArgs`, shows a deprecation warning, and delegates to `execute`.
+#[allow(deprecated)]
+pub async fn dispatch(args: TocArgs, quiet: bool) -> Result<()> {
+    if !cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'toc' is deprecated, use 'map' instead".yellow()
+        );
+    }
+
+    execute(
+        args.alias.as_deref(),
+        &args.sources,
+        args.all,
+        args.format.resolve(quiet),
+        args.anchors,
+        args.show_anchors,
+        args.limit,
+        args.max_depth,
+        args.heading_level.as_ref(),
+        args.filter.as_deref(),
+        args.tree,
+        args.next,
+        args.previous,
+        args.last,
+        args.page,
+    )
+    .await
+}
+
+/// Dispatch anchor subcommands.
+///
+/// This function handles the `blz anchor` subcommands (list, get).
+pub async fn dispatch_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
+    match command {
+        AnchorCommands::List {
+            alias,
+            format,
+            anchors,
+            limit,
+            max_depth,
+            filter,
+        } => {
+            execute(
+                Some(&alias),
+                &[],
+                false,
+                format.resolve(quiet),
+                anchors,
+                false, // show_anchors - not applicable in anchor list mode
+                limit,
+                max_depth,
+                None,
+                filter.as_deref(),
+                false,
+                false, // next
+                false, // previous
+                false, // last
+                1,     // page
+            )
+            .await
+        },
+        AnchorCommands::Get {
+            alias,
+            anchor,
+            context,
+            format,
+        } => get_by_anchor(&alias, &anchor, context, format.resolve(quiet)).await,
+    }
 }
 
 /// Serialize a `HeadingLevelFilter` back to its string representation

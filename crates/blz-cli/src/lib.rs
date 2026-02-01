@@ -23,8 +23,8 @@ mod prompt;
 mod utils;
 
 use crate::commands::{
-    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, print_full_content, print_overview,
-    sync_bundled_docs,
+    AddRequest, BUNDLED_ALIAS, DescriptorInput, DocsSyncStatus, dispatch_anchor, dispatch_toc,
+    print_full_content, print_overview, sync_bundled_docs,
 };
 
 use crate::utils::cli_args::flag_present;
@@ -33,8 +33,8 @@ use crate::utils::preferences::{self, CliPreferences};
 #[cfg(feature = "flamegraph")]
 use crate::utils::{start_flamegraph_if_requested, stop_flamegraph_if_started};
 use cli::{
-    AliasCommands, AnchorCommands, ClaudePluginCommands, Cli, Commands, DocsCommands,
-    DocsSearchArgs, RegistryCommands,
+    AliasCommands, ClaudePluginCommands, Cli, Commands, DocsCommands, DocsSearchArgs,
+    RegistryCommands,
 };
 
 /// Execute the blz CLI with the currently configured environment.
@@ -141,7 +141,7 @@ async fn execute_command(
         },
         Some(cmd @ Commands::Get { .. }) => commands::dispatch_get(cmd, quiet).await?,
         Some(Commands::Query(args)) => handle_query(args, quiet, prefs, metrics.clone()).await?,
-        Some(Commands::Map(args)) => dispatch_map(args, quiet).await?,
+        Some(Commands::Map(args)) => commands::dispatch_map(args, quiet).await?,
         Some(Commands::Sync(args)) => dispatch_sync(args, quiet, metrics).await?,
         Some(Commands::Check(args)) => {
             commands::check_source(args.alias, args.all, args.format.resolve(quiet)).await?;
@@ -183,42 +183,15 @@ async fn execute_command(
             commands::show_diff(&alias, since.as_deref()).await?;
         },
         Some(Commands::McpServer) => commands::mcp_server().await?,
-        Some(Commands::Anchor { command }) => handle_anchor(command, quiet).await?,
+        Some(Commands::Anchor { command }) => dispatch_anchor(command, quiet).await?,
         #[allow(deprecated)]
-        Some(cmd @ Commands::Toc { .. }) => dispatch_toc(cmd, quiet).await?,
+        Some(Commands::Toc(args)) => dispatch_toc(args, quiet).await?,
         None => {
             // No subcommand provided - show help
             Cli::command().print_help()?;
         },
     }
     Ok(())
-}
-
-/// Dispatch a Toc command variant, handling destructuring internally.
-#[allow(deprecated)]
-async fn dispatch_toc(cmd: Commands, quiet: bool) -> Result<()> {
-    let Commands::Toc(args) = cmd else {
-        unreachable!("dispatch_toc called with non-Toc command");
-    };
-
-    handle_toc(
-        args.alias,
-        args.sources,
-        args.all,
-        args.format.resolve(quiet),
-        args.anchors,
-        args.show_anchors,
-        args.limit,
-        args.max_depth,
-        args.heading_level,
-        args.filter,
-        args.tree,
-        args.next,
-        args.previous,
-        args.last,
-        args.page,
-    )
-    .await
 }
 
 /// Dispatch a Refresh command variant, handling destructuring internally.
@@ -244,28 +217,6 @@ async fn dispatch_refresh(cmd: Commands, quiet: bool, metrics: PerformanceMetric
     }
 
     handle_refresh(aliases, all, reindex, filter, no_filter, metrics, quiet).await
-}
-
-/// Dispatch a Map command.
-async fn dispatch_map(args: crate::cli::MapArgs, quiet: bool) -> Result<()> {
-    commands::show_map(
-        args.alias.as_deref(),
-        &args.sources,
-        args.all,
-        args.format.resolve(quiet),
-        args.anchors,
-        args.show_anchors,
-        args.limit,
-        args.max_depth,
-        args.heading_level.as_ref(),
-        args.filter.as_deref(),
-        args.tree,
-        args.next,
-        args.previous,
-        args.last,
-        args.page,
-    )
-    .await
 }
 
 /// Dispatch a Sync command.
@@ -474,51 +425,6 @@ async fn handle_query(
     .await
 }
 
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-async fn handle_toc(
-    alias: Option<String>,
-    sources: Vec<String>,
-    all: bool,
-    format: crate::output::OutputFormat,
-    anchors: bool,
-    show_anchors: bool,
-    limit: Option<usize>,
-    max_depth: Option<u8>,
-    heading_level: Option<crate::utils::heading_filter::HeadingLevelFilter>,
-    filter: Option<String>,
-    tree: bool,
-    next: bool,
-    previous: bool,
-    last: bool,
-    page: usize,
-) -> Result<()> {
-    if !utils::cli_args::deprecation_warnings_suppressed() {
-        eprintln!(
-            "{}",
-            "Warning: 'toc' is deprecated, use 'map' instead".yellow()
-        );
-    }
-
-    commands::show_toc(
-        alias.as_deref(),
-        &sources,
-        all,
-        format,
-        anchors,
-        show_anchors,
-        limit,
-        max_depth,
-        heading_level.as_ref(),
-        filter.as_deref(),
-        tree,
-        next,
-        previous,
-        last,
-        page,
-    )
-    .await
-}
-
 async fn handle_docs(
     command: Option<DocsCommands>,
     quiet: bool,
@@ -698,44 +604,6 @@ fn sync_and_report(
         }
     }
     Ok(status)
-}
-
-async fn handle_anchor(command: AnchorCommands, quiet: bool) -> Result<()> {
-    match command {
-        AnchorCommands::List {
-            alias,
-            format,
-            anchors,
-            limit,
-            max_depth,
-            filter,
-        } => {
-            commands::show_toc(
-                Some(&alias),
-                &[],
-                false,
-                format.resolve(quiet),
-                anchors,
-                false, // show_anchors - not applicable in anchor list mode
-                limit,
-                max_depth,
-                None,
-                filter.as_deref(),
-                false,
-                false, // next
-                false, // previous
-                false, // last
-                1,     // page
-            )
-            .await
-        },
-        AnchorCommands::Get {
-            alias,
-            anchor,
-            context,
-            format,
-        } => commands::get_by_anchor(&alias, &anchor, context, format.resolve(quiet)).await,
-    }
 }
 
 async fn handle_alias(command: AliasCommands) -> Result<()> {
