@@ -8,13 +8,15 @@ use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::time::Instant;
 
+use crate::cli::{Commands, ContextMode, merge_context_flags};
+use crate::output::OutputFormat;
+
 pub mod json_contract;
 use self::json_contract::{
     ExecutionMetadata, GetResponse, SingleSnippet, SnippetPayload, SnippetRange, SnippetRanges,
     SnippetRequest,
 };
 
-use crate::output::OutputFormat;
 use crate::utils::parsing::{LineRange, parse_line_ranges};
 use crate::utils::toc::{
     BlockSlice, extract_block_slice, finalize_block_slice, find_heading_for_line,
@@ -779,4 +781,156 @@ fn process_all_requests(
     }
 
     Ok((processed, clipboard_segments))
+}
+
+// ============================================================================
+// Dispatch functions (moved from lib.rs)
+// ============================================================================
+
+/// Dispatch a Get command variant, handling destructuring internally.
+///
+/// This is the public entry point called from lib.rs.
+#[allow(clippy::too_many_lines)]
+pub async fn dispatch(cmd: Commands, quiet: bool) -> Result<()> {
+    let Commands::Get {
+        targets,
+        lines,
+        source,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        format,
+        copy,
+    } = cmd
+    else {
+        unreachable!("dispatch called with non-Get command");
+    };
+
+    handle_get(
+        targets,
+        lines,
+        source,
+        context,
+        context_deprecated,
+        after_context,
+        before_context,
+        block,
+        max_lines,
+        format.resolve(quiet),
+        copy,
+    )
+    .await
+}
+
+/// Handle the get command after arguments are extracted.
+#[allow(clippy::too_many_arguments)]
+async fn handle_get(
+    targets: Vec<String>,
+    lines: Option<String>,
+    source: Option<String>,
+    context: Option<ContextMode>,
+    context_deprecated: Option<ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+    block: bool,
+    max_lines: Option<usize>,
+    format: OutputFormat,
+    copy: bool,
+) -> Result<()> {
+    let request_specs = parse_get_targets(&targets, lines.as_deref(), source)?;
+
+    let merged_context =
+        merge_context_flags(context, context_deprecated, after_context, before_context);
+
+    execute_internal(
+        &request_specs,
+        merged_context.as_ref(),
+        block,
+        max_lines,
+        format,
+        copy,
+    )
+    .await
+}
+
+/// Parse get command targets into request specifications.
+fn parse_get_targets(
+    targets: &[String],
+    lines: Option<&str>,
+    source: Option<String>,
+) -> Result<Vec<RequestSpec>> {
+    if targets.is_empty() {
+        anyhow::bail!("At least one target is required. Use format: alias[:ranges]");
+    }
+
+    if lines.is_some() && targets.len() > 1 {
+        anyhow::bail!(
+            "--lines can only be combined with a single alias. \
+             Provide explicit ranges via colon syntax for each additional target."
+        );
+    }
+
+    let mut request_specs = Vec::with_capacity(targets.len());
+    for (idx, target) in targets.iter().enumerate() {
+        let spec = parse_single_target(target, idx, lines)?;
+        request_specs.push(spec);
+    }
+
+    apply_source_override(&mut request_specs, source)?;
+    Ok(request_specs)
+}
+
+/// Parse a single target string into a `RequestSpec`.
+fn parse_single_target(target: &str, idx: usize, lines: Option<&str>) -> Result<RequestSpec> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("Alias at position {} cannot be empty.", idx + 1);
+    }
+
+    if let Some((alias_part, range_part)) = trimmed.split_once(':') {
+        let trimmed_alias = alias_part.trim();
+        if trimmed_alias.is_empty() {
+            anyhow::bail!(
+                "Alias at position {} cannot be empty. Use syntax like 'bun:120-142'.",
+                idx + 1
+            );
+        }
+        if range_part.is_empty() {
+            anyhow::bail!(
+                "Alias '{trimmed_alias}' is missing a range. \
+                 Use syntax like '{trimmed_alias}:120-142'."
+            );
+        }
+        Ok(RequestSpec {
+            alias: trimmed_alias.to_string(),
+            line_expression: range_part.trim().to_string(),
+        })
+    } else {
+        let Some(line_expr) = lines else {
+            anyhow::bail!(
+                "Missing line specification for alias '{trimmed}'. \
+                 Use '{trimmed}:1-3' or provide --lines."
+            );
+        };
+        Ok(RequestSpec {
+            alias: trimmed.to_string(),
+            line_expression: line_expr.to_string(),
+        })
+    }
+}
+
+/// Apply source override to request specs if provided.
+fn apply_source_override(request_specs: &mut [RequestSpec], source: Option<String>) -> Result<()> {
+    if let Some(explicit_source) = source {
+        if request_specs.len() > 1 {
+            anyhow::bail!("--source cannot be combined with multiple alias targets.");
+        }
+        if let Some(first) = request_specs.first_mut() {
+            first.alias = explicit_source;
+        }
+    }
+    Ok(())
 }
