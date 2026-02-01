@@ -8,11 +8,13 @@
 
 use anyhow::Result;
 use clap::Args;
+use colored::Colorize;
 
 use crate::args::{ContextMode, ShowComponent};
+use crate::cli::{Commands, merge_context_flags};
 use crate::commands::RequestSpec;
 use crate::output::OutputFormat;
-use crate::utils::cli_args::FormatArg;
+use crate::utils::cli_args::{FormatArg, deprecation_warnings_suppressed};
 use crate::utils::preferences::CliPreferences;
 use blz_core::{PerformanceMetrics, ResourceMonitor};
 
@@ -608,6 +610,122 @@ async fn execute_search_mode(
     }
 
     Ok(())
+}
+
+// ============================================================================
+// Dispatch and Handler Functions (moved from lib.rs)
+// ============================================================================
+
+/// Dispatch a Find command variant, handling destructuring internally.
+#[allow(clippy::too_many_lines, deprecated)]
+pub async fn dispatch(
+    cmd: Commands,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    let Commands::Find(args) = cmd else {
+        unreachable!("dispatch called with non-Find command");
+    };
+
+    handle_find(
+        args.inputs,
+        args.sources,
+        args.limit,
+        args.all,
+        args.page,
+        args.top,
+        args.heading_level,
+        args.format.resolve(quiet),
+        args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+        args.block,
+        args.max_lines,
+        args.headings_only,
+        args.no_history,
+        args.copy,
+        args.timing,
+        quiet,
+        prefs,
+        metrics,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+async fn handle_find(
+    inputs: Vec<String>,
+    sources: Vec<String>,
+    limit: Option<usize>,
+    all: bool,
+    page: usize,
+    top: Option<u8>,
+    heading_level: Option<String>,
+    format: OutputFormat,
+    show: Vec<ShowComponent>,
+    no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
+    max_chars: Option<usize>,
+    context: Option<ContextMode>,
+    context_deprecated: Option<ContextMode>,
+    after_context: Option<usize>,
+    before_context: Option<usize>,
+    block: bool,
+    max_lines: Option<usize>,
+    headings_only: bool,
+    no_history: bool,
+    copy: bool,
+    timing: bool,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    if !deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'find' is deprecated, use 'query' or 'get' instead".yellow()
+        );
+    }
+
+    let merged_context =
+        merge_context_flags(context, context_deprecated, after_context, before_context);
+
+    execute(
+        &inputs,
+        &sources,
+        limit,
+        all,
+        page,
+        false, // last - find command doesn't support --last flag
+        top,
+        heading_level,
+        format,
+        &show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        max_chars,
+        merged_context.as_ref(),
+        block,
+        max_lines,
+        no_history,
+        copy,
+        quiet,
+        headings_only,
+        timing,
+        Some(prefs),
+        metrics,
+        None,
+    )
+    .await
 }
 
 #[cfg(test)]

@@ -17,10 +17,12 @@ use std::time::Instant;
 use tracing::warn;
 
 use crate::args::{ContextMode, ShowComponent};
+use crate::cli::{Commands, merge_context_flags};
 use crate::output::{FormatParams, OutputFormat, SearchResultFormatter};
-use crate::utils::cli_args::FormatArg;
+use crate::utils::cli_args::{FormatArg, flag_present};
+use crate::utils::history_log;
 use crate::utils::parsing::parse_line_span;
-use crate::utils::preferences::CliPreferences;
+use crate::utils::preferences::{CliPreferences, SearchHistoryEntry};
 use crate::utils::staleness::{self, DEFAULT_STALE_AFTER_DAYS};
 use crate::utils::toc::{
     extract_block_slice, finalize_block_slice, find_heading_span, heading_level_from_line,
@@ -1180,6 +1182,372 @@ pub(super) fn copy_results_to_clipboard(
 
     clipboard::copy_to_clipboard(content).context("Failed to copy results to clipboard")?;
 
+    Ok(())
+}
+
+// ============================================================================
+// Dispatch and Handler Functions (moved from lib.rs)
+// ============================================================================
+
+const DEFAULT_SNIPPET_LINES: u8 = 3;
+
+/// Dispatch a Search command variant, handling destructuring internally.
+///
+/// This function extracts all fields from the `Commands::Search` variant and
+/// forwards them to the underlying `handle_search` implementation.
+#[allow(clippy::too_many_lines)]
+pub async fn dispatch(
+    cmd: Commands,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    prefs: &mut CliPreferences,
+) -> Result<()> {
+    let Commands::Search(args) = cmd else {
+        unreachable!("dispatch called with non-Search command");
+    };
+
+    let resolved_format = args.format.resolve(quiet);
+    let merged_context = merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
+
+    handle_search(
+        args.query,
+        args.sources,
+        args.next,
+        args.previous,
+        args.last,
+        args.limit,
+        args.all,
+        args.page,
+        args.top,
+        args.heading_level,
+        resolved_format,
+        args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
+        merged_context,
+        args.block,
+        args.max_lines,
+        args.headings_only,
+        args.no_history,
+        args.copy,
+        args.timing,
+        quiet,
+        metrics,
+        prefs,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+async fn handle_search(
+    query: Option<String>,
+    sources: Vec<String>,
+    next: bool,
+    previous: bool,
+    last: bool,
+    limit: Option<usize>,
+    all: bool,
+    page: usize,
+    top: Option<u8>,
+    heading_level: Option<String>,
+    format: OutputFormat,
+    show: Vec<ShowComponent>,
+    no_summary: bool,
+    score_precision: Option<u8>,
+    snippet_lines: u8,
+    max_chars: Option<usize>,
+    context: Option<ContextMode>,
+    block: bool,
+    max_lines: Option<usize>,
+    headings_only: bool,
+    no_history: bool,
+    copy: bool,
+    timing: bool,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+    prefs: &mut CliPreferences,
+) -> Result<()> {
+    const DEFAULT_LIMIT: usize = 50;
+
+    let provided_query = query.is_some();
+    let limit_was_explicit = all || limit.is_some();
+    let mut use_headings_only = headings_only;
+
+    // Emit deprecation warning if --snippet-lines was explicitly set
+    if snippet_lines != DEFAULT_SNIPPET_LINES {
+        let args: Vec<String> = std::env::args().collect();
+        if flag_present(&args, "--snippet-lines") || std::env::var("BLZ_SNIPPET_LINES").is_ok() {
+            // Pass false for quiet - the deprecation function handles quiet mode internally
+            crate::utils::cli_args::emit_snippet_lines_deprecation(false);
+        }
+    }
+
+    if next {
+        validate_continuation_flag("--next", provided_query, &sources, page, last)?;
+    }
+
+    if previous {
+        validate_continuation_flag("--previous", provided_query, &sources, page, last)?;
+    }
+
+    let history_entry = if next || previous || !provided_query {
+        let mut records = history_log::recent_for_active_scope(1);
+        if records.is_empty() {
+            anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
+        }
+        Some(records.remove(0))
+    } else {
+        None
+    };
+
+    if let Some(entry) = history_entry.as_ref() {
+        if (next || previous) && headings_only != entry.headings_only {
+            anyhow::bail!(
+                "Cannot change --headings-only while using --next/--previous. Rerun without continuation flags."
+            );
+        }
+        if !headings_only {
+            use_headings_only = entry.headings_only;
+        }
+    }
+
+    let actual_query = resolve_query(query, history_entry.as_ref())?;
+    let actual_sources = resolve_sources(sources, history_entry.as_ref());
+
+    let base_limit = if all {
+        ALL_RESULTS_LIMIT
+    } else {
+        limit.unwrap_or(DEFAULT_LIMIT)
+    };
+    let actual_max_chars = max_chars.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
+
+    let (actual_page, actual_limit) = if let Some(entry) = history_entry.as_ref() {
+        let adj = apply_history_pagination(
+            entry,
+            next,
+            previous,
+            provided_query,
+            all,
+            limit,
+            limit_was_explicit,
+            page,
+            base_limit,
+            ALL_RESULTS_LIMIT,
+        )?;
+        (adj.page, adj.limit)
+    } else {
+        (page, base_limit)
+    };
+
+    execute(
+        &actual_query,
+        &actual_sources,
+        last,
+        actual_limit,
+        actual_page,
+        top,
+        heading_level.clone(),
+        format,
+        &show,
+        no_summary,
+        score_precision,
+        snippet_lines,
+        actual_max_chars,
+        context.as_ref(),
+        block,
+        max_lines,
+        use_headings_only,
+        no_history,
+        copy,
+        timing,
+        quiet,
+        Some(prefs),
+        metrics,
+        None,
+        true, // emit deprecation warning - this is the deprecated `blz search` command
+    )
+    .await
+}
+
+/// Pagination adjustments computed from history and continuation flags.
+struct PaginationAdjustment {
+    page: usize,
+    limit: usize,
+}
+
+/// Apply history-based pagination adjustments for --next/--previous flags.
+///
+/// Returns adjusted page and limit values based on history entry and continuation mode.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+fn apply_history_pagination(
+    entry: &SearchHistoryEntry,
+    next: bool,
+    previous: bool,
+    provided_query: bool,
+    all: bool,
+    limit: Option<usize>,
+    limit_was_explicit: bool,
+    current_page: usize,
+    current_limit: usize,
+    all_results_limit: usize,
+) -> Result<PaginationAdjustment> {
+    let mut actual_page = current_page;
+    let mut actual_limit = current_limit;
+
+    if next {
+        validate_history_has_results(entry)?;
+        validate_pagination_limit_consistency(
+            "--next",
+            all,
+            limit_was_explicit,
+            limit,
+            entry.limit,
+            all_results_limit,
+        )?;
+
+        if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
+            if prev_page >= total_pages {
+                anyhow::bail!("Already at the last page (page {prev_page} of {total_pages})");
+            }
+            actual_page = prev_page + 1;
+        } else {
+            actual_page = entry.page.unwrap_or(1) + 1;
+        }
+
+        if !limit_was_explicit {
+            actual_limit = entry.limit.unwrap_or(actual_limit);
+        }
+    } else if previous {
+        validate_history_has_results(entry)?;
+        validate_pagination_limit_consistency(
+            "--previous",
+            all,
+            limit_was_explicit,
+            limit,
+            entry.limit,
+            all_results_limit,
+        )?;
+
+        if let Some(prev_page) = entry.page {
+            if prev_page <= 1 {
+                anyhow::bail!("Already on first page");
+            }
+            actual_page = prev_page - 1;
+        } else {
+            anyhow::bail!("No previous page found in search history");
+        }
+
+        if !limit_was_explicit {
+            actual_limit = entry.limit.unwrap_or(actual_limit);
+        }
+    } else if !provided_query && !limit_was_explicit {
+        actual_limit = entry.limit.unwrap_or(actual_limit);
+    }
+
+    Ok(PaginationAdjustment {
+        page: actual_page,
+        limit: actual_limit,
+    })
+}
+
+/// Validate that history entry has non-zero results.
+fn validate_history_has_results(entry: &SearchHistoryEntry) -> Result<()> {
+    if matches!(entry.total_pages, Some(0)) || matches!(entry.total_results, Some(0)) {
+        anyhow::bail!(
+            "Previous search returned 0 results. Rerun with a different query or source."
+        );
+    }
+    Ok(())
+}
+
+/// Resolve the search query from explicit input or history.
+fn resolve_query(
+    mut query: Option<String>,
+    history: Option<&SearchHistoryEntry>,
+) -> Result<String> {
+    if let Some(value) = query.take() {
+        Ok(value)
+    } else if let Some(entry) = history {
+        Ok(entry.query.clone())
+    } else {
+        anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
+    }
+}
+
+/// Resolve source filters from explicit input or history.
+fn resolve_sources(sources: Vec<String>, history: Option<&SearchHistoryEntry>) -> Vec<String> {
+    if !sources.is_empty() {
+        sources
+    } else if let Some(entry) = history {
+        entry.source.as_ref().map_or_else(Vec::new, |source_str| {
+            source_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect()
+        })
+    } else {
+        Vec::new()
+    }
+}
+
+/// Validate that pagination limit hasn't changed when using continuation flags.
+fn validate_pagination_limit_consistency(
+    flag: &str,
+    all: bool,
+    limit_was_explicit: bool,
+    limit: Option<usize>,
+    history_limit: Option<usize>,
+    all_results_limit: usize,
+) -> Result<()> {
+    let history_all = history_limit.is_some_and(|value| value >= all_results_limit);
+    if all != history_all {
+        anyhow::bail!(
+            "Cannot use {flag} when changing page size or --all; rerun without {flag} or reuse the previous pagination flags."
+        );
+    }
+    if limit_was_explicit {
+        if let Some(requested_limit) = limit {
+            if history_limit != Some(requested_limit) {
+                anyhow::bail!(
+                    "Cannot use {flag} when changing page size; rerun without {flag} or reuse the previous limit."
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validate that a continuation flag (--next/--previous) is not combined with incompatible options.
+fn validate_continuation_flag(
+    flag: &str,
+    provided_query: bool,
+    sources: &[String],
+    page: usize,
+    last: bool,
+) -> Result<()> {
+    if provided_query {
+        anyhow::bail!(
+            "Cannot combine {flag} with an explicit query. Remove the query to continue from the previous search."
+        );
+    }
+    if !sources.is_empty() {
+        anyhow::bail!(
+            "Cannot combine {flag} with --source. Omit --source to reuse the last search context."
+        );
+    }
+    if page != 1 {
+        anyhow::bail!("Cannot combine {flag} with --page. Use one pagination option at a time.");
+    }
+    if last {
+        anyhow::bail!("Cannot combine {flag} with --last. Choose a single continuation flag.");
+    }
     Ok(())
 }
 
