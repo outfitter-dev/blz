@@ -56,7 +56,7 @@ pub use docs_bundle::{
 };
 pub use doctor::execute as run_doctor;
 pub use find::{FindArgs, execute as find};
-pub use get::{RequestSpec, execute as get_lines};
+pub use get::{RequestSpec, dispatch as dispatch_get, execute as get_lines};
 pub use history::show as show_history;
 pub use info::execute_info;
 pub use list::execute as list_sources;
