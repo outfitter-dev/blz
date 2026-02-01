@@ -141,6 +141,31 @@ pub struct MapArgs {
     pub page: usize,
 }
 
+/// Dispatch the map command from CLI args.
+///
+/// This function takes the parsed `MapArgs` and quiet flag, resolves the output format,
+/// and delegates to `execute`.
+pub async fn dispatch(args: MapArgs, quiet: bool) -> Result<()> {
+    execute(
+        args.alias.as_deref(),
+        &args.sources,
+        args.all,
+        args.format.resolve(quiet),
+        args.anchors,
+        args.show_anchors,
+        args.limit,
+        args.max_depth,
+        args.heading_level.as_ref(),
+        args.filter.as_deref(),
+        args.tree,
+        args.next,
+        args.previous,
+        args.last,
+        args.page,
+    )
+    .await
+}
+
 /// Execute the map command to browse documentation structure
 ///
 /// This command displays the table of contents (heading structure) for documentation

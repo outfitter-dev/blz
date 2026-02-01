@@ -44,7 +44,7 @@ pub use check::{CheckArgs, execute as check_source};
 pub use clear::run as clear_cache;
 pub use completions::generate;
 pub use completions::list_supported;
-pub use toc::{AnchorCommands, TocArgs, execute as show_toc, get_by_anchor};
+pub use toc::{AnchorCommands, TocArgs, dispatch as dispatch_toc, dispatch_anchor};
 // config command removed in v1.0.0-beta.1 - flavor preferences eliminated
 pub use claude_plugin::{ClaudePluginCommands, install_local_plugin};
 pub use create_source::{RegistryCommands, execute as create_registry_source};
@@ -61,7 +61,7 @@ pub use history::show as show_history;
 pub use info::execute_info;
 pub use list::execute as list_sources;
 pub use lookup::execute as lookup_registry;
-pub use map::{MapArgs, execute as show_map};
+pub use map::{MapArgs, dispatch as dispatch_map};
 pub use mcp::execute as mcp_server;
 pub use query::{QueryArgs, execute as query};
 pub use refresh::{execute as refresh_source, execute_all as refresh_all};
