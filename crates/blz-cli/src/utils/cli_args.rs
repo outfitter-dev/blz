@@ -7,6 +7,16 @@ use crate::output::OutputFormat;
 
 static OUTPUT_DEPRECATED_WARNED: AtomicBool = AtomicBool::new(false);
 
+/// Check if a flag is present in the given arguments.
+///
+/// Supports both `--flag` and `--flag=value` patterns.
+#[must_use]
+pub fn flag_present(args: &[String], flag: &str) -> bool {
+    let flag_eq_with_equal = format!("{flag}=");
+    args.iter()
+        .any(|arg| arg == flag || arg.starts_with(&flag_eq_with_equal))
+}
+
 /// Return whether deprecation warnings are suppressed via environment.
 pub fn deprecation_warnings_suppressed() -> bool {
     match std::env::var("BLZ_SUPPRESS_DEPRECATIONS") {

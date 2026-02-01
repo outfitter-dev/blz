@@ -55,7 +55,7 @@ pub use docs_bundle::{
     sync as sync_bundled_docs,
 };
 pub use doctor::execute as run_doctor;
-pub use find::{FindArgs, execute as find};
+pub use find::{FindArgs, dispatch as dispatch_find};
 pub use get::{RequestSpec, dispatch as dispatch_get, execute as get_lines};
 pub use history::show as show_history;
 pub use info::execute_info;
@@ -67,7 +67,7 @@ pub use query::{QueryArgs, execute as query};
 pub use refresh::{execute as refresh_source, execute_all as refresh_all};
 pub use remove::execute as remove_source;
 pub use rm::{RmArgs, execute as rm_source};
-pub use search::{DEFAULT_MAX_CHARS, SearchArgs, clamp_max_chars, execute as search};
+pub use search::{DEFAULT_MAX_CHARS, SearchArgs, dispatch as dispatch_search, execute as search};
 pub use stats::execute as show_stats;
 pub use sync::{SyncArgs, execute as sync_source};
 pub use validate::execute as validate_source;
