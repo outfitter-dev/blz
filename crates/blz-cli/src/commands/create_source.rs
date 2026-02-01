@@ -93,6 +93,42 @@ struct AnalysisSection {
     analyzed_at: String,
 }
 
+/// Dispatch a Registry command.
+pub async fn dispatch(
+    command: RegistryCommands,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    match command {
+        RegistryCommands::CreateSource {
+            name,
+            url,
+            description,
+            category,
+            tags,
+            npm,
+            github,
+            add,
+            yes,
+        } => {
+            execute(
+                &name,
+                &url,
+                description,
+                category,
+                tags,
+                npm,
+                github,
+                add,
+                yes,
+                quiet,
+                metrics,
+            )
+            .await
+        },
+    }
+}
+
 /// Execute the registry create-source command
 ///
 /// Analyzes a source URL using dry-run, prompts for metadata,

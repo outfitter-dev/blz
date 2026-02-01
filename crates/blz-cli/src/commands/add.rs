@@ -572,6 +572,50 @@ struct ManifestAliases {
 }
 
 /// Add a new documentation source.
+/// Dispatch an Add command.
+///
+/// Handles both manifest-based and single-source additions.
+pub async fn dispatch(args: AddArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    if let Some(manifest) = &args.manifest {
+        execute_manifest(
+            manifest,
+            &args.only,
+            metrics,
+            AddFlowOptions::new(args.dry_run, quiet, args.no_language_filter),
+        )
+        .await
+    } else {
+        let alias = args
+            .alias
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("alias is required when manifest is not provided"))?;
+        let url = args
+            .url
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("url is required when manifest is not provided"))?;
+
+        let descriptor = DescriptorInput::from_cli_inputs(
+            &args.aliases,
+            args.name.as_deref(),
+            args.description.as_deref(),
+            args.category.as_deref(),
+            &args.tags,
+        );
+
+        let request = AddRequest::new(
+            alias.to_string(),
+            url.to_string(),
+            descriptor,
+            args.dry_run,
+            quiet,
+            metrics,
+            args.no_language_filter,
+        );
+
+        execute(request).await
+    }
+}
+
 ///
 /// # Arguments
 /// Execute the add flow given a prepared request.

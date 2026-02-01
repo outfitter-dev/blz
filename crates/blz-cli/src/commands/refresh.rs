@@ -1,5 +1,6 @@
 //! Refresh command implementation
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Result, anyhow};
@@ -334,4 +335,108 @@ pub async fn execute_all(
 
 fn percentage(part: usize, total: usize) -> f64 {
     safe_percentage(part, total)
+}
+
+/// Dispatch a deprecated Refresh command.
+///
+/// This function handles the deprecated `refresh` command, printing a deprecation
+/// warning and delegating to `handle_refresh`.
+#[deprecated(since = "1.5.0", note = "use 'sync' instead")]
+#[allow(deprecated, clippy::fn_params_excessive_bools)]
+pub async fn dispatch_deprecated(
+    aliases: Vec<String>,
+    all: bool,
+    reindex: bool,
+    filter: Option<String>,
+    no_filter: bool,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+) -> Result<()> {
+    if !crate::utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'refresh' is deprecated, use 'sync' instead".yellow()
+        );
+    }
+
+    handle_refresh(aliases, all, reindex, filter, no_filter, metrics, quiet).await
+}
+
+/// Dispatch a deprecated Update command.
+///
+/// This function handles the deprecated `update` command, printing a deprecation
+/// warning and delegating to `handle_refresh`.
+#[deprecated(since = "1.4.0", note = "use 'sync' instead")]
+#[allow(deprecated)]
+pub async fn dispatch_update_deprecated(
+    aliases: Vec<String>,
+    all: bool,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+) -> Result<()> {
+    if !crate::utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'update' is deprecated, use 'refresh' instead".yellow()
+        );
+    }
+
+    // Update command doesn't support reindex, filter, or no_filter flags
+    handle_refresh(aliases, all, false, None, false, metrics, quiet).await
+}
+
+/// Handle refresh for one or more sources.
+///
+/// This is the core refresh logic that handles multiple aliases, with fallback
+/// to refresh all sources when no aliases are specified and `all` is false.
+#[allow(clippy::fn_params_excessive_bools)]
+pub async fn handle_refresh(
+    aliases: Vec<String>,
+    all: bool,
+    reindex: bool,
+    filter: Option<String>,
+    no_filter: bool,
+    metrics: PerformanceMetrics,
+    quiet: bool,
+) -> Result<()> {
+    let mut aliases = aliases;
+    let mut filter = filter;
+
+    // Handle filter flag as implicit alias when no aliases provided
+    if !all && aliases.is_empty() {
+        if let Some(raw_value) = filter.take() {
+            if crate::utils::filter_flags::is_known_filter_expression(&raw_value) {
+                filter = Some(raw_value);
+            } else {
+                aliases.push(raw_value);
+                filter = Some(String::from("all"));
+            }
+        }
+    }
+
+    if all || aliases.is_empty() {
+        return execute_all(metrics, quiet, reindex, filter.as_ref(), no_filter).await;
+    }
+
+    for alias in aliases {
+        let metrics_clone = PerformanceMetrics {
+            search_count: Arc::clone(&metrics.search_count),
+            total_search_time: Arc::clone(&metrics.total_search_time),
+            index_build_count: Arc::clone(&metrics.index_build_count),
+            total_index_time: Arc::clone(&metrics.total_index_time),
+            bytes_processed: Arc::clone(&metrics.bytes_processed),
+            lines_searched: Arc::clone(&metrics.lines_searched),
+        };
+        execute(
+            &alias,
+            metrics_clone,
+            quiet,
+            reindex,
+            filter.as_ref(),
+            no_filter,
+        )
+        .await?;
+    }
+
+    Ok(())
 }

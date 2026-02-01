@@ -232,6 +232,51 @@ fn looks_like_citation(input: &str) -> bool {
 /// Execute the query command for full-text search
 ///
 /// This command is specifically for text searches and will reject citation patterns
+/// Dispatch a Query command.
+pub async fn dispatch(
+    args: QueryArgs,
+    quiet: bool,
+    prefs: &mut CliPreferences,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    let resolved_format = args.format.resolve(quiet);
+    let merged_context = crate::args::merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
+
+    execute(
+        &args.inputs,
+        &args.sources,
+        args.limit,
+        args.all,
+        args.page,
+        false, // last - query command doesn't support --last flag
+        args.top,
+        args.heading_level.clone(),
+        resolved_format,
+        &args.show,
+        args.no_summary,
+        args.score_precision,
+        args.snippet_lines,
+        args.max_chars,
+        merged_context.as_ref(),
+        args.block,
+        args.max_lines,
+        args.no_history,
+        args.copy,
+        quiet,
+        args.headings_only,
+        args.timing,
+        Some(prefs),
+        metrics,
+        None,
+    )
+    .await
+}
+
 /// with a helpful error message suggesting `blz get` instead.
 ///
 /// # Errors

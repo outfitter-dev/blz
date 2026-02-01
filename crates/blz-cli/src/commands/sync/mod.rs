@@ -88,6 +88,21 @@ pub use generated::{
 // - save_generate_manifest: Persist updated manifest
 // - should_scrape: Compare cached vs sitemap lastmod
 
+/// Dispatch a Sync command from CLI args.
+pub async fn dispatch(args: SyncArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
+    execute(
+        args.aliases,
+        args.all,
+        args.yes,
+        args.reindex,
+        args.filter,
+        args.no_filter,
+        metrics,
+        quiet,
+    )
+    .await
+}
+
 /// Execute the sync command to fetch latest documentation
 ///
 /// This command refreshes documentation sources by fetching the latest content

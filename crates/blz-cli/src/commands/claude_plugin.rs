@@ -38,6 +38,16 @@ impl ClaudePluginScope {
     }
 }
 
+/// Dispatch a `ClaudePlugin` command.
+pub fn dispatch(command: ClaudePluginCommands) -> Result<()> {
+    match command {
+        ClaudePluginCommands::Install { scope } => {
+            install_local_plugin(scope)?;
+        },
+    }
+    Ok(())
+}
+
 pub fn install_local_plugin(scope: ClaudePluginScope) -> Result<()> {
     let cwd = std::env::current_dir().context("Failed to resolve current directory")?;
     let repo_root = find_repo_root(&cwd).ok_or_else(|| {

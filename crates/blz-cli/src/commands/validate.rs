@@ -46,6 +46,24 @@ pub enum ValidationStatus {
     Error,
 }
 
+/// Dispatch a deprecated Validate command.
+#[deprecated(since = "1.5.0", note = "use 'check' instead")]
+#[allow(deprecated)]
+pub async fn dispatch_deprecated(
+    alias: Option<String>,
+    all: bool,
+    format: crate::utils::cli_args::FormatArg,
+    quiet: bool,
+) -> Result<()> {
+    if !crate::utils::cli_args::deprecation_warnings_suppressed() {
+        eprintln!(
+            "{}",
+            "Warning: 'validate' is deprecated, use 'check' instead".yellow()
+        );
+    }
+    execute(alias, all, format.resolve(quiet)).await
+}
+
 /// Execute the validation command for one or more sources.
 ///
 /// # Errors

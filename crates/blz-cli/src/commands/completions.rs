@@ -4,6 +4,17 @@ use clap::CommandFactory;
 use clap_complete::Shell;
 use serde_json::json;
 
+/// Dispatch a Completions command.
+pub fn dispatch(shell: Option<Shell>, list: bool, format: crate::output::OutputFormat) {
+    if list {
+        list_supported(format);
+    } else if let Some(shell) = shell {
+        generate(shell);
+    } else {
+        list_supported(format);
+    }
+}
+
 /// Generate shell completions for the specified shell
 pub fn generate(shell: Shell) {
     let mut cmd = crate::cli::Cli::command();

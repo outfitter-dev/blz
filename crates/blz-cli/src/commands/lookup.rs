@@ -154,6 +154,17 @@ async fn handle_interactive_add(
     Ok(())
 }
 
+/// Dispatch a Lookup command.
+pub async fn dispatch(
+    query: String,
+    format: crate::utils::cli_args::FormatArg,
+    limit: Option<usize>,
+    quiet: bool,
+    metrics: PerformanceMetrics,
+) -> Result<()> {
+    execute(&query, metrics, quiet, format.resolve(quiet), limit).await
+}
+
 /// Execute the lookup command to search registries
 pub async fn execute(
     query: &str,

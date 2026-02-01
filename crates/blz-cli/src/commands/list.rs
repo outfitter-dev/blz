@@ -152,11 +152,23 @@ pub fn render_list<W: Write>(
     }
 }
 
+/// Dispatch a List command.
+pub async fn dispatch(
+    format: crate::utils::cli_args::FormatArg,
+    status: bool,
+    details: bool,
+    limit: Option<usize>,
+    quiet: bool,
+) -> Result<()> {
+    execute(format.resolve(quiet), status, details, limit).await
+}
+
 /// Execute the list command using production storage and stdout.
 ///
 /// # Errors
 ///
 /// Returns an error if storage access or output rendering fails.
+#[allow(clippy::unused_async)]
 pub async fn execute(
     format: OutputFormat,
     status: bool,
