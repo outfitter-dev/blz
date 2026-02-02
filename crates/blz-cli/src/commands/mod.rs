@@ -65,7 +65,10 @@ pub use map::{MapArgs, dispatch as dispatch_map};
 pub use mcp::execute as mcp_server;
 pub use query::{QueryArgs, dispatch as dispatch_query};
 #[allow(deprecated)]
-pub use refresh::{dispatch_deprecated as dispatch_refresh_deprecated, dispatch_update_deprecated};
+pub use refresh::{
+    DeprecatedRefreshParams, dispatch_deprecated as dispatch_refresh_deprecated,
+    dispatch_update_deprecated,
+};
 #[allow(deprecated)]
 pub use remove::dispatch_deprecated as dispatch_remove_deprecated;
 pub use rm::{RmArgs, execute as rm_source};
