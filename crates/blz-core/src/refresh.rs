@@ -147,6 +147,36 @@ pub struct RefreshUrlResolution {
     pub upgraded: bool,
 }
 
+/// Context for refresh operations with preloaded metadata.
+///
+/// This struct bundles the context needed for `refresh_source_with_metadata`,
+/// reducing parameter counts while maintaining clear ownership.
+#[derive(Debug, Clone)]
+pub struct RefreshContext {
+    /// Existing source metadata.
+    pub existing_metadata: Source,
+    /// Existing aliases from llms.json.
+    pub existing_aliases: Vec<String>,
+    /// Resolved URL for refresh.
+    pub resolution: RefreshUrlResolution,
+}
+
+impl RefreshContext {
+    /// Create a new refresh context.
+    #[must_use]
+    pub const fn new(
+        existing_metadata: Source,
+        existing_aliases: Vec<String>,
+        resolution: RefreshUrlResolution,
+    ) -> Self {
+        Self {
+            existing_metadata,
+            existing_aliases,
+            resolution,
+        }
+    }
+}
+
 /// Resolve the best refresh URL (llms.txt → llms-full.txt) when available.
 pub async fn resolve_refresh_url(
     fetcher: &Fetcher,
@@ -197,13 +227,13 @@ where
     let existing_aliases = storage.load_llms_aliases(alias)?;
     let resolution = resolve_refresh_url(fetcher, &existing_metadata).await?;
 
+    let ctx = RefreshContext::new(existing_metadata, existing_aliases, resolution);
+
     refresh_source_with_metadata(
         storage,
         fetcher,
         alias,
-        existing_metadata,
-        existing_aliases,
-        &resolution,
+        &ctx,
         metrics,
         indexer,
         filter_preference,
@@ -216,14 +246,11 @@ where
 /// # Errors
 ///
 /// Returns an error if fetching, parsing, or indexing fails.
-#[allow(clippy::too_many_arguments)]
 pub async fn refresh_source_with_metadata<S, I>(
     storage: &S,
     fetcher: &Fetcher,
     alias: &str,
-    existing_metadata: Source,
-    existing_aliases: Vec<String>,
-    resolution: &RefreshUrlResolution,
+    ctx: &RefreshContext,
     metrics: PerformanceMetrics,
     indexer: &I,
     filter_preference: bool,
@@ -234,16 +261,16 @@ where
 {
     let fetch_result = fetcher
         .fetch_with_cache(
-            &resolution.final_url,
-            existing_metadata.etag.as_deref(),
-            existing_metadata.last_modified.as_deref(),
+            &ctx.resolution.final_url,
+            ctx.existing_metadata.etag.as_deref(),
+            ctx.existing_metadata.last_modified.as_deref(),
         )
         .await?;
 
     match fetch_result {
         FetchResult::NotModified { .. } => {
-            if existing_metadata.filter_non_english.unwrap_or(true) != filter_preference {
-                let mut updated_metadata = existing_metadata.clone();
+            if ctx.existing_metadata.filter_non_english.unwrap_or(true) != filter_preference {
+                let mut updated_metadata = ctx.existing_metadata.clone();
                 updated_metadata.filter_non_english = Some(filter_preference);
                 storage.save_metadata(alias, &updated_metadata)?;
             }
@@ -264,20 +291,14 @@ where
                 last_modified,
             };
 
-            let mut updated_metadata = existing_metadata.clone();
-            updated_metadata.url.clone_from(&resolution.final_url);
-            updated_metadata.variant = resolution.variant.clone();
+            let mut updated_metadata = ctx.existing_metadata.clone();
+            updated_metadata.url.clone_from(&ctx.resolution.final_url);
+            updated_metadata.variant = ctx.resolution.variant.clone();
             updated_metadata.filter_non_english = Some(filter_preference);
 
-            apply_refresh(
-                storage,
-                alias,
-                updated_metadata,
-                existing_aliases,
-                &payload,
-                metrics,
-                indexer,
-            )
+            let apply_params =
+                ApplyRefreshParams::new(updated_metadata, ctx.existing_aliases.clone());
+            apply_refresh(storage, alias, &apply_params, &payload, metrics, indexer)
         },
     }
 }
@@ -393,17 +414,35 @@ fn build_refresh_metadata(
     }
 }
 
+/// Parameters for applying a refresh operation.
+#[derive(Debug, Clone)]
+pub struct ApplyRefreshParams {
+    /// Updated source metadata (with new URL, variant, filter settings).
+    pub metadata: Source,
+    /// Existing aliases from the source.
+    pub existing_aliases: Vec<String>,
+}
+
+impl ApplyRefreshParams {
+    /// Create new apply refresh parameters.
+    #[must_use]
+    pub const fn new(metadata: Source, existing_aliases: Vec<String>) -> Self {
+        Self {
+            metadata,
+            existing_aliases,
+        }
+    }
+}
+
 /// Apply a refresh: persist content and re-index the source.
 ///
 /// # Errors
 ///
 /// Returns an error if parsing, persistence, or indexing fails.
-#[allow(clippy::too_many_arguments)]
 pub fn apply_refresh<S, I>(
     storage: &S,
     alias: &str,
-    existing_metadata: Source,
-    existing_aliases: Vec<String>,
+    params: &ApplyRefreshParams,
     payload: &RefreshPayload,
     metrics: PerformanceMetrics,
     indexer: &I,
@@ -415,14 +454,14 @@ where
     let mut parser = MarkdownParser::new()?;
     let mut parse_result = parser.parse(&payload.content)?;
 
-    let filter_enabled = existing_metadata.filter_non_english.unwrap_or(true);
+    let filter_enabled = params.metadata.filter_non_english.unwrap_or(true);
     let filter_stats = Some(apply_language_filter(&mut parse_result, filter_enabled));
 
     storage.save_llms_txt(alias, &payload.content)?;
 
     let mut llms_json = build_llms_json(
         alias,
-        &existing_metadata.url,
+        &params.metadata.url,
         "llms.txt",
         payload.sha256.clone(),
         payload.etag.clone(),
@@ -430,16 +469,17 @@ where
         &parse_result,
     );
 
-    llms_json.metadata.aliases = merge_aliases(existing_aliases, &existing_metadata.aliases);
-    copy_preserved_metadata_fields(&mut llms_json, &existing_metadata);
+    llms_json.metadata.aliases =
+        merge_aliases(params.existing_aliases.clone(), &params.metadata.aliases);
+    copy_preserved_metadata_fields(&mut llms_json, &params.metadata);
     llms_json.filter_stats = filter_stats;
 
     storage.save_llms_json(alias, &llms_json)?;
 
-    let origin = resolve_origin(&existing_metadata);
+    let origin = resolve_origin(&params.metadata);
     llms_json.metadata.origin = origin.clone();
 
-    let metadata = build_refresh_metadata(existing_metadata, payload, origin);
+    let metadata = build_refresh_metadata(params.metadata.clone(), payload, origin);
     storage.save_metadata(alias, &metadata)?;
 
     let index_path = storage.index_path(alias)?;
@@ -678,11 +718,11 @@ mod tests {
             .insert("test".to_string(), PathBuf::from("index"));
 
         let indexer = MockIndexer::default();
+        let params = ApplyRefreshParams::new(sample_source(), Vec::new());
         let outcome = apply_refresh(
             &storage,
             "test",
-            sample_source(),
-            Vec::new(),
+            &params,
             &sample_payload(),
             PerformanceMetrics::default(),
             &indexer,

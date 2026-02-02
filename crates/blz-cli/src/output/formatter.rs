@@ -34,22 +34,14 @@
 //!
 //! let formatter = SearchResultFormatter::new(OutputFormat::Text);
 //! let hits: Vec<SearchHit> = vec![/* search hits */];
-//! let params = FormatParams::new(
+//! let sources = vec!["react".to_string()];
+//! let params = FormatParams::with_defaults(
 //!     &hits[0..10],
 //!     "useEffect",
 //!     100,
 //!     50_000,
 //!     Duration::from_millis(5),
-//!     &["react".to_string()],
-//!     0,
-//!     1,
-//!     10,
-//!     10,
-//!     false,
-//!     false,
-//!     false,
-//!     1,
-//!     3,
+//!     &sources,
 //! );
 //! formatter.format(&params)?;
 //! ```
@@ -104,29 +96,19 @@ pub struct FormatParams<'a> {
 }
 
 impl<'a> FormatParams<'a> {
-    #[allow(
-        clippy::too_many_arguments,
-        clippy::fn_params_excessive_bools,
-        dead_code,
-        clippy::missing_const_for_fn
-    )]
-    pub fn new(
+    /// Create format params with default display settings.
+    ///
+    /// Use struct literal syntax for full customization, or this method
+    /// for typical use cases where most display options are disabled.
+    #[allow(dead_code)]
+    #[must_use]
+    pub const fn with_defaults(
         hits: &'a [SearchHit],
         query: &'a str,
         total_results: usize,
         total_lines_searched: usize,
         search_time: Duration,
         sources: &'a [String],
-        start_idx: usize,
-        page: usize,
-        total_pages: usize,
-        page_size: usize,
-        show_url: bool,
-        show_lines: bool,
-        show_anchor: bool,
-        no_summary: bool,
-        score_precision: u8,
-        snippet_lines: usize,
     ) -> Self {
         Self {
             hits,
@@ -135,17 +117,17 @@ impl<'a> FormatParams<'a> {
             total_lines_searched,
             search_time,
             sources,
-            start_idx,
-            page,
-            total_pages,
-            page_size,
-            show_url,
-            show_lines,
-            show_anchor,
+            start_idx: 0,
+            page: 1,
+            total_pages: 1,
+            page_size: 10,
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
             show_raw_score: false,
-            no_summary,
-            score_precision,
-            snippet_lines,
+            no_summary: false,
+            score_precision: 1,
+            snippet_lines: 3,
             suggestions: None,
         }
     }
@@ -185,23 +167,13 @@ impl<'a> FormatParams<'a> {
 ///
 /// # let hits: Vec<SearchHit> = Vec::new();
 /// # let sources = vec!["react".to_string()];
-/// let params = FormatParams::new(
+/// let params = FormatParams::with_defaults(
 ///     &hits,
 ///     "React hooks",
 ///     0,
 ///     0,
 ///     Duration::from_millis(8),
 ///     &sources,
-///     0,
-///     1,
-///     1,
-///     10,
-///     true,
-///     true,
-///     false,
-///     false,
-///     2,
-///     6,
 /// );
 /// SearchResultFormatter::new(OutputFormat::Text)
 ///     .format(&params)
@@ -271,27 +243,16 @@ impl SearchResultFormatter {
     /// use crate::output::formatter::{FormatParams, SearchResultFormatter};
     /// use crate::output::OutputFormat;
     /// use blz_core::SearchHit;
-    /// use std::time::Duration;
     ///
     /// # let hits: Vec<SearchHit> = Vec::new();
     /// # let sources = vec!["react".to_string(), "next".to_string()];
-    /// let params = FormatParams::new(
+    /// let params = FormatParams::with_defaults(
     ///     &hits,
     ///     "useEffect cleanup",
     ///     156,
     ///     38_000,
     ///     Duration::from_millis(12),
     ///     &sources,
-    ///     0,
-    ///     1,
-    ///     16,
-    ///     10,
-    ///     true,
-    ///     true,
-    ///     false,
-    ///     false,
-    ///     2,
-    ///     4,
     /// );
     /// SearchResultFormatter::new(OutputFormat::Text)
     ///     .format(&params)
@@ -300,21 +261,20 @@ impl SearchResultFormatter {
     pub fn format(&self, params: &FormatParams) -> Result<()> {
         match self.format {
             OutputFormat::Json => {
-                let suggestions_ref = params.suggestions.as_deref();
-                JsonFormatter::format_search_results_with_meta(
-                    params.hits,
-                    params.query,
-                    params.total_results,
-                    params.total_lines_searched,
-                    params.search_time,
-                    params.page,
-                    params.page_size,
-                    params.total_pages,
-                    params.sources,
-                    suggestions_ref,
-                    params.show_raw_score,
-                    params.score_precision,
-                )?;
+                let metadata = super::json::SearchJsonMetadata {
+                    query: params.query,
+                    page: params.page,
+                    limit: params.page_size,
+                    total_results: params.total_results,
+                    total_pages: params.total_pages,
+                    total_lines_searched: params.total_lines_searched,
+                    search_time: params.search_time,
+                    sources: params.sources,
+                    suggestions: params.suggestions.as_deref(),
+                    show_raw_score: params.show_raw_score,
+                    score_precision: params.score_precision,
+                };
+                JsonFormatter::format_search_results_with_meta(params.hits, &metadata)?;
             },
             OutputFormat::Jsonl => {
                 JsonFormatter::format_search_results_jsonl(params.hits)?;

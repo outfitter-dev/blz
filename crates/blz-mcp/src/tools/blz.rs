@@ -3,8 +3,8 @@
 use std::fs;
 
 use blz_core::refresh::{
-    DefaultRefreshIndexer, RefreshOutcome, RefreshStorage, refresh_source_with_metadata,
-    reindex_source, resolve_refresh_url,
+    DefaultRefreshIndexer, RefreshContext, RefreshOutcome, RefreshStorage,
+    refresh_source_with_metadata, reindex_source, resolve_refresh_url,
 };
 use blz_core::{
     CacheInfo, Fetcher, HeadingFilterStats, HealthCheck, HealthReport, HealthStatus,
@@ -504,13 +504,12 @@ async fn refresh_one(
     let filter_preference = metadata.filter_non_english.unwrap_or(true);
 
     let resolution = resolve_refresh_url(fetcher, &metadata).await?;
+    let ctx = RefreshContext::new(metadata, aliases, resolution);
     let outcome = refresh_source_with_metadata(
         storage,
         fetcher,
         alias,
-        metadata,
-        aliases,
-        &resolution,
+        &ctx,
         metrics,
         indexer,
         filter_preference,

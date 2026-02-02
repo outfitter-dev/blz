@@ -1,49 +1,61 @@
 //! JSON output formatting
 
 use std::io::Write;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use blz_core::SearchHit;
 use blz_core::numeric::percent_to_u8;
+
+/// Metadata for JSON search output formatting.
+///
+/// This struct bundles the search context and pagination metadata
+/// needed to render JSON output, reducing parameter counts.
+#[derive(Debug, Clone)]
+pub struct SearchJsonMetadata<'a> {
+    /// Original search query.
+    pub query: &'a str,
+    /// Current page number (1-based).
+    pub page: usize,
+    /// Results per page.
+    pub limit: usize,
+    /// Total number of matching results.
+    pub total_results: usize,
+    /// Total pages available.
+    pub total_pages: usize,
+    /// Total lines searched across all sources.
+    pub total_lines_searched: usize,
+    /// Search execution time.
+    pub search_time: Duration,
+    /// Source aliases included in the search.
+    pub sources: &'a [String],
+    /// Optional fuzzy suggestions.
+    pub suggestions: Option<&'a [serde_json::Value]>,
+    /// Whether to include raw scores (reserved for future use).
+    #[allow(dead_code)]
+    pub show_raw_score: bool,
+    /// Decimal precision for scores.
+    pub score_precision: u8,
+}
 
 /// JSON formatter for search output.
 pub struct JsonFormatter;
 
 impl JsonFormatter {
     /// Format search results as JSON with metadata
-    #[allow(clippy::too_many_arguments)]
     pub fn format_search_results_with_meta(
         hits: &[SearchHit],
-        query: &str,
-        total_results: usize,
-        total_lines_searched: usize,
-        search_time: std::time::Duration,
-        page: usize,
-        limit: usize,
-        total_pages: usize,
-        sources: &[String],
-        suggestions: Option<&[serde_json::Value]>,
-        _show_raw_score: bool,
-        score_precision: u8,
+        metadata: &SearchJsonMetadata<'_>,
     ) -> Result<()> {
-        let mut map = build_metadata_map(
-            query,
-            page,
-            limit,
-            total_results,
-            total_pages,
-            total_lines_searched,
-            search_time,
-            sources,
-        );
+        let mut map = build_metadata_map(metadata);
 
-        let results_with_percentage = format_hits_with_scores(hits, score_precision)?;
+        let results_with_percentage = format_hits_with_scores(hits, metadata.score_precision)?;
         map.insert(
             "results".to_string(),
             serde_json::Value::Array(results_with_percentage),
         );
 
-        if let Some(s) = suggestions {
+        if let Some(s) = metadata.suggestions {
             if !s.is_empty() {
                 map.insert(
                     "suggestions".to_string(),
@@ -103,49 +115,39 @@ impl JsonFormatter {
 }
 
 /// Build the metadata portion of the JSON response.
-#[allow(clippy::too_many_arguments)]
-fn build_metadata_map(
-    query: &str,
-    page: usize,
-    limit: usize,
-    total_results: usize,
-    total_pages: usize,
-    total_lines_searched: usize,
-    search_time: std::time::Duration,
-    sources: &[String],
-) -> serde_json::Map<String, serde_json::Value> {
+fn build_metadata_map(meta: &SearchJsonMetadata<'_>) -> serde_json::Map<String, serde_json::Value> {
     let mut map = serde_json::Map::new();
     map.insert(
         "query".to_string(),
-        serde_json::Value::String(query.to_string()),
+        serde_json::Value::String(meta.query.to_string()),
     );
-    map.insert("page".to_string(), serde_json::Value::from(page));
-    map.insert("limit".to_string(), serde_json::Value::from(limit));
+    map.insert("page".to_string(), serde_json::Value::from(meta.page));
+    map.insert("limit".to_string(), serde_json::Value::from(meta.limit));
     map.insert(
         "totalResults".to_string(),
-        serde_json::Value::from(total_results),
+        serde_json::Value::from(meta.total_results),
     );
     map.insert(
         "total_hits".to_string(),
-        serde_json::Value::from(total_results),
+        serde_json::Value::from(meta.total_results),
     );
     map.insert(
         "totalPages".to_string(),
-        serde_json::Value::from(total_pages),
+        serde_json::Value::from(meta.total_pages),
     );
     map.insert(
         "total_pages".to_string(),
-        serde_json::Value::from(total_pages),
+        serde_json::Value::from(meta.total_pages),
     );
     map.insert(
         "totalLinesSearched".to_string(),
-        serde_json::Value::from(total_lines_searched),
+        serde_json::Value::from(meta.total_lines_searched),
     );
     map.insert(
         "total_lines_searched".to_string(),
-        serde_json::Value::from(total_lines_searched),
+        serde_json::Value::from(meta.total_lines_searched),
     );
-    let ms = search_time.as_millis();
+    let ms = meta.search_time.as_millis();
     let search_time_ms: u64 = u64::try_from(ms).unwrap_or(u64::MAX);
     map.insert(
         "searchTimeMs".to_string(),
@@ -158,7 +160,7 @@ fn build_metadata_map(
     map.insert(
         "sources".to_string(),
         serde_json::Value::Array(
-            sources
+            meta.sources
                 .iter()
                 .cloned()
                 .map(serde_json::Value::from)
