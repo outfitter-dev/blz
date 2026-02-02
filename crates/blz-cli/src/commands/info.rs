@@ -1,46 +1,15 @@
 //! Command to display detailed information about a cached source
 
 use anyhow::{Context, Result};
-use blz_core::numeric::{safe_percentage, u64_to_f64_lossy};
-use blz_core::{HeadingFilterStats, Storage};
-use colored::Colorize;
-use serde::Serialize;
+use blz_core::Storage;
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 
 use crate::output::OutputFormat;
+use crate::output::render::render;
+use crate::output::shapes::{FilterStatsOutput, OutputShape, SourceInfoOutput};
 use crate::utils::count_headings;
-
-/// Detailed information about a source
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceInfo {
-    /// Source alias
-    pub alias: String,
-    /// Source URL
-    pub url: String,
-    /// Variant (llms, llms-full, or custom)
-    pub variant: String,
-    /// Additional aliases for this source
-    pub aliases: Vec<String>,
-    /// Total number of lines in the document
-    pub lines: usize,
-    /// Total number of headings in the document
-    pub headings: usize,
-    /// Size in bytes
-    pub size_bytes: u64,
-    /// Last updated timestamp (ISO 8601)
-    pub last_updated: Option<String>,
-    /// `ETag` for conditional fetching
-    pub etag: Option<String>,
-    /// SHA256 checksum
-    pub checksum: Option<String>,
-    /// Path to cached source directory
-    pub cache_path: PathBuf,
-    /// Language filtering statistics
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter_stats: Option<HeadingFilterStats>,
-}
 
 /// Execute the info command.
 ///
@@ -73,138 +42,47 @@ pub async fn execute_info(alias: &str, format: OutputFormat) -> Result<()> {
     let lines = llms.line_index.total_lines;
     let headings = count_headings(&llms.toc);
 
-    let cache_path = llms_file.parent().map(PathBuf::from).unwrap_or_default();
+    let cache_path = llms_file
+        .parent()
+        .map(PathBuf::from)
+        .unwrap_or_default()
+        .display()
+        .to_string();
 
-    let info = SourceInfo {
-        alias: canonical,
-        url: metadata.url.clone(),
-        variant: format!("{:?}", metadata.variant),
-        aliases: metadata.aliases.clone(),
+    // Build the output shape
+    let mut info = SourceInfoOutput::new(
+        canonical,
+        metadata.url.clone(),
+        format!("{:?}", metadata.variant),
         lines,
         headings,
         size_bytes,
-        last_updated: Some(metadata.fetched_at.to_rfc3339()),
-        etag: metadata.etag.clone(),
-        checksum: Some(metadata.sha256),
         cache_path,
-        filter_stats: llms.filter_stats,
-    };
+    )
+    .with_aliases(metadata.aliases.clone())
+    .with_last_updated(metadata.fetched_at.to_rfc3339())
+    .with_checksum(metadata.sha256);
 
-    match format {
-        OutputFormat::Json => {
-            let json = serde_json::to_string_pretty(&info)
-                .context("Failed to serialize source info to JSON")?;
-            println!("{json}");
-        },
-        OutputFormat::Jsonl => {
-            let json =
-                serde_json::to_string(&info).context("Failed to serialize source info to JSONL")?;
-            println!("{json}");
-        },
-        OutputFormat::Text => {
-            print_text_info(&info);
-        },
-        OutputFormat::Raw => {
-            // Raw format: just key facts, no formatting
-            println!("{}", info.url);
-        },
+    if let Some(etag) = metadata.etag {
+        info = info.with_etag(etag);
     }
+
+    if let Some(stats) = llms.filter_stats {
+        info = info.with_filter_stats(FilterStatsOutput {
+            enabled: stats.enabled,
+            headings_total: stats.headings_total,
+            headings_accepted: stats.headings_accepted,
+            headings_rejected: stats.headings_rejected,
+            reason: stats.reason,
+        });
+    }
+
+    // Render the output using unified renderer
+    let shape: OutputShape = info.into();
+    let mut stdout = io::stdout();
+    render(&shape, format, &mut stdout)?;
 
     Ok(())
-}
-
-fn print_text_info(info: &SourceInfo) {
-    println!("Source: {}", info.alias);
-    println!("URL: {}", info.url);
-    println!("Variant: {}", info.variant);
-
-    if !info.aliases.is_empty() {
-        println!("Aliases: {}", info.aliases.join(", "));
-    }
-
-    println!("Lines: {}", format_number(info.lines));
-    println!("Headings: {}", format_number(info.headings));
-    println!("Size: {}", format_bytes(info.size_bytes));
-
-    if let Some(updated) = &info.last_updated {
-        println!("Last Updated: {updated}");
-    }
-
-    if let Some(etag) = &info.etag {
-        println!("ETag: {etag}");
-    }
-
-    if let Some(checksum) = &info.checksum {
-        println!("Checksum: {checksum}");
-    }
-
-    println!("Cache Location: {}", info.cache_path.display());
-
-    // Display language filtering information
-    println!();
-    if let Some(stats) = &info.filter_stats {
-        println!("Language Filtering:");
-        let status_text = if stats.enabled {
-            "enabled".green()
-        } else {
-            "disabled".yellow()
-        };
-        println!("  Status: {status_text}");
-
-        if stats.enabled && stats.headings_rejected > 0 {
-            let percentage = percentage(stats.headings_rejected, stats.headings_total);
-            println!(
-                "  Filtered: {} headings ({percentage:.1}%)",
-                format_number(stats.headings_rejected)
-            );
-            println!("  Reason: {}", stats.reason);
-        }
-    } else {
-        println!(
-            "Language Filtering: {} (added before filtering feature)",
-            "unknown".yellow()
-        );
-    }
-}
-
-fn percentage(count: usize, total: usize) -> f64 {
-    safe_percentage(count, total)
-}
-
-fn format_number(n: usize) -> String {
-    let s = n.to_string();
-    let chars: Vec<char> = s.chars().collect();
-    let mut result = String::new();
-
-    for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i) % 3 == 0 {
-            result.push(',');
-        }
-        result.push(*c);
-    }
-
-    result
-}
-
-fn format_bytes(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
-
-    // Find appropriate unit
-    let mut unit_index = 0;
-    let mut divisor = 1u64;
-
-    while bytes >= divisor * 1024 && unit_index < UNITS.len() - 1 {
-        divisor *= 1024;
-        unit_index += 1;
-    }
-
-    if unit_index == 0 {
-        format!("{bytes} {}", UNITS[unit_index])
-    } else {
-        // Use f64 for fractional display (lossy conversion acceptable for display)
-        let size_f64 = u64_to_f64_lossy(bytes) / u64_to_f64_lossy(divisor);
-        format!("{size_f64:.1} {}", UNITS[unit_index])
-    }
 }
 
 #[cfg(test)]
@@ -253,26 +131,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn test_format_number() {
-        assert_eq!(format_number(0), "0");
-        assert_eq!(format_number(123), "123");
-        assert_eq!(format_number(1234), "1,234");
-        assert_eq!(format_number(12345), "12,345");
-        assert_eq!(format_number(123_456), "123,456");
-        assert_eq!(format_number(1_234_567), "1,234,567");
-    }
-
-    #[test]
-    fn test_format_bytes() {
-        assert_eq!(format_bytes(0), "0 B");
-        assert_eq!(format_bytes(500), "500 B");
-        assert_eq!(format_bytes(1024), "1.0 KB");
-        assert_eq!(format_bytes(1536), "1.5 KB");
-        assert_eq!(format_bytes(1_048_576), "1.0 MB");
-        assert_eq!(format_bytes(1_258_291), "1.2 MB");
     }
 
     #[test]
@@ -338,20 +196,5 @@ mod tests {
                 .any(|m| m.contains("Failed to parse llms.json")),
             "missing parse failure detail: {chain_messages:?}"
         );
-    }
-
-    #[test]
-    fn test_percentage() {
-        assert!((percentage(0, 100) - 0.0).abs() < f64::EPSILON);
-        assert!((percentage(50, 100) - 50.0).abs() < f64::EPSILON);
-        assert!((percentage(100, 100) - 100.0).abs() < f64::EPSILON);
-        assert!((percentage(33, 100) - 33.0).abs() < f64::EPSILON);
-        assert!((percentage(0, 0) - 0.0).abs() < f64::EPSILON); // Edge case: no total
-    }
-
-    #[test]
-    fn test_percentage_precision() {
-        let result = percentage(1, 3);
-        assert!((result - 33.333_333).abs() < 0.001);
     }
 }

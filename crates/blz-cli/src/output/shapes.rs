@@ -636,33 +636,117 @@ impl SourceSummary {
 
 /// Detailed output for a single source.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceInfoOutput {
     /// Source alias.
     pub alias: String,
     /// Source URL.
     pub url: String,
-    /// Source status.
-    pub status: SourceStatus,
+    /// Variant (llms, llms-full, or custom).
+    pub variant: String,
+    /// Additional aliases for this source.
+    #[serde(default)]
+    pub aliases: Vec<String>,
     /// Line count.
     pub lines: usize,
+    /// Total heading count.
+    pub headings: usize,
     /// File size in bytes.
+    pub size_bytes: u64,
+    /// Last updated timestamp (ISO 8601).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size_bytes: Option<u64>,
-    /// Document/section count.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sections: Option<usize>,
-    /// Last updated timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated: Option<String>,
+    pub last_updated: Option<String>,
     /// HTTP `ETag` if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
-    /// Error message if status is Error.
+    /// SHA256 checksum.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// Additional metadata.
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub metadata: HashMap<String, serde_json::Value>,
+    pub checksum: Option<String>,
+    /// Path to cached source directory.
+    pub cache_path: String,
+    /// Language filtering statistics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_stats: Option<FilterStatsOutput>,
+}
+
+/// Language filtering statistics for source info output.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterStatsOutput {
+    /// Whether filtering was enabled.
+    pub enabled: bool,
+    /// Total number of headings before filtering.
+    pub headings_total: usize,
+    /// Number of headings that passed the filter.
+    pub headings_accepted: usize,
+    /// Number of headings that were rejected.
+    pub headings_rejected: usize,
+    /// Human-readable reason for filtering.
+    pub reason: String,
+}
+
+impl SourceInfoOutput {
+    /// Create a new source info output with required fields.
+    #[must_use]
+    pub fn new(
+        alias: impl Into<String>,
+        url: impl Into<String>,
+        variant: impl Into<String>,
+        lines: usize,
+        headings: usize,
+        size_bytes: u64,
+        cache_path: impl Into<String>,
+    ) -> Self {
+        Self {
+            alias: alias.into(),
+            url: url.into(),
+            variant: variant.into(),
+            aliases: Vec::new(),
+            lines,
+            headings,
+            size_bytes,
+            last_updated: None,
+            etag: None,
+            checksum: None,
+            cache_path: cache_path.into(),
+            filter_stats: None,
+        }
+    }
+
+    /// Set additional aliases.
+    #[must_use]
+    pub fn with_aliases(mut self, aliases: Vec<String>) -> Self {
+        self.aliases = aliases;
+        self
+    }
+
+    /// Set last updated timestamp.
+    #[must_use]
+    pub fn with_last_updated(mut self, last_updated: impl Into<String>) -> Self {
+        self.last_updated = Some(last_updated.into());
+        self
+    }
+
+    /// Set the `ETag`.
+    #[must_use]
+    pub fn with_etag(mut self, etag: impl Into<String>) -> Self {
+        self.etag = Some(etag.into());
+        self
+    }
+
+    /// Set the checksum.
+    #[must_use]
+    pub fn with_checksum(mut self, checksum: impl Into<String>) -> Self {
+        self.checksum = Some(checksum.into());
+        self
+    }
+
+    /// Set filter statistics.
+    #[must_use]
+    pub fn with_filter_stats(mut self, stats: FilterStatsOutput) -> Self {
+        self.filter_stats = Some(stats);
+        self
+    }
 }
 
 /// Output shape for validation/check results.
