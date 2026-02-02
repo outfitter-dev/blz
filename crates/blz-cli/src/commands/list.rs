@@ -3,13 +3,12 @@
 use std::io::{self, Write};
 
 use anyhow::{Context, Result};
-use blz_core::{LlmsJson, Source, SourceDescriptor, SourceOrigin, SourceType, Storage};
-use colored::Colorize;
-use serde_json::Value;
+use blz_core::{LlmsJson, Source, SourceDescriptor, Storage};
 
 use crate::output::OutputFormat;
+use crate::output::render::{SourceListRenderOptions, render_source_list_with_options};
+use crate::output::shapes::{SourceListOutput, SourceSummary};
 use crate::utils::count_headings;
-use crate::utils::formatting::get_alias_color;
 
 /// Abstraction over storage interactions required by the list command.
 pub trait ListStorage {
@@ -35,43 +34,6 @@ impl ListStorage for Storage {
     fn load_descriptor(&self, alias: &str) -> Result<Option<SourceDescriptor>> {
         Self::load_descriptor(self, alias).map_err(anyhow::Error::from)
     }
-}
-
-/// Summary information for each source returned by `collect_source_summaries`.
-#[derive(Debug, Clone)]
-pub struct SourceSummary {
-    /// Source alias.
-    pub alias: String,
-    /// Source URL.
-    pub url: String,
-    /// Source tags.
-    pub tags: Vec<String>,
-    /// Additional aliases for this source.
-    pub aliases: Vec<String>,
-    /// Fetch timestamp in RFC3339 format.
-    pub fetched_at: String,
-    /// Content checksum.
-    pub checksum: String,
-    /// Optional `ETag` for conditional fetching.
-    pub etag: Option<String>,
-    /// Optional Last-Modified header value.
-    pub last_modified: Option<String>,
-    /// Total line count in the document.
-    pub lines: usize,
-    /// Total heading count in the document.
-    pub headings: usize,
-    /// Optional description from metadata or descriptor.
-    pub description: Option<String>,
-    /// Optional category from metadata or descriptor.
-    pub category: Option<String>,
-    /// NPM aliases associated with the source.
-    pub npm_aliases: Vec<String>,
-    /// GitHub aliases associated with the source.
-    pub github_aliases: Vec<String>,
-    /// Source origin metadata.
-    pub origin: SourceOrigin,
-    /// Optional descriptor metadata.
-    pub descriptor: Option<SourceDescriptor>,
 }
 
 /// Gather source summaries from storage.
@@ -101,27 +63,68 @@ pub fn collect_source_summaries<S: ListStorage>(storage: &S) -> Result<Vec<Sourc
             .clone()
             .or_else(|| descriptor.as_ref().and_then(|d| d.category.clone()));
 
-        summaries.push(SourceSummary {
-            alias: alias.clone(),
-            url: metadata.url,
-            tags: metadata.tags,
-            aliases: metadata.aliases,
-            fetched_at: metadata.fetched_at.to_rfc3339(),
-            checksum: llms.metadata.sha256.clone(),
-            etag: metadata.etag,
-            last_modified: metadata.last_modified,
-            lines: llms.line_index.total_lines,
-            headings: count_headings(&llms.toc),
+        let summary = build_source_summary(
+            alias,
+            &metadata,
+            &llms,
+            descriptor.as_ref(),
             description,
             category,
-            npm_aliases: metadata.npm_aliases,
-            github_aliases: metadata.github_aliases,
-            origin: metadata.origin,
-            descriptor,
-        });
+        );
+
+        summaries.push(summary);
     }
 
     Ok(summaries)
+}
+
+/// Build a `SourceSummary` from metadata and content.
+fn build_source_summary(
+    alias: String,
+    metadata: &Source,
+    llms: &LlmsJson,
+    descriptor: Option<&SourceDescriptor>,
+    description: Option<String>,
+    category: Option<String>,
+) -> SourceSummary {
+    let mut summary = SourceSummary::new(alias, metadata.url.clone(), llms.line_index.total_lines)
+        .with_headings(count_headings(&llms.toc))
+        .with_tags(metadata.tags.clone())
+        .with_aliases(metadata.aliases.clone())
+        .with_fetched_at(metadata.fetched_at.to_rfc3339())
+        .with_checksum(llms.metadata.sha256.clone())
+        .with_npm_aliases(metadata.npm_aliases.clone())
+        .with_github_aliases(metadata.github_aliases.clone());
+
+    if let Some(etag) = &metadata.etag {
+        summary = summary.with_etag(etag.clone());
+    }
+
+    if let Some(last_modified) = &metadata.last_modified {
+        summary = summary.with_last_modified(last_modified.clone());
+    }
+
+    if let Some(desc) = description {
+        summary = summary.with_description(desc);
+    }
+
+    if let Some(cat) = category {
+        summary = summary.with_category(cat);
+    }
+
+    // Convert origin to JSON value; emit null on serialization failure for backward compatibility
+    let origin_value = serde_json::to_value(&metadata.origin).unwrap_or(serde_json::Value::Null);
+    summary = summary.with_origin(origin_value);
+
+    // Convert descriptor to JSON value; emit null on serialization failure for backward compatibility
+    let descriptor_value = descriptor
+        .map(serde_json::to_value)
+        .map_or(serde_json::Value::Null, |r| {
+            r.unwrap_or(serde_json::Value::Null)
+        });
+    summary = summary.with_descriptor(descriptor_value);
+
+    summary
 }
 
 /// Render a list of source summaries to the provided writer.
@@ -134,22 +137,18 @@ pub fn render_list<W: Write>(
     limit: Option<usize>,
 ) -> Result<()> {
     // Apply limit to sources slice
-    let sources = limit.map_or(sources, |limit_count| {
-        &sources[..sources.len().min(limit_count)]
-    });
+    let sources = limit.map_or_else(
+        || sources.to_vec(),
+        |limit_count| sources[..sources.len().min(limit_count)].to_vec(),
+    );
 
-    match format {
-        OutputFormat::Text => render_text(writer, sources, status, details),
-        OutputFormat::Json => render_json(writer, sources, status),
-        OutputFormat::Jsonl => render_jsonl(writer, sources, status),
-        OutputFormat::Raw => {
-            // Raw format: just print aliases, one per line
-            for source in sources {
-                writeln!(writer, "{}", source.alias)?;
-            }
-            Ok(())
-        },
-    }
+    let output = SourceListOutput::new(sources);
+    let options = SourceListRenderOptions {
+        show_status: status,
+        show_details: details,
+    };
+
+    render_source_list_with_options(&output, format, &options, writer)
 }
 
 /// Dispatch a List command.
@@ -200,177 +199,14 @@ where
 {
     let summaries = collect_source_summaries(storage)?;
 
-    if summaries.is_empty() {
-        match format {
-            OutputFormat::Text => {
-                writeln!(
-                    writer,
-                    "No sources configured. Use 'blz add' to add sources."
-                )?;
-                return Ok(());
-            },
-            OutputFormat::Raw => return Ok(()),
-            OutputFormat::Json | OutputFormat::Jsonl => {
-                writeln!(writer, "[]")?;
-                return Ok(());
-            },
-        }
+    // Handle empty case for JSONL to maintain backward compatibility
+    // (render module outputs nothing for empty JSONL, but original printed "[]")
+    if summaries.is_empty() && format == OutputFormat::Jsonl {
+        writeln!(writer, "[]")?;
+        return Ok(());
     }
 
     render_list(writer, &summaries, format, status, details, limit)
-}
-
-fn render_text<W: Write>(
-    writer: &mut W,
-    sources: &[SourceSummary],
-    status: bool,
-    details: bool,
-) -> Result<()> {
-    for (idx, source) in sources.iter().enumerate() {
-        let colored_alias = get_alias_color(&source.alias, idx);
-        writeln!(writer, "{} - {}", colored_alias, source.url.bright_black())?;
-        writeln!(
-            writer,
-            "  {} lines, {} headings",
-            source.lines, source.headings
-        )?;
-
-        if !source.tags.is_empty() {
-            writeln!(writer, "  Tags: {}", source.tags.join(", "))?;
-        }
-
-        if status {
-            writeln!(writer, "  Last updated: {}", source.fetched_at)?;
-            if let Some(etag) = &source.etag {
-                writeln!(writer, "  ETag: {etag}")?;
-            }
-            if let Some(last_modified) = &source.last_modified {
-                writeln!(writer, "  Last-Modified: {last_modified}")?;
-            }
-            writeln!(writer, "  SHA256: {}", source.checksum)?;
-        }
-
-        if details {
-            if let Some(description) = &source.description {
-                writeln!(writer, "  Description: {description}")?;
-            }
-            if let Some(category) = &source.category {
-                writeln!(writer, "  Category: {category}")?;
-            }
-            if !source.npm_aliases.is_empty() {
-                writeln!(writer, "  npm: {}", source.npm_aliases.join(", "))?;
-            }
-            if !source.github_aliases.is_empty() {
-                writeln!(writer, "  github: {}", source.github_aliases.join(", "))?;
-            }
-            if let Some(descriptor) = &source.descriptor {
-                if let Some(url) = &descriptor.url {
-                    writeln!(writer, "  Descriptor URL: {url}")?;
-                }
-                if let Some(path) = &descriptor.path {
-                    writeln!(writer, "  Local path: {path}")?;
-                }
-                if let Some(manifest) = &descriptor.origin.manifest {
-                    writeln!(
-                        writer,
-                        "  Manifest: {} ({})",
-                        manifest.path, manifest.entry_alias
-                    )?;
-                }
-            }
-
-            writeln!(
-                writer,
-                "  Origin: {}",
-                match &source.origin.source_type {
-                    Some(SourceType::Remote { url }) => format!("remote ({url})"),
-                    Some(SourceType::LocalFile { path }) => format!("local ({path})"),
-                    None => "unknown".to_string(),
-                }
-            )?;
-        }
-
-        writeln!(writer)?;
-    }
-    Ok(())
-}
-
-fn render_json<W: Write>(writer: &mut W, sources: &[SourceSummary], status: bool) -> Result<()> {
-    let json_sources: Vec<Value> = sources
-        .iter()
-        .map(|source| summary_to_json(source, status))
-        .collect();
-    serde_json::to_writer_pretty(&mut *writer, &json_sources)?;
-    writeln!(writer)?;
-    Ok(())
-}
-
-fn render_jsonl<W: Write>(writer: &mut W, sources: &[SourceSummary], status: bool) -> Result<()> {
-    for source in sources {
-        serde_json::to_writer(&mut *writer, &summary_to_json(source, status))?;
-        writeln!(writer)?;
-    }
-    Ok(())
-}
-
-fn summary_to_json(source: &SourceSummary, status: bool) -> Value {
-    let mut obj = serde_json::Map::new();
-    obj.insert("alias".to_string(), Value::String(source.alias.clone()));
-    obj.insert("url".to_string(), Value::String(source.url.clone()));
-    obj.insert("lines".to_string(), serde_json::json!(source.lines));
-    obj.insert("headings".to_string(), serde_json::json!(source.headings));
-    obj.insert("tags".to_string(), serde_json::json!(source.tags.clone()));
-    obj.insert(
-        "aliases".to_string(),
-        serde_json::json!(source.aliases.clone()),
-    );
-    obj.insert(
-        "fetchedAt".to_string(),
-        Value::String(source.fetched_at.clone()),
-    );
-    obj.insert("sha256".to_string(), Value::String(source.checksum.clone()));
-
-    if let Some(description) = &source.description {
-        obj.insert(
-            "description".to_string(),
-            Value::String(description.clone()),
-        );
-    }
-    if let Some(category) = &source.category {
-        obj.insert("category".to_string(), Value::String(category.clone()));
-    }
-    obj.insert(
-        "npmAliases".to_string(),
-        serde_json::json!(source.npm_aliases.clone()),
-    );
-    obj.insert(
-        "githubAliases".to_string(),
-        serde_json::json!(source.github_aliases.clone()),
-    );
-    obj.insert(
-        "origin".to_string(),
-        serde_json::to_value(&source.origin).unwrap_or(Value::Null),
-    );
-    if let Some(descriptor) = &source.descriptor {
-        obj.insert(
-            "descriptor".to_string(),
-            serde_json::to_value(descriptor).unwrap_or(Value::Null),
-        );
-    }
-
-    if status {
-        if let Some(etag) = &source.etag {
-            obj.insert("etag".to_string(), Value::String(etag.clone()));
-        }
-        if let Some(last_modified) = &source.last_modified {
-            obj.insert(
-                "lastModified".to_string(),
-                Value::String(last_modified.clone()),
-            );
-        }
-    }
-
-    Value::Object(obj)
 }
 
 #[cfg(test)]
@@ -506,29 +342,30 @@ mod tests {
 
     #[test]
     fn render_text_omits_status_details_when_disabled() -> Result<()> {
-        let summary = SourceSummary {
-            alias: "alpha".into(),
-            url: "https://example.com".into(),
-            tags: vec!["stable".into()],
-            aliases: vec![],
-            fetched_at: "2025-10-01T12:00:00Z".into(),
-            checksum: "abc".into(),
-            etag: Some("tag".into()),
-            last_modified: Some("Wed".into()),
-            lines: 42,
-            headings: 5,
-            description: Some("Example".into()),
-            category: Some("library".into()),
-            npm_aliases: vec![],
-            github_aliases: vec![],
-            origin: blz_core::SourceOrigin {
-                manifest: None,
-                source_type: Some(blz_core::SourceType::Remote {
-                    url: "https://example.com".into(),
-                }),
-            },
-            descriptor: None,
+        let origin = blz_core::SourceOrigin {
+            manifest: None,
+            source_type: Some(blz_core::SourceType::Remote {
+                url: "https://example.com".into(),
+            }),
         };
+        let origin_value = serde_json::to_value(&origin).ok();
+
+        let summary = SourceSummary::new("alpha", "https://example.com", 42)
+            .with_headings(5)
+            .with_tags(vec!["stable".into()])
+            .with_fetched_at("2025-10-01T12:00:00Z")
+            .with_checksum("abc")
+            .with_etag("tag")
+            .with_last_modified("Wed")
+            .with_description("Example")
+            .with_category("library");
+
+        let summary = if let Some(origin_val) = origin_value {
+            summary.with_origin(origin_val)
+        } else {
+            summary
+        };
+
         let mut buf = Cursor::new(Vec::new());
         render_list(&mut buf, &[summary], OutputFormat::Text, false, false, None)?;
         let output = String::from_utf8(buf.into_inner())?;
