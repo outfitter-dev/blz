@@ -847,6 +847,8 @@ fn ensure_llms<'a>(
 /// // This will not panic even with empty results due to .max(1) guard
 /// assert!(format_and_display(&results, &options).is_ok());
 /// ```
+// TODO(BLZ-339): Remove once shape-based output migration is complete
+#[allow(dead_code)]
 pub(super) fn format_and_display(
     results: &SearchResults,
     options: &SearchOptions,
@@ -931,6 +933,8 @@ pub(super) fn format_and_display(
 }
 
 /// Helper to lazily resolve suggestions for JSON output.
+// TODO(BLZ-339): Remove once shape-based output migration is complete
+#[allow(dead_code)]
 struct SuggestionResolver<'a> {
     options: &'a SearchOptions,
     results: &'a SearchResults,
@@ -966,6 +970,8 @@ impl<'a> SuggestionResolver<'a> {
 }
 
 /// Pagination context for formatting a page of results.
+// TODO(BLZ-339): Remove once shape-based output migration is complete
+#[allow(dead_code)]
 struct PageContext<'a> {
     /// Hits to display on this page.
     hits: &'a [SearchHit],
@@ -982,6 +988,8 @@ struct PageContext<'a> {
 }
 
 /// Format and display a page of search results.
+// TODO(BLZ-339): Remove once shape-based output migration is complete
+#[allow(dead_code)]
 fn format_page(
     page_ctx: &PageContext<'_>,
     results: &SearchResults,
@@ -1011,6 +1019,7 @@ fn format_page(
     formatter.format(&params)
 }
 
+#[allow(dead_code)]
 fn compute_suggestions(
     query: &str,
     storage: &blz_core::Storage,
@@ -1044,6 +1053,7 @@ fn compute_suggestions(
         .collect()
 }
 
+#[allow(dead_code)]
 fn collect_suggestions_from_toc(
     doc: &blz_core::LlmsJson,
     alias: &str,
@@ -1072,6 +1082,7 @@ fn collect_suggestions_from_toc(
     walk(&doc.toc, alias, qtokens, out);
 }
 
+#[allow(dead_code)]
 fn tokenize(s: &str) -> Vec<String> {
     let mut toks = Vec::new();
     let mut cur = String::new();
@@ -1088,7 +1099,7 @@ fn tokenize(s: &str) -> Vec<String> {
     toks
 }
 
-#[allow(clippy::cast_precision_loss)]
+#[allow(dead_code, clippy::cast_precision_loss)]
 fn score_tokens(h: &[String], q: &[String]) -> f32 {
     if h.is_empty() || q.is_empty() {
         return 0.0;

@@ -98,6 +98,9 @@ pub use stream::{
 
 // Some render functions await command adoption
 #[allow(unused_imports)]
-pub use render::{SourceListRenderOptions, render, render_source_list_with_options};
+pub use render::{
+    SearchRenderOptions, SourceListRenderOptions, render, render_search_with_options,
+    render_source_list_with_options,
+};
 
 // Re-export commonly used formatters
