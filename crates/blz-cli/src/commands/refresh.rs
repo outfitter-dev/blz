@@ -13,6 +13,7 @@ use blz_core::{Fetcher, PerformanceMetrics, Storage};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
+use crate::config::SyncConfig;
 use crate::utils::filter_flags;
 use crate::utils::resolver;
 
@@ -205,13 +206,7 @@ pub async fn execute(
 
 /// Execute refresh for all sources.
 #[allow(clippy::too_many_lines)]
-pub async fn execute_all(
-    metrics: PerformanceMetrics,
-    quiet: bool,
-    reindex: bool,
-    filter: Option<&String>,
-    no_filter: bool,
-) -> Result<()> {
+pub async fn execute_all(metrics: PerformanceMetrics, config: &SyncConfig) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
@@ -219,17 +214,24 @@ pub async fn execute_all(
         anyhow::bail!("No sources configured. Use 'blz add' to add sources.");
     }
 
-    if reindex {
+    if config.reindex {
         let mut updated_count = 0;
         let mut error_count = 0;
 
         for alias in sources {
-            match execute_reindex(&storage, &alias, metrics.clone(), quiet, filter, no_filter) {
+            match execute_reindex(
+                &storage,
+                &alias,
+                metrics.clone(),
+                config.quiet,
+                config.filter.as_ref(),
+                config.no_filter,
+            ) {
                 Ok(()) => {
                     updated_count += 1;
                 },
                 Err(e) => {
-                    if !quiet {
+                    if !config.quiet {
                         eprintln!("{}: {}", alias.red(), e);
                     }
                     error_count += 1;
@@ -237,7 +239,7 @@ pub async fn execute_all(
             }
         }
 
-        if !quiet {
+        if !config.quiet {
             println!(
                 "\nSummary: {} re-indexed, {} errors",
                 updated_count.to_string().green(),
@@ -258,10 +260,10 @@ pub async fn execute_all(
     let mut skipped_count = 0;
     let mut error_count = 0;
     let indexer = DefaultRefreshIndexer;
-    let filter_flags = filter_flags::parse_filter_flags(filter);
+    let filter_flags = filter_flags::parse_filter_flags(config.filter.as_ref());
 
     for alias in sources {
-        let spinner = if quiet {
+        let spinner = if config.quiet {
             ProgressBar::hidden()
         } else {
             create_spinner(format!("Checking {alias}...").as_str())
@@ -270,7 +272,7 @@ pub async fn execute_all(
         let metadata = storage.load_metadata(&alias)?;
         let aliases = storage.load_llms_aliases(&alias)?;
 
-        let filter_preference = if no_filter {
+        let filter_preference = if config.no_filter {
             false
         } else if filter_flags.any_enabled() {
             filter_flags.language
@@ -280,7 +282,7 @@ pub async fn execute_all(
 
         let resolution = resolve_refresh_url(&fetcher, &metadata).await?;
         spinner.finish_and_clear();
-        announce_upgrade(&resolution, &alias, quiet);
+        announce_upgrade(&resolution, &alias, config.quiet);
 
         match refresh_source_with_metadata(
             &storage,
@@ -297,18 +299,18 @@ pub async fn execute_all(
         {
             Ok(RefreshOutcome::Refreshed { .. }) => {
                 refreshed_count += 1;
-                if !quiet {
+                if !config.quiet {
                     println!("{} {}", "✓ Refreshed".green(), alias.green());
                 }
             },
             Ok(RefreshOutcome::Unchanged { .. }) => {
                 skipped_count += 1;
-                if !quiet {
+                if !config.quiet {
                     println!("{} {} (unchanged)", "✓".green(), alias.green());
                 }
             },
             Err(e) => {
-                if !quiet {
+                if !config.quiet {
                     eprintln!("{}: {}", alias.red(), e);
                 }
                 error_count += 1;
@@ -316,7 +318,7 @@ pub async fn execute_all(
         }
     }
 
-    if !quiet {
+    if !config.quiet {
         println!(
             "\nSummary: {} refreshed, {} unchanged, {} errors",
             refreshed_count.to_string().green(),
@@ -359,7 +361,13 @@ pub async fn dispatch_deprecated(
         );
     }
 
-    handle_refresh(aliases, all, reindex, filter, no_filter, metrics, quiet).await
+    let config = SyncConfig::new()
+        .with_reindex(reindex)
+        .with_filter(filter)
+        .with_no_filter(no_filter)
+        .with_quiet(quiet);
+
+    handle_refresh(aliases, all, &config, metrics).await
 }
 
 /// Dispatch a deprecated Update command.
@@ -382,25 +390,22 @@ pub async fn dispatch_update_deprecated(
     }
 
     // Update command doesn't support reindex, filter, or no_filter flags
-    handle_refresh(aliases, all, false, None, false, metrics, quiet).await
+    let config = SyncConfig::new().with_quiet(quiet);
+    handle_refresh(aliases, all, &config, metrics).await
 }
 
 /// Handle refresh for one or more sources.
 ///
 /// This is the core refresh logic that handles multiple aliases, with fallback
 /// to refresh all sources when no aliases are specified and `all` is false.
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn handle_refresh(
     aliases: Vec<String>,
     all: bool,
-    reindex: bool,
-    filter: Option<String>,
-    no_filter: bool,
+    config: &SyncConfig,
     metrics: PerformanceMetrics,
-    quiet: bool,
 ) -> Result<()> {
     let mut aliases = aliases;
-    let mut filter = filter;
+    let mut filter = config.filter.clone();
 
     // Handle filter flag as implicit alias when no aliases provided
     if !all && aliases.is_empty() {
@@ -414,8 +419,14 @@ pub async fn handle_refresh(
         }
     }
 
+    // Create a config with potentially updated filter
+    let resolved_config = SyncConfig {
+        filter,
+        ..config.clone()
+    };
+
     if all || aliases.is_empty() {
-        return execute_all(metrics, quiet, reindex, filter.as_ref(), no_filter).await;
+        return execute_all(metrics, &resolved_config).await;
     }
 
     for alias in aliases {
@@ -430,10 +441,10 @@ pub async fn handle_refresh(
         execute(
             &alias,
             metrics_clone,
-            quiet,
-            reindex,
-            filter.as_ref(),
-            no_filter,
+            resolved_config.quiet,
+            resolved_config.reindex,
+            resolved_config.filter.as_ref(),
+            resolved_config.no_filter,
         )
         .await?;
     }

@@ -31,6 +31,7 @@ use blz_core::{PerformanceMetrics, Storage};
 use clap::Args;
 use colored::Colorize;
 
+use crate::config::SyncConfig;
 use crate::utils::resolver;
 
 /// Arguments for `blz sync` (fetch latest docs)
@@ -90,17 +91,14 @@ pub use generated::{
 
 /// Dispatch a Sync command from CLI args.
 pub async fn dispatch(args: SyncArgs, quiet: bool, metrics: PerformanceMetrics) -> Result<()> {
-    execute(
-        args.aliases,
-        args.all,
-        args.yes,
-        args.reindex,
-        args.filter,
-        args.no_filter,
-        metrics,
-        quiet,
-    )
-    .await
+    let config = SyncConfig::new()
+        .with_yes(args.yes)
+        .with_reindex(args.reindex)
+        .with_filter(args.filter)
+        .with_no_filter(args.no_filter)
+        .with_quiet(quiet);
+
+    execute(&args.aliases, args.all, &config, metrics).await
 }
 
 /// Execute the sync command to fetch latest documentation
@@ -113,25 +111,16 @@ pub async fn dispatch(args: SyncArgs, quiet: bool, metrics: PerformanceMetrics) 
 ///
 /// * `aliases` - Source aliases to sync
 /// * `all` - Sync all sources
-/// * `yes` - Skip confirmation prompts (reserved for future use)
-/// * `reindex` - Force re-parse and re-index even if content unchanged
-/// * `filter` - Content filters to enable (comma-separated)
-/// * `no_filter` - Disable all content filters
+/// * `config` - Sync configuration options
 /// * `metrics` - Performance metrics collector
-/// * `quiet` - Suppress informational output
-#[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments)]
 pub async fn execute(
-    aliases: Vec<String>,
+    aliases: &[String],
     all: bool,
-    _yes: bool,
-    reindex: bool,
-    filter: Option<String>,
-    no_filter: bool,
+    config: &SyncConfig,
     metrics: PerformanceMetrics,
-    quiet: bool,
 ) -> Result<()> {
     if all {
-        execute_all(metrics, quiet, reindex, filter, no_filter).await
+        execute_all(config, metrics).await
     } else if aliases.is_empty() {
         // No aliases and no --all: error out
         anyhow::bail!(
@@ -143,30 +132,15 @@ pub async fn execute(
     } else {
         // Sync specified aliases
         let storage = Storage::new()?;
-        for alias in &aliases {
-            execute_single(
-                &storage,
-                alias,
-                metrics.clone(),
-                quiet,
-                reindex,
-                filter.as_ref(),
-                no_filter,
-            )
-            .await?;
+        for alias in aliases {
+            execute_single(&storage, alias, config, metrics.clone()).await?;
         }
         Ok(())
     }
 }
 
 /// Execute sync for all sources.
-async fn execute_all(
-    metrics: PerformanceMetrics,
-    quiet: bool,
-    reindex: bool,
-    filter: Option<String>,
-    no_filter: bool,
-) -> Result<()> {
+async fn execute_all(config: &SyncConfig, metrics: PerformanceMetrics) -> Result<()> {
     let storage = Storage::new()?;
     let sources = storage.list_sources();
 
@@ -179,21 +153,11 @@ async fn execute_all(
     let mut error_count = 0;
 
     for alias in sources {
-        match execute_single(
-            &storage,
-            &alias,
-            metrics.clone(),
-            quiet,
-            reindex,
-            filter.as_ref(),
-            no_filter,
-        )
-        .await
-        {
+        match execute_single(&storage, &alias, config, metrics.clone()).await {
             Ok(true) => refreshed_count += 1,
             Ok(false) => skipped_count += 1,
             Err(e) => {
-                if !quiet {
+                if !config.quiet {
                     eprintln!("{}: {}", alias.red(), e);
                 }
                 error_count += 1;
@@ -201,7 +165,7 @@ async fn execute_all(
         }
     }
 
-    if !quiet {
+    if !config.quiet {
         println!(
             "\nSummary: {} synced, {} unchanged, {} errors",
             refreshed_count.to_string().green(),
@@ -224,11 +188,8 @@ async fn execute_all(
 async fn execute_single(
     storage: &Storage,
     alias: &str,
+    config: &SyncConfig,
     metrics: PerformanceMetrics,
-    quiet: bool,
-    reindex: bool,
-    filter: Option<&String>,
-    no_filter: bool,
 ) -> Result<bool> {
     let canonical_alias =
         resolver::resolve_source(storage, alias)?.unwrap_or_else(|| alias.to_string());
@@ -240,11 +201,18 @@ async fn execute_single(
     // Check if this is a generated source
     if is_generated_source(storage, &canonical_alias) {
         // Generated source: use lastmod-based sync
-        sync_generated_source(storage, &canonical_alias, quiet).await
+        sync_generated_source(storage, &canonical_alias, config.quiet).await
     } else {
         // Standard source: use existing refresh flow
-        super::refresh::execute(&canonical_alias, metrics, quiet, reindex, filter, no_filter)
-            .await?;
+        super::refresh::execute(
+            &canonical_alias,
+            metrics,
+            config.quiet,
+            config.reindex,
+            config.filter.as_ref(),
+            config.no_filter,
+        )
+        .await?;
         Ok(true) // Assume updated for now
     }
 }

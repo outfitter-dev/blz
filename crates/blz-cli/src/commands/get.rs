@@ -698,16 +698,17 @@ pub(super) async fn execute_internal(
     let (before_context, after_context, block_mode) = parse_context_mode(context_mode, block);
     let storage = Storage::new()?;
 
-    // Process all requests
-    let (processed, clipboard_segments) = process_all_requests(
-        &storage,
-        specs,
+    // Build process parameters
+    let params = GetProcessParams {
         before_context,
         after_context,
         block_mode,
         max_block_lines,
         copy,
-    )?;
+    };
+
+    // Process all requests
+    let (processed, clipboard_segments) = process_all_requests(&storage, specs, &params)?;
 
     // Output in requested format
     match format {
@@ -741,16 +742,20 @@ pub(super) async fn execute_internal(
     Ok(())
 }
 
-/// Process all request specs and return processed results with optional clipboard segments.
-#[allow(clippy::too_many_arguments)]
-fn process_all_requests(
-    storage: &Storage,
-    specs: &[RequestSpec],
+/// Parameters for processing get requests.
+struct GetProcessParams {
     before_context: usize,
     after_context: usize,
     block_mode: bool,
     max_block_lines: Option<usize>,
     copy: bool,
+}
+
+/// Process all request specs and return processed results with optional clipboard segments.
+fn process_all_requests(
+    storage: &Storage,
+    specs: &[RequestSpec],
+    params: &GetProcessParams,
 ) -> Result<(Vec<ProcessedRequest>, Vec<String>)> {
     let mut processed = Vec::with_capacity(specs.len());
     let mut clipboard_segments = Vec::new();
@@ -759,13 +764,13 @@ fn process_all_requests(
         let result = process_single_request(
             storage,
             spec,
-            before_context,
-            after_context,
-            block_mode,
-            max_block_lines,
+            params.before_context,
+            params.after_context,
+            params.block_mode,
+            params.max_block_lines,
         )?;
 
-        if copy {
+        if params.copy {
             let clip = result
                 .lines_with_content
                 .iter()
@@ -809,7 +814,7 @@ pub async fn dispatch(cmd: Commands, quiet: bool) -> Result<()> {
         unreachable!("dispatch called with non-Get command");
     };
 
-    handle_get(
+    let args = GetArgs {
         targets,
         lines,
         source,
@@ -819,15 +824,15 @@ pub async fn dispatch(cmd: Commands, quiet: bool) -> Result<()> {
         before_context,
         block,
         max_lines,
-        format.resolve(quiet),
+        format: format.resolve(quiet),
         copy,
-    )
-    .await
+    };
+
+    handle_get(args).await
 }
 
-/// Handle the get command after arguments are extracted.
-#[allow(clippy::too_many_arguments)]
-async fn handle_get(
+/// Parameters extracted from get command arguments.
+struct GetArgs {
     targets: Vec<String>,
     lines: Option<String>,
     source: Option<String>,
@@ -839,19 +844,26 @@ async fn handle_get(
     max_lines: Option<usize>,
     format: OutputFormat,
     copy: bool,
-) -> Result<()> {
-    let request_specs = parse_get_targets(&targets, lines.as_deref(), source)?;
+}
 
-    let merged_context =
-        merge_context_flags(context, context_deprecated, after_context, before_context);
+/// Handle the get command after arguments are extracted.
+async fn handle_get(args: GetArgs) -> Result<()> {
+    let request_specs = parse_get_targets(&args.targets, args.lines.as_deref(), args.source)?;
+
+    let merged_context = merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
 
     execute_internal(
         &request_specs,
         merged_context.as_ref(),
-        block,
-        max_lines,
-        format,
-        copy,
+        args.block,
+        args.max_lines,
+        args.format,
+        args.copy,
     )
     .await
 }

@@ -15,7 +15,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use crate::output::OutputFormat;
+use crate::config::{TocConfig, TocNavigation};
 use crate::utils::cli_args::FormatArg;
 use crate::utils::heading_filter::HeadingLevelFilter;
 
@@ -146,24 +146,24 @@ pub struct MapArgs {
 /// This function takes the parsed `MapArgs` and quiet flag, resolves the output format,
 /// and delegates to `execute`.
 pub async fn dispatch(args: MapArgs, quiet: bool) -> Result<()> {
-    execute(
-        args.alias.as_deref(),
-        &args.sources,
-        args.all,
-        args.format.resolve(quiet),
-        args.anchors,
-        args.show_anchors,
-        args.limit,
-        args.max_depth,
-        args.heading_level.as_ref(),
-        args.filter.as_deref(),
-        args.tree,
-        args.next,
-        args.previous,
-        args.last,
-        args.page,
-    )
-    .await
+    let config = TocConfig::new(args.format.resolve(quiet))
+        .with_filter_expr(args.filter.clone())
+        .with_max_depth(args.max_depth)
+        .with_heading_level(args.heading_level.clone())
+        .with_limit(args.limit)
+        .with_page(args.page)
+        .with_tree(args.tree)
+        .with_anchors(args.anchors)
+        .with_show_anchors(args.show_anchors)
+        .with_quiet(quiet);
+
+    let nav = TocNavigation::new()
+        .with_next(args.next)
+        .with_previous(args.previous)
+        .with_last(args.last)
+        .with_all(args.all);
+
+    execute(args.alias.as_deref(), &args.sources, &config, nav).await
 }
 
 /// Execute the map command to browse documentation structure
@@ -175,54 +175,14 @@ pub async fn dispatch(args: MapArgs, quiet: bool) -> Result<()> {
 ///
 /// * `alias` - Optional source alias (can be omitted with --source or --all)
 /// * `sources` - List of source aliases to show
-/// * `all` - Include all sources when no alias provided
-/// * `output` - Output format (text, json, jsonl)
-/// * `anchors` - Show anchor metadata and remap history
-/// * `show_anchors` - Show anchor slugs in normal TOC output
-/// * `limit` - Maximum number of headings per page
-/// * `max_depth` - Limit results to headings at or above this level
-/// * `heading_level` - Filter by heading level with comparison operators
-/// * `filter_expr` - Filter headings by boolean expression
-/// * `tree` - Display as hierarchical tree
-/// * `next` - Continue from previous (next page)
-/// * `previous` - Go back to previous page
-/// * `last` - Jump to last page
-/// * `page` - Page number for pagination
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+/// * `config` - TOC display configuration
+/// * `nav` - TOC navigation configuration
 pub async fn execute(
     alias: Option<&str>,
     sources: &[String],
-    all: bool,
-    output: OutputFormat,
-    anchors: bool,
-    show_anchors: bool,
-    limit: Option<usize>,
-    max_depth: Option<u8>,
-    heading_level: Option<&HeadingLevelFilter>,
-    filter_expr: Option<&str>,
-    tree: bool,
-    next: bool,
-    previous: bool,
-    last: bool,
-    page: usize,
+    config: &TocConfig,
+    nav: TocNavigation,
 ) -> Result<()> {
     // Delegate to internal TOC implementation
-    super::toc::execute(
-        alias,
-        sources,
-        all,
-        output,
-        anchors,
-        show_anchors,
-        limit,
-        max_depth,
-        heading_level,
-        filter_expr,
-        tree,
-        next,
-        previous,
-        last,
-        page,
-    )
-    .await
+    super::toc::execute(alias, sources, config, nav).await
 }
