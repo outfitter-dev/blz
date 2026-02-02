@@ -439,23 +439,64 @@ impl SourceListOutput {
 }
 
 /// Summary information for a source in list view.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+///
+/// This struct contains all fields needed for both text and JSON output formats.
+/// Fields are designed to be backward compatible - new fields are optional.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceSummary {
-    /// Source alias.
+    /// Source alias (primary identifier).
     pub alias: String,
     /// Source URL.
     pub url: String,
-    /// Source status.
+    /// Source status indicator.
+    #[serde(default)]
     pub status: SourceStatus,
     /// Line count in cached content.
     pub lines: usize,
-    /// Last updated timestamp (ISO 8601).
+    /// Total heading count in the document.
+    #[serde(default)]
+    pub headings: usize,
+    /// Source tags for categorization.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Additional aliases for this source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+    /// Fetch timestamp in RFC3339 format (ISO 8601).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated: Option<String>,
+    pub fetched_at: Option<String>,
+    /// Content checksum (SHA-256).
+    #[serde(rename = "sha256", skip_serializing_if = "Option::is_none")]
+    pub checksum: Option<String>,
+    /// Optional `ETag` for conditional fetching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+    /// Optional Last-Modified header value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<String>,
+    /// Optional description from metadata or descriptor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional category from metadata or descriptor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// NPM aliases associated with the source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub npm_aliases: Vec<String>,
+    /// GitHub aliases associated with the source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub github_aliases: Vec<String>,
+    /// Source origin metadata (serialized as JSON value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<serde_json::Value>,
+    /// Optional descriptor metadata (serialized as JSON value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor: Option<serde_json::Value>,
 }
 
 /// Source status indicator.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SourceStatus {
     /// Source is up to date.
@@ -465,6 +506,7 @@ pub enum SourceStatus {
     /// Source has errors.
     Error,
     /// Source status is unknown.
+    #[default]
     Unknown,
 }
 
@@ -476,6 +518,119 @@ impl std::fmt::Display for SourceStatus {
             Self::Error => write!(f, "error"),
             Self::Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+impl SourceSummary {
+    /// Create a new source summary with required fields.
+    ///
+    /// Use the builder pattern to set optional fields.
+    #[must_use]
+    pub fn new(alias: impl Into<String>, url: impl Into<String>, lines: usize) -> Self {
+        Self {
+            alias: alias.into(),
+            url: url.into(),
+            lines,
+            ..Default::default()
+        }
+    }
+
+    /// Set the status.
+    #[must_use]
+    pub const fn with_status(mut self, status: SourceStatus) -> Self {
+        self.status = status;
+        self
+    }
+
+    /// Set the heading count.
+    #[must_use]
+    pub const fn with_headings(mut self, headings: usize) -> Self {
+        self.headings = headings;
+        self
+    }
+
+    /// Set tags.
+    #[must_use]
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    /// Set aliases.
+    #[must_use]
+    pub fn with_aliases(mut self, aliases: Vec<String>) -> Self {
+        self.aliases = aliases;
+        self
+    }
+
+    /// Set the `fetched_at` timestamp.
+    #[must_use]
+    pub fn with_fetched_at(mut self, fetched_at: impl Into<String>) -> Self {
+        self.fetched_at = Some(fetched_at.into());
+        self
+    }
+
+    /// Set the checksum.
+    #[must_use]
+    pub fn with_checksum(mut self, checksum: impl Into<String>) -> Self {
+        self.checksum = Some(checksum.into());
+        self
+    }
+
+    /// Set the `ETag`.
+    #[must_use]
+    pub fn with_etag(mut self, etag: impl Into<String>) -> Self {
+        self.etag = Some(etag.into());
+        self
+    }
+
+    /// Set the `last_modified` timestamp.
+    #[must_use]
+    pub fn with_last_modified(mut self, last_modified: impl Into<String>) -> Self {
+        self.last_modified = Some(last_modified.into());
+        self
+    }
+
+    /// Set the description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Set the category.
+    #[must_use]
+    pub fn with_category(mut self, category: impl Into<String>) -> Self {
+        self.category = Some(category.into());
+        self
+    }
+
+    /// Set npm aliases.
+    #[must_use]
+    pub fn with_npm_aliases(mut self, npm_aliases: Vec<String>) -> Self {
+        self.npm_aliases = npm_aliases;
+        self
+    }
+
+    /// Set GitHub aliases.
+    #[must_use]
+    pub fn with_github_aliases(mut self, github_aliases: Vec<String>) -> Self {
+        self.github_aliases = github_aliases;
+        self
+    }
+
+    /// Set the origin as a JSON value.
+    #[must_use]
+    pub fn with_origin(mut self, origin: serde_json::Value) -> Self {
+        self.origin = Some(origin);
+        self
+    }
+
+    /// Set the descriptor as a JSON value.
+    #[must_use]
+    pub fn with_descriptor(mut self, descriptor: serde_json::Value) -> Self {
+        self.descriptor = Some(descriptor);
+        self
     }
 }
 

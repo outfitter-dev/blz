@@ -72,6 +72,7 @@ pub mod detect;
 mod formatter;
 mod json;
 mod progress;
+pub mod render;
 pub mod shapes;
 pub mod stream;
 mod text;
@@ -94,5 +95,9 @@ pub use stream::{
     StreamConfig, output_stream_jsonl, output_stream_jsonl_sync, output_stream_jsonl_sync_stdout,
     output_stream_jsonl_with_config,
 };
+
+// Some render functions await command adoption
+#[allow(unused_imports)]
+pub use render::{SourceListRenderOptions, render, render_source_list_with_options};
 
 // Re-export commonly used formatters
