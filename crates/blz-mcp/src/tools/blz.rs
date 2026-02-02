@@ -765,13 +765,42 @@ fn handle_doctor_action(storage: &Storage) -> BlzOutput {
     response
 }
 
-/// Run health checks using core Storage APIs (no CLI dependency).
-#[allow(clippy::too_many_lines)]
-fn run_health_checks(storage: &Storage) -> HealthReport {
-    const WARN_THRESHOLD_BYTES: u64 = 1_000_000_000; // 1 GB
+// ─────────────────────────────────────────────────────────────────────────────
+// Health check decomposition: intermediate result types
+// ─────────────────────────────────────────────────────────────────────────────
 
-    let cache_dir = storage.root_dir();
-    let config_dir = storage.config_dir();
+/// Result from disk health checks.
+struct DiskHealthResult {
+    /// Directory and disk usage checks.
+    checks: Vec<HealthCheck>,
+    /// Total cache size in bytes.
+    total_size_bytes: u64,
+    /// Recommendations from disk checks.
+    recommendations: Vec<String>,
+}
+
+/// Result from source health analysis.
+struct SourceAnalysisResult {
+    /// Per-source health entries.
+    entries: Vec<SourceHealthEntry>,
+    /// Count of healthy sources.
+    healthy_count: usize,
+    /// Count of stale sources.
+    stale_count: usize,
+    /// List of stale source aliases.
+    stale_sources: Vec<String>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Health check decomposition: focused helper functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Check cache and config directories, and compute disk usage.
+fn check_disk_health(
+    cache_dir: &std::path::Path,
+    config_dir: &std::path::Path,
+) -> DiskHealthResult {
+    const WARN_THRESHOLD_BYTES: u64 = 1_000_000_000; // 1 GB
 
     let mut checks = Vec::new();
     let mut recommendations = Vec::new();
@@ -788,6 +817,7 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
         recommendations.push("Consider clearing unused sources to free disk space".to_string());
         HealthStatus::Warning
     };
+
     #[allow(clippy::cast_precision_loss)] // Acceptable for display purposes
     let size_mb = total_size as f64 / 1_048_576.0;
     checks.push(HealthCheck {
@@ -797,12 +827,23 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
         fixable: disk_status == HealthStatus::Warning,
     });
 
-    // Source health check
+    DiskHealthResult {
+        checks,
+        total_size_bytes: total_size,
+        recommendations,
+    }
+}
+
+/// Analyze health of all sources.
+fn analyze_source_health(storage: &Storage) -> SourceAnalysisResult {
     let sources = storage.list_sources();
+    let stale_threshold = chrono::Duration::days(7);
+    let now = chrono::Utc::now();
+
     let mut healthy_count = 0;
     let mut stale_count = 0;
     let mut stale_sources = Vec::new();
-    let mut source_entries = Vec::new();
+    let mut entries = Vec::new();
 
     for alias in &sources {
         let mut entry = SourceHealthEntry {
@@ -816,9 +857,6 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
         };
 
         if let Ok(Some(metadata)) = storage.load_source_metadata(alias) {
-            // Check staleness (7 days default)
-            let stale_threshold = chrono::Duration::days(7);
-            let now = chrono::Utc::now();
             let age = now.signed_duration_since(metadata.fetched_at);
 
             if age > stale_threshold {
@@ -844,34 +882,50 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
             entry.line_count = llms.line_index.total_lines;
         }
 
-        source_entries.push(entry);
+        entries.push(entry);
     }
 
-    let sources_status = if stale_count > 0 {
+    SourceAnalysisResult {
+        entries,
+        healthy_count,
+        stale_count,
+        stale_sources,
+    }
+}
+
+/// Build a [`HealthCheck`] and recommendations from source analysis.
+fn build_source_health_check(analysis: &SourceAnalysisResult) -> (HealthCheck, Vec<String>) {
+    let mut recommendations = Vec::new();
+    let total_sources = analysis.entries.len();
+
+    let sources_status = if analysis.stale_count > 0 {
         recommendations.push(format!(
-            "Run `blz sync --all` to refresh {stale_count} stale source(s)"
+            "Run `blz sync --all` to refresh {} stale source(s)",
+            analysis.stale_count
         ));
         HealthStatus::Warning
-    } else if sources.is_empty() {
+    } else if total_sources == 0 {
         HealthStatus::Warning
     } else {
         HealthStatus::Healthy
     };
 
-    checks.push(HealthCheck {
+    let check = HealthCheck {
         name: "Source Health".to_string(),
         status: sources_status,
         message: format!(
             "{} source(s): {} healthy, {} stale",
-            sources.len(),
-            healthy_count,
-            stale_count
+            total_sources, analysis.healthy_count, analysis.stale_count
         ),
-        fixable: stale_count > 0,
-    });
+        fixable: analysis.stale_count > 0,
+    };
 
-    // Compute overall status
-    let overall_status = checks
+    (check, recommendations)
+}
+
+/// Compute overall status from all checks (worst-case wins).
+fn compute_overall_status(checks: &[HealthCheck]) -> HealthStatus {
+    checks
         .iter()
         .map(|c| c.status)
         .max_by_key(|s| match s {
@@ -879,9 +933,20 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
             HealthStatus::Warning => 1,
             HealthStatus::Error => 2,
         })
-        .unwrap_or(HealthStatus::Healthy);
+        .unwrap_or(HealthStatus::Healthy)
+}
 
+/// Assemble the final health report from all components.
+fn aggregate_health_report(
+    checks: Vec<HealthCheck>,
+    recommendations: Vec<String>,
+    cache_dir: &std::path::Path,
+    config_dir: &std::path::Path,
+    total_size_bytes: u64,
+    source_analysis: SourceAnalysisResult,
+) -> HealthReport {
     let total_files = count_files(cache_dir);
+    let overall_status = compute_overall_status(&checks);
 
     HealthReport {
         overall_status,
@@ -890,19 +955,54 @@ fn run_health_checks(storage: &Storage) -> HealthReport {
         cache_info: CacheInfo {
             cache_dir: cache_dir.to_path_buf(),
             config_dir: config_dir.to_path_buf(),
-            total_size_bytes: total_size,
-            total_sources: sources.len(),
+            total_size_bytes,
+            total_sources: source_analysis.entries.len(),
             total_files,
         },
         source_health: SourceHealth {
-            total: sources.len(),
-            healthy: healthy_count,
-            stale: stale_count,
+            total: source_analysis.entries.len(),
+            healthy: source_analysis.healthy_count,
+            stale: source_analysis.stale_count,
             corrupted: 0,
-            stale_sources,
+            stale_sources: source_analysis.stale_sources,
         },
-        source_entries,
+        source_entries: source_analysis.entries,
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main health check orchestrator
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Run health checks using core Storage APIs (no CLI dependency).
+fn run_health_checks(storage: &Storage) -> HealthReport {
+    let cache_dir = storage.root_dir();
+    let config_dir = storage.config_dir();
+
+    // Phase 1: Disk health checks
+    let disk_result = check_disk_health(cache_dir, config_dir);
+
+    // Phase 2: Source health analysis
+    let source_analysis = analyze_source_health(storage);
+
+    // Phase 3: Build source health check
+    let (source_check, source_recommendations) = build_source_health_check(&source_analysis);
+
+    // Phase 4: Combine all results
+    let mut checks = disk_result.checks;
+    checks.push(source_check);
+
+    let mut recommendations = disk_result.recommendations;
+    recommendations.extend(source_recommendations);
+
+    aggregate_health_report(
+        checks,
+        recommendations,
+        cache_dir,
+        config_dir,
+        disk_result.total_size_bytes,
+        source_analysis,
+    )
 }
 
 fn directory_check(name: &str, path: &std::path::Path) -> HealthCheck {
