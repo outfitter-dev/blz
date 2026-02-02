@@ -9,6 +9,13 @@ use colored::Colorize;
 use crate::commands::RequestSpec;
 use crate::config::{TocConfig, TocNavigation};
 use crate::output::OutputFormat;
+use crate::output::render::{
+    render_toc_multi_with_options, render_toc_paginated_with_options, render_toc_with_options,
+};
+use crate::output::shapes::{
+    TocEntry as ShapeTocEntry, TocMultiOutput, TocOutput, TocPaginatedEntry, TocPaginatedOutput,
+    TocRenderOptions,
+};
 use crate::utils::cli_args;
 use crate::utils::cli_args::FormatArg;
 use crate::utils::heading_filter::HeadingLevelFilter;
@@ -497,7 +504,143 @@ fn save_toc_history_entry(config: &TocConfig, params: &TocHistoryParams<'_>) {
     }
 }
 
-/// Format and print JSON output
+// -----------------------------------------------------------------------------
+// Shape Conversion Functions
+// -----------------------------------------------------------------------------
+
+/// Convert JSON page entries to `TocPaginatedEntry` shapes.
+fn convert_to_paginated_entries(page_entries: &[serde_json::Value]) -> Vec<TocPaginatedEntry> {
+    page_entries
+        .iter()
+        .filter_map(|v| {
+            let alias = v["alias"].as_str()?.to_string();
+            let source = v["source"].as_str().unwrap_or(&alias).to_string();
+            let heading_path = v["headingPath"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let raw_heading_path = v["rawHeadingPath"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let heading_path_normalized = v["headingPathNormalized"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let heading_level = u8::try_from(v["headingLevel"].as_u64().unwrap_or(1)).unwrap_or(1);
+            let lines = v["lines"].as_str()?.to_string();
+            let anchor = v["anchor"].as_str().map(String::from);
+
+            Some(TocPaginatedEntry {
+                alias,
+                source,
+                heading_path,
+                raw_heading_path,
+                heading_path_normalized,
+                heading_level,
+                lines,
+                anchor,
+            })
+        })
+        .collect()
+}
+
+/// Convert `blz_core::TocEntry` to `ShapeTocEntry` recursively.
+///
+/// This function mirrors the original tree rendering logic:
+/// - If an entry matches filters, it is included with its children
+/// - If an entry doesn't match but has matching descendants, those descendants are promoted
+/// - Children are always processed to maintain the tree structure
+///
+/// Returns a `Vec` because when a parent doesn't match but has matching children,
+/// those children are promoted to the parent's level (returned as multiple entries).
+fn convert_core_toc_entry(
+    entry: &blz_core::TocEntry,
+    depth: usize,
+    max_depth: Option<usize>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&HeadingLevelFilter>,
+) -> Vec<ShapeTocEntry> {
+    if exceeds_depth(depth, max_depth) {
+        return Vec::new();
+    }
+
+    let display_path = display_path(entry);
+    let level_matches =
+        level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
+    let text_matches = filter.is_none_or(|f| f.matches(&display_path, entry.anchor.as_deref()));
+
+    // Always convert children (if depth allows)
+    let children: Vec<ShapeTocEntry> = if can_descend(depth, max_depth) {
+        entry
+            .children
+            .iter()
+            .flat_map(|c| convert_core_toc_entry(c, depth + 1, max_depth, filter, level_filter))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Include this entry if it matches filters
+    if text_matches && level_matches {
+        let title = display_path.last().cloned().unwrap_or_default();
+        vec![ShapeTocEntry {
+            level: u8::try_from(depth + 1).unwrap_or(6), // Max heading level is 6
+            title,
+            lines: entry.lines.clone(),
+            anchor: entry.anchor.clone(),
+            heading_path: display_path,
+            children,
+        }]
+    } else if !children.is_empty() {
+        // Entry doesn't match but has matching descendants - promote them
+        children
+    } else {
+        // Entry doesn't match and has no matching descendants
+        Vec::new()
+    }
+}
+
+/// Build `TocOutput` from source data.
+fn build_toc_output_for_source(
+    storage: &Storage,
+    source_alias: &str,
+    max_depth: Option<u8>,
+    filter: Option<&HeadingFilter>,
+    level_filter: Option<&HeadingLevelFilter>,
+) -> Result<TocOutput> {
+    let canonical = crate::utils::resolver::resolve_source(storage, source_alias)?
+        .unwrap_or_else(|| source_alias.to_string());
+
+    let llms: LlmsJson = storage
+        .load_llms_json(&canonical)
+        .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
+
+    let entries: Vec<ShapeTocEntry> = llms
+        .toc
+        .iter()
+        .flat_map(|e| {
+            convert_core_toc_entry(e, 0, max_depth.map(usize::from), filter, level_filter)
+        })
+        .collect();
+
+    Ok(TocOutput::new(canonical, entries))
+}
+
+/// Format and print JSON output (legacy, kept for reference).
+#[allow(dead_code)]
 fn format_json_output(
     page_entries: &[serde_json::Value],
     actual_page: usize,
@@ -520,7 +663,8 @@ fn format_json_output(
     Ok(())
 }
 
-/// Format and print JSONL output
+/// Format and print JSONL output (legacy, kept for reference).
+#[allow(dead_code)]
 fn format_jsonl_output(
     page_entries: &[serde_json::Value],
     actual_page: usize,
@@ -549,7 +693,8 @@ fn format_jsonl_output(
     Ok(())
 }
 
-/// Print paginated flat list text output
+/// Print paginated flat list text output (legacy, kept for reference).
+#[allow(dead_code)]
 fn print_paginated_flat_list(
     storage: &Storage,
     source_list: &[String],
@@ -685,64 +830,75 @@ struct TocOutputParams<'a> {
     level_filter: Option<&'a crate::utils::heading_filter::HeadingLevelFilter>,
 }
 
-/// Format and display TOC output based on output format
+/// Format and display TOC output based on output format using shape-based rendering.
 fn format_toc_output(
     storage: &Storage,
     config: &TocConfig,
     params: &TocOutputParams<'_>,
 ) -> Result<()> {
-    match config.format {
-        OutputFormat::Json => {
-            format_json_output(
-                params.page_entries,
-                params.actual_page,
-                params.total_pages,
-                params.total_results,
-                params.pagination_limit,
+    let render_options = TocRenderOptions {
+        tree_mode: config.tree,
+        show_anchors: config.show_anchors,
+    };
+    let mut stdout = std::io::stdout();
+
+    // For JSON/JSONL or paginated text (non-tree), use TocPaginatedOutput
+    let use_paginated_shape = matches!(config.format, OutputFormat::Json | OutputFormat::Jsonl)
+        || (config.format == OutputFormat::Text
+            && params.pagination_limit.is_some()
+            && !config.tree);
+
+    if use_paginated_shape {
+        let entries = convert_to_paginated_entries(params.page_entries);
+        let output = TocPaginatedOutput::new(
+            entries,
+            params.actual_page,
+            params.total_pages,
+            params.total_results,
+            params.pagination_limit,
+        );
+        render_toc_paginated_with_options(&output, config.format, &render_options, &mut stdout)?;
+    } else if config.format == OutputFormat::Text {
+        // For tree/hierarchical text, build TocOutput(s) from source data
+        if params.source_list.len() == 1 {
+            // Single source: use TocOutput
+            let output = build_toc_output_for_source(
+                storage,
+                &params.source_list[0],
+                config.max_depth,
+                params.filter,
+                params.level_filter,
             )?;
-        },
-        OutputFormat::Jsonl => {
-            format_jsonl_output(
-                params.page_entries,
-                params.actual_page,
-                params.total_pages,
-                params.total_results,
-                params.pagination_limit,
-            )?;
-        },
-        OutputFormat::Text => {
-            if params.pagination_limit.is_some() && !config.tree {
-                print_paginated_flat_list(
-                    storage,
-                    params.source_list,
-                    params.page_entries,
-                    params.actual_page,
-                    params.total_pages,
-                    params.total_results,
-                    config.show_anchors,
-                )?;
-            } else {
-                print_tree_or_hierarchical(
-                    storage,
-                    params.source_list,
-                    config.max_depth,
-                    params.filter,
-                    params.level_filter,
-                    config.tree,
-                    config.show_anchors,
-                )?;
-            }
-        },
-        OutputFormat::Raw => {
-            return Err(anyhow!(
-                "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
-            ));
-        },
+            render_toc_with_options(&output, config.format, &render_options, &mut stdout)?;
+        } else {
+            // Multiple sources: use TocMultiOutput
+            let sources: Result<Vec<TocOutput>> = params
+                .source_list
+                .iter()
+                .map(|alias| {
+                    build_toc_output_for_source(
+                        storage,
+                        alias,
+                        config.max_depth,
+                        params.filter,
+                        params.level_filter,
+                    )
+                })
+                .collect();
+            let output = TocMultiOutput::new(sources?);
+            render_toc_multi_with_options(&output, config.format, &render_options, &mut stdout)?;
+        }
+    } else if config.format == OutputFormat::Raw {
+        return Err(anyhow!(
+            "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+        ));
     }
+
     Ok(())
 }
 
-/// Print tree or hierarchical text output
+/// Print tree or hierarchical text output (legacy, kept for reference).
+#[allow(dead_code)]
 fn print_tree_or_hierarchical(
     storage: &Storage,
     source_list: &[String],
