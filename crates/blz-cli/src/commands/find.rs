@@ -13,17 +13,17 @@ use colored::Colorize;
 use crate::args::{ContextMode, ShowComponent};
 use crate::cli::{Commands, merge_context_flags};
 use crate::commands::RequestSpec;
-use crate::output::OutputFormat;
+use crate::config::{
+    ContentConfig, DisplayConfig, QueryExecutionConfig, SearchConfig, SnippetConfig,
+};
 use crate::utils::cli_args::{FormatArg, deprecation_warnings_suppressed};
+use crate::utils::heading_filter::HeadingLevelFilter;
 use crate::utils::preferences::CliPreferences;
 use blz_core::{PerformanceMetrics, ResourceMonitor};
 
 use super::get;
-use super::search::{
-    ALL_RESULTS_LIMIT, DEFAULT_SCORE_PRECISION, SearchOptions, SearchResults, clamp_max_chars,
-    copy_results_to_clipboard, default_search_limit, format_and_display, perform_search,
-    resolve_show_components,
-};
+use super::query::execute_internal as query_execute_internal;
+use super::search::{ALL_RESULTS_LIMIT, clamp_max_chars, default_search_limit};
 
 /// Arguments for the deprecated `blz find` command.
 ///
@@ -309,31 +309,10 @@ fn classify_inputs(inputs: &[String]) -> Result<FindMode> {
 /// blz find bun:120-142 deno:5-10
 /// blz find bun:120-142,200-210 -C 5
 /// ```
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
     inputs: &[String],
     sources: &[String],
-    limit: Option<usize>,
-    all: bool,
-    page: usize,
-    last: bool,
-    top: Option<u8>,
-    heading_level: Option<String>,
-    format: OutputFormat,
-    show: &[ShowComponent],
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: Option<usize>,
-    context_mode: Option<&ContextMode>,
-    block: bool,
-    max_lines: Option<usize>,
-    no_history: bool,
-    copy: bool,
-    quiet: bool,
-    headings_only: bool,
-    timing: bool,
+    config: &QueryExecutionConfig,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -341,275 +320,33 @@ pub async fn execute(
     match classify_inputs(inputs)? {
         FindMode::Retrieve(specs) => {
             // Retrieve mode: delegate to get command logic
-            // Note: heading_level is ignored in retrieve mode
-            get::execute_internal(&specs, context_mode, block, max_lines, format, copy).await
-        },
-        FindMode::Search(query) => {
-            // Search mode: delegate to search command logic
-            execute_search_mode(
-                &query,
-                sources,
-                limit,
-                all,
-                page,
-                last,
-                top,
-                heading_level,
-                format,
-                show,
-                no_summary,
-                score_precision,
-                snippet_lines,
-                max_chars,
-                context_mode,
+            // Note: heading_filter is ignored in retrieve mode
+            let (_, _, block) = config.content.resolve_context();
+            get::execute_internal(
+                &specs,
+                config.content.context.as_ref(),
                 block,
-                max_lines,
-                no_history,
-                copy,
-                quiet,
-                headings_only,
-                timing,
-                prefs,
-                metrics,
-                resource_monitor,
+                config.content.max_lines,
+                config.display.format,
+                config.content.copy,
             )
             .await
         },
+        FindMode::Search(query) => {
+            // Search mode: delegate to query command's internal execution
+            query_execute_internal(&query, sources, config, prefs, metrics, resource_monitor).await
+        },
     }
 }
 
-/// Compute effective limit based on --all flag and environment/default
-fn compute_effective_limit(limit: Option<usize>, all: bool) -> usize {
-    if all {
-        ALL_RESULTS_LIMIT
-    } else {
-        limit.unwrap_or_else(default_search_limit)
-    }
-}
-
-/// Extract context parameters from `ContextMode`
-const fn extract_context_params(
-    context_mode: Option<&ContextMode>,
-    block: bool,
-) -> (usize, usize, bool) {
-    match context_mode {
-        Some(ContextMode::All) => (0, 0, true),
-        Some(ContextMode::Symmetric(n)) => (*n, *n, false),
-        Some(ContextMode::Asymmetric { before, after }) => (*before, *after, false),
-        None => (0, 0, block),
-    }
-}
-
-/// Build `SearchOptions` from decomposed parameters
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-fn build_search_options(
-    query: &str,
-    sources: &[String],
-    limit: usize,
-    page: usize,
-    last: bool,
-    top: Option<u8>,
-    format: OutputFormat,
-    show: &[ShowComponent],
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: usize,
-    before_context: usize,
-    after_context: usize,
-    block: bool,
-    max_lines: Option<usize>,
-    no_history: bool,
-    copy: bool,
-    quiet: bool,
-    headings_only: bool,
-    timing: bool,
-) -> SearchOptions {
-    let toggles = resolve_show_components(show);
-    SearchOptions {
-        query: query.to_string(),
-        sources: sources.to_vec(),
-        last,
-        limit,
-        page,
-        top_percentile: top,
-        format,
-        show_url: toggles.url,
-        show_lines: toggles.lines,
-        show_anchor: toggles.anchor,
-        show_raw_score: toggles.raw_score,
-        no_summary,
-        score_precision,
-        snippet_lines: snippet_lines.max(1),
-        all: limit >= ALL_RESULTS_LIMIT,
-        no_history,
-        copy,
-        before_context,
-        after_context,
-        block,
-        max_block_lines: max_lines,
-        max_chars,
-        quiet,
-        headings_only,
-        timing,
-    }
-}
-
-/// Apply heading level filter to search results
-fn apply_heading_filter(results: &mut SearchResults, heading_level: Option<String>) -> Result<()> {
-    use crate::utils::heading_filter::HeadingLevelFilter;
-    use anyhow::Context;
-
-    if let Some(filter_str) = heading_level {
-        let filter = filter_str
-            .parse::<HeadingLevelFilter>()
-            .map_err(|e| anyhow::anyhow!("{e}"))
-            .context("Invalid heading level filter")?;
-
-        results.hits.retain(|hit| filter.matches(hit.level));
-    }
-    Ok(())
-}
-
-/// Update preferences and save search history
-fn save_preferences_and_history(
-    prefs: &mut CliPreferences,
-    options: &SearchOptions,
-    show: &[ShowComponent],
-    page: usize,
-    actual_limit: usize,
-    total_pages: usize,
-    total_results: usize,
-) {
-    use crate::utils::{history_log, preferences};
-    use tracing::warn;
-
-    let precision = options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION);
-    let show_components = preferences::collect_show_components_extended(
-        options.show_url,
-        options.show_lines,
-        options.show_anchor,
-        options.show_raw_score,
-    );
-    prefs.set_default_show(&show_components);
-    prefs.set_default_score_precision(precision);
-    prefs.set_default_snippet_lines(options.snippet_lines);
-
-    let history_source_str;
-    let history_source = if options.sources.is_empty() {
-        None
-    } else if options.sources.len() == 1 {
-        Some(options.sources[0].as_str())
-    } else {
-        history_source_str = options.sources.join(",");
-        Some(history_source_str.as_str())
-    };
-
-    let history_entry =
-        preferences::HistoryEntryBuilder::new(&options.query, history_source, options.format, show)
-            .with_snippet_lines(options.snippet_lines)
-            .with_score_precision(precision)
-            .with_pagination(preferences::PaginationInfo {
-                page: Some(page),
-                limit: Some(actual_limit),
-                total_pages: Some(total_pages),
-                total_results: Some(total_results),
-            })
-            .with_headings_only(options.headings_only)
-            .build();
-
-    if !options.no_history {
-        if let Err(err) = history_log::append(&history_entry) {
-            warn!("failed to persist search history: {err}");
-        }
-    }
-}
-
-/// Execute search mode (query detected)
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::fn_params_excessive_bools)]
-async fn execute_search_mode(
-    query: &str,
-    sources: &[String],
-    limit: Option<usize>,
-    all: bool,
-    page: usize,
-    last: bool,
-    top: Option<u8>,
-    heading_level: Option<String>,
-    format: OutputFormat,
-    show: &[ShowComponent],
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: Option<usize>,
-    context_mode: Option<&ContextMode>,
-    block: bool,
-    max_lines: Option<usize>,
-    no_history: bool,
-    copy: bool,
-    quiet: bool,
-    headings_only: bool,
-    timing: bool,
-    prefs: Option<&mut CliPreferences>,
-    metrics: PerformanceMetrics,
-    resource_monitor: Option<&mut ResourceMonitor>,
-) -> Result<()> {
-    let limit = compute_effective_limit(limit, all);
-    let max_chars = max_chars.map_or(200, clamp_max_chars);
-    let (before_context, after_context, block) = extract_context_params(context_mode, block);
-
-    let options = build_search_options(
-        query,
-        sources,
-        limit,
-        page,
-        last,
-        top,
-        format,
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
-        before_context,
-        after_context,
-        block,
-        max_lines,
-        no_history,
-        copy,
-        quiet,
-        headings_only,
-        timing,
-    );
-
-    let mut results = perform_search(&options, metrics.clone()).await?;
-    apply_heading_filter(&mut results, heading_level)?;
-
-    let ((page, actual_limit, total_pages), total_results) =
-        format_and_display(&results, &options)?;
-
-    if options.copy && !results.hits.is_empty() {
-        copy_results_to_clipboard(&results, page, actual_limit)?;
-    }
-
-    if let Some(prefs) = prefs {
-        save_preferences_and_history(
-            prefs,
-            &options,
-            show,
-            page,
-            actual_limit,
-            total_pages,
-            total_results,
-        );
-    }
-
-    if let Some(monitor) = resource_monitor {
-        monitor.print_resource_usage();
-    }
-
-    Ok(())
+/// Parse heading level filter from string.
+fn parse_heading_filter(filter_str: Option<&str>) -> Result<Option<HeadingLevelFilter>> {
+    filter_str
+        .map(|s| {
+            s.parse::<HeadingLevelFilter>()
+                .map_err(|e| anyhow::anyhow!("Invalid heading level filter: {e}"))
+        })
+        .transpose()
 }
 
 // ============================================================================
@@ -628,66 +365,6 @@ pub async fn dispatch(
         unreachable!("dispatch called with non-Find command");
     };
 
-    handle_find(
-        args.inputs,
-        args.sources,
-        args.limit,
-        args.all,
-        args.page,
-        args.top,
-        args.heading_level,
-        args.format.resolve(quiet),
-        args.show,
-        args.no_summary,
-        args.score_precision,
-        args.snippet_lines,
-        args.max_chars,
-        args.context,
-        args.context_deprecated,
-        args.after_context,
-        args.before_context,
-        args.block,
-        args.max_lines,
-        args.headings_only,
-        args.no_history,
-        args.copy,
-        args.timing,
-        quiet,
-        prefs,
-        metrics,
-    )
-    .await
-}
-
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-async fn handle_find(
-    inputs: Vec<String>,
-    sources: Vec<String>,
-    limit: Option<usize>,
-    all: bool,
-    page: usize,
-    top: Option<u8>,
-    heading_level: Option<String>,
-    format: OutputFormat,
-    show: Vec<ShowComponent>,
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: Option<usize>,
-    context: Option<ContextMode>,
-    context_deprecated: Option<ContextMode>,
-    after_context: Option<usize>,
-    before_context: Option<usize>,
-    block: bool,
-    max_lines: Option<usize>,
-    headings_only: bool,
-    no_history: bool,
-    copy: bool,
-    timing: bool,
-    quiet: bool,
-    prefs: &mut CliPreferences,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
     if !deprecation_warnings_suppressed() {
         eprintln!(
             "{}",
@@ -695,32 +372,57 @@ async fn handle_find(
         );
     }
 
-    let merged_context =
-        merge_context_flags(context, context_deprecated, after_context, before_context);
+    let resolved_format = args.format.resolve(quiet);
+    let merged_context = merge_context_flags(
+        args.context,
+        args.context_deprecated,
+        args.after_context,
+        args.before_context,
+    );
+
+    // Parse heading filter
+    let heading_filter = parse_heading_filter(args.heading_level.as_deref())?;
+
+    // Calculate effective limit
+    let effective_limit = if args.all {
+        ALL_RESULTS_LIMIT
+    } else {
+        args.limit.unwrap_or_else(default_search_limit)
+    };
+
+    // Build config structs
+    let search = SearchConfig::new()
+        .with_limit(effective_limit)
+        .with_page(args.page)
+        .with_top_percentile(args.top)
+        .with_heading_filter(heading_filter)
+        .with_headings_only(args.headings_only)
+        .with_last(false) // find command doesn't support --last flag
+        .with_no_history(args.no_history);
+
+    let display = DisplayConfig::new(resolved_format)
+        .with_show(args.show)
+        .with_no_summary(args.no_summary)
+        .with_timing(args.timing)
+        .with_quiet(quiet);
+
+    let snippet = SnippetConfig::new()
+        .with_lines(args.snippet_lines)
+        .with_max_chars(args.max_chars.map_or(200, clamp_max_chars))
+        .with_score_precision(args.score_precision);
+
+    let content = ContentConfig::new()
+        .with_context(merged_context)
+        .with_max_lines(args.max_lines)
+        .with_copy(args.copy)
+        .with_block(args.block);
+
+    let config = QueryExecutionConfig::new(search, display, snippet, content);
 
     execute(
-        &inputs,
-        &sources,
-        limit,
-        all,
-        page,
-        false, // last - find command doesn't support --last flag
-        top,
-        heading_level,
-        format,
-        &show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        max_chars,
-        merged_context.as_ref(),
-        block,
-        max_lines,
-        no_history,
-        copy,
-        quiet,
-        headings_only,
-        timing,
+        &args.inputs,
+        &args.sources,
+        &config,
         Some(prefs),
         metrics,
         None,

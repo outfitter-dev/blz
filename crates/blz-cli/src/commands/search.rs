@@ -323,30 +323,10 @@ pub fn clamp_max_chars(value: usize) -> usize {
 /// * `emit_deprecation_warning` - If `true`, prints a deprecation warning to stderr.
 ///   Should be `true` when called from the deprecated `blz search` command,
 ///   and `false` when called from valid commands like `blz docs search`.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::fn_params_excessive_bools)]
 pub async fn execute(
     query: &str,
     sources: &[String],
-    last: bool,
-    limit: usize,
-    page: usize,
-    top_percentile: Option<u8>,
-    heading_level: Option<String>,
-    format: OutputFormat,
-    show: &[ShowComponent],
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: usize,
-    context_mode: Option<&crate::cli::ContextMode>,
-    block: bool,
-    max_block_lines: Option<usize>,
-    headings_only: bool,
-    no_history: bool,
-    copy: bool,
-    timing: bool,
-    quiet: bool,
+    config: &crate::config::QueryExecutionConfig,
     prefs: Option<&mut CliPreferences>,
     metrics: PerformanceMetrics,
     resource_monitor: Option<&mut ResourceMonitor>,
@@ -360,42 +340,8 @@ pub async fn execute(
     }
 
     // Delegate to find command
-    // Convert limit to Option<usize> and bool `all` flag for find
-    let (limit_opt, all) = if limit >= ALL_RESULTS_LIMIT {
-        (None, true)
-    } else {
-        (Some(limit), false)
-    };
-
     let inputs = vec![query.to_string()];
-    super::find::execute(
-        &inputs,
-        sources,
-        limit_opt,
-        all,
-        page,
-        last,
-        top_percentile,
-        heading_level,
-        format,
-        show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        Some(clamp_max_chars(max_chars)),
-        context_mode,
-        block,
-        max_block_lines,
-        no_history,
-        copy,
-        quiet,
-        headings_only,
-        timing,
-        prefs,
-        metrics,
-        resource_monitor,
-    )
-    .await
+    super::find::execute(&inputs, sources, config, prefs, metrics, resource_monitor).await
 }
 
 pub(super) struct SearchResults {
@@ -1189,12 +1135,28 @@ pub(super) fn copy_results_to_clipboard(
 // Dispatch and Handler Functions (moved from lib.rs)
 // ============================================================================
 
+use crate::config::{
+    ContentConfig, DisplayConfig, QueryExecutionConfig, SearchConfig, SnippetConfig,
+};
+use crate::utils::heading_filter::HeadingLevelFilter;
+
 const DEFAULT_SNIPPET_LINES: u8 = 3;
+
+/// Parse heading level filter from string.
+fn parse_heading_filter(filter_str: Option<&str>) -> Result<Option<HeadingLevelFilter>> {
+    filter_str
+        .map(|s| {
+            s.parse::<HeadingLevelFilter>()
+                .map_err(|e| anyhow::anyhow!("Invalid heading level filter: {e}"))
+        })
+        .transpose()
+}
 
 /// Dispatch a Search command variant, handling destructuring internally.
 ///
-/// This function extracts all fields from the `Commands::Search` variant and
-/// forwards them to the underlying `handle_search` implementation.
+/// This function extracts all fields from the `Commands::Search` variant,
+/// resolves history-based pagination, builds config structs, and delegates
+/// to `execute()`.
 #[allow(clippy::too_many_lines)]
 pub async fn dispatch(
     cmd: Commands,
@@ -1202,6 +1164,8 @@ pub async fn dispatch(
     metrics: PerformanceMetrics,
     prefs: &mut CliPreferences,
 ) -> Result<()> {
+    const DEFAULT_LIMIT: usize = 50;
+
     let Commands::Search(args) = cmd else {
         unreachable!("dispatch called with non-Search command");
     };
@@ -1214,90 +1178,40 @@ pub async fn dispatch(
         args.before_context,
     );
 
-    handle_search(
-        args.query,
-        args.sources,
-        args.next,
-        args.previous,
-        args.last,
-        args.limit,
-        args.all,
-        args.page,
-        args.top,
-        args.heading_level,
-        resolved_format,
-        args.show,
-        args.no_summary,
-        args.score_precision,
-        args.snippet_lines,
-        args.max_chars,
-        merged_context,
-        args.block,
-        args.max_lines,
-        args.headings_only,
-        args.no_history,
-        args.copy,
-        args.timing,
-        quiet,
-        metrics,
-        prefs,
-    )
-    .await
-}
-
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-async fn handle_search(
-    query: Option<String>,
-    sources: Vec<String>,
-    next: bool,
-    previous: bool,
-    last: bool,
-    limit: Option<usize>,
-    all: bool,
-    page: usize,
-    top: Option<u8>,
-    heading_level: Option<String>,
-    format: OutputFormat,
-    show: Vec<ShowComponent>,
-    no_summary: bool,
-    score_precision: Option<u8>,
-    snippet_lines: u8,
-    max_chars: Option<usize>,
-    context: Option<ContextMode>,
-    block: bool,
-    max_lines: Option<usize>,
-    headings_only: bool,
-    no_history: bool,
-    copy: bool,
-    timing: bool,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-    prefs: &mut CliPreferences,
-) -> Result<()> {
-    const DEFAULT_LIMIT: usize = 50;
-
-    let provided_query = query.is_some();
-    let limit_was_explicit = all || limit.is_some();
-    let mut use_headings_only = headings_only;
+    let provided_query = args.query.is_some();
+    let limit_was_explicit = args.all || args.limit.is_some();
+    let mut use_headings_only = args.headings_only;
 
     // Emit deprecation warning if --snippet-lines was explicitly set
-    if snippet_lines != DEFAULT_SNIPPET_LINES {
-        let args: Vec<String> = std::env::args().collect();
-        if flag_present(&args, "--snippet-lines") || std::env::var("BLZ_SNIPPET_LINES").is_ok() {
-            // Pass false for quiet - the deprecation function handles quiet mode internally
+    if args.snippet_lines != DEFAULT_SNIPPET_LINES {
+        let cli_args: Vec<String> = std::env::args().collect();
+        if flag_present(&cli_args, "--snippet-lines") || std::env::var("BLZ_SNIPPET_LINES").is_ok()
+        {
             crate::utils::cli_args::emit_snippet_lines_deprecation(false);
         }
     }
 
-    if next {
-        validate_continuation_flag("--next", provided_query, &sources, page, last)?;
+    if args.next {
+        validate_continuation_flag(
+            "--next",
+            provided_query,
+            &args.sources,
+            args.page,
+            args.last,
+        )?;
     }
 
-    if previous {
-        validate_continuation_flag("--previous", provided_query, &sources, page, last)?;
+    if args.previous {
+        validate_continuation_flag(
+            "--previous",
+            provided_query,
+            &args.sources,
+            args.page,
+            args.last,
+        )?;
     }
 
-    let history_entry = if next || previous || !provided_query {
+    let history_entry = if args.next || args.previous || !provided_query {
         let mut records = history_log::recent_for_active_scope(1);
         if records.is_empty() {
             anyhow::bail!("No previous search found. Use 'blz search <query>' first.");
@@ -1308,66 +1222,86 @@ async fn handle_search(
     };
 
     if let Some(entry) = history_entry.as_ref() {
-        if (next || previous) && headings_only != entry.headings_only {
+        if (args.next || args.previous) && args.headings_only != entry.headings_only {
             anyhow::bail!(
                 "Cannot change --headings-only while using --next/--previous. Rerun without continuation flags."
             );
         }
-        if !headings_only {
+        if !args.headings_only {
             use_headings_only = entry.headings_only;
         }
     }
 
-    let actual_query = resolve_query(query, history_entry.as_ref())?;
-    let actual_sources = resolve_sources(sources, history_entry.as_ref());
+    let actual_query = resolve_query(args.query, history_entry.as_ref())?;
+    let actual_sources = resolve_sources(args.sources, history_entry.as_ref());
 
-    let base_limit = if all {
+    let base_limit = if args.all {
         ALL_RESULTS_LIMIT
     } else {
-        limit.unwrap_or(DEFAULT_LIMIT)
+        args.limit.unwrap_or(DEFAULT_LIMIT)
     };
-    let actual_max_chars = max_chars.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
+    let actual_max_chars = args.max_chars.map_or(DEFAULT_MAX_CHARS, clamp_max_chars);
 
     let (actual_page, actual_limit) = if let Some(entry) = history_entry.as_ref() {
-        let adj = apply_history_pagination(
+        let ctx = PaginationContext {
             entry,
-            next,
-            previous,
+            next: args.next,
+            previous: args.previous,
             provided_query,
-            all,
-            limit,
+            all: args.all,
+            limit: args.limit,
             limit_was_explicit,
-            page,
-            base_limit,
-            ALL_RESULTS_LIMIT,
-        )?;
+            current_page: args.page,
+            current_limit: base_limit,
+            all_results_limit: ALL_RESULTS_LIMIT,
+        };
+        let adj = apply_history_pagination(&ctx)?;
         (adj.page, adj.limit)
     } else {
-        (page, base_limit)
+        (args.page, base_limit)
     };
+
+    // Parse heading filter
+    let heading_filter = parse_heading_filter(args.heading_level.as_deref())?;
+
+    // Build config structs
+    let search_config = SearchConfig::new()
+        .with_limit(actual_limit)
+        .with_page(actual_page)
+        .with_top_percentile(args.top)
+        .with_heading_filter(heading_filter)
+        .with_headings_only(use_headings_only)
+        .with_last(args.last)
+        .with_no_history(args.no_history);
+
+    let display_config = DisplayConfig::new(resolved_format)
+        .with_show(args.show)
+        .with_no_summary(args.no_summary)
+        .with_timing(args.timing)
+        .with_quiet(quiet);
+
+    let snippet_config = SnippetConfig::new()
+        .with_lines(args.snippet_lines)
+        .with_max_chars(actual_max_chars)
+        .with_score_precision(args.score_precision);
+
+    let content_config = ContentConfig::new()
+        .with_context(merged_context)
+        .with_max_lines(args.max_lines)
+        .with_copy(args.copy)
+        .with_block(args.block);
+
+    let config = QueryExecutionConfig::new(
+        search_config,
+        display_config,
+        snippet_config,
+        content_config,
+    );
 
     execute(
         &actual_query,
         &actual_sources,
-        last,
-        actual_limit,
-        actual_page,
-        top,
-        heading_level.clone(),
-        format,
-        &show,
-        no_summary,
-        score_precision,
-        snippet_lines,
-        actual_max_chars,
-        context.as_ref(),
-        block,
-        max_lines,
-        use_headings_only,
-        no_history,
-        copy,
-        timing,
-        quiet,
+        &config,
         Some(prefs),
         metrics,
         None,
@@ -1382,12 +1316,13 @@ struct PaginationAdjustment {
     limit: usize,
 }
 
-/// Apply history-based pagination adjustments for --next/--previous flags.
+/// Pagination context for history-based adjustments.
 ///
-/// Returns adjusted page and limit values based on history entry and continuation mode.
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-fn apply_history_pagination(
-    entry: &SearchHistoryEntry,
+/// This struct bundles pagination parameters to reduce function argument counts.
+/// The bools represent distinct user-specified flags from the CLI.
+#[allow(clippy::struct_excessive_bools)]
+struct PaginationContext<'a> {
+    entry: &'a SearchHistoryEntry,
     next: bool,
     previous: bool,
     provided_query: bool,
@@ -1397,45 +1332,50 @@ fn apply_history_pagination(
     current_page: usize,
     current_limit: usize,
     all_results_limit: usize,
-) -> Result<PaginationAdjustment> {
-    let mut actual_page = current_page;
-    let mut actual_limit = current_limit;
+}
 
-    if next {
-        validate_history_has_results(entry)?;
+/// Apply history-based pagination adjustments for --next/--previous flags.
+///
+/// Returns adjusted page and limit values based on history entry and continuation mode.
+fn apply_history_pagination(ctx: &PaginationContext<'_>) -> Result<PaginationAdjustment> {
+    let mut actual_page = ctx.current_page;
+    let mut actual_limit = ctx.current_limit;
+
+    if ctx.next {
+        validate_history_has_results(ctx.entry)?;
         validate_pagination_limit_consistency(
             "--next",
-            all,
-            limit_was_explicit,
-            limit,
-            entry.limit,
-            all_results_limit,
+            ctx.all,
+            ctx.limit_was_explicit,
+            ctx.limit,
+            ctx.entry.limit,
+            ctx.all_results_limit,
         )?;
 
-        if let (Some(prev_page), Some(total_pages)) = (entry.page, entry.total_pages) {
+        if let (Some(prev_page), Some(total_pages)) = (ctx.entry.page, ctx.entry.total_pages) {
             if prev_page >= total_pages {
                 anyhow::bail!("Already at the last page (page {prev_page} of {total_pages})");
             }
             actual_page = prev_page + 1;
         } else {
-            actual_page = entry.page.unwrap_or(1) + 1;
+            actual_page = ctx.entry.page.unwrap_or(1) + 1;
         }
 
-        if !limit_was_explicit {
-            actual_limit = entry.limit.unwrap_or(actual_limit);
+        if !ctx.limit_was_explicit {
+            actual_limit = ctx.entry.limit.unwrap_or(actual_limit);
         }
-    } else if previous {
-        validate_history_has_results(entry)?;
+    } else if ctx.previous {
+        validate_history_has_results(ctx.entry)?;
         validate_pagination_limit_consistency(
             "--previous",
-            all,
-            limit_was_explicit,
-            limit,
-            entry.limit,
-            all_results_limit,
+            ctx.all,
+            ctx.limit_was_explicit,
+            ctx.limit,
+            ctx.entry.limit,
+            ctx.all_results_limit,
         )?;
 
-        if let Some(prev_page) = entry.page {
+        if let Some(prev_page) = ctx.entry.page {
             if prev_page <= 1 {
                 anyhow::bail!("Already on first page");
             }
@@ -1444,11 +1384,11 @@ fn apply_history_pagination(
             anyhow::bail!("No previous page found in search history");
         }
 
-        if !limit_was_explicit {
-            actual_limit = entry.limit.unwrap_or(actual_limit);
+        if !ctx.limit_was_explicit {
+            actual_limit = ctx.entry.limit.unwrap_or(actual_limit);
         }
-    } else if !provided_query && !limit_was_explicit {
-        actual_limit = entry.limit.unwrap_or(actual_limit);
+    } else if !ctx.provided_query && !ctx.limit_was_explicit {
+        actual_limit = ctx.entry.limit.unwrap_or(actual_limit);
     }
 
     Ok(PaginationAdjustment {

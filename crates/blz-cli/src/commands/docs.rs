@@ -9,6 +9,9 @@ use super::{
     sync_bundled_docs,
 };
 use crate::args::{ContextMode, ShowComponent};
+use crate::config::{
+    ContentConfig, DisplayConfig, QueryExecutionConfig, SearchConfig, SnippetConfig,
+};
 use crate::output::OutputFormat;
 use crate::utils::cli_args::FormatArg;
 use crate::utils::preferences::CliPreferences;
@@ -172,31 +175,42 @@ async fn docs_search(args: DocsSearchArgs, quiet: bool, metrics: PerformanceMetr
     // Convert docs search args context to ContextMode
     let context_mode = args.context.map(ContextMode::Symmetric);
 
+    // Build config structs
+    let search_config = SearchConfig::new()
+        .with_limit(args.limit)
+        .with_page(1)
+        .with_top_percentile(args.top)
+        .with_heading_filter(None)
+        .with_headings_only(false)
+        .with_last(false)
+        .with_no_history(true);
+
+    let display_config = DisplayConfig::new(format)
+        .with_show(args.show.clone())
+        .with_no_summary(args.no_summary)
+        .with_timing(false)
+        .with_quiet(quiet);
+
+    let snippet_config = SnippetConfig::new()
+        .with_lines(args.snippet_lines)
+        .with_max_chars(args.max_chars.unwrap_or(DEFAULT_MAX_CHARS))
+        .with_score_precision(args.score_precision);
+
+    let content_config = ContentConfig::new()
+        .with_context(context_mode)
+        .with_max_lines(args.max_block_lines)
+        .with_copy(args.copy)
+        .with_block(args.block);
+
+    let config = QueryExecutionConfig::new(
+        search_config,
+        display_config,
+        snippet_config,
+        content_config,
+    );
+
     search(
-        &query,
-        &sources,
-        false,
-        args.limit,
-        1,
-        args.top,
-        None, // heading_level - not supported in bare command mode
-        format,
-        &args.show,
-        args.no_summary,
-        args.score_precision,
-        args.snippet_lines,
-        args.max_chars.unwrap_or(DEFAULT_MAX_CHARS),
-        context_mode.as_ref(),
-        args.block,
-        args.max_block_lines,
-        false,
-        true,
-        args.copy,
-        false, // timing
-        quiet,
-        None,
-        metrics,
-        None,
+        &query, &sources, &config, None, metrics, None,
         false, // no deprecation warning - `blz docs search` is the intended command
     )
     .await
