@@ -661,16 +661,14 @@ fn collect_all_entries(
             .load_llms_json(&canonical)
             .with_context(|| format!("Failed to load TOC for '{canonical}'"))?;
 
-        collect_entries(
-            &mut all_entries,
-            &llms.toc,
-            max_depth.map(usize::from),
-            0,
+        let ctx = CollectEntriesContext {
+            max_depth: max_depth.map(usize::from),
             filter,
             level_filter,
-            source_alias,
-            &canonical,
-        );
+            alias: source_alias,
+            canonical: &canonical,
+        };
+        collect_entries(&mut all_entries, &llms.toc, 0, &ctx);
     }
     Ok(all_entries)
 }
@@ -769,25 +767,21 @@ fn print_tree_or_hierarchical(
         }
 
         if tree {
-            let mut count = 0;
-            let mut prev_depth: Option<usize> = None;
-            let mut prev_h1_had_children = false;
+            let ctx = PrintTreeContext {
+                max_depth: max_depth.map(usize::from),
+                filter,
+                level_filter,
+                limit: None, // No limit for tree mode
+                show_anchors,
+            };
+            let mut state = PrintTreeState {
+                count: 0,
+                prev_depth: None,
+                prev_h1_had_children: false,
+            };
             for (i, e) in llms.toc.iter().enumerate() {
                 let is_last = i == llms.toc.len() - 1;
-                print_tree(
-                    e,
-                    0,
-                    is_last,
-                    "",
-                    max_depth.map(usize::from),
-                    filter,
-                    level_filter,
-                    &mut count,
-                    None, // No limit for tree mode
-                    show_anchors,
-                    &mut prev_depth,
-                    &mut prev_h1_had_children,
-                );
+                print_tree(e, 0, is_last, "", &ctx, &mut state);
             }
         } else {
             for e in &llms.toc {
@@ -964,30 +958,38 @@ fn print_text_with_limit(
     printed
 }
 
-#[allow(dead_code, clippy::items_after_statements, clippy::too_many_arguments)]
+/// Context for `collect_entries` recursive function - holds immutable parameters.
+struct CollectEntriesContext<'a> {
+    max_depth: Option<usize>,
+    filter: Option<&'a HeadingFilter>,
+    level_filter: Option<&'a crate::utils::heading_filter::HeadingLevelFilter>,
+    alias: &'a str,
+    canonical: &'a str,
+}
+
+#[allow(dead_code, clippy::items_after_statements)]
 fn collect_entries(
     entries: &mut Vec<serde_json::Value>,
     list: &[blz_core::TocEntry],
-    max_depth: Option<usize>,
     depth: usize,
-    filter: Option<&HeadingFilter>,
-    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
-    alias: &str,
-    canonical: &str,
+    ctx: &CollectEntriesContext<'_>,
 ) {
     for e in list {
-        if exceeds_depth(depth, max_depth) {
+        if exceeds_depth(depth, ctx.max_depth) {
             continue;
         }
         let display_path = display_path(e);
-        let level_matches =
-            level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
-        let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+        let level_matches = ctx
+            .level_filter
+            .is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
+        let text_matches = ctx
+            .filter
+            .is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
         if text_matches && level_matches {
             entries.push(serde_json::json!({
-                "alias": alias,
-                "source": canonical,
+                "alias": ctx.alias,
+                "source": ctx.canonical,
                 "headingPath": display_path,
                 "rawHeadingPath": e.heading_path,
                 "headingPathNormalized": e.heading_path_normalized,
@@ -996,17 +998,8 @@ fn collect_entries(
                 "anchor": e.anchor,
             }));
         }
-        if !e.children.is_empty() && can_descend(depth, max_depth) {
-            collect_entries(
-                entries,
-                &e.children,
-                max_depth,
-                depth + 1,
-                filter,
-                level_filter,
-                alias,
-                canonical,
-            );
+        if !e.children.is_empty() && can_descend(depth, ctx.max_depth) {
+            collect_entries(entries, &e.children, depth + 1, ctx);
         }
     }
 }
@@ -1052,40 +1045,53 @@ fn print_text(
     }
 }
 
-#[allow(dead_code, clippy::too_many_arguments)]
+/// Context for `print_tree` recursive function - holds immutable parameters.
+struct PrintTreeContext<'a> {
+    max_depth: Option<usize>,
+    filter: Option<&'a HeadingFilter>,
+    level_filter: Option<&'a crate::utils::heading_filter::HeadingLevelFilter>,
+    limit: Option<usize>,
+    show_anchors: bool,
+}
+
+/// Mutable state for `print_tree` recursive function.
+struct PrintTreeState {
+    count: usize,
+    prev_depth: Option<usize>,
+    prev_h1_had_children: bool,
+}
+
+#[allow(dead_code)]
 fn print_tree(
     e: &blz_core::TocEntry,
     depth: usize,
     is_last: bool,
     prefix: &str,
-    max_depth: Option<usize>,
-    filter: Option<&HeadingFilter>,
-    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
-    count: &mut usize,
-    limit: Option<usize>,
-    show_anchors: bool,
-    prev_depth: &mut Option<usize>,
-    prev_h1_had_children: &mut bool,
+    ctx: &PrintTreeContext<'_>,
+    state: &mut PrintTreeState,
 ) -> bool {
-    if let Some(limit_count) = limit {
-        if *count >= limit_count {
+    if let Some(limit_count) = ctx.limit {
+        if state.count >= limit_count {
             return false;
         }
     }
 
-    if exceeds_depth(depth, max_depth) {
+    if exceeds_depth(depth, ctx.max_depth) {
         return false;
     }
 
     let display_path = display_path(e);
     let name = display_path.last().cloned().unwrap_or_default();
-    let level_matches =
-        level_filter.is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
-    let text_matches = filter.is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
+    let level_matches = ctx
+        .level_filter
+        .is_none_or(|f| f.matches(HeadingLevel::from_depth(depth).as_u8()));
+    let text_matches = ctx
+        .filter
+        .is_none_or(|f| f.matches(&display_path, e.anchor.as_deref()));
 
     if text_matches && level_matches {
         // Add blank line when jumping up levels (but not to H1 - H1 handles its own spacing)
-        if let Some(prev) = *prev_depth {
+        if let Some(prev) = state.prev_depth {
             if depth < prev && depth > 0 {
                 // Jumping up levels within H2+
                 if depth > 1 {
@@ -1108,10 +1114,10 @@ fn print_tree(
         // H1s (depth 0) are left-aligned with no branch characters
         if depth == 0 {
             // Add blank line before H1 if previous H1 had visible children
-            if *prev_h1_had_children {
+            if state.prev_h1_had_children {
                 println!();
             }
-            if show_anchors {
+            if ctx.show_anchors {
                 let anchor = e.anchor.clone().unwrap_or_default();
                 println!("{name} {lines_display} {}", anchor.bright_black());
             } else {
@@ -1120,7 +1126,7 @@ fn print_tree(
         } else {
             // H2+ use tree structure
             let branch = if is_last { "└─ " } else { "├─ " };
-            if show_anchors {
+            if ctx.show_anchors {
                 let anchor = e.anchor.clone().unwrap_or_default();
                 println!(
                     "{prefix}{branch}{name} {lines_display} {}",
@@ -1130,13 +1136,13 @@ fn print_tree(
                 println!("{prefix}{branch}{name} {lines_display}");
             }
         }
-        *count += 1;
-        *prev_depth = Some(depth);
+        state.count += 1;
+        state.prev_depth = Some(depth);
     }
 
     let mut had_visible_children = false;
 
-    if can_descend(depth, max_depth) {
+    if can_descend(depth, ctx.max_depth) {
         let new_prefix = if depth == 0 {
             // For H1s, children don't get additional prefix since H1 is left-aligned
             String::new()
@@ -1145,26 +1151,13 @@ fn print_tree(
         };
 
         for (i, c) in e.children.iter().enumerate() {
-            if let Some(limit_count) = limit {
-                if *count >= limit_count {
+            if let Some(limit_count) = ctx.limit {
+                if state.count >= limit_count {
                     break;
                 }
             }
             let child_is_last = i == e.children.len() - 1;
-            let child_printed = print_tree(
-                c,
-                depth + 1,
-                child_is_last,
-                &new_prefix,
-                max_depth,
-                filter,
-                level_filter,
-                count,
-                limit,
-                show_anchors,
-                prev_depth,
-                prev_h1_had_children,
-            );
+            let child_printed = print_tree(c, depth + 1, child_is_last, &new_prefix, ctx, state);
             if child_printed {
                 had_visible_children = true;
             }
@@ -1173,7 +1166,7 @@ fn print_tree(
 
     // If this is an H1, update the flag for next H1
     if depth == 0 && text_matches && level_matches {
-        *prev_h1_had_children = had_visible_children;
+        state.prev_h1_had_children = had_visible_children;
     }
 
     text_matches && level_matches

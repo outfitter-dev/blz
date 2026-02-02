@@ -508,6 +508,18 @@ impl AddFlowOptions {
     }
 }
 
+/// Configuration for the `finalize_add` operation.
+struct FinalizeConfig<'a> {
+    storage: &'a Storage,
+    alias: &'a str,
+    resolved: ResolvedAddition,
+    descriptor_input: DescriptorInput,
+    parse_result: &'a blz_core::ParseResult,
+    spinner: &'a ProgressBar,
+    metrics: PerformanceMetrics,
+    no_language_filter: bool,
+}
+
 impl AddRequest {
     pub fn new(
         alias: impl Into<String>,
@@ -854,16 +866,16 @@ async fn fetch_and_index(
     }
     let resolved_addition = build_remote_addition(content, sha256, etag, last_modified, &resolved);
 
-    let llms_json = finalize_add(
-        &storage,
+    let llms_json = finalize_add(FinalizeConfig {
+        storage: &storage,
         alias,
-        resolved_addition,
+        resolved: resolved_addition,
         descriptor_input,
-        &parse_result,
-        &spinner,
+        parse_result: &parse_result,
+        spinner: &spinner,
         metrics,
         no_language_filter,
-    )?;
+    })?;
 
     spinner.finish_and_clear();
 
@@ -1017,16 +1029,16 @@ async fn add_local_source(
         },
     };
 
-    let llms_json = finalize_add(
-        &storage,
+    let llms_json = finalize_add(FinalizeConfig {
+        storage: &storage,
         alias,
-        resolved_addition,
+        resolved: resolved_addition,
         descriptor_input,
-        &parse_result,
-        &spinner,
+        parse_result: &parse_result,
+        spinner: &spinner,
         metrics,
         no_language_filter,
-    )?;
+    })?;
 
     spinner.finish_and_clear();
 
@@ -1106,17 +1118,18 @@ fn build_remote_addition(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn finalize_add(
-    storage: &Storage,
-    alias: &str,
-    resolved: ResolvedAddition,
-    mut descriptor_input: DescriptorInput,
-    parse_result: &blz_core::ParseResult,
-    spinner: &ProgressBar,
-    metrics: PerformanceMetrics,
-    no_language_filter: bool,
-) -> Result<blz_core::LlmsJson> {
+fn finalize_add(config: FinalizeConfig<'_>) -> Result<blz_core::LlmsJson> {
+    let FinalizeConfig {
+        storage,
+        alias,
+        resolved,
+        mut descriptor_input,
+        parse_result,
+        spinner,
+        metrics,
+        no_language_filter,
+    } = config;
+
     spinner.set_message("Saving content...");
     storage.save_llms_txt(alias, &resolved.content)?;
 

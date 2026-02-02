@@ -184,9 +184,15 @@ async fn execute_command(
             filter,
             no_filter,
         }) => {
-            commands::dispatch_refresh_deprecated(
-                aliases, all, reindex, filter, no_filter, metrics, quiet,
-            )
+            commands::dispatch_refresh_deprecated(commands::DeprecatedRefreshParams {
+                aliases,
+                all,
+                reindex,
+                filter,
+                no_filter,
+                metrics,
+                quiet,
+            })
             .await?;
         },
         #[allow(deprecated)]

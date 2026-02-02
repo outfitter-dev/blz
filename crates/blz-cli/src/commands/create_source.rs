@@ -93,6 +93,32 @@ struct AnalysisSection {
     analyzed_at: String,
 }
 
+/// Configuration for the create-source command.
+pub struct CreateSourceConfig {
+    /// Source name/alias.
+    pub name: String,
+    /// URL to fetch llms.txt from.
+    pub url: String,
+    /// Description of the source.
+    pub description: Option<String>,
+    /// Category (library, framework, language, tool, etc.).
+    pub category: Option<String>,
+    /// Tags for the source.
+    pub tags: Vec<String>,
+    /// NPM package names.
+    pub npm_packages: Vec<String>,
+    /// GitHub repositories.
+    pub github_repos: Vec<String>,
+    /// Also add this source to your local index after creating.
+    pub add_to_index: bool,
+    /// Skip confirmation prompts (non-interactive mode).
+    pub yes: bool,
+    /// Suppress non-essential output.
+    pub quiet: bool,
+    /// Performance metrics collector.
+    pub metrics: PerformanceMetrics,
+}
+
 /// Dispatch a Registry command.
 pub async fn dispatch(
     command: RegistryCommands,
@@ -111,19 +137,19 @@ pub async fn dispatch(
             add,
             yes,
         } => {
-            execute(
-                &name,
-                &url,
+            execute(CreateSourceConfig {
+                name,
+                url,
                 description,
                 category,
                 tags,
-                npm,
-                github,
-                add,
+                npm_packages: npm,
+                github_repos: github,
+                add_to_index: add,
                 yes,
                 quiet,
                 metrics,
-            )
+            })
             .await
         },
     }
@@ -134,21 +160,22 @@ pub async fn dispatch(
 /// Analyzes a source URL using dry-run, prompts for metadata,
 /// creates a TOML file in registry/sources/, and rebuilds the registry.
 /// Optionally adds the source to your local index if --add flag is set.
-#[allow(clippy::too_many_arguments)]
-pub async fn execute(
-    name: &str,
-    url: &str,
-    description: Option<String>,
-    category: Option<String>,
-    tags: Vec<String>,
-    npm_packages: Vec<String>,
-    github_repos: Vec<String>,
-    add_to_index: bool,
-    yes: bool,
-    quiet: bool,
-    metrics: PerformanceMetrics,
-) -> Result<()> {
-    let normalized_alias = normalize_alias(name);
+pub async fn execute(config: CreateSourceConfig) -> Result<()> {
+    let CreateSourceConfig {
+        name,
+        url,
+        description,
+        category,
+        tags,
+        npm_packages,
+        github_repos,
+        add_to_index,
+        yes,
+        quiet,
+        metrics,
+    } = config;
+
+    let normalized_alias = normalize_alias(&name);
     let safe_name = sanitize_id(&normalized_alias)?;
     validate_alias(&safe_name)?;
     if !quiet && safe_name != name {
@@ -160,7 +187,7 @@ pub async fn execute(
         println!("Analyzing source...");
     }
 
-    let analysis = analyze_source(&safe_name, url, metrics.clone()).await?;
+    let analysis = analyze_source(&safe_name, &url, metrics.clone()).await?;
 
     // Step 2: Display analysis
     if !quiet {
@@ -202,7 +229,7 @@ pub async fn execute(
     };
 
     // Step 5: Create TOML file
-    create_source_toml(&safe_name, name, &analysis, &metadata)?;
+    create_source_toml(&safe_name, &name, &analysis, &metadata)?;
 
     if !quiet {
         println!(

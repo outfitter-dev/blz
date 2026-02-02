@@ -337,21 +337,42 @@ fn percentage(part: usize, total: usize) -> f64 {
     safe_percentage(part, total)
 }
 
+/// Parameters for the deprecated refresh command.
+#[allow(clippy::struct_excessive_bools)]
+pub struct DeprecatedRefreshParams {
+    /// Aliases to refresh.
+    pub aliases: Vec<String>,
+    /// Refresh all sources.
+    pub all: bool,
+    /// Force re-parse and re-index.
+    pub reindex: bool,
+    /// Content filters to enable.
+    pub filter: Option<String>,
+    /// Disable all content filters.
+    pub no_filter: bool,
+    /// Performance metrics collector.
+    pub metrics: PerformanceMetrics,
+    /// Suppress informational output.
+    pub quiet: bool,
+}
+
 /// Dispatch a deprecated Refresh command.
 ///
 /// This function handles the deprecated `refresh` command, printing a deprecation
 /// warning and delegating to `handle_refresh`.
 #[deprecated(since = "1.5.0", note = "use 'sync' instead")]
-#[allow(deprecated, clippy::fn_params_excessive_bools)]
-pub async fn dispatch_deprecated(
-    aliases: Vec<String>,
-    all: bool,
-    reindex: bool,
-    filter: Option<String>,
-    no_filter: bool,
-    metrics: PerformanceMetrics,
-    quiet: bool,
-) -> Result<()> {
+#[allow(deprecated)]
+pub async fn dispatch_deprecated(params: DeprecatedRefreshParams) -> Result<()> {
+    let DeprecatedRefreshParams {
+        aliases,
+        all,
+        reindex,
+        filter,
+        no_filter,
+        metrics,
+        quiet,
+    } = params;
+
     if !crate::utils::cli_args::deprecation_warnings_suppressed() {
         eprintln!(
             "{}",
