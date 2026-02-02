@@ -7,6 +7,7 @@ use clap::{Args, Subcommand};
 use colored::Colorize;
 
 use crate::commands::RequestSpec;
+use crate::config::{TocConfig, TocNavigation};
 use crate::output::OutputFormat;
 use crate::utils::cli_args;
 use crate::utils::cli_args::FormatArg;
@@ -179,24 +180,24 @@ pub async fn dispatch(args: TocArgs, quiet: bool) -> Result<()> {
         );
     }
 
-    execute(
-        args.alias.as_deref(),
-        &args.sources,
-        args.all,
-        args.format.resolve(quiet),
-        args.anchors,
-        args.show_anchors,
-        args.limit,
-        args.max_depth,
-        args.heading_level.as_ref(),
-        args.filter.as_deref(),
-        args.tree,
-        args.next,
-        args.previous,
-        args.last,
-        args.page,
-    )
-    .await
+    let config = TocConfig::new(args.format.resolve(quiet))
+        .with_filter_expr(args.filter.clone())
+        .with_max_depth(args.max_depth)
+        .with_heading_level(args.heading_level.clone())
+        .with_limit(args.limit)
+        .with_page(args.page)
+        .with_tree(args.tree)
+        .with_anchors(args.anchors)
+        .with_show_anchors(args.show_anchors)
+        .with_quiet(quiet);
+
+    let nav = TocNavigation::new()
+        .with_next(args.next)
+        .with_previous(args.previous)
+        .with_last(args.last)
+        .with_all(args.all);
+
+    execute(args.alias.as_deref(), &args.sources, &config, nav).await
 }
 
 /// Dispatch anchor subcommands.
@@ -212,24 +213,16 @@ pub async fn dispatch_anchor(command: AnchorCommands, quiet: bool) -> Result<()>
             max_depth,
             filter,
         } => {
-            execute(
-                Some(&alias),
-                &[],
-                false,
-                format.resolve(quiet),
-                anchors,
-                false, // show_anchors - not applicable in anchor list mode
-                limit,
-                max_depth,
-                None,
-                filter.as_deref(),
-                false,
-                false, // next
-                false, // previous
-                false, // last
-                1,     // page
-            )
-            .await
+            let config = TocConfig::new(format.resolve(quiet))
+                .with_filter_expr(filter)
+                .with_max_depth(max_depth)
+                .with_limit(limit)
+                .with_anchors(anchors)
+                .with_quiet(quiet);
+
+            let nav = TocNavigation::default();
+
+            execute(Some(&alias), &[], &config, nav).await
         },
         AnchorCommands::Get {
             alias,
@@ -264,19 +257,19 @@ fn serialize_heading_level_filter(
 #[allow(clippy::ref_option)]
 fn restore_pagination_state(
     last_entry: &Option<TocHistoryEntry>,
-    next: bool,
-    previous: bool,
-    last: bool,
+    nav: TocNavigation,
     mut limit: Option<usize>,
     mut page: usize,
 ) -> Result<(Option<usize>, usize)> {
-    if last_entry.is_none() && ((next || previous) || (last && limit.is_none())) {
+    let is_navigating = nav.is_navigating();
+
+    if last_entry.is_none() && ((nav.next || nav.previous) || (nav.last && limit.is_none())) {
         return Err(anyhow!(
             "No saved pagination state found. Run `blz toc <alias> --limit <COUNT>` first."
         ));
     }
 
-    if (next || previous || last) && limit.is_none() {
+    if is_navigating && limit.is_none() {
         if let Some(entry) = last_entry {
             limit = entry.limit;
         }
@@ -291,20 +284,20 @@ fn restore_pagination_state(
         anyhow::bail!("--limit must be at least 1; use --all to show everything.");
     }
 
-    if next {
+    if nav.next {
         page = last_entry
             .as_ref()
             .and_then(|entry| entry.page)
             .unwrap_or(1)
             .saturating_add(1);
-    } else if previous {
+    } else if nav.previous {
         page = last_entry
             .as_ref()
             .and_then(|entry| entry.page)
             .unwrap_or(2)
             .saturating_sub(1)
             .max(1);
-    } else if last {
+    } else if nav.last {
         page = usize::MAX;
     }
 
@@ -317,11 +310,9 @@ fn restore_filter_params<'a>(
     last_entry: &'a Option<TocHistoryEntry>,
     filter_expr: Option<&'a str>,
     max_depth: Option<u8>,
-    next: bool,
-    previous: bool,
-    last: bool,
+    is_navigating: bool,
 ) -> (Option<&'a str>, Option<u8>) {
-    if next || previous || last {
+    if is_navigating {
         let saved_filter = last_entry.as_ref().and_then(|e| e.filter.as_deref());
         let saved_max_depth = last_entry.as_ref().and_then(|e| e.max_depth);
         (filter_expr.or(saved_filter), max_depth.or(saved_max_depth))
@@ -331,20 +322,14 @@ fn restore_filter_params<'a>(
 }
 
 /// Resolve the list of sources to process
-#[allow(
-    clippy::ref_option,
-    clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools
-)]
+#[allow(clippy::ref_option)]
 fn resolve_source_list(
     storage: &Storage,
     alias: Option<&str>,
     sources: &[String],
     all_sources_mode: bool,
     last_entry: &Option<TocHistoryEntry>,
-    next: bool,
-    previous: bool,
-    last: bool,
+    nav: TocNavigation,
 ) -> Result<Vec<String>> {
     let mut source_list = if !sources.is_empty() {
         sources.to_vec()
@@ -356,7 +341,7 @@ fn resolve_source_list(
         Vec::new()
     };
 
-    if source_list.is_empty() && (next || previous || last) {
+    if source_list.is_empty() && nav.is_navigating() {
         if let Some(entry) = last_entry {
             if let Some(saved_sources) = &entry.source {
                 source_list = saved_sources
@@ -473,23 +458,20 @@ fn calculate_pagination(
     (page_entries, actual_page, total_pages, total_results)
 }
 
-/// Save TOC history entry for pagination state
-#[allow(clippy::too_many_arguments)]
-fn save_toc_history_entry(
-    source_list: &[String],
-    output: OutputFormat,
+/// Parameters for saving TOC history.
+struct TocHistoryParams<'a> {
+    source_list: &'a [String],
     actual_page: usize,
-    limit: Option<usize>,
     total_pages: usize,
     total_results: usize,
-    filter_expr: Option<&str>,
-    max_depth: Option<u8>,
-    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
-) {
-    let source_str = if source_list.len() == 1 {
-        Some(source_list[0].clone())
-    } else if !source_list.is_empty() {
-        Some(source_list.join(","))
+}
+
+/// Save TOC history entry for pagination state
+fn save_toc_history_entry(config: &TocConfig, params: &TocHistoryParams<'_>) {
+    let source_str = if params.source_list.len() == 1 {
+        Some(params.source_list[0].clone())
+    } else if !params.source_list.is_empty() {
+        Some(params.source_list.join(","))
     } else {
         None
     };
@@ -497,14 +479,17 @@ fn save_toc_history_entry(
     let history_entry = TocHistoryEntry {
         timestamp: Utc::now().to_rfc3339(),
         source: source_str,
-        format: preferences::format_to_string(output),
-        page: Some(actual_page),
-        limit,
-        total_pages: Some(total_pages),
-        total_results: Some(total_results),
-        filter: filter_expr.map(str::to_string),
-        max_depth,
-        heading_level: heading_level.map(serialize_heading_level_filter),
+        format: preferences::format_to_string(config.format),
+        page: Some(params.actual_page),
+        limit: config.limit,
+        total_pages: Some(params.total_pages),
+        total_results: Some(params.total_results),
+        filter: config.filter_expr.clone(),
+        max_depth: config.max_depth,
+        heading_level: config
+            .heading_level
+            .as_ref()
+            .map(serialize_heading_level_filter),
     };
 
     if let Err(err) = preferences::save_toc_history(&history_entry) {
@@ -690,62 +675,63 @@ fn collect_all_entries(
     Ok(all_entries)
 }
 
-/// Format and display TOC output based on output format
-#[allow(clippy::too_many_arguments)]
-fn format_toc_output(
-    storage: &Storage,
-    output: OutputFormat,
-    source_list: &[String],
-    page_entries: &[serde_json::Value],
+/// Parameters for TOC output formatting.
+struct TocOutputParams<'a> {
+    source_list: &'a [String],
+    page_entries: &'a [serde_json::Value],
     actual_page: usize,
     total_pages: usize,
     total_results: usize,
     pagination_limit: Option<usize>,
-    tree: bool,
-    show_anchors: bool,
-    max_depth: Option<u8>,
-    filter: Option<&HeadingFilter>,
-    level_filter: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
+    filter: Option<&'a HeadingFilter>,
+    level_filter: Option<&'a crate::utils::heading_filter::HeadingLevelFilter>,
+}
+
+/// Format and display TOC output based on output format
+fn format_toc_output(
+    storage: &Storage,
+    config: &TocConfig,
+    params: &TocOutputParams<'_>,
 ) -> Result<()> {
-    match output {
+    match config.format {
         OutputFormat::Json => {
             format_json_output(
-                page_entries,
-                actual_page,
-                total_pages,
-                total_results,
-                pagination_limit,
+                params.page_entries,
+                params.actual_page,
+                params.total_pages,
+                params.total_results,
+                params.pagination_limit,
             )?;
         },
         OutputFormat::Jsonl => {
             format_jsonl_output(
-                page_entries,
-                actual_page,
-                total_pages,
-                total_results,
-                pagination_limit,
+                params.page_entries,
+                params.actual_page,
+                params.total_pages,
+                params.total_results,
+                params.pagination_limit,
             )?;
         },
         OutputFormat::Text => {
-            if pagination_limit.is_some() && !tree {
+            if params.pagination_limit.is_some() && !config.tree {
                 print_paginated_flat_list(
                     storage,
-                    source_list,
-                    page_entries,
-                    actual_page,
-                    total_pages,
-                    total_results,
-                    show_anchors,
+                    params.source_list,
+                    params.page_entries,
+                    params.actual_page,
+                    params.total_pages,
+                    params.total_results,
+                    config.show_anchors,
                 )?;
             } else {
                 print_tree_or_hierarchical(
                     storage,
-                    source_list,
-                    max_depth,
-                    filter,
-                    level_filter,
-                    tree,
-                    show_anchors,
+                    params.source_list,
+                    config.max_depth,
+                    params.filter,
+                    params.level_filter,
+                    config.tree,
+                    config.show_anchors,
                 )?;
             }
         },
@@ -819,32 +805,16 @@ fn print_tree_or_hierarchical(
     Ok(())
 }
 
-#[allow(
-    dead_code,
-    clippy::unused_async,
-    clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools
-)]
+#[allow(dead_code, clippy::unused_async)]
 pub async fn execute(
     alias: Option<&str>,
     sources: &[String],
-    all: bool,
-    output: OutputFormat,
-    anchors: bool,
-    show_anchors: bool,
-    limit: Option<usize>,
-    max_depth: Option<u8>,
-    heading_level: Option<&crate::utils::heading_filter::HeadingLevelFilter>,
-    filter_expr: Option<&str>,
-    tree: bool,
-    next: bool,
-    previous: bool,
-    last: bool,
-    page: usize,
+    config: &TocConfig,
+    nav: TocNavigation,
 ) -> Result<()> {
     let storage = Storage::new()?;
-    let all_sources_mode = all && alias.is_none() && sources.is_empty();
-    let is_navigating = next || previous || last;
+    let all_sources_mode = nav.all && alias.is_none() && sources.is_empty();
+    let is_navigating = nav.is_navigating();
 
     let last_entry = if is_navigating {
         preferences::load_last_toc_entry()
@@ -852,35 +822,31 @@ pub async fn execute(
         None
     };
 
-    let (limit, page) = restore_pagination_state(&last_entry, next, previous, last, limit, page)?;
-    let (filter_expr, max_depth) =
-        restore_filter_params(&last_entry, filter_expr, max_depth, next, previous, last);
+    let (limit, page) = restore_pagination_state(&last_entry, nav, config.limit, config.page)?;
+    let (filter_expr, max_depth) = restore_filter_params(
+        &last_entry,
+        config.filter_expr.as_deref(),
+        config.max_depth,
+        is_navigating,
+    );
 
     let mut heading_level_owner: Option<crate::utils::heading_filter::HeadingLevelFilter> = None;
     let heading_level = restore_heading_level(
-        heading_level,
+        config.heading_level.as_ref(),
         &last_entry,
         &mut heading_level_owner,
         is_navigating,
     );
 
-    if anchors && filter_expr.is_some() {
+    if config.anchors && filter_expr.is_some() {
         return Err(anyhow!("--filter cannot be combined with --anchors"));
     }
 
-    let source_list = resolve_source_list(
-        &storage,
-        alias,
-        sources,
-        all_sources_mode,
-        &last_entry,
-        next,
-        previous,
-        last,
-    )?;
+    let source_list =
+        resolve_source_list(&storage, alias, sources, all_sources_mode, &last_entry, nav)?;
 
-    if anchors {
-        return handle_anchors_mode(&storage, &source_list, output);
+    if config.anchors {
+        return handle_anchors_mode(&storage, &source_list, config.format);
     }
 
     let (filter, level_filter) = parse_filters(filter_expr, heading_level, max_depth)?;
@@ -892,7 +858,7 @@ pub async fn execute(
         level_filter.as_ref(),
     )?;
 
-    let pagination_limit = if all && !all_sources_mode {
+    let pagination_limit = if nav.all && !all_sources_mode {
         None
     } else {
         limit
@@ -900,35 +866,42 @@ pub async fn execute(
     let (page_entries, actual_page, total_pages, total_results) =
         calculate_pagination(all_entries, pagination_limit, page);
 
+    // Create a temporary config with resolved values for history saving
+    let resolved_config = TocConfig {
+        format: config.format,
+        filter_expr: filter_expr.map(str::to_string),
+        max_depth,
+        heading_level: heading_level.cloned(),
+        limit,
+        page,
+        tree: config.tree,
+        anchors: config.anchors,
+        show_anchors: config.show_anchors,
+        quiet: config.quiet,
+    };
+
     if limit.is_some() {
-        save_toc_history_entry(
-            &source_list,
-            output,
+        let history_params = TocHistoryParams {
+            source_list: &source_list,
             actual_page,
-            limit,
             total_pages,
             total_results,
-            filter_expr,
-            max_depth,
-            heading_level,
-        );
+        };
+        save_toc_history_entry(&resolved_config, &history_params);
     }
 
-    format_toc_output(
-        &storage,
-        output,
-        &source_list,
-        &page_entries,
+    let output_params = TocOutputParams {
+        source_list: &source_list,
+        page_entries: &page_entries,
         actual_page,
         total_pages,
         total_results,
         pagination_limit,
-        tree,
-        show_anchors,
-        max_depth,
-        filter.as_ref(),
-        level_filter.as_ref(),
-    )
+        filter: filter.as_ref(),
+        level_filter: level_filter.as_ref(),
+    };
+
+    format_toc_output(&storage, &resolved_config, &output_params)
 }
 
 #[allow(dead_code)]

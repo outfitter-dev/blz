@@ -71,6 +71,8 @@ mod query;
 mod resolved;
 mod search;
 mod snippet;
+mod sync;
+mod toc;
 
 pub use content::ContentConfig;
 pub use display::DisplayConfig;
@@ -78,3 +80,5 @@ pub use query::QueryExecutionConfig;
 pub use resolved::ExecutionConfig;
 pub use search::SearchConfig;
 pub use snippet::SnippetConfig;
+pub use sync::SyncConfig;
+pub use toc::{TocConfig, TocNavigation};
