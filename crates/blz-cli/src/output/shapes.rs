@@ -136,32 +136,18 @@ pub struct SearchOutput {
 }
 
 impl SearchOutput {
-    /// Create a new search output from raw data.
-    #[allow(clippy::too_many_arguments)]
+    /// Create a new search output builder.
+    ///
+    /// Use the builder pattern to construct a `SearchOutput`:
+    /// ```ignore
+    /// let output = SearchOutput::builder("query", results)
+    ///     .total_results(100)
+    ///     .search_time(Duration::from_millis(5))
+    ///     .build();
+    /// ```
     #[must_use]
-    pub fn new(
-        query: impl Into<String>,
-        results: Vec<SearchHitOutput>,
-        total_results: usize,
-        total_lines_searched: usize,
-        search_time: Duration,
-        sources: Vec<String>,
-        page: usize,
-        page_size: usize,
-        total_pages: usize,
-    ) -> Self {
-        Self {
-            query: query.into(),
-            results,
-            total_results,
-            total_lines_searched,
-            search_time_ms: search_time.as_millis().try_into().unwrap_or(u64::MAX),
-            sources,
-            page,
-            page_size,
-            total_pages,
-            suggestions: None,
-        }
+    pub fn builder(query: impl Into<String>, results: Vec<SearchHitOutput>) -> SearchOutputBuilder {
+        SearchOutputBuilder::new(query, results)
     }
 
     /// Add fuzzy suggestions to the output.
@@ -169,6 +155,114 @@ impl SearchOutput {
     pub fn with_suggestions(mut self, suggestions: Vec<String>) -> Self {
         self.suggestions = Some(suggestions);
         self
+    }
+}
+
+/// Builder for `SearchOutput`.
+#[derive(Debug, Clone)]
+pub struct SearchOutputBuilder {
+    query: String,
+    results: Vec<SearchHitOutput>,
+    total_results: usize,
+    total_lines_searched: usize,
+    search_time_ms: u64,
+    sources: Vec<String>,
+    page: usize,
+    page_size: usize,
+    total_pages: usize,
+    suggestions: Option<Vec<String>>,
+}
+
+impl SearchOutputBuilder {
+    /// Create a new builder with required fields.
+    #[must_use]
+    pub fn new(query: impl Into<String>, results: Vec<SearchHitOutput>) -> Self {
+        let total_results = results.len();
+        Self {
+            query: query.into(),
+            results,
+            total_results,
+            total_lines_searched: 0,
+            search_time_ms: 0,
+            sources: Vec::new(),
+            page: 1,
+            page_size: 10,
+            total_pages: 1,
+            suggestions: None,
+        }
+    }
+
+    /// Set total results count.
+    #[must_use]
+    pub const fn total_results(mut self, count: usize) -> Self {
+        self.total_results = count;
+        self
+    }
+
+    /// Set total lines searched.
+    #[must_use]
+    pub const fn total_lines_searched(mut self, count: usize) -> Self {
+        self.total_lines_searched = count;
+        self
+    }
+
+    /// Set search execution time.
+    #[must_use]
+    pub fn search_time(mut self, duration: Duration) -> Self {
+        self.search_time_ms = duration.as_millis().try_into().unwrap_or(u64::MAX);
+        self
+    }
+
+    /// Set source aliases.
+    #[must_use]
+    pub fn sources(mut self, sources: Vec<String>) -> Self {
+        self.sources = sources;
+        self
+    }
+
+    /// Set pagination: page number (1-based).
+    #[must_use]
+    pub const fn page(mut self, page: usize) -> Self {
+        self.page = page;
+        self
+    }
+
+    /// Set pagination: results per page.
+    #[must_use]
+    pub const fn page_size(mut self, size: usize) -> Self {
+        self.page_size = size;
+        self
+    }
+
+    /// Set pagination: total pages.
+    #[must_use]
+    pub const fn total_pages(mut self, pages: usize) -> Self {
+        self.total_pages = pages;
+        self
+    }
+
+    /// Set fuzzy suggestions.
+    #[must_use]
+    pub fn suggestions(mut self, suggestions: Vec<String>) -> Self {
+        self.suggestions = Some(suggestions);
+        self
+    }
+
+    /// Build the `SearchOutput`.
+    #[must_use]
+    pub fn build(self) -> SearchOutput {
+        SearchOutput {
+            query: self.query,
+            results: self.results,
+            total_results: self.total_results,
+            total_lines_searched: self.total_lines_searched,
+            search_time_ms: self.search_time_ms,
+            sources: self.sources,
+            page: self.page,
+            page_size: self.page_size,
+            total_pages: self.total_pages,
+            suggestions: self.suggestions,
+        }
     }
 }
 
@@ -593,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_search_output_serialization() {
-        let output = SearchOutput::new(
+        let output = SearchOutput::builder(
             "test query",
             vec![SearchHitOutput {
                 alias: "react".to_string(),
@@ -606,14 +700,15 @@ mod tests {
                 source_url: None,
                 context: None,
             }],
-            1,
-            1000,
-            Duration::from_millis(5),
-            vec!["react".to_string()],
-            1,
-            10,
-            1,
-        );
+        )
+        .total_results(1)
+        .total_lines_searched(1000)
+        .search_time(Duration::from_millis(5))
+        .sources(vec!["react".to_string()])
+        .page(1)
+        .page_size(10)
+        .total_pages(1)
+        .build();
 
         let json = serde_json::to_string(&output).expect("serialize");
         assert!(json.contains("test query"));
@@ -800,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_output_shape_from_conversions() {
-        let search = SearchOutput::new("test", vec![], 0, 0, Duration::ZERO, vec![], 1, 10, 1);
+        let search = SearchOutput::builder("test", vec![]).build();
         let shape: OutputShape = search.into();
         assert!(matches!(shape, OutputShape::Search(_)));
 

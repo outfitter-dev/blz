@@ -6,7 +6,7 @@ use std::time::Instant;
 use anyhow::{Result, anyhow};
 use blz_core::numeric::safe_percentage;
 use blz_core::refresh::{
-    DefaultRefreshIndexer, RefreshOutcome, RefreshStorage, RefreshUrlResolution,
+    DefaultRefreshIndexer, RefreshContext, RefreshOutcome, RefreshStorage, RefreshUrlResolution,
     refresh_source_with_metadata, reindex_source, resolve_refresh_url,
 };
 use blz_core::{Fetcher, PerformanceMetrics, Storage};
@@ -164,13 +164,12 @@ pub async fn execute(
     announce_upgrade(&resolution, &canonical_alias, quiet);
 
     let indexer = DefaultRefreshIndexer;
+    let ctx = RefreshContext::new(existing_metadata, existing_aliases, resolution);
     let outcome = refresh_source_with_metadata(
         &storage,
         &fetcher,
         &canonical_alias,
-        existing_metadata,
-        existing_aliases,
-        &resolution,
+        &ctx,
         metrics,
         &indexer,
         filter_preference,
@@ -284,13 +283,12 @@ pub async fn execute_all(metrics: PerformanceMetrics, config: &SyncConfig) -> Re
         spinner.finish_and_clear();
         announce_upgrade(&resolution, &alias, config.quiet);
 
+        let ctx = RefreshContext::new(metadata, aliases, resolution);
         match refresh_source_with_metadata(
             &storage,
             &fetcher,
             &alias,
-            metadata,
-            aliases,
-            &resolution,
+            &ctx,
             metrics.clone(),
             &indexer,
             filter_preference,

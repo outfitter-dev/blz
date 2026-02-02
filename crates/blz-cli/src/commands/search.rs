@@ -875,16 +875,15 @@ pub(super) fn format_and_display(
     // Handle empty results
     if total_results == 0 {
         let suggestions = suggestion_resolver.resolve(true);
-        format_page(
-            &[],
-            results,
-            options,
-            0,
-            0,
-            actual_limit,
+        let page_ctx = PageContext {
+            hits: &[],
+            start_idx: 0,
+            page: 0,
+            page_size: actual_limit,
             total_pages,
             suggestions,
-        )?;
+        };
+        format_page(&page_ctx, results, options)?;
         return Ok(((0, actual_limit, total_pages), total_results));
     }
 
@@ -902,16 +901,15 @@ pub(super) fn format_and_display(
             eprintln!("Tip: use --last to jump to the final page.");
         }
         let suggestions = suggestion_resolver.resolve(true);
-        format_page(
-            &[],
-            results,
-            options,
-            start_idx.min(results.hits.len()),
+        let page_ctx = PageContext {
+            hits: &[],
+            start_idx: start_idx.min(results.hits.len()),
             page,
-            actual_limit,
+            page_size: actual_limit,
             total_pages,
             suggestions,
-        )?;
+        };
+        format_page(&page_ctx, results, options)?;
         return Ok(((page, actual_limit, total_pages), total_results));
     }
 
@@ -919,16 +917,15 @@ pub(super) fn format_and_display(
     let page_hits = &results.hits[start_idx..end_idx];
     let need_suggest = results.hits.first().map_or(0.0, |h| h.score) < 2.0;
     let suggestions = suggestion_resolver.resolve(need_suggest);
-    format_page(
-        page_hits,
-        results,
-        options,
+    let page_ctx = PageContext {
+        hits: page_hits,
         start_idx,
         page,
-        actual_limit,
+        page_size: actual_limit,
         total_pages,
         suggestions,
-    )?;
+    };
+    format_page(&page_ctx, results, options)?;
 
     Ok(((page, actual_limit, total_pages), total_results))
 }
@@ -968,30 +965,40 @@ impl<'a> SuggestionResolver<'a> {
     }
 }
 
+/// Pagination context for formatting a page of results.
+struct PageContext<'a> {
+    /// Hits to display on this page.
+    hits: &'a [SearchHit],
+    /// Zero-based index of the first hit on this page.
+    start_idx: usize,
+    /// Current page number (1-based).
+    page: usize,
+    /// Results per page.
+    page_size: usize,
+    /// Total pages available.
+    total_pages: usize,
+    /// Optional fuzzy suggestions.
+    suggestions: Option<Vec<serde_json::Value>>,
+}
+
 /// Format and display a page of search results.
-#[allow(clippy::too_many_arguments)]
 fn format_page(
-    hits: &[SearchHit],
+    page_ctx: &PageContext<'_>,
     results: &SearchResults,
     options: &SearchOptions,
-    start_idx: usize,
-    page: usize,
-    page_size: usize,
-    total_pages: usize,
-    suggestions: Option<Vec<serde_json::Value>>,
 ) -> Result<()> {
     let formatter = SearchResultFormatter::new(options.format);
     let params = FormatParams {
-        hits,
+        hits: page_ctx.hits,
         query: &options.query,
         total_results: results.hits.len(),
         total_lines_searched: results.total_lines_searched,
         search_time: results.search_time,
         sources: &results.sources,
-        start_idx,
-        page,
-        total_pages,
-        page_size,
+        start_idx: page_ctx.start_idx,
+        page: page_ctx.page,
+        total_pages: page_ctx.total_pages,
+        page_size: page_ctx.page_size,
         show_url: options.show_url,
         show_lines: options.show_lines,
         show_anchor: options.show_anchor,
@@ -999,7 +1006,7 @@ fn format_page(
         no_summary: options.no_summary,
         score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
         snippet_lines: usize::from(options.snippet_lines.max(1)),
-        suggestions,
+        suggestions: page_ctx.suggestions.clone(),
     };
     formatter.format(&params)
 }

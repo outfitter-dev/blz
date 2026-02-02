@@ -84,8 +84,8 @@ pub use formatter::{FormatParams, SearchResultFormatter};
 #[allow(unused_imports)]
 pub use shapes::{
     CheckOutput, CheckResult, GenericOutput, OutputShape, RetrieveOutput, RetrievedContent,
-    SearchHitOutput, SearchOutput, SourceInfoOutput, SourceListOutput, SourceStatus, SourceSummary,
-    TocEntry, TocOutput,
+    SearchHitOutput, SearchOutput, SearchOutputBuilder, SourceInfoOutput, SourceListOutput,
+    SourceStatus, SourceSummary, TocEntry, TocOutput,
 };
 
 // TODO(BLZ-341): Remove allow once commands adopt streaming output.
