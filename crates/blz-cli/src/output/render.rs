@@ -34,8 +34,10 @@ use std::io::Write;
 use anyhow::Result;
 use colored::Colorize;
 
+use blz_core::numeric::{format_bytes, safe_percentage};
+
 use super::OutputFormat;
-use super::shapes::{OutputShape, SourceListOutput, SourceSummary};
+use super::shapes::{OutputShape, SourceInfoOutput, SourceListOutput, SourceSummary};
 use crate::utils::formatting::get_alias_color;
 
 /// Render an [`OutputShape`] to the given writer in the specified format.
@@ -69,6 +71,17 @@ pub fn render(shape: &OutputShape, format: OutputFormat, writer: &mut impl Write
             render_source_list_jsonl(data, writer)
         },
         (OutputShape::SourceList(data), OutputFormat::Raw) => render_source_list_raw(data, writer),
+
+        (OutputShape::SourceInfo(data), OutputFormat::Text) => {
+            render_source_info_text(data, writer)
+        },
+        (OutputShape::SourceInfo(data), OutputFormat::Json) => {
+            render_source_info_json(data, writer)
+        },
+        (OutputShape::SourceInfo(data), OutputFormat::Jsonl) => {
+            render_source_info_jsonl(data, writer)
+        },
+        (OutputShape::SourceInfo(data), OutputFormat::Raw) => render_source_info_raw(data, writer),
 
         // Fallback: serialize as JSON for shape/format combinations without custom renderers
         _ => {
@@ -392,10 +405,113 @@ fn render_source_list_raw(data: &SourceListOutput, writer: &mut impl Write) -> R
     Ok(())
 }
 
+// -----------------------------------------------------------------------------
+// Source Info Renderers
+// -----------------------------------------------------------------------------
+
+/// Render source info as human-readable text.
+fn render_source_info_text(data: &SourceInfoOutput, writer: &mut impl Write) -> Result<()> {
+    writeln!(writer, "Source: {}", data.alias)?;
+    writeln!(writer, "URL: {}", data.url)?;
+    writeln!(writer, "Variant: {}", data.variant)?;
+
+    if !data.aliases.is_empty() {
+        writeln!(writer, "Aliases: {}", data.aliases.join(", "))?;
+    }
+
+    writeln!(writer, "Lines: {}", format_number(data.lines))?;
+    writeln!(writer, "Headings: {}", format_number(data.headings))?;
+    writeln!(writer, "Size: {}", format_bytes(data.size_bytes))?;
+
+    if let Some(updated) = &data.last_updated {
+        writeln!(writer, "Last Updated: {updated}")?;
+    }
+
+    if let Some(etag) = &data.etag {
+        writeln!(writer, "ETag: {etag}")?;
+    }
+
+    if let Some(checksum) = &data.checksum {
+        writeln!(writer, "Checksum: {checksum}")?;
+    }
+
+    writeln!(writer, "Cache Location: {}", data.cache_path)?;
+
+    // Display language filtering information
+    writeln!(writer)?;
+    if let Some(stats) = &data.filter_stats {
+        writeln!(writer, "Language Filtering:")?;
+        let status_text = if stats.enabled {
+            "enabled".green()
+        } else {
+            "disabled".yellow()
+        };
+        writeln!(writer, "  Status: {status_text}")?;
+
+        if stats.enabled && stats.headings_rejected > 0 {
+            let percentage = safe_percentage(stats.headings_rejected, stats.headings_total);
+            writeln!(
+                writer,
+                "  Filtered: {} headings ({percentage:.1}%)",
+                format_number(stats.headings_rejected)
+            )?;
+            writeln!(writer, "  Reason: {}", stats.reason)?;
+        }
+    } else {
+        writeln!(
+            writer,
+            "Language Filtering: {} (added before filtering feature)",
+            "unknown".yellow()
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Render source info as JSON.
+fn render_source_info_json(data: &SourceInfoOutput, writer: &mut impl Write) -> Result<()> {
+    serde_json::to_writer_pretty(&mut *writer, data)?;
+    writeln!(writer)?;
+    Ok(())
+}
+
+/// Render source info as JSONL.
+fn render_source_info_jsonl(data: &SourceInfoOutput, writer: &mut impl Write) -> Result<()> {
+    serde_json::to_writer(&mut *writer, data)?;
+    writeln!(writer)?;
+    Ok(())
+}
+
+/// Render source info as raw output (just the URL).
+fn render_source_info_raw(data: &SourceInfoOutput, writer: &mut impl Write) -> Result<()> {
+    writeln!(writer, "{}", data.url)?;
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// Formatting Helpers
+// -----------------------------------------------------------------------------
+
+/// Format a number with thousand separators.
+fn format_number(n: usize) -> String {
+    let s = n.to_string();
+    let chars: Vec<char> = s.chars().collect();
+    let mut result = String::new();
+
+    for (i, c) in chars.iter().enumerate() {
+        if i > 0 && (chars.len() - i) % 3 == 0 {
+            result.push(',');
+        }
+        result.push(*c);
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output::shapes::SourceStatus;
+    use crate::output::shapes::{FilterStatsOutput, SourceStatus};
     use std::io::Cursor;
 
     fn sample_source() -> SourceSummary {
@@ -556,5 +672,174 @@ mod tests {
         assert_eq!(source.tags, vec!["tag1"]);
         assert_eq!(source.description, Some("A test source".to_string()));
         assert_eq!(source.category, Some("testing".to_string()));
+    }
+
+    // -------------------------------------------------------------------------
+    // Formatting helper tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_format_number() {
+        assert_eq!(format_number(0), "0");
+        assert_eq!(format_number(123), "123");
+        assert_eq!(format_number(1234), "1,234");
+        assert_eq!(format_number(12345), "12,345");
+        assert_eq!(format_number(123_456), "123,456");
+        assert_eq!(format_number(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        assert_eq!(format_bytes(0), "0 B");
+        assert_eq!(format_bytes(500), "500 B");
+        assert_eq!(format_bytes(1024), "1.0 KB");
+        assert_eq!(format_bytes(1536), "1.5 KB");
+        assert_eq!(format_bytes(1_048_576), "1.0 MB");
+        assert_eq!(format_bytes(1_258_291), "1.2 MB");
+    }
+
+    #[test]
+    fn test_safe_percentage() {
+        assert!((safe_percentage(0, 100) - 0.0).abs() < f64::EPSILON);
+        assert!((safe_percentage(50, 100) - 50.0).abs() < f64::EPSILON);
+        assert!((safe_percentage(100, 100) - 100.0).abs() < f64::EPSILON);
+        assert!((safe_percentage(33, 100) - 33.0).abs() < f64::EPSILON);
+        assert!((safe_percentage(0, 0) - 0.0).abs() < f64::EPSILON); // Edge case: no total
+    }
+
+    #[test]
+    fn test_safe_percentage_precision() {
+        let result = safe_percentage(1, 3);
+        assert!((result - 33.333_333).abs() < 0.001);
+    }
+
+    // -------------------------------------------------------------------------
+    // Source info render tests
+    // -------------------------------------------------------------------------
+
+    fn sample_source_info() -> SourceInfoOutput {
+        SourceInfoOutput::new(
+            "react",
+            "https://react.dev/llms.txt",
+            "LlmsFull",
+            5000,
+            120,
+            512_000,
+            "/home/user/.blz/sources/react",
+        )
+        .with_aliases(vec!["reactjs".to_string()])
+        .with_last_updated("2025-01-15T12:00:00Z")
+        .with_etag("abc123")
+        .with_checksum("sha256hash")
+    }
+
+    #[test]
+    fn test_render_source_info_text() -> Result<()> {
+        let data = sample_source_info();
+        let mut buf = Cursor::new(Vec::new());
+        render_source_info_text(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Source: react"));
+        assert!(output.contains("URL: https://react.dev/llms.txt"));
+        assert!(output.contains("Variant: LlmsFull"));
+        assert!(output.contains("Aliases: reactjs"));
+        assert!(output.contains("Lines: 5,000"));
+        assert!(output.contains("Headings: 120"));
+        assert!(output.contains("Size: 500.0 KB"));
+        assert!(output.contains("Last Updated: 2025-01-15T12:00:00Z"));
+        assert!(output.contains("ETag: abc123"));
+        assert!(output.contains("Checksum: sha256hash"));
+        assert!(output.contains("Cache Location: /home/user/.blz/sources/react"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_source_info_text_with_filter_stats() -> Result<()> {
+        let data = sample_source_info().with_filter_stats(FilterStatsOutput {
+            enabled: true,
+            headings_total: 100,
+            headings_accepted: 80,
+            headings_rejected: 20,
+            reason: "non-English content removed".to_string(),
+        });
+        let mut buf = Cursor::new(Vec::new());
+        render_source_info_text(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Language Filtering:"));
+        assert!(output.contains("Filtered: 20 headings (20.0%)"));
+        assert!(output.contains("Reason: non-English content removed"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_source_info_json() -> Result<()> {
+        let data = sample_source_info();
+        let mut buf = Cursor::new(Vec::new());
+        render_source_info_json(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert_eq!(parsed["alias"], "react");
+        assert_eq!(parsed["url"], "https://react.dev/llms.txt");
+        assert_eq!(parsed["variant"], "LlmsFull");
+        assert_eq!(parsed["lines"], 5000);
+        assert_eq!(parsed["headings"], 120);
+        assert_eq!(parsed["sizeBytes"], 512_000);
+        assert_eq!(parsed["lastUpdated"], "2025-01-15T12:00:00Z");
+        assert_eq!(parsed["etag"], "abc123");
+        assert_eq!(parsed["checksum"], "sha256hash");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_source_info_jsonl() -> Result<()> {
+        let data = sample_source_info();
+        let mut buf = Cursor::new(Vec::new());
+        render_source_info_jsonl(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        // JSONL should be a single line
+        assert_eq!(output.lines().count(), 1);
+
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+        assert_eq!(parsed["alias"], "react");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_source_info_raw() -> Result<()> {
+        let data = sample_source_info();
+        let mut buf = Cursor::new(Vec::new());
+        render_source_info_raw(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert_eq!(output.trim(), "https://react.dev/llms.txt");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_source_info_dispatcher() -> Result<()> {
+        let data = sample_source_info();
+        let shape: OutputShape = data.into();
+
+        // Test JSON format through dispatcher
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Json, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+        assert_eq!(parsed["alias"], "react");
+
+        // Test text format through dispatcher
+        let data = sample_source_info();
+        let shape: OutputShape = data.into();
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Text, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Source: react"));
+
+        Ok(())
     }
 }
