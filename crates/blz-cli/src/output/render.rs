@@ -37,7 +37,10 @@ use colored::Colorize;
 use blz_core::numeric::{format_bytes, safe_percentage};
 
 use super::OutputFormat;
-use super::shapes::{OutputShape, SourceInfoOutput, SourceListOutput, SourceSummary};
+use super::shapes::{
+    OutputShape, SourceInfoOutput, SourceListOutput, SourceSummary, TocEntry, TocMultiOutput,
+    TocOutput, TocPaginatedEntry, TocPaginatedOutput, TocRenderOptions,
+};
 use crate::utils::formatting::get_alias_color;
 
 /// Render an [`OutputShape`] to the given writer in the specified format.
@@ -82,6 +85,37 @@ pub fn render(shape: &OutputShape, format: OutputFormat, writer: &mut impl Write
             render_source_info_jsonl(data, writer)
         },
         (OutputShape::SourceInfo(data), OutputFormat::Raw) => render_source_info_raw(data, writer),
+
+        // TOC tree output (single source)
+        (OutputShape::Toc(data), OutputFormat::Text) => {
+            render_toc_text(data, &TocRenderOptions::default(), writer)
+        },
+        (OutputShape::Toc(data), OutputFormat::Json) => render_toc_json(data, writer),
+        (OutputShape::Toc(data), OutputFormat::Jsonl) => render_toc_jsonl(data, writer),
+
+        // TOC paginated output (flat list)
+        (OutputShape::TocPaginated(data), OutputFormat::Text) => {
+            render_toc_paginated_text(data, &TocRenderOptions::default(), writer)
+        },
+        (OutputShape::TocPaginated(data), OutputFormat::Json) => {
+            render_toc_paginated_json(data, writer)
+        },
+        (OutputShape::TocPaginated(data), OutputFormat::Jsonl) => {
+            render_toc_paginated_jsonl(data, writer)
+        },
+
+        // TOC multi-source output
+        (OutputShape::TocMulti(data), OutputFormat::Text) => {
+            render_toc_multi_text(data, &TocRenderOptions::default(), writer)
+        },
+        (OutputShape::TocMulti(data), OutputFormat::Json) => render_toc_multi_json(data, writer),
+        (OutputShape::TocMulti(data), OutputFormat::Jsonl) => render_toc_multi_jsonl(data, writer),
+
+        // TOC raw output is not supported
+        (
+            OutputShape::Toc(_) | OutputShape::TocPaginated(_) | OutputShape::TocMulti(_),
+            OutputFormat::Raw,
+        ) => render_toc_raw_error(writer),
 
         // Fallback: serialize as JSON for shape/format combinations without custom renderers
         _ => {
@@ -489,6 +523,401 @@ fn render_source_info_raw(data: &SourceInfoOutput, writer: &mut impl Write) -> R
 }
 
 // -----------------------------------------------------------------------------
+// TOC Renderers (Single Source Tree)
+// -----------------------------------------------------------------------------
+
+/// Render TOC with custom options.
+///
+/// This function provides more control over rendering compared to
+/// the basic `render` function.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn render_toc_with_options(
+    data: &TocOutput,
+    format: OutputFormat,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    match format {
+        OutputFormat::Text => render_toc_text(data, options, writer),
+        OutputFormat::Json => render_toc_json(data, writer),
+        OutputFormat::Jsonl => render_toc_jsonl(data, writer),
+        OutputFormat::Raw => render_toc_raw_error(writer),
+    }
+}
+
+/// Render TOC as human-readable text with tree structure.
+fn render_toc_text(
+    data: &TocOutput,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    writeln!(writer, "Table of contents for {}\n", data.alias.green())?;
+
+    if options.tree_mode {
+        // Tree view with box-drawing characters
+        let mut state = TreeState::default();
+        for (i, entry) in data.entries.iter().enumerate() {
+            let is_last = i == data.entries.len() - 1;
+            render_tree_entry(writer, entry, 0, is_last, "", options, &mut state)?;
+        }
+    } else {
+        // Hierarchical indented list
+        for entry in &data.entries {
+            render_hierarchical_entry(writer, entry, 0, options)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Render TOC as JSON.
+fn render_toc_json(data: &TocOutput, writer: &mut impl Write) -> Result<()> {
+    serde_json::to_writer_pretty(&mut *writer, data)?;
+    writeln!(writer)?;
+    Ok(())
+}
+
+/// Render TOC as JSONL.
+fn render_toc_jsonl(data: &TocOutput, writer: &mut impl Write) -> Result<()> {
+    // For tree structure, we emit each top-level entry as a line
+    for entry in &data.entries {
+        serde_json::to_writer(&mut *writer, entry)?;
+        writeln!(writer)?;
+    }
+    Ok(())
+}
+
+/// Return error for unsupported raw TOC output.
+fn render_toc_raw_error(writer: &mut impl Write) -> Result<()> {
+    writeln!(
+        writer,
+        "Raw output is not supported for toc listings. Use --format json, jsonl, or text instead."
+    )?;
+    anyhow::bail!("Raw output is not supported for toc listings");
+}
+
+// -----------------------------------------------------------------------------
+// TOC Renderers (Paginated Flat List)
+// -----------------------------------------------------------------------------
+
+/// Render paginated TOC with custom options.
+pub fn render_toc_paginated_with_options(
+    data: &TocPaginatedOutput,
+    format: OutputFormat,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    match format {
+        OutputFormat::Text => render_toc_paginated_text(data, options, writer),
+        OutputFormat::Json => render_toc_paginated_json(data, writer),
+        OutputFormat::Jsonl => render_toc_paginated_jsonl(data, writer),
+        OutputFormat::Raw => render_toc_raw_error(writer),
+    }
+}
+
+/// Render paginated TOC as text.
+fn render_toc_paginated_text(
+    data: &TocPaginatedOutput,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    // Group entries by source for display
+    let sources: std::collections::HashSet<&str> =
+        data.entries.iter().map(|e| e.source.as_str()).collect();
+
+    if sources.len() > 1 {
+        writeln!(
+            writer,
+            "Table of contents (showing {} sources)",
+            sources.len()
+        )?;
+    } else if let Some(source) = sources.iter().next() {
+        writeln!(writer, "Table of contents for {}\n", source.green())?;
+    }
+
+    for entry in &data.entries {
+        render_paginated_entry_text(writer, entry, options)?;
+    }
+
+    writeln!(
+        writer,
+        "\nPage {} of {} ({} total results)",
+        data.page,
+        data.total_pages.max(1),
+        data.total_results
+    )?;
+
+    Ok(())
+}
+
+/// Render paginated TOC as JSON.
+fn render_toc_paginated_json(data: &TocPaginatedOutput, writer: &mut impl Write) -> Result<()> {
+    serde_json::to_writer_pretty(&mut *writer, data)?;
+    writeln!(writer)?;
+    Ok(())
+}
+
+/// Render paginated TOC as JSONL.
+fn render_toc_paginated_jsonl(data: &TocPaginatedOutput, writer: &mut impl Write) -> Result<()> {
+    // First line: metadata
+    let metadata = serde_json::json!({
+        "page": data.page,
+        "total_pages": data.total_pages.max(1),
+        "total_results": data.total_results,
+        "page_size": data.page_size,
+    });
+    serde_json::to_writer(&mut *writer, &metadata)?;
+    writeln!(writer)?;
+
+    // Subsequent lines: entries
+    for entry in &data.entries {
+        serde_json::to_writer(&mut *writer, entry)?;
+        writeln!(writer)?;
+    }
+    Ok(())
+}
+
+/// Render a single paginated entry as text.
+fn render_paginated_entry_text(
+    writer: &mut impl Write,
+    entry: &TocPaginatedEntry,
+    options: &TocRenderOptions,
+) -> Result<()> {
+    let name = entry.heading_path.last().map_or("", String::as_str);
+    let indent = "  ".repeat(entry.heading_level.saturating_sub(1) as usize);
+    let lines_display = format!("[{}]", entry.lines).dimmed();
+
+    if options.show_anchors {
+        let anchor = entry.anchor.as_deref().unwrap_or("");
+        writeln!(
+            writer,
+            "{indent}- {name} {lines_display} {}",
+            anchor.bright_black()
+        )?;
+    } else {
+        writeln!(writer, "{indent}- {name} {lines_display}")?;
+    }
+
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// TOC Renderers (Multi-Source)
+// -----------------------------------------------------------------------------
+
+/// Render multi-source TOC with custom options.
+pub fn render_toc_multi_with_options(
+    data: &TocMultiOutput,
+    format: OutputFormat,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    match format {
+        OutputFormat::Text => render_toc_multi_text(data, options, writer),
+        OutputFormat::Json => render_toc_multi_json(data, writer),
+        OutputFormat::Jsonl => render_toc_multi_jsonl(data, writer),
+        OutputFormat::Raw => render_toc_raw_error(writer),
+    }
+}
+
+/// Render multi-source TOC as text.
+fn render_toc_multi_text(
+    data: &TocMultiOutput,
+    options: &TocRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    for (idx, source) in data.sources.iter().enumerate() {
+        if idx > 0 {
+            writeln!(writer)?;
+        }
+
+        if data.sources.len() > 1 {
+            writeln!(writer, "\n{}:", source.alias.green())?;
+        } else {
+            writeln!(writer, "Table of contents for {}\n", source.alias.green())?;
+        }
+
+        if options.tree_mode {
+            let mut state = TreeState::default();
+            for (i, entry) in source.entries.iter().enumerate() {
+                let is_last = i == source.entries.len() - 1;
+                render_tree_entry(writer, entry, 0, is_last, "", options, &mut state)?;
+            }
+        } else {
+            for entry in &source.entries {
+                render_hierarchical_entry(writer, entry, 0, options)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Render multi-source TOC as JSON.
+fn render_toc_multi_json(data: &TocMultiOutput, writer: &mut impl Write) -> Result<()> {
+    serde_json::to_writer_pretty(&mut *writer, data)?;
+    writeln!(writer)?;
+    Ok(())
+}
+
+/// Render multi-source TOC as JSONL.
+fn render_toc_multi_jsonl(data: &TocMultiOutput, writer: &mut impl Write) -> Result<()> {
+    for source in &data.sources {
+        serde_json::to_writer(&mut *writer, source)?;
+        writeln!(writer)?;
+    }
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// Tree Rendering Helpers
+// -----------------------------------------------------------------------------
+
+/// State for tree rendering, tracking previous depth and H1 children.
+#[derive(Default)]
+struct TreeState {
+    count: usize,
+    prev_depth: Option<usize>,
+    prev_h1_had_children: bool,
+}
+
+/// Render a tree entry with box-drawing characters.
+fn render_tree_entry(
+    writer: &mut impl Write,
+    entry: &TocEntry,
+    depth: usize,
+    is_last: bool,
+    prefix: &str,
+    options: &TocRenderOptions,
+    state: &mut TreeState,
+) -> Result<bool> {
+    let name = &entry.title;
+    let lines_display = format!("[{}]", entry.lines).dimmed();
+
+    // Add blank line when jumping up levels (but not to H1 - H1 handles its own spacing)
+    if let Some(prev) = state.prev_depth {
+        if depth < prev && depth > 0 {
+            // Jumping up levels within H2+
+            if depth > 1 {
+                // H3+ has continuation pipes
+                let pipe_prefix = prefix.trim_end();
+                writeln!(writer, "{pipe_prefix}")?;
+            } else if depth == 1 {
+                // H2 level: show pipe if not last sibling
+                if is_last {
+                    writeln!(writer)?;
+                } else {
+                    writeln!(writer, "\u{2502}")?; // │
+                }
+            }
+        }
+    }
+
+    // H1s (depth 0) are left-aligned with no branch characters
+    if depth == 0 {
+        // Add blank line before H1 if previous H1 had visible children
+        if state.prev_h1_had_children {
+            writeln!(writer)?;
+        }
+        if options.show_anchors {
+            let anchor = entry.anchor.as_deref().unwrap_or("");
+            writeln!(writer, "{name} {lines_display} {}", anchor.bright_black())?;
+        } else {
+            writeln!(writer, "{name} {lines_display}")?;
+        }
+    } else {
+        // H2+ use tree structure
+        let branch = if is_last {
+            "\u{2514}\u{2500} "
+        } else {
+            "\u{251c}\u{2500} "
+        }; // └─ or ├─
+        if options.show_anchors {
+            let anchor = entry.anchor.as_deref().unwrap_or("");
+            writeln!(
+                writer,
+                "{prefix}{branch}{name} {lines_display} {}",
+                anchor.bright_black()
+            )?;
+        } else {
+            writeln!(writer, "{prefix}{branch}{name} {lines_display}")?;
+        }
+    }
+
+    state.count += 1;
+    state.prev_depth = Some(depth);
+
+    let mut had_visible_children = false;
+
+    // Render children
+    let new_prefix = if depth == 0 {
+        // For H1s, children don't get additional prefix since H1 is left-aligned
+        String::new()
+    } else {
+        format!(
+            "{}{}  ",
+            prefix,
+            if is_last { " " } else { "\u{2502}" } // │
+        )
+    };
+
+    for (i, child) in entry.children.iter().enumerate() {
+        let child_is_last = i == entry.children.len() - 1;
+        let child_printed = render_tree_entry(
+            writer,
+            child,
+            depth + 1,
+            child_is_last,
+            &new_prefix,
+            options,
+            state,
+        )?;
+        if child_printed {
+            had_visible_children = true;
+        }
+    }
+
+    // If this is an H1, update the flag for next H1
+    if depth == 0 {
+        state.prev_h1_had_children = had_visible_children;
+    }
+
+    Ok(true)
+}
+
+/// Render a hierarchical entry with indentation (non-tree mode).
+fn render_hierarchical_entry(
+    writer: &mut impl Write,
+    entry: &TocEntry,
+    depth: usize,
+    options: &TocRenderOptions,
+) -> Result<()> {
+    let name = &entry.title;
+    let indent = "  ".repeat(depth);
+    let lines_display = format!("[{}]", entry.lines).dimmed();
+
+    if options.show_anchors {
+        let anchor = entry.anchor.as_deref().unwrap_or("");
+        writeln!(
+            writer,
+            "{indent}- {name} {lines_display} {}",
+            anchor.bright_black()
+        )?;
+    } else {
+        writeln!(writer, "{indent}- {name} {lines_display}")?;
+    }
+
+    for child in &entry.children {
+        render_hierarchical_entry(writer, child, depth + 1, options)?;
+    }
+
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
 // Formatting Helpers
 // -----------------------------------------------------------------------------
 
@@ -511,7 +940,10 @@ fn format_number(n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output::shapes::{FilterStatsOutput, SourceStatus};
+    use crate::output::shapes::{
+        FilterStatsOutput, SourceStatus, TocEntry, TocMultiOutput, TocOutput, TocPaginatedEntry,
+        TocPaginatedOutput,
+    };
     use std::io::Cursor;
 
     fn sample_source() -> SourceSummary {
@@ -841,5 +1273,245 @@ mod tests {
         assert!(output.contains("Source: react"));
 
         Ok(())
+    }
+
+    // -------------------------------------------------------------------------
+    // TOC render tests
+    // -------------------------------------------------------------------------
+
+    fn sample_toc_entry() -> TocEntry {
+        TocEntry {
+            level: 1,
+            title: "Getting Started".to_string(),
+            lines: "1-50".to_string(),
+            anchor: Some("getting-started".to_string()),
+            heading_path: vec!["Getting Started".to_string()],
+            children: vec![
+                TocEntry {
+                    level: 2,
+                    title: "Installation".to_string(),
+                    lines: "10-30".to_string(),
+                    anchor: Some("installation".to_string()),
+                    heading_path: vec!["Getting Started".to_string(), "Installation".to_string()],
+                    children: vec![],
+                },
+                TocEntry {
+                    level: 2,
+                    title: "Quick Start".to_string(),
+                    lines: "31-50".to_string(),
+                    anchor: None,
+                    heading_path: vec!["Getting Started".to_string(), "Quick Start".to_string()],
+                    children: vec![],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_render_toc_text_hierarchical() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let options = TocRenderOptions::default();
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Table of contents for"));
+        assert!(output.contains("Getting Started"));
+        assert!(output.contains("Installation"));
+        assert!(output.contains("Quick Start"));
+        assert!(output.contains("[1-50]"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_text_tree_mode() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let options = TocRenderOptions {
+            tree_mode: true,
+            show_anchors: false,
+        };
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Getting Started"));
+        // Tree should contain box-drawing characters
+        assert!(output.contains("\u{251c}") || output.contains("\u{2514}")); // ├ or └
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_text_with_anchors() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let options = TocRenderOptions {
+            tree_mode: false,
+            show_anchors: true,
+        };
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("getting-started"));
+        assert!(output.contains("installation"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_json() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_json(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert_eq!(parsed["alias"], "react");
+        assert_eq!(parsed["totalEntries"], 3); // 1 parent + 2 children
+        assert!(parsed["entries"].is_array());
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_jsonl() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_jsonl(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 1); // One top-level entry
+
+        let first: serde_json::Value = serde_json::from_str(lines[0])?;
+        assert_eq!(first["title"], "Getting Started");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_paginated_text() -> Result<()> {
+        let entries = vec![TocPaginatedEntry {
+            alias: "react".to_string(),
+            source: "react".to_string(),
+            heading_path: vec!["Hooks".to_string(), "useEffect".to_string()],
+            raw_heading_path: vec![],
+            heading_path_normalized: vec![],
+            heading_level: 2,
+            lines: "100-150".to_string(),
+            anchor: None,
+        }];
+        let data = TocPaginatedOutput::new(entries, 1, 5, 100, Some(20));
+        let options = TocRenderOptions::default();
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_paginated_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("useEffect"));
+        assert!(output.contains("Page 1 of 5"));
+        assert!(output.contains("100 total results"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_paginated_json() -> Result<()> {
+        let data = TocPaginatedOutput::new(vec![], 2, 10, 200, Some(20));
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_paginated_json(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert_eq!(parsed["page"], 2);
+        assert_eq!(parsed["total_pages"], 10);
+        assert_eq!(parsed["total_results"], 200);
+        assert_eq!(parsed["page_size"], 20);
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_paginated_jsonl() -> Result<()> {
+        let entries = vec![TocPaginatedEntry {
+            alias: "react".to_string(),
+            source: "react".to_string(),
+            heading_path: vec!["Hooks".to_string()],
+            raw_heading_path: vec![],
+            heading_path_normalized: vec![],
+            heading_level: 1,
+            lines: "1-100".to_string(),
+            anchor: None,
+        }];
+        let data = TocPaginatedOutput::new(entries, 1, 1, 1, None);
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_paginated_jsonl(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2); // metadata + 1 entry
+
+        let metadata: serde_json::Value = serde_json::from_str(lines[0])?;
+        assert_eq!(metadata["page"], 1);
+
+        let entry: serde_json::Value = serde_json::from_str(lines[1])?;
+        assert_eq!(entry["alias"], "react");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_multi_text() -> Result<()> {
+        let react = TocOutput::new("react", vec![sample_toc_entry()]);
+        let bun = TocOutput::new(
+            "bun",
+            vec![TocEntry {
+                level: 1,
+                title: "Installation".to_string(),
+                lines: "1-30".to_string(),
+                anchor: None,
+                heading_path: vec!["Installation".to_string()],
+                children: vec![],
+            }],
+        );
+
+        let data = TocMultiOutput::new(vec![react, bun]);
+        let options = TocRenderOptions::default();
+        let mut buf = Cursor::new(Vec::new());
+        render_toc_multi_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("react"));
+        assert!(output.contains("bun"));
+        assert!(output.contains("Getting Started"));
+        assert!(output.contains("Installation"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_dispatcher() -> Result<()> {
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let shape: OutputShape = data.into();
+
+        // Test JSON through dispatcher
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Json, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+        assert_eq!(parsed["alias"], "react");
+
+        // Test text through dispatcher
+        let data = TocOutput::new("react", vec![sample_toc_entry()]);
+        let shape: OutputShape = data.into();
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Text, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Table of contents for"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_toc_raw_returns_error() {
+        let data = TocOutput::new("react", vec![]);
+        let shape: OutputShape = data.into();
+        let mut buf = Cursor::new(Vec::new());
+
+        let result = render(&shape, OutputFormat::Raw, &mut buf);
+        assert!(result.is_err());
     }
 }
