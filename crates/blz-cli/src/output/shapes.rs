@@ -1,5 +1,6 @@
-// TODO(BLZ-339): Remove dead_code allow once commands adopt these shapes.
+// Some shapes and methods await adoption by remaining commands (check, get/retrieve)
 #![allow(dead_code)]
+
 //! Shape-based output types for CLI commands.
 //!
 //! This module provides typed output shapes that commands can return,

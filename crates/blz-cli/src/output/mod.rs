@@ -81,7 +81,7 @@ mod text;
 // All code using `crate::output::OutputFormat` continues to work
 pub use crate::args::OutputFormat;
 pub use formatter::{FormatParams, SearchResultFormatter};
-// TODO(BLZ-339): Remove allow once commands adopt these shapes.
+// Some shapes await command adoption (check, get/retrieve commands not yet migrated)
 #[allow(unused_imports)]
 pub use shapes::{
     CheckOutput, CheckResult, GenericOutput, OutputShape, RetrieveOutput, RetrievedContent,
