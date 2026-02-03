@@ -938,285 +938,395 @@ fn retrieve_snippet(
     })
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Find action decomposition: intermediate result types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Validated parameters for Search action.
+struct ValidatedSearchParams<'a> {
+    query: &'a str,
+    max_results: usize,
+    headings_only: bool,
+    sources_to_search: Vec<String>,
+}
+
+/// Validated parameters for Get action.
+struct ValidatedGetParams<'a> {
+    citations: &'a [String],
+    context_mode: &'a str,
+    line_padding: u32,
+    max_lines: Option<usize>,
+}
+
+/// Validated parameters for Toc action.
+struct ValidatedTocParams {
+    source: String,
+    filter: HeadingLevelFilter,
+    levels: Vec<usize>,
+    tree: bool,
+    max_depth: Option<usize>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Find action decomposition: validation functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Validate and prepare search parameters.
+async fn validate_search_params<'a>(
+    params: &'a FindParams,
+    storage: &Storage,
+    index_cache: &IndexCache,
+) -> McpResult<ValidatedSearchParams<'a>> {
+    let query = params
+        .query
+        .as_ref()
+        .ok_or_else(|| crate::error::McpError::MissingParameter("query".to_string()))?;
+    if query.trim().is_empty() {
+        return Err(crate::error::McpError::InvalidParams(
+            "query cannot be empty".to_string(),
+        ));
+    }
+
+    let max_results = params.max_results.unwrap_or(DEFAULT_MAX_RESULTS);
+    if max_results == 0 {
+        return Err(crate::error::McpError::InvalidParams(
+            "max_results must be >= 1".to_string(),
+        ));
+    }
+    if max_results > MAX_ALLOWED_RESULTS {
+        return Err(crate::error::McpError::InvalidParams(format!(
+            "max_results {max_results} exceeds limit of {MAX_ALLOWED_RESULTS}"
+        )));
+    }
+
+    let headings_only = params.headings_only.unwrap_or(false);
+    let sources_to_search = resolve_search_sources(params, storage, index_cache).await?;
+
+    Ok(ValidatedSearchParams {
+        query,
+        max_results,
+        headings_only,
+        sources_to_search,
+    })
+}
+
+/// Resolve which sources to search based on filter and available sources.
+async fn resolve_search_sources(
+    params: &FindParams,
+    storage: &Storage,
+    index_cache: &IndexCache,
+) -> McpResult<Vec<String>> {
+    let mut sources = params
+        .source
+        .as_ref()
+        .and_then(SourceFilter::sources)
+        .unwrap_or_else(|| storage.list_sources());
+
+    if sources.is_empty() {
+        if params.source.is_none() {
+            let cache_read = index_cache.read().await;
+            let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
+            drop(cache_read);
+
+            if cached_sources.is_empty() {
+                let available = storage.list_sources();
+                return Err(crate::error::McpError::Internal(format!(
+                    "No sources available to search. Available sources: {available:?}"
+                )));
+            }
+            sources = cached_sources;
+        } else {
+            let available = storage.list_sources();
+            return Err(crate::error::McpError::Internal(format!(
+                "No sources available to search for filter {:?}. Available sources: {available:?}",
+                params.source.as_ref()
+            )));
+        }
+    }
+
+    Ok(sources)
+}
+
+/// Validate get (snippet retrieval) parameters.
+fn validate_get_params(params: &FindParams) -> McpResult<ValidatedGetParams<'_>> {
+    let citations = params
+        .snippets
+        .as_ref()
+        .ok_or_else(|| crate::error::McpError::MissingParameter("snippets".to_string()))?;
+
+    if citations.is_empty() {
+        return Err(crate::error::McpError::InvalidParams(
+            "snippets cannot be empty".to_string(),
+        ));
+    }
+
+    let line_padding = params.context.unwrap_or(0);
+    if line_padding > MAX_LINE_PADDING {
+        return Err(crate::error::McpError::InvalidPadding(line_padding));
+    }
+
+    let context_mode = params.context_mode.as_deref().unwrap_or("none");
+    let valid_context_modes = ["none", "symmetric", "all"];
+    if !valid_context_modes.contains(&context_mode) {
+        return Err(crate::error::McpError::InvalidParams(format!(
+            "Invalid context mode: {context_mode}. Must be one of: {valid_context_modes:?}"
+        )));
+    }
+
+    Ok(ValidatedGetParams {
+        citations,
+        context_mode,
+        line_padding,
+        max_lines: params.max_lines,
+    })
+}
+
+/// Validate TOC retrieval parameters.
+fn validate_toc_params(params: &FindParams) -> McpResult<ValidatedTocParams> {
+    let source = match params.source.as_ref() {
+        Some(SourceFilter::Single(alias)) if alias != "all" => alias.clone(),
+        Some(SourceFilter::Single(_)) => {
+            return Err(crate::error::McpError::InvalidParams(
+                "TOC requires a single source alias, not 'all'".to_string(),
+            ));
+        },
+        Some(SourceFilter::Multiple(_)) => {
+            return Err(crate::error::McpError::InvalidParams(
+                "TOC requires a single source alias".to_string(),
+            ));
+        },
+        None => {
+            return Err(crate::error::McpError::MissingParameter(
+                "source".to_string(),
+            ));
+        },
+    };
+
+    if params.max_depth.is_some_and(|depth| depth == 0) {
+        return Err(crate::error::McpError::InvalidParams(
+            "max_depth must be >= 1".to_string(),
+        ));
+    }
+
+    let (filter, levels) = parse_heading_filter(params.headings.as_deref())?;
+    let tree = params.tree.unwrap_or(false);
+
+    Ok(ValidatedTocParams {
+        source,
+        filter,
+        levels,
+        tree,
+        max_depth: params.max_depth,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Find action decomposition: execution functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Execute search across multiple sources and merge results.
+async fn execute_multi_source_search(
+    validated: &ValidatedSearchParams<'_>,
+    storage: &Storage,
+    index_cache: &IndexCache,
+) -> Vec<SearchHitResult> {
+    tracing::debug!(
+        query = validated.query,
+        sources = ?validated.sources_to_search,
+        count = validated.sources_to_search.len(),
+        "searching sources"
+    );
+
+    let source_count = validated.sources_to_search.len().max(1);
+    let estimated_capacity = validated
+        .max_results
+        .saturating_mul(source_count)
+        .min(MAX_ALLOWED_RESULTS);
+    let mut all_hits = Vec::with_capacity(estimated_capacity.max(validated.max_results));
+
+    for source in &validated.sources_to_search {
+        let index = match cache::get_or_load_index(index_cache, storage, source).await {
+            Ok(idx) => idx,
+            Err(e) => {
+                tracing::warn!(source, error = %e, "failed to load index, skipping source");
+                continue;
+            },
+        };
+
+        match execute_search(
+            &index,
+            validated.query,
+            Some(source),
+            validated.max_results,
+            validated.headings_only,
+        )
+        .await
+        {
+            Ok(hits) => all_hits.extend(hits),
+            Err(e) => {
+                tracing::warn!(source, error = %e, "search failed for source, skipping");
+            },
+        }
+    }
+
+    // Sort by score descending and truncate
+    all_hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    all_hits.truncate(validated.max_results);
+
+    tracing::debug!(
+        count = all_hits.len(),
+        sources_searched = validated.sources_to_search.len(),
+        "search completed"
+    );
+
+    all_hits
+}
+
+/// Execute snippet retrieval for all citations.
+fn execute_snippet_retrieval(
+    validated: &ValidatedGetParams<'_>,
+    storage: &Storage,
+) -> McpResult<Vec<SnippetResult>> {
+    tracing::debug!(count = validated.citations.len(), "retrieving snippets");
+
+    let mut results = Vec::with_capacity(validated.citations.len());
+
+    for citation in validated.citations {
+        let (source, ranges) =
+            parse_citation(citation).map_err(crate::error::McpError::InvalidCitation)?;
+
+        for (start, end) in ranges {
+            let snippet = retrieve_snippet(
+                storage,
+                &source,
+                start,
+                end,
+                validated.context_mode,
+                validated.line_padding,
+                validated.max_lines,
+            )?;
+            results.push(snippet);
+        }
+    }
+
+    tracing::debug!(count = results.len(), "snippets retrieved");
+    Ok(results)
+}
+
+/// Execute TOC retrieval for a source.
+fn execute_toc_retrieval(
+    validated: &ValidatedTocParams,
+    storage: &Storage,
+) -> McpResult<TocOutput> {
+    let llms_json = storage.load_llms_json(&validated.source)?;
+
+    let entries = if validated.tree {
+        build_toc_tree(
+            &llms_json.toc,
+            validated.filter,
+            &validated.levels,
+            validated.max_depth,
+        )
+    } else {
+        build_toc_flat(
+            &llms_json.toc,
+            validated.filter,
+            &validated.levels,
+            validated.max_depth,
+        )
+    };
+
+    Ok(TocOutput {
+        source: validated.source.clone(),
+        entries,
+        tree: validated.tree,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main find handler (orchestrator)
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Main handler for find tool
 #[tracing::instrument(skip(storage, index_cache))]
-#[allow(clippy::too_many_lines)] // Complex search logic with validation, caching, and multi-source merging
 pub async fn handle_find(
     params: FindParams,
     storage: &Storage,
     index_cache: &IndexCache,
 ) -> McpResult<FindOutput> {
     let include_timing = params.include_timing.unwrap_or(false);
-    let start_time = if include_timing {
-        Some(Instant::now())
-    } else {
-        None
-    };
+    let start_time = include_timing.then(Instant::now);
     let mut component_times: HashMap<String, u64> = HashMap::new();
 
     let action = resolve_action(&params)?;
     let format = params.format.unwrap_or_default();
 
-    let mut search_results = None;
-    let mut snippet_results = None;
-    let mut toc = None;
-    let mut executed = FindExecuted {
-        search_executed: false,
-        snippets_executed: false,
-        toc_executed: false,
-    };
-
-    match action {
+    // Execute the appropriate action using decomposed functions
+    let (mut search_results, mut snippet_results, toc, executed) = match action {
         FindAction::Search => {
             let action_start = include_timing.then(Instant::now);
-
-            let query = params
-                .query
-                .as_ref()
-                .ok_or_else(|| crate::error::McpError::MissingParameter("query".to_string()))?;
-            if query.trim().is_empty() {
-                return Err(crate::error::McpError::InvalidParams(
-                    "query cannot be empty".to_string(),
-                ));
+            let validated = validate_search_params(&params, storage, index_cache).await?;
+            let results = execute_multi_source_search(&validated, storage, index_cache).await;
+            if let Some(start) = action_start {
+                component_times.insert("search".to_string(), millis_as_u64(start.elapsed()));
             }
-
-            let max_results = params.max_results.unwrap_or(DEFAULT_MAX_RESULTS);
-            if max_results == 0 {
-                return Err(crate::error::McpError::InvalidParams(
-                    "max_results must be >= 1".to_string(),
-                ));
-            }
-            if max_results > MAX_ALLOWED_RESULTS {
-                return Err(crate::error::McpError::InvalidParams(format!(
-                    "max_results {max_results} exceeds limit of {MAX_ALLOWED_RESULTS}"
-                )));
-            }
-
-            let headings_only = params.headings_only.unwrap_or(false);
-
-            tracing::debug!(query, source = ?params.source, "executing search");
-
-            // Determine which sources to search
-            let mut sources_to_search = params
-                .source
-                .as_ref()
-                .and_then(SourceFilter::sources)
-                .unwrap_or_else(|| storage.list_sources());
-
-            // Validate we have sources to search
-            // If no sources are available from storage but we're searching all,
-            // fall back to sources in the cache
-            if sources_to_search.is_empty() {
-                if params.source.is_none() {
-                    let cache_read = index_cache.read().await;
-                    let cached_sources: Vec<String> = cache_read.keys().cloned().collect();
-                    drop(cache_read);
-
-                    if cached_sources.is_empty() {
-                        let available = storage.list_sources();
-                        return Err(crate::error::McpError::Internal(format!(
-                            "No sources available to search. Available sources: {available:?}"
-                        )));
-                    }
-
-                    sources_to_search = cached_sources;
-                } else {
-                    let available = storage.list_sources();
-                    return Err(crate::error::McpError::Internal(format!(
-                        "No sources available to search for filter {:?}. Available sources: {available:?}",
-                        params.source.as_ref()
-                    )));
-                }
-            }
-
-            tracing::debug!(
-                sources = ?sources_to_search,
-                count = sources_to_search.len(),
-                "searching sources"
-            );
-
-            // Search across all specified sources and merge results
-            let source_count = sources_to_search.len().max(1);
-            let estimated_capacity = max_results
-                .saturating_mul(source_count)
-                .min(MAX_ALLOWED_RESULTS);
-            let mut all_hits = Vec::with_capacity(estimated_capacity.max(max_results));
-
-            for source in &sources_to_search {
-                // Get or load the index for this source
-                let index = match cache::get_or_load_index(index_cache, storage, source).await {
-                    Ok(idx) => idx,
-                    Err(e) => {
-                        tracing::warn!(
-                            source,
-                            error = %e,
-                            "failed to load index, skipping source"
-                        );
-                        continue;
-                    },
-                };
-
-                // Search this index (it already filters by alias internally)
-                match execute_search(&index, query, Some(source), max_results, headings_only).await
-                {
-                    Ok(hits) => {
-                        all_hits.extend(hits);
-                    },
-                    Err(e) => {
-                        tracing::warn!(
-                            source,
-                            error = %e,
-                            "search failed for source, skipping"
-                        );
-                    },
-                }
-            }
-
-            // Sort merged results by score (descending) and limit
-            all_hits.sort_by(|a, b| {
-                b.score
-                    .partial_cmp(&a.score)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            all_hits.truncate(max_results);
-
-            tracing::debug!(
-                count = all_hits.len(),
-                sources_searched = sources_to_search.len(),
-                "search completed"
-            );
-            search_results = Some(all_hits);
-            executed.search_executed = true;
-
-            if let Some(action_start) = action_start {
-                component_times.insert("search".to_string(), millis_as_u64(action_start.elapsed()));
-            }
+            (
+                Some(results),
+                None,
+                None,
+                FindExecuted {
+                    search_executed: true,
+                    snippets_executed: false,
+                    toc_executed: false,
+                },
+            )
         },
         FindAction::Get => {
             let action_start = include_timing.then(Instant::now);
-
-            let citations = params
-                .snippets
-                .as_ref()
-                .ok_or_else(|| crate::error::McpError::MissingParameter("snippets".to_string()))?;
-
-            if citations.is_empty() {
-                return Err(crate::error::McpError::InvalidParams(
-                    "snippets cannot be empty".to_string(),
-                ));
+            let validated = validate_get_params(&params)?;
+            let results = execute_snippet_retrieval(&validated, storage)?;
+            if let Some(start) = action_start {
+                component_times.insert("get".to_string(), millis_as_u64(start.elapsed()));
             }
-
-            let line_padding = params.context.unwrap_or(0);
-            if line_padding > MAX_LINE_PADDING {
-                return Err(crate::error::McpError::InvalidPadding(line_padding));
-            }
-
-            let context_mode = params.context_mode.as_deref().unwrap_or("none");
-            let valid_context_modes = ["none", "symmetric", "all"];
-            if !valid_context_modes.contains(&context_mode) {
-                return Err(crate::error::McpError::InvalidParams(format!(
-                    "Invalid context mode: {context_mode}. Must be one of: {valid_context_modes:?}"
-                )));
-            }
-
-            tracing::debug!(count = citations.len(), "retrieving snippets");
-
-            let mut results = Vec::with_capacity(citations.len());
-
-            for citation in citations {
-                let (source, ranges) =
-                    parse_citation(citation).map_err(crate::error::McpError::InvalidCitation)?;
-
-                for (start, end) in ranges {
-                    let snippet = retrieve_snippet(
-                        storage,
-                        &source,
-                        start,
-                        end,
-                        context_mode,
-                        line_padding,
-                        params.max_lines,
-                    )?;
-                    results.push(snippet);
-                }
-            }
-
-            tracing::debug!(count = results.len(), "snippets retrieved");
-            snippet_results = Some(results);
-            executed.snippets_executed = true;
-
-            if let Some(action_start) = action_start {
-                component_times.insert("get".to_string(), millis_as_u64(action_start.elapsed()));
-            }
+            (
+                None,
+                Some(results),
+                None,
+                FindExecuted {
+                    search_executed: false,
+                    snippets_executed: true,
+                    toc_executed: false,
+                },
+            )
         },
         FindAction::Toc => {
             let action_start = include_timing.then(Instant::now);
-
-            let source = match params.source.as_ref() {
-                Some(SourceFilter::Single(alias)) if alias != "all" => alias.clone(),
-                Some(SourceFilter::Single(_)) => {
-                    return Err(crate::error::McpError::InvalidParams(
-                        "TOC requires a single source alias, not 'all'".to_string(),
-                    ));
-                },
-                Some(SourceFilter::Multiple(_)) => {
-                    return Err(crate::error::McpError::InvalidParams(
-                        "TOC requires a single source alias".to_string(),
-                    ));
-                },
-                None => {
-                    return Err(crate::error::McpError::MissingParameter(
-                        "source".to_string(),
-                    ));
-                },
-            };
-
-            if params.max_depth.is_some_and(|depth| depth == 0) {
-                return Err(crate::error::McpError::InvalidParams(
-                    "max_depth must be >= 1".to_string(),
-                ));
+            let validated = validate_toc_params(&params)?;
+            let toc_output = execute_toc_retrieval(&validated, storage)?;
+            if let Some(start) = action_start {
+                component_times.insert("toc".to_string(), millis_as_u64(start.elapsed()));
             }
-
-            let llms_json = storage.load_llms_json(&source)?;
-            let (filter, levels) = parse_heading_filter(params.headings.as_deref())?;
-            let tree = params.tree.unwrap_or(false);
-
-            let entries = if tree {
-                build_toc_tree(&llms_json.toc, filter, &levels, params.max_depth)
-            } else {
-                build_toc_flat(&llms_json.toc, filter, &levels, params.max_depth)
-            };
-
-            toc = Some(TocOutput {
-                source,
-                entries,
-                tree,
-            });
-            executed.toc_executed = true;
-
-            if let Some(action_start) = action_start {
-                component_times.insert("toc".to_string(), millis_as_u64(action_start.elapsed()));
-            }
+            (
+                None,
+                None,
+                Some(toc_output),
+                FindExecuted {
+                    search_executed: false,
+                    snippets_executed: false,
+                    toc_executed: true,
+                },
+            )
         },
-    }
+    };
 
+    // Apply formatting if requested
     if matches!(format, ResponseFormat::Concise) {
         apply_concise_format(&mut search_results, &mut snippet_results);
     }
-
-    // Build timing output if requested
-    let timings = start_time.map(|start| {
-        let total_ms = millis_as_u64(start.elapsed());
-        let components = if component_times.is_empty() {
-            None
-        } else {
-            Some(component_times)
-        };
-        TimingOutput {
-            total_ms,
-            components,
-        }
-    });
 
     Ok(FindOutput {
         action,
@@ -1224,7 +1334,18 @@ pub async fn handle_find(
         snippet_results,
         toc,
         executed,
-        timings,
+        timings: start_time.map(|start| {
+            let total_ms = millis_as_u64(start.elapsed());
+            let components = if component_times.is_empty() {
+                None
+            } else {
+                Some(component_times)
+            };
+            TimingOutput {
+                total_ms,
+                components,
+            }
+        }),
     })
 }
 
