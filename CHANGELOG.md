@@ -8,6 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release-please will manage this file after the migration lands. Archived
 pre-cutover notes live in `docs/release/next-release-notes.md`.
 
+## [2.3.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.2.0-beta.1...v2.3.0-beta.1) (2026-02-03)
+
+
+### Features
+
+* **cli:** add unified output renderer and shape types (#BLZ-339) ([#536](https://github.com/outfitter-dev/blz/issues/536)) ([112f1d1](https://github.com/outfitter-dev/blz/commit/112f1d1fa803bef8daa9a746ac87782e27e040c2))
+
+
+### Bug Fixes
+
+* **cli:** allow flags before positional arguments in query command ([c5e80e1](https://github.com/outfitter-dev/blz/commit/c5e80e15f5af665929bf10b5d8caa522dbb08bcd))
+
+
+### Refactoring
+
+* **cli,core:** simplify output and refresh signatures (#BLZ-362) ([#532](https://github.com/outfitter-dev/blz/issues/532)) ([7c47778](https://github.com/outfitter-dev/blz/commit/7c477783a31ae7a2a6d5f24bdf95cc4ed7b13daf))
+* **cli:** add config structs and refactor query.rs (#BLZ-362) ([#529](https://github.com/outfitter-dev/blz/issues/529)) ([91f2dab](https://github.com/outfitter-dev/blz/commit/91f2dab45f1fbdd9b0c8e660df833d0272d11d33))
+* **cli:** extract deprecated command Args to modules ([4d4b5aa](https://github.com/outfitter-dev/blz/commit/4d4b5aa8cb80d6c316f65b4828ff5c9db714886b))
+* **cli:** extract logging and profiling utils (#BLZ-394) ([#524](https://github.com/outfitter-dev/blz/issues/524)) ([c016c2e](https://github.com/outfitter-dev/blz/commit/c016c2eba7fd2c3cfead1795408b4b4ac8bf423d))
+* **cli:** extract ShowComponent to args/show.rs ([#520](https://github.com/outfitter-dev/blz/issues/520)) ([8b0c913](https://github.com/outfitter-dev/blz/commit/8b0c913f6dd798f7bb93f47f1a768740d12111b3))
+* **cli:** final cleanup - extract remaining types to modules ([#523](https://github.com/outfitter-dev/blz/issues/523)) ([4d4b5aa](https://github.com/outfitter-dev/blz/commit/4d4b5aa8cb80d6c316f65b4828ff5c9db714886b))
+* **cli:** final cleanup - remaining argument suppressions (#BLZ-362) ([#533](https://github.com/outfitter-dev/blz/issues/533)) ([2aa7e51](https://github.com/outfitter-dev/blz/commit/2aa7e51cf52e384366165bee16246fdb1a1d574a))
+* **cli:** migrate Args structs to command modules ([#522](https://github.com/outfitter-dev/blz/issues/522)) ([088f3a7](https://github.com/outfitter-dev/blz/commit/088f3a7e95464a5c2febcad9189b7f5486fd3e3c))
+* **cli:** migrate info command to shape-based output (#BLZ-339) ([#538](https://github.com/outfitter-dev/blz/issues/538)) ([a596c4d](https://github.com/outfitter-dev/blz/commit/a596c4d75b61970ced240522434aeeca4289118b))
+* **cli:** migrate list command to shape-based output (#BLZ-339) ([#537](https://github.com/outfitter-dev/blz/issues/537)) ([cfb7cd7](https://github.com/outfitter-dev/blz/commit/cfb7cd77a58708da9f827708bbbd362c3094c7d2))
+* **cli:** migrate map/toc commands to shape-based output (#BLZ-339) ([#539](https://github.com/outfitter-dev/blz/issues/539)) ([c214fd3](https://github.com/outfitter-dev/blz/commit/c214fd3297cee82a1701053493372b75f02ded6a))
+* **cli:** migrate query command to shape-based output (#BLZ-339) ([#540](https://github.com/outfitter-dev/blz/issues/540)) ([7ed5d16](https://github.com/outfitter-dev/blz/commit/7ed5d166829c3fad4fae4c4b40d0f1b963f69081))
+* **cli:** move docs and claude-plugin types to commands/ ([4d4b5aa](https://github.com/outfitter-dev/blz/commit/4d4b5aa8cb80d6c316f65b4828ff5c9db714886b))
+* **cli:** move get dispatch/handle to commands/ (#BLZ-395) ([#525](https://github.com/outfitter-dev/blz/issues/525)) ([faddb53](https://github.com/outfitter-dev/blz/commit/faddb53bf9158df0d1397994d14ffb342afee8cd))
+* **cli:** move remaining dispatch functions (#BLZ-398) ([#528](https://github.com/outfitter-dev/blz/issues/528)) ([e6493a6](https://github.com/outfitter-dev/blz/commit/e6493a6c5e0a0aa34809aa4015648064ed8c150f))
+* **cli:** move search/find to commands/ (#BLZ-396) ([#526](https://github.com/outfitter-dev/blz/issues/526)) ([54d0f98](https://github.com/outfitter-dev/blz/commit/54d0f98b00f461f4364aad7bd442109da90d0314))
+* **cli:** move sub-enums to commands/ ([#521](https://github.com/outfitter-dev/blz/issues/521)) ([2f32c6f](https://github.com/outfitter-dev/blz/commit/2f32c6facdd3fb727cb31d06fc0605cc5afcafd2))
+* **cli:** move toc/map to commands/ (#BLZ-397) ([#527](https://github.com/outfitter-dev/blz/issues/527)) ([4d51297](https://github.com/outfitter-dev/blz/commit/4d51297071b8611639aca4fe8582d67b7f771e3c))
+* **cli:** remove duplicate ContextMode from cli.rs ([#519](https://github.com/outfitter-dev/blz/issues/519)) ([640bc09](https://github.com/outfitter-dev/blz/commit/640bc09807881d362f0399e0b05a9cbb6178e7b0))
+* **cli:** simplify find and search execute signatures (#BLZ-362) ([#530](https://github.com/outfitter-dev/blz/issues/530)) ([8ea9396](https://github.com/outfitter-dev/blz/commit/8ea939617846422fe634d39e8646870624867ced))
+* **cli:** simplify toc/map/get/sync execute signatures (#BLZ-362) ([#531](https://github.com/outfitter-dev/blz/issues/531)) ([8638f82](https://github.com/outfitter-dev/blz/commit/8638f82d0e310e069401ac88f4d2925be1a12751))
+* **mcp:** decompose handle_find into focused functions ([#535](https://github.com/outfitter-dev/blz/issues/535)) ([89f22f0](https://github.com/outfitter-dev/blz/commit/89f22f0c24f34a2a9fe7941e8bf3704d016fbf79))
+* **mcp:** decompose run_health_checks into focused functions ([#534](https://github.com/outfitter-dev/blz/issues/534)) ([d1dec5c](https://github.com/outfitter-dev/blz/commit/d1dec5ca6ea4edc78056f771971c38b82fe0fb31))
+
 ## [2.2.0-beta.1](https://github.com/outfitter-dev/blz/compare/v2.1.0-beta.1...v2.2.0-beta.1) (2026-01-30)
 
 
