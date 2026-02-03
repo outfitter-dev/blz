@@ -12,17 +12,22 @@
 //! blz query "error handling" -H 2,3 --json
 //! ```
 
+use std::io;
+
 use anyhow::{Result, bail};
+use blz_core::numeric::percent_to_u8;
+use blz_core::{PerformanceMetrics, ResourceMonitor, SearchHit};
 use clap::Args;
 
 use crate::args::{ContextMode, ShowComponent};
 use crate::config::{
     ContentConfig, DisplayConfig, QueryExecutionConfig, SearchConfig, SnippetConfig,
 };
+use crate::output::shapes::{ContextInfo, SearchHitOutput, SearchOutput};
+use crate::output::{OutputFormat, SearchRenderOptions, render_search_with_options};
 use crate::utils::cli_args::FormatArg;
 use crate::utils::heading_filter::HeadingLevelFilter;
 use crate::utils::preferences::CliPreferences;
-use blz_core::{PerformanceMetrics, ResourceMonitor};
 
 /// Arguments for `blz query` (full-text search, rejects citations).
 #[derive(Args, Clone, Debug)]
@@ -196,8 +201,7 @@ pub struct QueryArgs {
 
 use super::search::{
     ALL_RESULTS_LIMIT, DEFAULT_SCORE_PRECISION, SearchOptions, SearchResults, clamp_max_chars,
-    copy_results_to_clipboard, default_search_limit, format_and_display, perform_search,
-    resolve_show_components,
+    copy_results_to_clipboard, default_search_limit, perform_search, resolve_show_components,
 };
 
 /// Detect if input looks like a citation pattern: `alias:digits-digits`
@@ -453,6 +457,203 @@ fn record_search_history(
     }
 }
 
+// -----------------------------------------------------------------------------
+// Shape-Based Output Conversion
+// -----------------------------------------------------------------------------
+
+/// Convert a `SearchHit` to `SearchHitOutput` with percentage scoring.
+fn convert_hit_to_output(
+    hit: &SearchHit,
+    max_score: f32,
+    context_applied: usize,
+) -> SearchHitOutput {
+    // Calculate percentage score
+    let percent = if max_score > 0.0 {
+        f64::from(hit.score) / f64::from(max_score) * 100.0
+    } else {
+        0.0
+    };
+    let score_percentage = percent_to_u8(percent);
+
+    // Convert context if present
+    let context = hit.context.as_ref().map(|ctx| {
+        let mut info = ContextInfo::new(context_applied, &ctx.lines)
+            .with_line_numbers(ctx.line_numbers.clone());
+        if !ctx.content.is_empty() {
+            info = info.with_content(&ctx.content);
+        }
+        if let Some(truncated) = ctx.truncated {
+            info = info.with_truncated(truncated);
+        }
+        info
+    });
+
+    SearchHitOutput {
+        alias: hit.source.clone(),
+        lines: hit.lines.clone(),
+        snippet: hit.snippet.clone(),
+        score: score_percentage,
+        raw_score: Some(hit.score),
+        heading_path: hit.heading_path.clone(),
+        level: hit.level,
+        anchor: hit.anchor.clone(),
+        source_url: hit.source_url.clone(),
+        fetched_at: hit.fetched_at,
+        is_stale: hit.is_stale,
+        checksum: hit.checksum.clone(),
+        context,
+    }
+}
+
+/// Build `SearchOutput` from `SearchResults` with pagination.
+fn build_search_output(
+    results: &SearchResults,
+    options: &SearchOptions,
+    page: usize,
+    page_size: usize,
+    total_pages: usize,
+    page_hits: &[SearchHit],
+) -> SearchOutput {
+    // Get max score for percentage calculation
+    let max_score = results.hits.first().map_or(0.0, |h| h.score);
+
+    // Calculate context_applied from options (use max of before/after for asymmetric context)
+    let context_applied = options.before_context.max(options.after_context);
+
+    // Convert hits to output format
+    let hit_outputs: Vec<SearchHitOutput> = page_hits
+        .iter()
+        .map(|hit| convert_hit_to_output(hit, max_score, context_applied))
+        .collect();
+
+    SearchOutput::builder(&options.query, hit_outputs)
+        .total_results(results.hits.len())
+        .total_lines_searched(results.total_lines_searched)
+        .search_time(results.search_time)
+        .sources(results.sources.clone())
+        .page(page)
+        .page_size(page_size)
+        .total_pages(total_pages)
+        .build()
+}
+
+/// Build `SearchRenderOptions` from `SearchOptions`.
+fn build_render_options(
+    options: &SearchOptions,
+    page: usize,
+    total_pages: usize,
+    per_page: usize,
+) -> SearchRenderOptions {
+    SearchRenderOptions {
+        query: options.query.clone(),
+        show_url: options.show_url,
+        show_lines: options.show_lines,
+        show_anchor: options.show_anchor,
+        show_raw_score: options.show_raw_score,
+        no_summary: options.no_summary,
+        score_precision: options.score_precision.unwrap_or(DEFAULT_SCORE_PRECISION),
+        snippet_lines: usize::from(options.snippet_lines.max(1)),
+        page,
+        total_pages,
+        per_page,
+    }
+}
+
+/// Calculate pagination values from search results.
+fn calculate_pagination(results: &SearchResults, options: &SearchOptions) -> (usize, usize, usize) {
+    let total_results = results.hits.len();
+
+    // Calculate effective limit
+    let actual_limit = if options.limit >= ALL_RESULTS_LIMIT {
+        results.hits.len().max(1)
+    } else {
+        options.limit.max(1)
+    };
+
+    // Calculate total pages
+    let total_pages = if total_results == 0 {
+        0
+    } else {
+        total_results.div_ceil(actual_limit)
+    };
+
+    // Determine page number
+    let page = if options.last {
+        total_pages.max(1)
+    } else {
+        options.page.clamp(1, total_pages.max(1))
+    };
+
+    (page, actual_limit, total_pages)
+}
+
+/// Render search results using shape-based output.
+fn render_search_results(
+    results: &SearchResults,
+    options: &SearchOptions,
+) -> Result<(usize, usize, usize, usize)> {
+    let (page, actual_limit, total_pages) = calculate_pagination(results, options);
+    let total_results = results.hits.len();
+
+    // Handle empty results
+    if total_results == 0 {
+        let output = SearchOutput::builder(&options.query, vec![])
+            .total_results(0)
+            .total_lines_searched(results.total_lines_searched)
+            .search_time(results.search_time)
+            .sources(results.sources.clone())
+            .page(0)
+            .page_size(actual_limit)
+            .total_pages(0)
+            .build();
+
+        let render_options = build_render_options(options, 0, 0, actual_limit);
+        let mut stdout = io::stdout();
+        render_search_with_options(&output, options.format, &render_options, &mut stdout)?;
+        return Ok((0, actual_limit, total_pages, total_results));
+    }
+
+    // Calculate slice for current page
+    let start_idx = (page - 1) * actual_limit;
+    let end_idx = (start_idx + actual_limit).min(total_results);
+
+    // Handle out-of-range page
+    if start_idx >= total_results {
+        if matches!(options.format, OutputFormat::Text) {
+            eprintln!(
+                "Page {} is beyond available results (Page {} of {})",
+                options.page, page, total_pages
+            );
+            eprintln!("Tip: use --last to jump to the final page.");
+        }
+        // Show empty output for out-of-range
+        let output = SearchOutput::builder(&options.query, vec![])
+            .total_results(total_results)
+            .total_lines_searched(results.total_lines_searched)
+            .search_time(results.search_time)
+            .sources(results.sources.clone())
+            .page(page)
+            .page_size(actual_limit)
+            .total_pages(total_pages)
+            .build();
+
+        let render_options = build_render_options(options, page, total_pages, actual_limit);
+        let mut stdout = io::stdout();
+        render_search_with_options(&output, options.format, &render_options, &mut stdout)?;
+        return Ok((page, actual_limit, total_pages, total_results));
+    }
+
+    // Normal case: render current page
+    let page_hits = &results.hits[start_idx..end_idx];
+    let output = build_search_output(results, options, page, actual_limit, total_pages, page_hits);
+
+    let render_options = build_render_options(options, page, total_pages, actual_limit);
+    let mut stdout = io::stdout();
+    render_search_with_options(&output, options.format, &render_options, &mut stdout)?;
+
+    Ok((page, actual_limit, total_pages, total_results))
+}
+
 /// Internal search execution (no citation check)
 ///
 /// This is the core search logic that can be called by both `query` and the
@@ -471,8 +672,9 @@ pub(super) async fn execute_internal(
 
     apply_heading_filter(&mut results, config.search.heading_filter.as_ref());
 
-    let ((page, actual_limit, total_pages), total_results) =
-        format_and_display(&results, &options)?;
+    // Use shape-based output rendering
+    let (page, actual_limit, total_pages, total_results) =
+        render_search_results(&results, &options)?;
 
     if options.copy && !results.hits.is_empty() {
         copy_results_to_clipboard(&results, page, actual_limit)?;

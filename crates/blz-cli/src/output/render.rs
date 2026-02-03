@@ -38,10 +38,10 @@ use blz_core::numeric::{format_bytes, safe_percentage};
 
 use super::OutputFormat;
 use super::shapes::{
-    OutputShape, SourceInfoOutput, SourceListOutput, SourceSummary, TocEntry, TocMultiOutput,
-    TocOutput, TocPaginatedEntry, TocPaginatedOutput, TocRenderOptions,
+    OutputShape, SearchHitOutput, SearchOutput, SourceInfoOutput, SourceListOutput, SourceSummary,
+    TocEntry, TocMultiOutput, TocOutput, TocPaginatedEntry, TocPaginatedOutput, TocRenderOptions,
 };
-use crate::utils::formatting::get_alias_color;
+use crate::utils::formatting::{format_heading_path, get_alias_color, terminal_width};
 
 /// Render an [`OutputShape`] to the given writer in the specified format.
 ///
@@ -117,6 +117,14 @@ pub fn render(shape: &OutputShape, format: OutputFormat, writer: &mut impl Write
             OutputFormat::Raw,
         ) => render_toc_raw_error(writer),
 
+        // Search output - text uses default options, JSON/JSONL work directly
+        (OutputShape::Search(data), OutputFormat::Text) => {
+            render_search_text(data, &SearchRenderOptions::default(), writer)
+        },
+        (OutputShape::Search(data), OutputFormat::Json) => render_search_json(data, writer),
+        (OutputShape::Search(data), OutputFormat::Jsonl) => render_search_jsonl(data, writer),
+        (OutputShape::Search(data), OutputFormat::Raw) => render_search_raw(data, writer),
+
         // Fallback: serialize as JSON for shape/format combinations without custom renderers
         _ => {
             let json = serde_json::to_string_pretty(shape)?;
@@ -136,6 +144,76 @@ pub struct SourceListRenderOptions {
     pub show_status: bool,
     /// Show detailed information (description, origin, aliases).
     pub show_details: bool,
+}
+
+/// Render options for search results output.
+///
+/// These options control how search results are displayed in text output mode.
+#[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct SearchRenderOptions {
+    /// Original search query (used for highlighting).
+    pub query: String,
+    /// Whether to show source URLs.
+    pub show_url: bool,
+    /// Whether to show line numbers inline.
+    pub show_lines: bool,
+    /// Whether to show anchor slugs.
+    pub show_anchor: bool,
+    /// Whether to show raw scores instead of percentages.
+    pub show_raw_score: bool,
+    /// Whether to suppress the summary footer.
+    pub no_summary: bool,
+    /// Number of decimal places for raw scores (0-4).
+    pub score_precision: u8,
+    /// Number of context lines per snippet.
+    pub snippet_lines: usize,
+    /// Current page number (1-based).
+    pub page: usize,
+    /// Total pages available.
+    pub total_pages: usize,
+    /// Results per page (for calculating global rank).
+    pub per_page: usize,
+}
+
+impl Default for SearchRenderOptions {
+    fn default() -> Self {
+        Self {
+            query: String::new(),
+            show_url: false,
+            show_lines: false,
+            show_anchor: false,
+            show_raw_score: false,
+            no_summary: false,
+            score_precision: 1,
+            snippet_lines: 3,
+            page: 1,
+            total_pages: 1,
+            per_page: 10,
+        }
+    }
+}
+
+/// Render search results with custom options.
+///
+/// This function provides more control over rendering compared to
+/// the basic `render` function.
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+pub fn render_search_with_options(
+    data: &SearchOutput,
+    format: OutputFormat,
+    options: &SearchRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    match format {
+        OutputFormat::Text => render_search_text(data, options, writer),
+        OutputFormat::Json => render_search_json(data, writer),
+        OutputFormat::Jsonl => render_search_jsonl(data, writer),
+        OutputFormat::Raw => render_search_raw(data, writer),
+    }
 }
 
 /// Render source list with custom options.
@@ -937,6 +1015,476 @@ fn format_number(n: usize) -> String {
     result
 }
 
+// -----------------------------------------------------------------------------
+// Search Renderers
+// -----------------------------------------------------------------------------
+
+const PATH_PREFIX_WIDTH: usize = 5; // "  in "
+const DEFAULT_TERMINAL_WIDTH: usize = 80;
+
+/// Render search results as human-readable text.
+fn render_search_text(
+    data: &SearchOutput,
+    options: &SearchRenderOptions,
+    writer: &mut impl Write,
+) -> Result<()> {
+    if data.results.is_empty() {
+        writeln!(writer, "No results found for '{}'", data.query)?;
+        return Ok(());
+    }
+
+    // Assign colors to aliases (sorted for determinism)
+    let mut alias_colors = assign_search_alias_colors(&data.results);
+    let mut color_index = alias_colors.len();
+
+    // Group contiguous hits by source and heading path
+    let groups = group_search_hits_by_source_and_heading(&data.results);
+
+    let term_width = terminal_width().unwrap_or(DEFAULT_TERMINAL_WIDTH);
+    let path_width = term_width.saturating_sub(PATH_PREFIX_WIDTH);
+
+    // Find max score for percentage calculation
+    let max_score = data.results.first().map_or(100, |h| h.score);
+
+    let mut rendered_groups: Vec<String> = Vec::with_capacity(groups.len());
+
+    for (group_idx, (alias, heading_path, hits)) in groups.iter().enumerate() {
+        let alias_idx = *alias_colors.entry(alias.clone()).or_insert_with(|| {
+            let idx = color_index;
+            color_index = color_index.saturating_add(1);
+            idx
+        });
+
+        let rendered = render_search_group(
+            group_idx,
+            alias,
+            alias_idx,
+            heading_path,
+            hits,
+            max_score,
+            path_width,
+            options,
+        );
+        rendered_groups.push(rendered);
+    }
+
+    writeln!(writer, "{}", rendered_groups.join("\n\n"))?;
+
+    if !options.no_summary {
+        render_search_summary(writer, data, options)?;
+    }
+
+    Ok(())
+}
+
+/// Assign stable colors to aliases (sorted for determinism).
+fn assign_search_alias_colors(
+    hits: &[SearchHitOutput],
+) -> std::collections::HashMap<String, usize> {
+    use std::collections::{BTreeSet, HashMap};
+    let mut alias_colors: HashMap<String, usize> = HashMap::new();
+    let mut sorted_aliases: Vec<String> = hits
+        .iter()
+        .map(|h| h.alias.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    sorted_aliases.sort();
+    for (idx, alias) in sorted_aliases.iter().enumerate() {
+        alias_colors.insert(alias.clone(), idx);
+    }
+    alias_colors
+}
+
+/// Group contiguous hits with the same alias + heading path.
+fn group_search_hits_by_source_and_heading(
+    hits: &[SearchHitOutput],
+) -> Vec<(String, Vec<String>, Vec<&SearchHitOutput>)> {
+    let mut groups: Vec<(String, Vec<String>, Vec<&SearchHitOutput>)> = Vec::new();
+    for hit in hits {
+        if let Some((last_alias, last_path, grouped_hits)) = groups.last_mut() {
+            if *last_alias == hit.alias && *last_path == hit.heading_path {
+                grouped_hits.push(hit);
+                continue;
+            }
+        }
+        groups.push((hit.alias.clone(), hit.heading_path.clone(), vec![hit]));
+    }
+    groups
+}
+
+/// Render a single search result group.
+#[allow(clippy::too_many_arguments)]
+fn render_search_group(
+    group_idx: usize,
+    alias: &str,
+    alias_idx: usize,
+    heading_path: &[String],
+    hits: &[&SearchHitOutput],
+    max_score: u8,
+    path_width: usize,
+    options: &SearchRenderOptions,
+) -> String {
+    // Calculate global rank including page offset
+    let page_offset = options.page.saturating_sub(1) * options.per_page;
+    let global_index = page_offset + group_idx + 1;
+    let alias_colored = get_alias_color(alias, alias_idx);
+    let first = hits[0];
+
+    // Format score display
+    let score_display = if options.show_raw_score {
+        let raw = first.raw_score.unwrap_or(0.0);
+        let score_formatted = format_score_value(raw, options.score_precision);
+        format!("Score {}", score_formatted.bright_blue())
+    } else {
+        format!("{}%", first.score.to_string().bright_blue())
+    };
+
+    let mut block: Vec<String> = Vec::new();
+    block.push(format!(
+        "{} Rank {} {} {}",
+        "\u{25c6}".bold(), // ◆
+        global_index,
+        "\u{2500}".dimmed(), // ─
+        score_display
+    ));
+    block.push(format!("  {}:{}", alias_colored.bold(), first.lines));
+
+    if options.show_anchor {
+        if let Some(anchor) = first.anchor.as_deref() {
+            block.push(format!("  #{}", anchor.bright_black()));
+        }
+    }
+
+    if !heading_path.is_empty() {
+        let path_line = format_heading_path(heading_path, path_width);
+        if !path_line.is_empty() {
+            block.push(format!("  in {path_line}"));
+        }
+    }
+
+    // Render snippet lines
+    render_search_snippet_lines(&mut block, hits, options, max_score);
+
+    if options.show_url {
+        if let Some(url) = first.source_url.as_deref() {
+            block.push(format!("  {}", url.bright_black()));
+        }
+    }
+
+    block.join("\n")
+}
+
+/// Parse the start line number from a line range string like "12-15".
+/// Returns 1 if parsing fails.
+fn parse_start_line(lines: &str) -> usize {
+    lines
+        .split('-')
+        .next()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(1)
+}
+
+/// Render snippet lines for search results.
+fn render_search_snippet_lines(
+    block: &mut Vec<String>,
+    hits: &[&SearchHitOutput],
+    options: &SearchRenderOptions,
+    _max_score: u8,
+) {
+    use std::collections::BTreeSet;
+
+    let mut printed: BTreeSet<usize> = BTreeSet::new();
+    let mut last_printed: Option<usize> = None;
+    let limit = options.snippet_lines.max(1);
+    let mut total_printed = 0;
+
+    for hit in hits {
+        // Parse the start line from hit.lines (e.g., "12-15" -> 12)
+        let base_line = parse_start_line(&hit.lines);
+
+        // Parse snippet into lines with actual document line numbers
+        let snippet_lines: Vec<(usize, &str)> = hit
+            .snippet
+            .lines()
+            .enumerate()
+            .map(|(idx, line)| (base_line + idx, line))
+            .collect();
+
+        for (line_no, line_text) in snippet_lines {
+            if total_printed >= limit {
+                break;
+            }
+            if printed.insert(line_no) {
+                if let Some(prev) = last_printed {
+                    if line_no > prev + 1 {
+                        let gap = line_no - prev - 1;
+                        let gap_line = format!("... {gap} more lines").bright_black();
+                        block.push(format!("  {gap_line}"));
+                    }
+                }
+                if options.show_lines {
+                    let label = format!("{line_no:>6}:").bright_black();
+                    block.push(format!("  {label} {line_text}"));
+                } else {
+                    block.push(format!("  {line_text}"));
+                }
+                last_printed = Some(line_no);
+                total_printed += 1;
+            }
+        }
+    }
+}
+
+/// Print the summary footer with result counts and timing.
+fn render_search_summary(
+    writer: &mut impl Write,
+    data: &SearchOutput,
+    options: &SearchRenderOptions,
+) -> Result<()> {
+    let shown = data.results.len();
+    let total = data.total_results;
+    let lines = data.total_lines_searched;
+    let time_ms = data.search_time_ms;
+    let sources = data.sources.len();
+
+    writeln!(
+        writer,
+        "\n{} {}/{} results shown",
+        "\u{2192}".bold(), // →
+        shown.to_string().green(),
+        total.to_string().green()
+    )?;
+    writeln!(
+        writer,
+        "  {} lines searched, {} source{}, took {}",
+        lines.to_string().cyan(),
+        sources,
+        if sources == 1 { "" } else { "s" },
+        format!("{time_ms}ms").blue()
+    )?;
+    if total > shown && options.page < options.total_pages {
+        let next_page = options.page.saturating_add(1);
+        writeln!(
+            writer,
+            "  Tip: See more with \"blz query --next\" or \"blz query --page {next_page}\""
+        )?;
+    }
+    Ok(())
+}
+
+/// Format a raw score value with specified precision.
+fn format_score_value(score: f32, precision: u8) -> String {
+    let prec = usize::from(precision.min(4));
+    format!("{score:.prec$}")
+}
+
+/// Render search results as JSON.
+#[allow(clippy::too_many_lines)]
+fn render_search_json(data: &SearchOutput, writer: &mut impl Write) -> Result<()> {
+    // Build JSON object with camelCase fields for backward compatibility
+    let mut map = serde_json::Map::new();
+
+    map.insert(
+        "query".to_string(),
+        serde_json::Value::String(data.query.clone()),
+    );
+    map.insert("page".to_string(), serde_json::json!(data.page));
+    map.insert("limit".to_string(), serde_json::json!(data.page_size));
+    map.insert(
+        "totalResults".to_string(),
+        serde_json::json!(data.total_results),
+    );
+    // Backward compat alias
+    map.insert(
+        "total_hits".to_string(),
+        serde_json::json!(data.total_results),
+    );
+    map.insert(
+        "totalPages".to_string(),
+        serde_json::json!(data.total_pages),
+    );
+    map.insert(
+        "total_pages".to_string(),
+        serde_json::json!(data.total_pages),
+    );
+    map.insert(
+        "totalLinesSearched".to_string(),
+        serde_json::json!(data.total_lines_searched),
+    );
+    map.insert(
+        "total_lines_searched".to_string(),
+        serde_json::json!(data.total_lines_searched),
+    );
+    map.insert(
+        "searchTimeMs".to_string(),
+        serde_json::json!(data.search_time_ms),
+    );
+    map.insert(
+        "execution_time_ms".to_string(),
+        serde_json::json!(data.search_time_ms),
+    );
+    map.insert(
+        "sources".to_string(),
+        serde_json::json!(data.sources.clone()),
+    );
+
+    // Convert results
+    let results: Vec<serde_json::Value> = data
+        .results
+        .iter()
+        .map(|hit| {
+            let mut hit_map = serde_json::Map::new();
+            hit_map.insert(
+                "alias".to_string(),
+                serde_json::Value::String(hit.alias.clone()),
+            );
+            // Backward compat aliases
+            hit_map.insert(
+                "source".to_string(),
+                serde_json::Value::String(hit.alias.clone()),
+            );
+            hit_map.insert(
+                "file".to_string(),
+                serde_json::Value::String(hit.alias.clone()),
+            );
+            hit_map.insert(
+                "lines".to_string(),
+                serde_json::Value::String(hit.lines.clone()),
+            );
+            hit_map.insert(
+                "snippet".to_string(),
+                serde_json::Value::String(hit.snippet.clone()),
+            );
+            hit_map.insert("score".to_string(), serde_json::json!(hit.score));
+            hit_map.insert("scorePercentage".to_string(), serde_json::json!(hit.score));
+            if let Some(raw) = hit.raw_score {
+                hit_map.insert("rawScore".to_string(), serde_json::json!(raw));
+            }
+            if !hit.heading_path.is_empty() {
+                hit_map.insert(
+                    "headingPath".to_string(),
+                    serde_json::json!(hit.heading_path.clone()),
+                );
+            }
+            hit_map.insert("level".to_string(), serde_json::json!(hit.level));
+            if let Some(anchor) = &hit.anchor {
+                hit_map.insert(
+                    "anchor".to_string(),
+                    serde_json::Value::String(anchor.clone()),
+                );
+            }
+            if let Some(url) = &hit.source_url {
+                hit_map.insert(
+                    "sourceUrl".to_string(),
+                    serde_json::Value::String(url.clone()),
+                );
+            }
+            if let Some(fetched_at) = &hit.fetched_at {
+                hit_map.insert(
+                    "fetchedAt".to_string(),
+                    serde_json::Value::String(fetched_at.to_rfc3339()),
+                );
+            }
+            hit_map.insert("isStale".to_string(), serde_json::json!(hit.is_stale));
+            hit_map.insert(
+                "checksum".to_string(),
+                serde_json::Value::String(hit.checksum.clone()),
+            );
+            if let Some(ctx) = &hit.context {
+                hit_map.insert("context".to_string(), serde_json::json!(ctx));
+            }
+            serde_json::Value::Object(hit_map)
+        })
+        .collect();
+
+    map.insert("results".to_string(), serde_json::Value::Array(results));
+
+    if let Some(suggestions) = &data.suggestions {
+        if !suggestions.is_empty() {
+            map.insert(
+                "suggestions".to_string(),
+                serde_json::json!(suggestions.clone()),
+            );
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&serde_json::Value::Object(map))?;
+    writeln!(writer, "{json}")?;
+    Ok(())
+}
+
+/// Render search results as newline-delimited JSON (JSONL).
+fn render_search_jsonl(data: &SearchOutput, writer: &mut impl Write) -> Result<()> {
+    for hit in &data.results {
+        let mut hit_map = serde_json::Map::new();
+        hit_map.insert(
+            "alias".to_string(),
+            serde_json::Value::String(hit.alias.clone()),
+        );
+        hit_map.insert(
+            "source".to_string(),
+            serde_json::Value::String(hit.alias.clone()),
+        );
+        hit_map.insert(
+            "lines".to_string(),
+            serde_json::Value::String(hit.lines.clone()),
+        );
+        hit_map.insert(
+            "snippet".to_string(),
+            serde_json::Value::String(hit.snippet.clone()),
+        );
+        hit_map.insert("score".to_string(), serde_json::json!(hit.score));
+        if let Some(raw) = hit.raw_score {
+            hit_map.insert("rawScore".to_string(), serde_json::json!(raw));
+        }
+        if !hit.heading_path.is_empty() {
+            hit_map.insert(
+                "headingPath".to_string(),
+                serde_json::json!(hit.heading_path.clone()),
+            );
+        }
+        hit_map.insert("level".to_string(), serde_json::json!(hit.level));
+        if let Some(anchor) = &hit.anchor {
+            hit_map.insert(
+                "anchor".to_string(),
+                serde_json::Value::String(anchor.clone()),
+            );
+        }
+        if let Some(url) = &hit.source_url {
+            hit_map.insert(
+                "sourceUrl".to_string(),
+                serde_json::Value::String(url.clone()),
+            );
+        }
+        if let Some(fetched_at) = &hit.fetched_at {
+            hit_map.insert(
+                "fetchedAt".to_string(),
+                serde_json::Value::String(fetched_at.to_rfc3339()),
+            );
+        }
+        hit_map.insert("isStale".to_string(), serde_json::json!(hit.is_stale));
+        hit_map.insert(
+            "checksum".to_string(),
+            serde_json::Value::String(hit.checksum.clone()),
+        );
+        if let Some(ctx) = &hit.context {
+            hit_map.insert("context".to_string(), serde_json::json!(ctx));
+        }
+        let json = serde_json::to_string(&serde_json::Value::Object(hit_map))?;
+        writeln!(writer, "{json}")?;
+    }
+    Ok(())
+}
+
+/// Render search results as raw output (just snippets).
+fn render_search_raw(data: &SearchOutput, writer: &mut impl Write) -> Result<()> {
+    for hit in &data.results {
+        writeln!(writer, "{}", hit.snippet)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1513,5 +2061,225 @@ mod tests {
 
         let result = render(&shape, OutputFormat::Raw, &mut buf);
         assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------------------------
+    // Search render tests
+    // -------------------------------------------------------------------------
+
+    fn sample_search_output() -> SearchOutput {
+        use std::time::Duration;
+        SearchOutput::builder(
+            "test query",
+            vec![
+                SearchHitOutput {
+                    alias: "react".to_string(),
+                    lines: "12-15".to_string(),
+                    snippet: "useEffect example\ncleanup function".to_string(),
+                    score: 95,
+                    raw_score: Some(14.5),
+                    heading_path: vec!["Hooks".to_string(), "useEffect".to_string()],
+                    level: 2,
+                    anchor: Some("use-effect".to_string()),
+                    source_url: Some("https://react.dev/llms.txt".to_string()),
+                    fetched_at: None,
+                    is_stale: false,
+                    checksum: "abc123".to_string(),
+                    context: None,
+                },
+                SearchHitOutput {
+                    alias: "bun".to_string(),
+                    lines: "100-105".to_string(),
+                    snippet: "test runner usage".to_string(),
+                    score: 80,
+                    raw_score: Some(11.2),
+                    heading_path: vec!["Testing".to_string()],
+                    level: 1,
+                    anchor: None,
+                    source_url: None,
+                    fetched_at: None,
+                    is_stale: false,
+                    checksum: "def456".to_string(),
+                    context: None,
+                },
+            ],
+        )
+        .total_results(100)
+        .total_lines_searched(50_000)
+        .search_time(Duration::from_millis(5))
+        .sources(vec!["react".to_string(), "bun".to_string()])
+        .page(1)
+        .page_size(10)
+        .total_pages(10)
+        .build()
+    }
+
+    #[test]
+    fn test_render_search_text_empty() -> Result<()> {
+        use std::time::Duration;
+        let data = SearchOutput::builder("empty query", vec![])
+            .search_time(Duration::from_millis(1))
+            .build();
+        let options = SearchRenderOptions::default();
+        let mut buf = Cursor::new(Vec::new());
+        render_search_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("No results found for 'empty query'"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_text_with_results() -> Result<()> {
+        let data = sample_search_output();
+        let options = SearchRenderOptions::default();
+        let mut buf = Cursor::new(Vec::new());
+        render_search_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        // Check for key elements
+        assert!(output.contains("react"));
+        assert!(output.contains("bun"));
+        assert!(output.contains("Rank 1"));
+        assert!(output.contains("Rank 2"));
+        assert!(output.contains("95%")); // Score percentage
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_text_with_raw_score() -> Result<()> {
+        let data = sample_search_output();
+        let options = SearchRenderOptions {
+            show_raw_score: true,
+            ..Default::default()
+        };
+        let mut buf = Cursor::new(Vec::new());
+        render_search_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("Score 14.5")); // Raw score
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_text_no_summary() -> Result<()> {
+        let data = sample_search_output();
+        let options = SearchRenderOptions {
+            no_summary: true,
+            ..Default::default()
+        };
+        let mut buf = Cursor::new(Vec::new());
+        render_search_text(&data, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        // Should not contain summary line
+        assert!(!output.contains("results shown"));
+        assert!(!output.contains("lines searched"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_json() -> Result<()> {
+        let data = sample_search_output();
+        let mut buf = Cursor::new(Vec::new());
+        render_search_json(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+
+        assert_eq!(parsed["query"], "test query");
+        assert_eq!(parsed["page"], 1);
+        assert_eq!(parsed["totalResults"], 100);
+        assert_eq!(parsed["totalPages"], 10);
+        assert!(parsed["results"].is_array());
+        let results = parsed["results"]
+            .as_array()
+            .expect("results should be an array");
+        assert_eq!(results.len(), 2);
+        assert_eq!(parsed["results"][0]["alias"], "react");
+        assert_eq!(parsed["results"][0]["score"], 95);
+        assert_eq!(parsed["results"][1]["alias"], "bun");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_jsonl() -> Result<()> {
+        let data = sample_search_output();
+        let mut buf = Cursor::new(Vec::new());
+        render_search_jsonl(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+
+        let first: serde_json::Value = serde_json::from_str(lines[0])?;
+        let second: serde_json::Value = serde_json::from_str(lines[1])?;
+        assert_eq!(first["alias"], "react");
+        assert_eq!(second["alias"], "bun");
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_raw() -> Result<()> {
+        let data = sample_search_output();
+        let mut buf = Cursor::new(Vec::new());
+        render_search_raw(&data, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        // Raw mode just outputs snippets
+        assert!(output.contains("useEffect example"));
+        assert!(output.contains("test runner usage"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_dispatcher() -> Result<()> {
+        let data = sample_search_output();
+        let shape: OutputShape = data.into();
+
+        // Test JSON through dispatcher
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Json, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        let parsed: serde_json::Value = serde_json::from_str(&output)?;
+        assert_eq!(parsed["query"], "test query");
+
+        // Test text through dispatcher
+        let data = sample_search_output();
+        let shape: OutputShape = data.into();
+        let mut buf = Cursor::new(Vec::new());
+        render(&shape, OutputFormat::Text, &mut buf)?;
+        let output = String::from_utf8(buf.into_inner())?;
+        assert!(output.contains("react"));
+        assert!(output.contains("Rank"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_search_with_options() -> Result<()> {
+        let data = sample_search_output();
+        let options = SearchRenderOptions {
+            show_anchor: true,
+            show_url: true,
+            ..Default::default()
+        };
+        let mut buf = Cursor::new(Vec::new());
+        render_search_with_options(&data, OutputFormat::Text, &options, &mut buf)?;
+
+        let output = String::from_utf8(buf.into_inner())?;
+        // Should contain anchor
+        assert!(output.contains("use-effect"));
+        // Should contain URL
+        assert!(output.contains("react.dev"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_score_value() {
+        assert_eq!(format_score_value(14.456, 0), "14");
+        assert_eq!(format_score_value(14.456, 1), "14.5");
+        assert_eq!(format_score_value(14.456, 2), "14.46");
+        assert_eq!(format_score_value(14.456, 3), "14.456");
     }
 }

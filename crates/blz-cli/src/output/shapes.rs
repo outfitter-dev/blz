@@ -37,6 +37,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Context information for results with expanded line ranges.
@@ -283,12 +284,21 @@ pub struct SearchHitOutput {
     /// Heading path/breadcrumbs.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub heading_path: Vec<String>,
+    /// Heading level (1-6) for the section containing this hit.
+    pub level: u8,
     /// Optional anchor link.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
     /// Source URL if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    /// Timestamp when this content was last fetched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fetched_at: Option<DateTime<Utc>>,
+    /// Whether this hit's source is considered stale.
+    pub is_stale: bool,
+    /// Content checksum for verification.
+    pub checksum: String,
     /// Context information when `-C` or `--context` is applied.
     ///
     /// This field provides unified context representation across search and
@@ -1058,8 +1068,12 @@ mod tests {
                 score: 95,
                 raw_score: Some(14.5),
                 heading_path: vec!["Hooks".to_string(), "useEffect".to_string()],
+                level: 2,
                 anchor: Some("use-effect".to_string()),
                 source_url: None,
+                fetched_at: None,
+                is_stale: false,
+                checksum: "abc123".to_string(),
                 context: None,
             }],
         )
@@ -1310,8 +1324,12 @@ mod tests {
             score: 95,
             raw_score: None,
             heading_path: vec![],
+            level: 0,
             anchor: None,
             source_url: None,
+            fetched_at: None,
+            is_stale: false,
+            checksum: "test123".to_string(),
             context: Some(ContextInfo::new(5, "7-20").with_line_numbers((7..=20).collect())),
         };
 
