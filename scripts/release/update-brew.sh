@@ -51,11 +51,11 @@ if [[ -n "${SHA_LINUX_ARM64:-}" ]]; then
   read -r -d '' linux_block <<EOF || true
 on_linux do
   on_arm do
-    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-arm64.tar.gz"
+    url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-linux-arm64.tar.gz"
     sha256 "${SHA_LINUX_ARM64}"
   end
   on_intel do
-    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-linux-x64.tar.gz"
     sha256 "${SHA_LINUX}"
   end
 end
@@ -64,11 +64,11 @@ else
   read -r -d '' linux_block <<EOF || true
 on_linux do
   on_arm do
-    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-linux-x64.tar.gz"
     sha256 "${SHA_LINUX}"
   end
   on_intel do
-    url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-linux-x64.tar.gz"
+    url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-linux-x64.tar.gz"
     sha256 "${SHA_LINUX}"
   end
 end
@@ -84,7 +84,6 @@ cat > "$TMP_FORMULA" <<EOF
 class Blz < Formula
   desc "Fast local search for llms.txt"
   homepage "https://blz.run"
-  version "${VERSION}"
   license "Apache-2.0"
 
   livecheck do
@@ -94,11 +93,11 @@ class Blz < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-darwin-arm64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-darwin-arm64.tar.gz"
       sha256 "${SHA_ARM64}"
     end
     on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/blz-#{version}-darwin-x64.tar.gz"
+      url "https://github.com/${REPO}/releases/download/v${VERSION}/blz-${VERSION}-darwin-x64.tar.gz"
       sha256 "${SHA_X64}"
     end
   end
@@ -120,6 +119,7 @@ fi)
   end
 end
 EOF
+chmod 0644 "$TMP_FORMULA"
 mv -f "$TMP_FORMULA" "$FORMULA_PATH"
 trap - EXIT
 echo "Updated formula at: $FORMULA_PATH"

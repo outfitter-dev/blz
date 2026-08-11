@@ -187,11 +187,10 @@ jobs:
           # Clean up temp files
           rm -f /tmp/release-assets.json /tmp/gh-release-error
 
-      - name: Checkout source (for scripts)
+      - name: Checkout workflow source (for scripts)
         if: ${{ steps.resolve.outputs.enabled == 'true' && (steps.resolve.outputs.sha_mode == 'provided' || steps.assets.outputs.ready == 'true') }}
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.resolve.outputs.tag }}
           path: src
 
       - name: Compute shas and download assets
@@ -312,9 +311,10 @@ jobs:
           branch: bump-blz-${{ steps.resolve.outputs.version }}
           commit-message: "blz ${{ steps.resolve.outputs.version }}"
           title: "blz ${{ steps.resolve.outputs.version }}"
-          labels: pr-pull
           body: |
             Bump blz formula to ${{ steps.resolve.outputs.version }}.
             - arm64 sha256: ${{ steps.tar.outputs.sha_arm64 || steps.resolve.outputs.sha_arm64 }}
             - x64   sha256: ${{ steps.tar.outputs.sha_x64 || steps.resolve.outputs.sha_x64 }}
             - linux sha256: ${{ steps.tar.outputs.sha_linux || steps.resolve.outputs.sha_linux }}
+
+            After every `brew test-bot` job passes, run the tap's `brew pr-pull` workflow with this pull request number and its tested head commit SHA.

@@ -1,0 +1,34 @@
+name: Release script checks
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/publish-homebrew.yml
+      - .github/workflows/release-scripts.yml
+      - scripts/release/test-update-brew.sh
+      - scripts/release/update-brew.sh
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-homebrew.yml
+      - .github/workflows/release-scripts.yml
+      - scripts/release/test-update-brew.sh
+      - scripts/release/update-brew.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  homebrew-formula:
+    name: Homebrew formula generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: bash scripts/release/test-update-brew.sh
